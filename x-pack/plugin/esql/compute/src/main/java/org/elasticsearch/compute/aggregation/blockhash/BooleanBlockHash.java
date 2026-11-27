@@ -63,7 +63,7 @@ final class BooleanBlockHash extends BlockHash {
 
     private IntVector add(BooleanVector vector) {
         int positions = vector.getPositionCount();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(i, MultivalueDedupeBoolean.hashOrd(everSeen, vector.getBoolean(i)));
             }

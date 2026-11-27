@@ -4845,7 +4845,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <p>There are three cases to handle.
          * <ol>
          *   <li>If the field has unresolved type conflicts ({@link TypeConflictedField}), we try to build a {@link UnionTypeEsField} with
-         *   per-type conversions.</li>
+         *   per-type conversions. The conversions run while loading the field, so besides the field they can only have constant
+         *   arguments, like the base of {@code TO_LONG(x, 16)}; otherwise, or if an argument is invalid for one of the types, we return an
+         *   {@link UnresolvedAttribute} with the reason.</li>
          *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast, or
          *   return an {@link UnresolvedAttribute} if the cast cannot consume one of the field's original mapped types.</li>
          *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
@@ -4864,6 +4866,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
                     // post-analysis verifier rejects it on a single-typed field.
                     return new UnresolvedAttribute(fa.source(), fa.name(), ToText.analyzerOnMappedFieldMessage(fa.name()));
+                }
+                if (convertExpression.childrenResolved() == false) {
+                    // An argument that doesn't resolve, like an unknown column in the base of TO_LONG, is reported by itself, instead of
+                    // by the conversion of the field.
+                    return convertExpression;
                 }
                 // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
                 // index-specific conversions
@@ -4892,6 +4899,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
+                    for (Expression conversion : typeResolutions.values()) {
+                        String unusable = unusableAsFieldConversion(conversion, convertExpression);
+                        if (unusable != null) {
+                            return new UnresolvedAttribute(fa.source(), fa.name(), unusable);
+                        }
+                    }
                     boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
@@ -4950,11 +4963,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                     return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                    return convertExpression.replaceChildren(
-                        singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
-                    );
+                    // Only the input is replaced, so the other arguments, like the options of TO_IP, are kept and validated later.
+                    List<Expression> children = new ArrayList<>(convertExpression.children());
+                    children.set(0, resolveConvertFunction(subConvert, unionFieldAttributes, context));
+                    return convertExpression.replaceChildren(children);
                 }
             return convertExpression;
+        }
+
+        /**
+         * Why the conversion of one type of a union can't be used to load the field, or {@code null} if it can. The conversion is
+         * evaluated by {@code ValuesSourceReaderOperator}, where the only attribute it can read is the field being loaded, so its other
+         * arguments have to be constants.
+         */
+        private static @Nullable String unusableAsFieldConversion(Expression conversion, Expression original) {
+            if (conversion.children().size() == 1) {
+                // Only the field. Not looking at it further also avoids caching the references of every conversion of the union, which
+                // are retained by the field in the plan and add up for fields with many types.
+                return null;
+            }
+            if (conversion.typeResolved().unresolved()) {
+                // An argument that is invalid for this type, like a non-numeric base. Surrogates are not substituted in this case.
+                return conversion.typeResolved().message();
+            }
+            for (int i = 1; i < conversion.children().size(); i++) {
+                if (conversion.children().get(i).foldable() == false) {
+                    return "["
+                        + original.sourceText()
+                        + "] can't convert a field with multiple types if its other arguments are not constants, "
+                        + "as the conversion happens when loading the field";
+                }
+            }
+            return null;
         }
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(
@@ -5093,7 +5133,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression fn = (Expression) convert;
             List<Expression> children = new ArrayList<>(fn.children());
             children.set(0, resolvedAttr);
+            for (int i = 1; i < children.size(); i++) {
+                // The conversion is serialized with the field, so the surrogates in its constant arguments have to be resolved too
+                children.set(i, children.get(i).transformUp(Expression.class, SubstituteSurrogateExpressions::rule));
+            }
             Expression e = ((Expression) convert).replaceChildren(children);
+            if (e.children().size() > 1 && e.typeResolved().unresolved()) {
+                // Only with other arguments, like the options of TO_IP or the base of TO_LONG: a surrogate can only be substituted when
+                // they are valid. The caller reports the error. Conversions of the field alone don't resolve for every type they
+                // convert, like small numerics, which are widened when converting.
+                return e;
+            }
             /*
              * Resolve surrogates immediately because these type specific conversions are serialized
              * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,

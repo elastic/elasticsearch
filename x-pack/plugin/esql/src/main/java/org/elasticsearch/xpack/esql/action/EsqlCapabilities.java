@@ -5041,6 +5041,13 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * {@code INTO} authorizes its destination before planning, and a destination that does not exist is a 404 instead of being
+         * created. Nodes without this create the destination on the first write, so a mixed cluster must not run tests of the new
+         * behavior.
+         */
+        INTO_AUTHORIZES_DESTINATION(Build.current().isSnapshot()),
+
+        /**
          * Support for {@code ROW} under {@code unmapped_fields="LOAD_ALL"}, alone or as a branch of a subquery next to an index. A
          * {@code ROW} has no {@code _source}, so it adds no unmapped fields and its rows have a null {@code _unmapped_fields}. Only
          * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
@@ -5135,6 +5142,16 @@ public class EsqlCapabilities {
          * {@code [long] in [l1, l2, l3] and [2] other indices}.
          */
         PARTIALLY_UNMAPPED_CONFLICT_INDEX_COUNT,
+
+        /**
+         * Conversions of a union type (a field mapped to different types across indices) keep and validate their other arguments.
+         * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} on a field mapped as keyword and text keep the base, instead of
+         * failing. The options of {@code TO_IP(x, {...})} are validated, including when {@code x} is converted first, as in
+         * {@code x::keyword}. An argument that is invalid for one of the types, or a base that isn't a constant, is a verification
+         * error. Older nodes failed with an internal server error, silently dropped these arguments, or reported invalid options
+         * without the position of the call.
+         */
+        UNION_TYPES_CONVERSION_WITH_BASE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

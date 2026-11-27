@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -125,6 +126,7 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoDestinationAuthorizer;
 import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -301,6 +303,7 @@ public class EsqlSession {
 
     private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
+    private final IntoDestinationAuthorizer intoDestinationAuthorizer;
     private final Verifier verifier;
     private final Metrics metrics;
     private final EsqlFunctionRegistry functionRegistry;
@@ -488,6 +491,7 @@ public class EsqlSession {
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();
         this.clusterUuid = resolveClusterUuid(services.clusterService());
+        this.intoDestinationAuthorizer = IntoDestinationAuthorizer.create(services.client(), threadPool.executor(ThreadPool.Names.SEARCH));
         this.projectMetadata = projectMetadata;
         this.ipLocationService = services.ipLocationService();
     }
@@ -2081,16 +2085,29 @@ public class EsqlSession {
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
-                analyzedPlanAfterDatasetResolution(
+                // Once per query: index resolution may be retried without the filter, but the destination does not change.
+                // Nothing reads the destination before this, since the checks that do read cluster state, which security does not
+                // filter, and a ROW source needs no index privilege that would stop the caller first.
+                authorizeIntoDestinations(
+                    intoDestinationAuthorizer,
                     scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
-                    unmappedResolution,
-                    viewSettings,
-                    configuration,
-                    executionInfo,
-                    requestFilter,
-                    timestampBounds,
-                    indexViewOrigins,
-                    delegate
+                    projectMetadata,
+                    configuration.explainOnly() == false,
+                    planningCpu.meteredCpu(
+                        delegate.delegateFailureAndWrap(
+                            (authorizedListener, authorized) -> analyzedPlanAfterDatasetResolution(
+                                authorized,
+                                unmappedResolution,
+                                viewSettings,
+                                configuration,
+                                executionInfo,
+                                requestFilter,
+                                timestampBounds,
+                                indexViewOrigins,
+                                authorizedListener
+                            )
+                        )
+                    )
                 );
             }))
         );
@@ -3657,7 +3674,7 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> listener
     ) {
-        executionInfo.clusterInfo.clear();
+        executionInfo.clearClusters();
         resolveIndicesAndAnalyze(
             parsed,
             unmappedResolution,
@@ -3740,8 +3757,8 @@ public class EsqlSession {
         }
         plan.setAnalyzed();
         if (plan instanceof Into into) {
-            // The writer writes to the resolved name, so the checks look at it too
-            String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+            // authorizeIntoDestinations has resolved the destination, and authorized the caller to write to it, before this runs.
+            String target = into.destination();
             rejectDestinationThatIsRead(into, target);
             if (configuration.explainOnly() == false) {
                 boolean batchIndexingSupported = ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService);
@@ -3749,14 +3766,68 @@ public class EsqlSession {
             }
         }
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
-        // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
-        // during pre-analysis.
+        // (including column/field type mismatches against the INTO child's output).
         if (QuerySettings.COLUMN_METADATA.get(configuration.resolvedSettings())) {
             List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
             semanticSources.addAll(r.lookupIndices().values());
             columnDescriptions.putAll(ColumnDescription.collect(plan, semanticSources, configuration.newFoldContext()));
         }
         return plan;
+    }
+
+    /**
+     * Completes with {@code parsed}, its {@code INTO} destinations resolved to the concrete names they write to, once the caller is
+     * allowed to write to each of them. Fails with the denial a bulk would give otherwise. Nothing about a destination is reported
+     * before this, so a caller who may not write cannot tell whether it exists.
+     * <p>
+     * A destination that does not exist is an error, since {@code INTO} does not create indices. Only a caller who was authorized is
+     * told so. An {@code EXPLAIN} never writes, so it does not need the destination to exist, and is only authorized.
+     * <p>
+     * Date math is resolved here, once, and the resolved name replaces the typed one in the plan. The authorization, the planning
+     * checks and the writer, on whichever node it runs, then all see one name, instead of each resolving the expression again and
+     * possibly to another name across a day boundary. A resolved name resolves to itself.
+     */
+    // visible for testing
+    static void authorizeIntoDestinations(
+        IntoDestinationAuthorizer authorizer,
+        LogicalPlan parsed,
+        ProjectMetadata project,
+        boolean requireExisting,
+        ActionListener<LogicalPlan> listener
+    ) {
+        if (parsed.noneMatch(Into.class::isInstance)) {
+            listener.onResponse(parsed);
+            return;
+        }
+        // The parser and the verifier allow at most one INTO, as the last command
+        LogicalPlan resolved = parsed.transformDown(
+            Into.class,
+            into -> into.withDestination(IndexNameExpressionResolver.resolveDateMathExpression(into.destination()))
+        );
+        String target = resolved.collect(Into.class).getFirst().destination();
+        boolean exists = isWritableDestination(project.getIndicesLookup().get(target));
+        authorizer.authorize(target, listener.map(ignored -> {
+            // TODO: the design allows a destination that a composable template matches, which the first bulk creates. Let it through
+            // here once that is supported, and have the authorizer ask for the privileges that create it.
+            if (requireExisting && exists == false) {
+                throw new ElasticsearchStatusException("INTO destination [{}] does not exist", RestStatus.NOT_FOUND, target);
+            }
+            return resolved;
+        }));
+    }
+
+    /**
+     * Whether the name is something that a bulk can write to. The indices lookup also holds views and datasets, which it cannot, and
+     * which a caller who may write to such a name is not entitled to know exist, so they count as missing, as an absent name does.
+     */
+    private static boolean isWritableDestination(@Nullable IndexAbstraction abstraction) {
+        if (abstraction == null) {
+            return false;
+        }
+        return switch (abstraction.getType()) {
+            case CONCRETE_INDEX, ALIAS, DATA_STREAM -> true;
+            case VIEW, DATASET -> false;
+        };
     }
 
     /**

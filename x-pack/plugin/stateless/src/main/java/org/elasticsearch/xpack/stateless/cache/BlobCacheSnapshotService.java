@@ -121,7 +121,7 @@ public class BlobCacheSnapshotService {
         this(
             cacheService,
             () -> localShardDirectories(indicesService),
-            (shardId, bcc) -> isUploaded(commitService, shardId, bcc),
+            (shardId, bcc) -> bccUploaded(commitService, shardId, bcc),
             threadPool
         );
     }
@@ -240,7 +240,7 @@ public class BlobCacheSnapshotService {
         return indexingBccUploaded.test(key.shardId(), bcc);
     }
 
-    private static boolean isUploaded(@Nullable StatelessCommitService commitService, ShardId shardId, PrimaryTermAndGeneration bcc) {
+    static boolean bccUploaded(@Nullable StatelessCommitService commitService, ShardId shardId, PrimaryTermAndGeneration bcc) {
         if (commitService == null) {
             return false;
         }
@@ -342,14 +342,15 @@ public class BlobCacheSnapshotService {
             }
         }
 
-        private void recordFailure(Exception e) {
+        private synchronized void recordFailure(Exception e) {
+            // the number of the failure and the choice of the cause are made under one lock, so the first failure is always the cause and
+            // at
+            // most MAX_REPORTED_FAILURES - 1 others are kept with it, whatever order the callbacks run in
             final int failures = failedRanges.incrementAndGet();
-            synchronized (this) {
-                if (firstFailure == null) {
-                    firstFailure = e;
-                } else if (failures <= MAX_REPORTED_FAILURES) {
-                    firstFailure.addSuppressed(e);
-                }
+            if (firstFailure == null) {
+                firstFailure = e;
+            } else if (failures <= MAX_REPORTED_FAILURES) {
+                firstFailure.addSuppressed(e);
             }
         }
 

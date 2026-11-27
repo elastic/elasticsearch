@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.RangeMissingHandler;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -42,13 +44,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -71,12 +75,23 @@ public class BlobCacheSnapshotServiceTests extends ESTestCase {
     }
 
     private FakeStatelessNode createNode(int cacheRegions) throws IOException {
+        return createNode(cacheRegions, DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    /**
+     * Creates a node with the index role, whose commit service uploads the commits that are created on it.
+     */
+    private FakeStatelessNode createIndexNode() throws IOException {
+        return createNode(50, DiscoveryNodeRole.INDEX_ROLE);
+    }
+
+    private FakeStatelessNode createNode(int cacheRegions, DiscoveryNodeRole role) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), PRIMARY_TERM) {
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+                    .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role.roleName())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheRegions * REGION_SIZE))
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(REGION_SIZE))
                     .build();
@@ -214,6 +229,8 @@ public class BlobCacheSnapshotServiceTests extends ESTestCase {
             final var recorded = node.sharedCacheService.captureManifest(k -> true);
             service.snapshot("bench");
             node.sharedCacheService.forceEvict(k -> true);
+            // an evicted region only gives its slot back when the thread that filled it lets go of it, and the restore needs every slot
+            assertBusy(() -> assertThat(SharedBlobCacheServiceTestUtils.freeRegionCount(node.sharedCacheService), equalTo(3)));
 
             restoreSnapshot(service, "bench");
 
@@ -269,25 +286,61 @@ public class BlobCacheSnapshotServiceTests extends ESTestCase {
     }
 
     public void testSnapshotChecksUploadsOfIndexingShardsToo() throws Exception {
-        try (var node = createNode()) {
-            final var uploaded = new AtomicBoolean(false);
+        try (var node = createIndexNode()) {
             final var indexingDirectory = IndexBlobStoreCacheDirectory.unwrapDirectory(node.indexingDirectory);
+            final var unknownShard = new ShardId(node.shardId.getIndex(), node.shardId.id() + 1);
             final var service = new BlobCacheSnapshotService(
                 node.sharedCacheService,
-                () -> Map.<ShardId, BlobStoreCacheDirectory>of(node.shardId, indexingDirectory),
-                (shardId, bcc) -> uploaded.get(),
+                () -> Map.<ShardId, BlobStoreCacheDirectory>of(node.shardId, indexingDirectory, unknownShard, indexingDirectory),
+                // the check of the production code, answered by the real commit service of the node
+                (shardId, bcc) -> BlobCacheSnapshotService.bccUploaded(node.commitService, shardId, bcc),
                 node.threadPool
             );
-            final var key = new FileCacheKey(node.shardId, PRIMARY_TERM, BccBlob.blobNameFromGeneration(1L));
-            // the cache of an indexing shard is warmed from the batched compound commit before it is uploaded
-            fillWithoutData(node, key, 0, ByteRange.of(0, PAGE));
+
+            uploadCommits(node, 2);
+            final long latestUploaded = node.commitService.getLatestUploadedBcc(node.shardId).primaryTermAndGeneration().generation();
+
+            // the cache of an indexing shard is warmed from the batched compound commit before it is uploaded: a blob that is newer than
+            // the latest upload cannot be restored, and one that is not newer can
+            final var uploaded = new FileCacheKey(node.shardId, PRIMARY_TERM, BccBlob.blobNameFromGeneration(latestUploaded));
+            final var notUploaded = new FileCacheKey(node.shardId, PRIMARY_TERM, BccBlob.blobNameFromGeneration(latestUploaded + 1));
+            fillWithoutData(node, uploaded, 0, ByteRange.of(0, PAGE));
+            fillWithoutData(node, notUploaded, 0, ByteRange.of(0, PAGE));
 
             final var e = expectThrows(IllegalStateException.class, () -> service.snapshot("bench"));
-            assertThat(e.getMessage(), containsString(key.fileName()));
+            assertThat(e.getMessage(), containsString("[1] blobs are not uploaded"));
+            assertThat(e.getMessage(), containsString(notUploaded.fileName()));
 
-            uploaded.set(true);
-            assertThat(service.snapshot("bench").regions(), equalTo(1));
+            // when the upload catches up with the blob, the snapshot works. It also holds the regions that the uploads themselves warmed.
+            uploadCommits(node, 2);
+            assertThat(
+                node.commitService.getLatestUploadedBcc(node.shardId).primaryTermAndGeneration().generation(),
+                greaterThan(latestUploaded)
+            );
+            assertThat(service.snapshot("bench").regions(), greaterThanOrEqualTo(2));
+
+            // the shard that the cached blob belongs to is the one that is asked, and a shard that the commit service does not know has
+            // uploaded nothing
+            final var otherShardBlob = new FileCacheKey(unknownShard, PRIMARY_TERM, BccBlob.blobNameFromGeneration(1L));
+            fillWithoutData(node, otherShardBlob, 0, ByteRange.of(0, PAGE));
+            final var unknown = expectThrows(IllegalStateException.class, () -> service.snapshot("bench"));
+            assertThat(unknown.getMessage(), containsString(otherShardBlob.fileName()));
         }
+    }
+
+    /**
+     * Creates commits on the indexing shard of the node and waits until they are uploaded to the object store.
+     */
+    private static void uploadCommits(FakeStatelessNode node, int commits) throws IOException {
+        long lastGeneration = -1L;
+        for (var commit : node.generateIndexCommits(commits, false)) {
+            node.commitService.onCommitCreation(commit);
+            lastGeneration = commit.getGeneration();
+        }
+        node.commitService.ensureMaxGenerationToUploadForFlush(node.shardId, lastGeneration);
+        final var uploaded = new CountDownLatch(1);
+        node.commitService.addListenerForUploadedGeneration(node.shardId, lastGeneration, ActionListener.releasing(uploaded::countDown));
+        safeAwait(uploaded);
     }
 
     public void testRestoreReplacesARegionWithADifferentTimestamp() throws Exception {

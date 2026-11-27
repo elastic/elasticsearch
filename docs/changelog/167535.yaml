@@ -1,5 +1,5 @@
 area: Task Management
 issues: []
 pr: 167535
-summary: Make `GET _tasks` fail for a node with a circuit breaking exception, instead of risking an out-of-memory error, when its reply is too large to hold
+summary: "`GET _tasks` now accounts for in-flight requests in the circuit breaker"
 type: enhancement

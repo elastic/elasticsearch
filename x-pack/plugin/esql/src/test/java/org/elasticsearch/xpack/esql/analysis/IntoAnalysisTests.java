@@ -64,6 +64,7 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         String error = "INTO must be the last command of the query";
         analyzer().stripErrorPrefix(true).error("ROW a = 1 | INTO dst | LIMIT 1", equalTo("1:13: " + error));
         analyzer().error("ROW a = 1 | FORK (INTO dst) (LIMIT 1)", containsString(error));
+        analyzer().error("ROW a = 1 | FORK (INTO dst WITH {\"keep_going\": true}) (LIMIT 1)", containsString(error));
     }
 
     public void testUnsupportedSources() {

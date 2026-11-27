@@ -64,6 +64,7 @@ import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory
 import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MetricFieldInfo;
 import org.elasticsearch.compute.operator.MetricsInfoOperator;
+import org.elasticsearch.compute.operator.MultiEvalOperator.MultiEvalOperatorFactory;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
@@ -1635,12 +1636,19 @@ public class LocalExecutionPlanner {
         Layout layout = source.layout;
         Layout.Builder outputLayout = layout.builder();
         Set<NameId> pendingAliases = new HashSet<>();
-        List<OperatorFactory> operatorFactories = new ArrayList<>(eval.fields().size());
+        List<OperatorFactory> operatorFactories = new ArrayList<>();
+        // Aliases evaluated against the same input layout are mutually independent, so one MultiEvalOperator can produce
+        // their blocks and append them with a single Page#appendBlocks, instead of one EvalOperator (and one whole
+        // block-array copy) per column. The run accumulates until an alias references one produced earlier in the same
+        // EVAL, which forces the layout to be rebuilt; that boundary ends the run.
+        List<ExpressionEvaluator.Factory> runEvaluators = new ArrayList<>();
         for (Alias field : eval.fields()) {
             // don't rebuild the layout for every Alias (which comes with a memory baggage and additional operations), but only when
             // an Alias references a previous one (in the same EVAL), for example EVAL x = salary + 1, y = coalesce(x, 0), or after
             // all Aliases of the EVAL have been iterated over
             if (pendingAliases.isEmpty() == false && refersToPendingAlias(field.child(), pendingAliases)) {
+                operatorFactories.add(evalFactory(runEvaluators));
+                runEvaluators = new ArrayList<>();
                 layout = outputLayout.build();
                 pendingAliases.clear();
             }
@@ -1654,9 +1662,14 @@ public class LocalExecutionPlanner {
             );
             outputLayout.append(field.toAttribute());
             pendingAliases.add(field.id());
-            operatorFactories.add(new EvalOperatorFactory(evaluatorSupplier));
+            runEvaluators.add(evaluatorSupplier);
         }
+        operatorFactories.add(evalFactory(runEvaluators));
         return source.with(operatorFactories, outputLayout.build());
+    }
+
+    private static OperatorFactory evalFactory(List<ExpressionEvaluator.Factory> evaluators) {
+        return evaluators.size() == 1 ? new EvalOperatorFactory(evaluators.get(0)) : new MultiEvalOperatorFactory(evaluators);
     }
 
     private static boolean refersToPendingAlias(Expression expression, Set<NameId> pendingAliases) {

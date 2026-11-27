@@ -1916,7 +1916,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         Page input = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock());
 
         var operation = planEval(List.of(x), input, aliases);
-        assertThat(operation.intermediateOperatorFactories, hasSize(aliases.size()));
+        // Independent aliases are batched into one operator; a new one starts each time an alias reads an earlier one in
+        // the same EVAL. Here the runs are [a], [b, c], [d], [copy], [shadow] (b reads a, d reads b and c, copy reads d,
+        // shadow reads copy), so five operators rather than one per alias.
+        assertThat(operation.intermediateOperatorFactories, hasSize(5));
         assertThat(operation.layout().numberOfChannels(), equalTo(1 + aliases.size()));
         assertThat(operation.layout().get(x.id()).channel(), equalTo(0));
         for (int i = 0; i < aliases.size(); i++) {
@@ -1954,7 +1957,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         }
 
         var operation = planEval(inputs, new Page(blocks), aliases);
-        assertThat(operation.intermediateOperatorFactories, hasSize(columns));
+        // Every alias reads only its own input column, so they are all mutually independent and batch into a single
+        // operator (this is the FILLNULL <value> ON * shape the batching targets).
+        assertThat(operation.intermediateOperatorFactories, hasSize(1));
         // EVAL never overwrites a channel; it always adds a new one, and the old column is only hidden later by a projection
         // thus the twice the number of channels here at this point
         assertThat(operation.layout().numberOfChannels(), equalTo(2 * columns));

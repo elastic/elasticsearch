@@ -28,7 +28,6 @@ required_capability: external_source_standard_metadata_columns
 required_capability: external_source_file_metadata_columns
 required_capability: external_dataset_messages
 required_capability: external_source_score_fix
-required_capability: warn_underscore_column_names
 dataset: md_collision: "{{md_collision}}"
 
 // {any} is not usable on date: the spec runner reformats expected dates before the wildcard check.
@@ -37,9 +36,9 @@ FROM md_collision METADATA _id, _index, _version, _source, _ignored, _index_mode
 | KEEP row_no, _id, _index, _version, _source, _ignored, _index_mode, _tsid, _size, _score, `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified`, `_file.record_ref`
 | SORT row_no
 ;
-warning:Line 2:8: Column name [_file.modified] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
 
 warningRegex:Columns \[.*\] in dataset \[md_collision\] are shadowed by METADATA; the METADATA value is used; rename them in the dataset mapping to read both
+warningRegex:Line 2:8: Column name \[_file\.modified\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 row_no:integer | _id:keyword | _index:keyword | _version:long | _source:_source | _ignored:keyword | _index_mode:keyword | _tsid:null | _size:integer | _score:double | _file.path:keyword | _file.name:keyword | _file.directory:keyword | _file.size:long | _file.modified:keyword | _file.record_ref:long
 1              | null        | null           | null          | null            | null             | null                | null        | null          | 0.0           | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}

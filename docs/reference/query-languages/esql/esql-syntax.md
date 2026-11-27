@@ -93,13 +93,6 @@ FROM index
 
 Column names that start with `_` are reserved for columns that {{esql}} provides itself. These include [metadata fields](/reference/query-languages/esql/esql-metadata-fields.md) such as `_index`, `_id`, and `_score`, and columns that commands add, such as the `_fork` column of [`FORK`](/reference/query-languages/esql/commands/fork.md). Avoid giving your own columns names that start with `_`. Such a column can clash with an internal column, either one that exists today or one that a later version adds. Fields in your indices whose names start with `_` can clash in the same way.
 
-{applies_to}`stack: ga 9.7+` {{esql}} returns a warning when a query names a new column with a leading `_`, for example in [`EVAL`](/reference/query-languages/esql/commands/eval.md), `STATS`, `RENAME`, `DISSECT`, or `GROK`. This includes assigning to an internal column, as in `EVAL _score = ROUND(_score, 2)`. Referencing a column that starts with `_` does not cause a warning.
-
-```esql
-FROM index
-| EVAL _total = price * quantity // Warning: Column name [_total] starts with [_]
-```
-
 #### Reserved keywords [esql-reserved-keywords]
 
 {{esql}} keywords are case-insensitive, so `in`, `IN`, and `In` are the same token.

@@ -309,7 +309,6 @@ QstrScoreManipulation
 required_capability: metadata_score
 required_capability: qstr_function
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 from books metadata _score
 | where qstr("title:gentle")
@@ -317,7 +316,7 @@ from books metadata _score
 | keep book_no, title, _score
 | limit 10
 ;
-warning:Line 3:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 3:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 ignoreOrder:true
 
 book_no:keyword | title:text                                                                                                                     | _score:double
@@ -328,7 +327,6 @@ book_no:keyword | title:text                                                    
 QstrScoreOverride
 required_capability: metadata_score
 required_capability: qstr_function
-required_capability: warn_underscore_column_names
 
 from books metadata _score 
 | where qstr("title:gentle") 
@@ -336,7 +334,7 @@ from books metadata _score
 | keep book_no, title, _score 
 | limit 10
 ;
-warning:Line 3:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 3:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 ignoreOrder:true
 
 book_no:keyword | title:text                                                                                                                     | _score:keyword

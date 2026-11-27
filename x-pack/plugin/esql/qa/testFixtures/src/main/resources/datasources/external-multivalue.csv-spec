@@ -257,7 +257,6 @@ externalRerankBooks
 required_capability: dataset_in_from_command
 required_capability: rerank
 required_capability: datasource_file_readers_no_text_type
-required_capability: warn_underscore_column_names
 dataset: books_ds: "{{books}}"
 
 FROM books_ds
@@ -267,7 +266,7 @@ FROM books_ds
 | SORT _score DESC, book_no ASC
 | KEEP book_no, title, author, _score
 ;
-warning:Line 4:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 4:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 book_no:keyword | title:keyword                                         | author:keyword                              | _score:double
 5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08

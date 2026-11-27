@@ -748,7 +748,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | DROP _subquery
             | LIMIT 10
             """, STAGES);
-        assertWarnings(reservedColumnNameWarning(5, 14, "_subquery"), reservedColumnNameWarning(10, 14, "_subquery"));
+        assertWarnings(reservedColumnNameWarning(5, 14, "_subquery"));
     }
 
     public void testConversionInlineStatsInsideInnerUnions() {
@@ -769,7 +769,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | DROP _subquery
             | LIMIT 10
             """, STAGES);
-        assertWarnings(reservedColumnNameWarning(6, 14, "_subquery"), reservedColumnNameWarning(12, 14, "_subquery"));
+        assertWarnings(reservedColumnNameWarning(6, 14, "_subquery"));
     }
 
     public void testConversionStatsInsideInnerUnions() {
@@ -790,7 +790,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | DROP _subquery
             | LIMIT 10
             """, STAGES);
-        assertWarnings(reservedColumnNameWarning(6, 14, "_subquery"), reservedColumnNameWarning(12, 14, "_subquery"));
+        assertWarnings(reservedColumnNameWarning(6, 14, "_subquery"));
     }
 
     public void testConversionInlineStatsInOneInnerUnion() {
@@ -1016,7 +1016,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | WHERE _subquery == 1
             | DROP _subquery
             """, STAGES);
-        assertWarnings(reservedColumnNameWarning(7, 10, "_subquery"), reservedColumnNameWarning(14, 10, "_subquery"));
+        assertWarnings(reservedColumnNameWarning(7, 10, "_subquery"));
     }
 
     public void testImplicitDateNanosCastThenLaterPassExplicitToDateNanos() {

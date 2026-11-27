@@ -147,6 +147,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     protected final ParsingContext context;
 
     /**
+     * Whether {@link #warnIfReservedColumnName} already warned. A builder parses a single query, so this caps the warning at
+     * one per query.
+     */
+    private boolean reservedColumnNameWarned = false;
+
+    /**
      * @param pragmas the pragmas of the query, which override the cluster limits in {@code flags} for this query
      * @param flags the cluster-wide ES|QL settings
      */
@@ -245,9 +251,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * <p>
      * Call this only where the user wrote the name, not for names a command picks by default (e.g. {@code RERANK}'s
      * {@code _score}), so that queries relying on the defaults stay warning-free.
+     * <p>
+     * Only the first such name in a query is reported: a query can define many of them, and one warning is enough to point
+     * the user at the problem without flooding the response headers.
      */
-    protected static void warnIfReservedColumnName(Source source, String name) {
-        if (name != null && name.startsWith("_") && source.source().getLineNumber() > 0) {
+    protected void warnIfReservedColumnName(Source source, String name) {
+        if (reservedColumnNameWarned == false && name != null && name.startsWith("_") && source.source().getLineNumber() > 0) {
+            reservedColumnNameWarned = true;
             HeaderWarning.addWarning(
                 RESERVED_COLUMN_NAME_WARNING,
                 source.source().getLineNumber(),

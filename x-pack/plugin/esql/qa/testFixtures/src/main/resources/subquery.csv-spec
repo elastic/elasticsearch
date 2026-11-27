@@ -174,7 +174,6 @@ s:long
 
 subqueryInFromWithEvalInSubquery
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 FROM employees, (FROM sample_data metadata _index | EVAL x = client_ip::keyword ) metadata _index
 | WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
@@ -182,7 +181,7 @@ FROM employees, (FROM sample_data metadata _index | EVAL x = client_ip::keyword 
 | SORT emp_no, client_ip
 | KEEP _index,  emp_no, languages, client_ip, x
 ;
-warning:Line 3:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 3:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _index:keyword | emp_no:integer | languages:integer | client_ip:ip | x:keyword
 employees      | 10091          | 3                 | null | null
@@ -199,7 +198,6 @@ sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
 
 subqueryMetadataIndex
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 // tag::subquery_with_metadata[]
 FROM employees,
@@ -212,7 +210,7 @@ FROM employees,
 | SORT count ASC
 | KEEP count, emp_no, _index, _index_mode
 ;
-warning:Line 6:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 // tag::subquery_with_metadata-result[]
 count:long | emp_no:integer | _index:keyword | _index_mode:keyword
@@ -223,7 +221,6 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 
 subqueryMetadataIndexInner
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 // tag::subquery_with_metadata_inner[]
 FROM employees,
@@ -235,7 +232,7 @@ FROM employees,
 | SORT count ASC
 | KEEP count, emp_no, _index, _index_mode
 ;
-warning:Line 5:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 5:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 // tag::subquery_with_metadata_inner-result[]
 count:long | emp_no:integer | _index:keyword | _index_mode:keyword
@@ -246,7 +243,6 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 
 subqueryMetadataIndexOuter
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 // tag::subquery_with_metadata_outer[]
 FROM employees,
@@ -259,7 +255,7 @@ FROM employees,
 | SORT count ASC
 | KEEP count, emp_no, _index, _index_mode
 ;
-warning:Line 6:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 // tag::subquery_with_metadata_outer-result[]
 count:long | emp_no:integer | _index:keyword | _index_mode:keyword
@@ -288,7 +284,6 @@ count:long | _class:keyword | _name:keyword
 
 subqueryInFromWithWhereInSubquery
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 // tag::subquery_with_filter[]
 FROM employees,
@@ -301,7 +296,7 @@ FROM employees,
 | KEEP _index, emp_no, languages, client_ip
 // end::subquery_with_filter[]
 ;
-warning:Line 6:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 // tag::subquery_with_filter-result[]
 _index:keyword | emp_no:integer | languages:integer | client_ip:ip
@@ -317,7 +312,6 @@ sample_data    | null           | null              | 172.21.3.15
 
 subqueryInFromWithStatsInSubquery
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 // tag::subquery_with_aggregation[]
 FROM employees,
@@ -330,7 +324,7 @@ FROM employees,
 | KEEP _index, emp_no, languages, cnt, client_ip
 // end::subquery_with_aggregation[]
 ;
-warning:Line 6:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 // tag::subquery_with_aggregation-result[]
 _index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
@@ -346,7 +340,6 @@ sample_data | null           | null              | 4        | 172.21.3.15
 
 subqueryInFromWithStatsInSubqueryConjunctiveFilterInMainQuery
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 // tag::multiple_subqueries[]
 FROM employees,
@@ -361,7 +354,7 @@ FROM employees,
 | KEEP _index, emp_no, languages, cnt, client_ip
 // end::multiple_subqueries[]
 ;
-warning:Line 7:35: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 7:35: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 // tag::multiple_subqueries-result[]
 _index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
@@ -372,7 +365,6 @@ sample_data_str |null           | null              | 4        | 172.21.3.15
 
 subqueryInFromWithStatsInSubqueryDisjunctiveFilterInMainQuery
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 FROM employees, (FROM sample_data metadata _index
                                 | STATS cnt = count(*) by _index, client_ip )
@@ -384,7 +376,7 @@ FROM employees, (FROM sample_data metadata _index
 | SORT _index, emp_no, client_ip
 | KEEP _index, emp_no, languages, cnt, client_ip
 ;
-warning:Line 6:35: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:35: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _index:keyword | emp_no:integer | languages:integer | cnt:long | client_ip:ip
 employees | 10091          | 3                 | null     | null
@@ -446,7 +438,6 @@ null           | null              | 172.21.3.15       | Production
 
 subqueryInFromWithLookupJoinInMainQuery
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 FROM employees, (FROM sample_data  metadata _index
                                 | EVAL client_ip = client_ip::keyword )
@@ -457,7 +448,7 @@ FROM employees, (FROM sample_data  metadata _index
 | SORT emp_no, client_ip
 | KEEP _index,  emp_no, languages, client_ip, env
 ;
-warning:Line 5:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 5:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _index:keyword | emp_no:integer | languages:integer | client_ip:keyword | env:keyword
 employees      | 10091          | 3                 | null              | null
@@ -808,7 +799,6 @@ emp_no:long | first_name:text | last_name:text | a:keyword | b:keyword
 
 subqueryInFromWithRenameInMainQuery
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 FROM sample_data, sample_data_str,
            (FROM sample_data_ts_nanos metadata _index
@@ -823,7 +813,7 @@ FROM sample_data, sample_data_str,
 | KEEP @timestamp, _index, clientip
 | SORT _index, @timestamp
 ;
-warning:Line 8:35: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 8:35: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 @timestamp:date_nanos           | _index:keyword  | clientip:ip
 2023-10-23T12:15:03.360Z       | sample_data     | 172.21.2.162
@@ -982,7 +972,6 @@ required_capability: rerank
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM sample_data, (FROM books METADATA _score, _index
                                    | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -995,7 +984,7 @@ FROM sample_data, (FROM books METADATA _score, _index
 | WHERE client_ip == "172.21.0.5" or client_ip IS NULL
 | KEEP _index, book_no, title, author, _score, @timestamp
 ;
-warning:Line 6:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 ignoreOrder:true
 
 _index:keyword | book_no:keyword | title:text                      | author:text                                 | _score:double | @timestamp:datetime
@@ -1007,7 +996,6 @@ sample_data    | null            | null                               | null    
 subqueryInFromWithRerankInMainQuery
 required_capability: rerank
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 FROM books, (FROM sample_data
                         | WHERE client_ip == "172.21.0.5"
@@ -1018,7 +1006,7 @@ FROM books, (FROM sample_data
 | EVAL _score=ROUND(_score, 2)
 | KEEP book_no, title, author, _score, @timestamp
 ;
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 7:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 ignoreOrder:true
 
 book_no:keyword | title:text                                | author:text       | _score:double | @timestamp:datetime
@@ -1093,7 +1081,6 @@ required_capability: subquery_in_from_command
 required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: from_subquery_merge_keeps_metadata_score
-required_capability: warn_underscore_column_names
 
 FROM (FROM books METADATA _score | WHERE year >= 2005 | EVAL _score = 100.0), (FROM books METADATA _score | WHERE year < 2005)
 | EVAL content = TO_TEXT(CONCAT(title, " ", description))
@@ -1101,7 +1088,7 @@ FROM (FROM books METADATA _score | WHERE year >= 2005 | EVAL _score = 100.0), (F
 | KEEP book_no, _score
 | SORT book_no, _score NULLS LAST
 ;
-warning:Line 1:62: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:62: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 book_no:keyword | _score:double
 2776            | 0.0
@@ -1115,7 +1102,6 @@ required_capability: subquery_in_from_command
 required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: from_subquery_merge_keeps_metadata_score
-required_capability: warn_underscore_column_names
 
 FROM (FROM books METADATA _score | WHERE year < 2005), (FROM books METADATA _score | WHERE year >= 2005 | EVAL _score = 100.0)
 | EVAL content = TO_TEXT(CONCAT(title, " ", description))
@@ -1123,7 +1109,7 @@ FROM (FROM books METADATA _score | WHERE year < 2005), (FROM books METADATA _sco
 | KEEP book_no, _score
 | SORT book_no, _score NULLS LAST
 ;
-warning:Line 1:112: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:112: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 book_no:keyword | _score:double
 2776            | 0.0
@@ -1138,7 +1124,6 @@ required_capability: subquery_in_from_command
 required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: from_subquery_merge_keeps_metadata_score
-required_capability: warn_underscore_column_names
 
 FROM (FROM books METADATA _score | WHERE year >= 2005), (FROM books | WHERE year < 2005 | EVAL _score = null::double)
 | EVAL content = TO_TEXT(CONCAT(title, " ", description))
@@ -1146,7 +1131,7 @@ FROM (FROM books METADATA _score | WHERE year >= 2005), (FROM books | WHERE year
 | KEEP book_no, _score
 | SORT book_no, _score NULLS LAST
 ;
-warning:Line 1:96: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:96: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 book_no:keyword | _score:double
 2776            | null
@@ -1228,7 +1213,6 @@ required_capability: subquery_in_from_command
 required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: from_subquery_merge_keeps_metadata_score
-required_capability: warn_underscore_column_names
 
 FROM (FROM (FROM books | WHERE year >= 2005 | EVAL _score = null::double), (FROM books | WHERE year < 2005) | LIMIT 100),
      (FROM books METADATA _score)
@@ -1237,7 +1221,7 @@ FROM (FROM (FROM books | WHERE year >= 2005 | EVAL _score = null::double), (FROM
 | KEEP book_no, _score
 | SORT book_no, _score NULLS LAST
 ;
-warning:Line 1:52: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:52: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 book_no:keyword | _score:double
 2776            | 1.0
@@ -1254,7 +1238,6 @@ required_capability: subquery_in_from_command
 required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: from_subquery_merge_keeps_metadata_score
-required_capability: warn_underscore_column_names
 
 FROM (FROM books METADATA _score),
      (FROM (FROM books | WHERE year >= 2005 | EVAL _score = null::double), (FROM books | WHERE year < 2005) | LIMIT 100)
@@ -1263,7 +1246,7 @@ FROM (FROM books METADATA _score),
 | KEEP book_no, _score
 | SORT book_no, _score NULLS LAST
 ;
-warning:Line 2:47: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 2:47: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 book_no:keyword | _score:double
 2776            | 1.0
@@ -1282,7 +1265,6 @@ required_capability: subquery_in_from_command
 required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: from_subquery_merge_keeps_metadata_score
-required_capability: warn_underscore_column_names
 
 FROM (FROM (FROM books METADATA _score | WHERE year >= 2005 | EVAL _score = 100.0), (FROM books | WHERE year < 2005) | LIMIT 100),
      (FROM books METADATA _score)
@@ -1291,7 +1273,7 @@ FROM (FROM (FROM books METADATA _score | WHERE year >= 2005 | EVAL _score = 100.
 | KEEP book_no, _score
 | SORT book_no, _score NULLS LAST
 ;
-warning:Line 1:68: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:68: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 book_no:keyword | _score:double
 2776            | 0.0
@@ -1308,7 +1290,6 @@ required_capability: subquery_in_from_command
 required_capability: metadata_score
 required_capability: fn_match_runtime_score
 required_capability: from_subquery_merge_keeps_metadata_score
-required_capability: warn_underscore_column_names
 
 FROM (FROM books METADATA _score | WHERE year >= 2005), (FROM books | WHERE year < 2005 | EVAL s = null::double | RENAME s AS _score)
 | EVAL content = TO_TEXT(CONCAT(title, " ", description))
@@ -1316,7 +1297,7 @@ FROM (FROM books METADATA _score | WHERE year >= 2005), (FROM books | WHERE year
 | KEEP book_no, _score
 | SORT book_no, _score NULLS LAST
 ;
-warning:Line 1:127: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:127: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 book_no:keyword | _score:double
 2776            | null
@@ -1397,7 +1378,6 @@ FROM sample_data,
 
 subqueryInFromWithUnionTypesWithoutCommonTypesExplicitCasting
 required_capability: subquery_in_from_command
-required_capability: warn_underscore_column_names
 
 FROM sample_data, sample_data_str,
            (FROM sample_data_ts_nanos metadata _index
@@ -1409,7 +1389,7 @@ FROM sample_data, sample_data_str,
 | EVAL _index = MV_LAST(SPLIT(_index, ":")), client_ip = client_ip::ip
 | SORT _index, @timestamp
 ;
-warning:Line 8:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 8:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 @timestamp:date_nanos          | event_duration:long | message:keyword       | _index:keyword       | client_ip:ip
 2023-10-23T12:15:03.360Z       | 3450233             | Connected to 10.1.0.3 | sample_data          | 172.21.2.162

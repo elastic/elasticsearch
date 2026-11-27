@@ -6,7 +6,6 @@ simpleFuse
 required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
-required_capability: warn_underscore_column_names
 
 FROM employees METADATA _id, _index, _score
 | FORK ( WHERE emp_no:10001 | SORT _score DESC | LIMIT 10)
@@ -16,7 +15,7 @@ FROM employees METADATA _id, _index, _score
 | KEEP _score, _fork, emp_no
 | SORT _score, _fork, emp_no
 ;
-warning:Line 5:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 5:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword | emp_no:integer
 0.0164        | fork1         | 10001
@@ -28,7 +27,6 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -39,8 +37,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2] | 4
@@ -55,7 +52,6 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" OR author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -67,8 +63,7 @@ FROM books METADATA _id, _index, _score
 | KEEP _score, _fork, _id
 | WHERE _score > 0.014
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.03252       | [fork1, fork2] | 60
@@ -102,7 +97,6 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK (WHERE author:"Keith Faulkner" AND qstr("author:Rory OR author:Beverlie") | SORT _score, _id DESC | LIMIT 3)
@@ -116,8 +110,7 @@ FROM books METADATA _id, _index, _score
 | EVAL title = trim(substring(title, 1, 20))
 | KEEP _score, author, title, _fork
 ;
-warning:Line 8:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 9:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 8:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | author:keyword                    | title:keyword        | _fork:keyword
 0.0325        | [Keith Faulkner, Rory Tyger]      | Pop! Went Another Ba | [fork1, fork4]
@@ -133,7 +126,6 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
-required_capability: warn_underscore_column_names
 
 FROM semantic_text METADATA _id, _score, _index
 | FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
@@ -144,8 +136,7 @@ FROM semantic_text METADATA _id, _score, _index
 | EVAL _fork = mv_sort(_fork)
 | KEEP _fork, _score, _id, semantic_text_field
 ;
-warning:Line 6:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _fork:keyword  | _score:double | _id:keyword | semantic_text_field:keyword
 [fork1, fork2] | 0.0328        | 2           | all we have to decide is what to do with the time that is given to us
@@ -158,7 +149,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -169,8 +159,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2] | 4
@@ -186,7 +175,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -197,8 +185,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.03922       | [fork1, fork2] | 4
@@ -214,7 +201,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -225,8 +211,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.01639       | [fork1, fork2] | 4
@@ -242,7 +227,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _score, _index
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -253,8 +237,7 @@ FROM books METADATA _id, _score, _index
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.01639       | [fork1, fork2] | 4
@@ -270,7 +253,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
@@ -281,7 +263,7 @@ FROM books METADATA _id, _index, _score
 | EVAL my_score = round(my_score, 5)
 | KEEP my_score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 my_score:double | _fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2] | 4
@@ -297,7 +279,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -310,7 +291,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, new_fork, _id
 ;
-warning:Line 9:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 9:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | new_fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2]    | 4
@@ -327,7 +308,6 @@ required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: dots_in_fuse
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -340,7 +320,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, new.fork, _id
 ;
-warning:Line 9:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 9:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | new.fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2]    | 4
@@ -356,7 +336,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
@@ -368,8 +347,7 @@ FROM books METADATA _id, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, new_id
 ;
-warning:Line 7:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 8:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 7:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | new_id:keyword
 0.03279       | [fork1, fork2] | 44
@@ -415,7 +393,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -426,8 +403,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 2.09421       | fork1          | 26
@@ -438,7 +414,6 @@ _score:double | _fork:keyword  | _id:keyword
 ;
 
 fuseWithLinearAndL2Norm
-required_capability: warn_underscore_column_names
 
 required_capability: fork_v9
 required_capability: fuse_v6
@@ -454,8 +429,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.89318       | [fork1, fork2] | 4
@@ -466,7 +440,6 @@ _score:double | _fork:keyword  | _id:keyword
 ;
 
 fuseWithLinearAndMinMax
-required_capability: warn_underscore_column_names
 
 required_capability: fork_v9
 required_capability: fuse_v6
@@ -483,8 +456,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 1.0           | fork1          | 26
@@ -500,7 +472,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -511,8 +482,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.87343       | [fork1, fork2] | 4
@@ -528,7 +498,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -539,8 +508,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 1.05958       | [fork1, fork2] | 4
@@ -556,7 +524,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -567,8 +534,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 7:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | _id:keyword
 0.7           | fork2          | 29
@@ -585,7 +551,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
@@ -596,7 +561,7 @@ FROM books METADATA _id, _index, _score
 | EVAL my_score = round(my_score, 5)
 | KEEP my_score, _fork, _id
 ;
-warning:Line 6:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 6:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 my_score:double | _fork:keyword  | _id:keyword
 2.09421         | fork1          | 26
@@ -613,7 +578,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -626,7 +590,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, new_fork, _id
 ;
-warning:Line 9:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 9:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | new_fork:keyword | _id:keyword
 2.09421       | fork1            | 26
@@ -642,7 +606,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-required_capability: warn_underscore_column_names
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
@@ -654,8 +617,7 @@ FROM books METADATA _id, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, new_id
 ;
-warning:Line 7:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 8:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 7:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _fork:keyword  | new_id:keyword
 2.09421       | fork1          | 2626
@@ -696,7 +658,6 @@ new_score:double | new_fork:keyword | new_id:keyword
 
 
 fuseWithRowAndRRF
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 
@@ -710,9 +671,7 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | EVAL my_score = round(my_score, 5)
 | KEEP _id, my_score
 ;
-warning:Line 1:41: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:62: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 3:8: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:41: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _id:keyword | my_score:double
 id_0.0      | 0.01639
@@ -723,7 +682,6 @@ id_4.0      | 0.01538
 ;
 
 fuseWithRowLinearAndWeights
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 
@@ -736,9 +694,7 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score
 ;
-warning:Line 1:41: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:62: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 3:8: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:41: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _id:keyword | my_score:double
 id_4.0      | 8.0
@@ -749,7 +705,6 @@ id_0.0      | 0.0
 ;
 
 fuseWithRowLinearAndMinMax
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 
@@ -763,9 +718,7 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score
 ;
-warning:Line 1:41: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:62: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 3:8: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:41: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _id:keyword | my_score:double
 id_4.0      | 1.0
@@ -776,7 +729,6 @@ id_0.0      | 0.0
 ;
 
 fuseWithRowLinearAndL2Norm
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 required_capability: fuse_l2_norm
@@ -791,9 +743,7 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score
 ;
-warning:Line 1:41: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:62: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 3:8: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:41: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _id:keyword | my_score:double
 id_4.0      | 0.7303
@@ -804,7 +754,6 @@ id_0.0      | 0.0
 ;
 
 fuseWithRowLinearAndMultiValueGroupColumn
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 
@@ -818,11 +767,10 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score, my_fork
 ;
-warning:Line 1:41: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 3:8: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:41: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Line 6:3: evaluation of \[FUSE LINEAR SCORE BY my_score GROUP BY my_fork\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 6:3: java\.lang\.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
-warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | [foo, bar]
@@ -833,7 +781,6 @@ id_1.0      | 1.0             | foo
 ;
 
 fuseWithRowLinearAndMultiValueScoreColumn
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 
@@ -847,11 +794,10 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score, my_fork
 ;
-warning:Line 1:41: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 3:8: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:41: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Line 6:3: evaluation of \[FUSE LINEAR SCORE BY my_score GROUP BY my_fork\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 6:3: java\.lang\.IllegalArgumentException: score column contains multivalued entries; assigning null scores
 
-warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: score column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | foo
@@ -862,7 +808,6 @@ id_1.0      | 1.0             | foo
 ;
 
 fuseWithRowRRFAndMultiValueGroupColumn
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 
@@ -876,11 +821,10 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score, my_fork
 ;
-warning:Line 1:41: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 3:8: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:41: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
+warningRegex:Line 6:3: evaluation of \[FUSE RRF SCORE BY my_score GROUP BY my_fork\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 6:3: java\.lang\.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
-warning:Line 6:3: evaluation of [FUSE RRF SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | [foo, bar]
@@ -891,7 +835,6 @@ id_4.0      | 0.01563         | foo
 ;
 
 fuseWithRowLinearL2NormAndZeroScores
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 required_capability: fuse_l2_norm
@@ -903,9 +846,7 @@ ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
 | SORT _id
 | KEEP _id, _score
 ;
-warning:Line 1:5: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:28: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:42: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:5: Column name \[_id\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _id:keyword | _score:double
 a           | 0.0
@@ -914,7 +855,6 @@ c           | 0.0
 ;
 
 fuseWithRowLinearMinMaxAndZeroScores
-required_capability: warn_underscore_column_names
 
 required_capability: fuse_v6
 
@@ -925,9 +865,7 @@ ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
 | SORT _id
 | KEEP _id, _score
 ;
-warning:Line 1:5: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:28: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:42: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:5: Column name \[_id\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _id:keyword | _score:double
 a           | 0.0
@@ -938,15 +876,12 @@ c           | 0.0
 fuseWithRowWithNullValues
 required_capability: fuse_v6
 required_capability: fix_agg_on_null_by_replacing_with_eval
-required_capability: warn_underscore_column_names
 
 ROW x = null, _id = "", _index = "", _score = 1.0, my_fork = ""
 | LIMIT 1
 | FUSE LINEAR GROUP BY my_fork
 ;
-warning:Line 1:15: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:25: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:38: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:15: Column name \[_id\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | x:null | _id:keyword | _index:keyword | my_fork:keyword
 1             | null   | ""          | ""             | ""
@@ -957,17 +892,13 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: fix_agg_on_null_by_replacing_with_eval
 required_capability: fuse_passthrough_with_first
-required_capability: warn_underscore_column_names
 
 ROW x = null, _id = "", _index = "", _score = 1.0
 | FORK (EVAl y = 1 | LIMIT 1) (EVAl y = 1 | LIMIT 1)
 | FUSE LINEAR
 | EVAL _fork = mv_sort(_fork)
 ;
-warning:Line 1:15: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:25: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 1:38: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 4:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 1:15: Column name \[_id\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | x:null | _id:keyword | _index:keyword | y:integer | _fork:keyword
 2             | null   | ""          | ""             | 1    | [fork1,fork2]
@@ -993,7 +924,6 @@ null
 fuseWithSubqueries
 required_capability: subquery_in_from_command
 required_capability: fuse_v6
-required_capability: warn_underscore_column_names
 
 FROM ( FROM employees METADATA _id, _index, _score
        | WHERE emp_no:10001 OR emp_no:10094
@@ -1010,7 +940,7 @@ FROM ( FROM employees METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP emp_no, _score, label
 ;
-warning:Line 13:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 13:8: Column name \[_score\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 emp_no:integer | _score:double | label:keyword
 10002          | 0.01639       | query2
@@ -1072,7 +1002,6 @@ required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: knn_function_v5
 required_capability: fuse_passthrough_with_first
-required_capability: warn_underscore_column_names
 
 FROM colors METADATA _id, _index, _score
 | FORK (WHERE color:"red"                  | EVAL score1 = 1.0    | SORT _score DESC | LIMIT 10)
@@ -1083,8 +1012,7 @@ FROM colors METADATA _id, _index, _score
 | KEEP _score, color, rgb_vector, hex_code, primary, _index, _fork, score1, score2
 | SORT _score DESC, color ASC
 ;
-warning:Line 5:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 6:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 5:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | color:keyword | rgb_vector:dense_vector | hex_code:keyword | primary:boolean | _index:keyword | _fork:keyword  | score1:double          | score2:double
 0.03279       | red           | [255.0, 0.0, 0.0]       | #FF0000          | true            | colors         | [fork1, fork2] | 1.0                    | 1.0
@@ -1105,7 +1033,6 @@ required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: knn_function_v5
 required_capability: fuse_passthrough_with_first
-required_capability: warn_underscore_column_names
 
 FROM colors METADATA _id, _index, _score
 | FORK (WHERE color:"red"                                      | SORT _score DESC | LIMIT 10)
@@ -1116,8 +1043,7 @@ FROM colors METADATA _id, _index, _score
 | KEEP _score, color, hex_code, id, primary, rgb_byte_vector, rgb_vector, _index, _fork
 | SORT _score DESC, color ASC
 ;
-warning:Line 5:8: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 6:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 5:8: Column name \[_fork\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | color:keyword | hex_code:keyword | id:integer | primary:boolean | rgb_byte_vector:dense_vector | rgb_vector:dense_vector | _index:keyword | _fork:keyword
 0.03279       | red           | #FF0000          | 4          | true            | [127.0, -128.0, -128.0]      | [255.0, 0.0, 0.0]       | colors         | [fork1, fork2]
@@ -1135,7 +1061,6 @@ _score:double | color:keyword | hex_code:keyword | id:integer | primary:boolean 
 fuseFirstFiltersNullPassthroughColumns
 required_capability: fuse_v6
 required_capability: fuse_passthrough_with_first
-required_capability: warn_underscore_column_names
 
 ROW row = [
   "id1|idx|fork1|1.0|abc|",
@@ -1154,11 +1079,7 @@ ROW row = [
 | KEEP _score, _id, _index, _fork, title, col1
 | SORT _id ASC
 ;
-warning:Line 8:15: Column name [_id] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 8:15: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 8:15: Column name [_fork] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 8:15: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
-warning:Line 9:8: Column name [_score] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 8:15: Column name \[_id\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _score:double | _id:keyword | _index:keyword | _fork:keyword  | title:keyword | col1:keyword
 2.0           | id1         | idx            | [fork1, fork2] | abc           | def

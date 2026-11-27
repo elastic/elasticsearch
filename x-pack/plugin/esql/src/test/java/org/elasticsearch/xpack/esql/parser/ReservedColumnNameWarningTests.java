@@ -35,10 +35,19 @@ public class ReservedColumnNameWarningTests extends AbstractStatementParserTests
         assertWarnsAt("ROW _a = 1, b = 2", "_a");
     }
 
-    public void testStatsAggregateAndGrouping() {
-        String query = "FROM foo | STATS _c = COUNT(*) BY _g = a";
-        TEST_PARSER.parseQuery(query);
-        assertWarnings(warning(query, "_c", "_c"), warning(query, "_g", "_g"));
+    public void testStatsAggregate() {
+        assertWarnsAt("FROM foo | STATS _c = COUNT(*) BY g = a", "_c");
+    }
+
+    public void testStatsGrouping() {
+        assertWarnsAt("FROM foo | STATS c = COUNT(*) BY _g = a", "_g");
+    }
+
+    /**
+     * A query can define many {@code _} names; only the first one is reported, so the response headers aren't flooded.
+     */
+    public void testOnlyFirstNameWarns() {
+        assertWarnsAt("ROW a = 1 | EVAL b = a, _x = a, _y = a | STATS _c = COUNT(*) BY _g = _x | RENAME _c AS _d", "_x");
     }
 
     public void testInlineStats() {
@@ -71,10 +80,12 @@ public class ReservedColumnNameWarningTests extends AbstractStatementParserTests
         assertWarnsAt("FROM foo | ENRICH policy ON a WITH _x = b", "_x");
     }
 
-    public void testChangePoint() {
-        String query = "FROM foo | CHANGE_POINT v ON k AS _t, _p";
-        TEST_PARSER.parseQuery(query);
-        assertWarnings(warning(query, "_t", "_t"), warning(query, "_p", "_p"));
+    public void testChangePointType() {
+        assertWarnsAt("FROM foo | CHANGE_POINT v ON k AS _t, p", "_t");
+    }
+
+    public void testChangePointPvalue() {
+        assertWarnsAt("FROM foo | CHANGE_POINT v ON k AS t, _p", "_p");
     }
 
     public void testRerankExplicitTarget() {

@@ -735,7 +735,6 @@ lookupJoinExpressionOnUnionTypes
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: metadata_fields_remote_test
-required_capability: warn_underscore_column_names
 
 FROM apps, apps_short METADATA _index
 | EVAL language_code = id::integer
@@ -747,7 +746,7 @@ FROM apps, apps_short METADATA _index
 | KEEP _index, language_code, language_name
 | SORT _index ASC, language_code ASC
 ;
-warning:Line 7:8: Column name [_index] starts with [_], which is reserved for internal columns like [_index], [_score] and [_fork]
+warningRegex:Line 7:8: Column name \[_index\] starts with \[_\], which is reserved for internal columns like \[_index\], \[_score\] and \[_fork\]
 
 _index:keyword | language_code:integer | language_name:keyword
 apps           | 1                     | English

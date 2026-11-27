@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 147862
 pr: 167474
-summary: "Return empty for FROM x,-x self-exclusion"
+summary: "Return empty when exclusions cancel every concrete index in FROM, such as `FROM x,-x` and `FROM nomatch*,-x`"
 type: bug

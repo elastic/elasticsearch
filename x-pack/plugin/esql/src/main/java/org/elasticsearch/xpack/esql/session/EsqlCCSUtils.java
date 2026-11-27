@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -346,8 +345,6 @@ public class EsqlCCSUtils {
             return false;
         }
         Set<ConcreteName> concreteInclusions = new HashSet<>();
-        // Consecutive exclusions are applied together, so a long run of them is one pass over the inclusions.
-        Map<ExclusionScope, List<String>> pendingExclusions = new HashMap<>();
         for (String expr : indexExpression.split(",")) {
             if (expr.isEmpty() || expr.startsWith("<") || expr.startsWith("-<")) {
                 // skip empty segments and date math expressions
@@ -368,30 +365,30 @@ public class EsqlCCSUtils {
             String resource = resourceAndSelector.v1();
             String selector = resourceAndSelector.v2() == null ? IndexComponentSelector.DATA.getKey() : resourceAndSelector.v2();
             if (exclusion) {
-                pendingExclusions.computeIfAbsent(new ExclusionScope(qualified.clusterAlias(), selector), k -> new ArrayList<>())
-                    .add(resource);
-            } else {
-                applyExclusions(concreteInclusions, pendingExclusions);
-                if (expr.indexOf('*') < 0) {
-                    concreteInclusions.add(new ConcreteName(qualified.getClusterGroupingKey(), resource, selector));
-                }
+                excludeFrom(concreteInclusions, qualified.clusterAlias(), resource, selector);
+            } else if (expr.indexOf('*') < 0) {
+                concreteInclusions.add(new ConcreteName(qualified.getClusterGroupingKey(), resource, selector));
             }
         }
-        applyExclusions(concreteInclusions, pendingExclusions);
         return concreteInclusions.isEmpty() == false;
     }
 
-    private static void applyExclusions(Set<ConcreteName> concreteInclusions, Map<ExclusionScope, List<String>> pendingExclusions) {
-        if (pendingExclusions.isEmpty()) {
+    /**
+     * Removes the concrete inclusions an exclusion cancels. An exact name on a known cluster is a set lookup, so a long
+     * pattern of names and exclusions stays linear. Wildcards are matched one exclusion at a time, as the resolver does,
+     * rather than combined into one automaton, whose determinization can exceed Lucene's limit for several complex wildcards.
+     */
+    private static void excludeFrom(Set<ConcreteName> concreteInclusions, @Nullable String clusterAlias, String resource, String selector) {
+        if (concreteInclusions.isEmpty()) {
             return;
         }
-        for (Map.Entry<ExclusionScope, List<String>> entry : pendingExclusions.entrySet()) {
-            ExclusionScope scope = entry.getKey();
-            // A single matcher over all the patterns, compiled to one automaton when there are wildcards.
-            Predicate<String> excluded = Regex.simpleMatcher(entry.getValue().toArray(String[]::new));
-            concreteInclusions.removeIf(name -> scope.contains(name) && excluded.test(name.resource()));
+        if (Regex.isSimpleMatchPattern(resource) == false && (clusterAlias == null || Regex.isSimpleMatchPattern(clusterAlias) == false)) {
+            String cluster = clusterAlias == null ? RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY : clusterAlias;
+            concreteInclusions.remove(new ConcreteName(cluster, resource, selector));
+            return;
         }
-        pendingExclusions.clear();
+        ExclusionScope scope = new ExclusionScope(clusterAlias, selector);
+        concreteInclusions.removeIf(name -> scope.contains(name) && Regex.simpleMatch(resource, name.resource()));
     }
 
     /**

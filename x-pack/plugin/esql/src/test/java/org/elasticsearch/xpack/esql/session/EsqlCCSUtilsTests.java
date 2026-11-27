@@ -930,7 +930,6 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     }
 
     public void testConcreteIndexRequestedWithManyExclusions() {
-        // runs of consecutive exclusions are applied together
         int count = between(100, 2000);
         List<String> parts = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -942,6 +941,31 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertThat(EsqlCCSUtils.concreteIndexRequested(String.join(",", parts)), equalTo(true));
         parts.add("-missing-*");
         assertThat(EsqlCCSUtils.concreteIndexRequested(String.join(",", parts)), equalTo(false));
+    }
+
+    /**
+     * Exclusions are matched one at a time, so several complex wildcards cannot make the union automaton too complex to
+     * determinize, with or without concrete names for them to match.
+     */
+    public void testConcreteIndexRequestedWithComplexWildcardExclusions() {
+        String complex = "-*a*b*c*d*e*f*g*h*,-*h*g*f*e*d*c*b*a*,-*b*a*d*c*f*e*h*g*,-*c*d*a*b*g*h*e*f*";
+        assertThat(EsqlCCSUtils.concreteIndexRequested("logs*," + complex), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("missing," + complex), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("abcdefgh," + complex), equalTo(false));
+    }
+
+    /**
+     * Alternating names and exclusions of other names must stay linear in the length of the pattern.
+     */
+    public void testConcreteIndexRequestedWithAlternatingNamesAndExclusionsIsLinear() {
+        int count = 200_000;
+        StringBuilder expression = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            expression.append("a").append(i).append(",-z,");
+        }
+        expression.append("-a0");
+        // a quadratic implementation would take minutes here and hit the test timeout
+        assertThat(EsqlCCSUtils.concreteIndexRequested(expression.toString()), equalTo(true));
     }
 
     public void testConcreteIndexRequestedPerPattern() {

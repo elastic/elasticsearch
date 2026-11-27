@@ -281,7 +281,7 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         try (var excluding = createView("excluding", "FROM zzz*,-missing | KEEP f1")) {
             expectThrows(
                 VerificationException.class,
-                containsString("Unknown index ["),
+                containsString("Unknown index [missing,zzz*,-missing]"),
                 () -> run(syncEsqlQueryRequest("FROM missing, excluding")).close()
             );
         }

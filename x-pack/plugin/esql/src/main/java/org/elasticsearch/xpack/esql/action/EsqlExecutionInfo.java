@@ -364,6 +364,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             || (isPartial && clusterInfo.values().stream().anyMatch(c -> c.getFailures().isEmpty() == false));
     }
 
+    /**
+     * Forgets every cluster and the index expressions registered for them, so the clusters can be registered again from scratch.
+     */
+    public void clearClusters() {
+        clusterInfo.clear();
+        indexExpressionsByCluster.clear();
+    }
+
     public Cluster getCluster(String clusterAlias) {
         return clusterInfo.get(clusterAlias);
     }
@@ -398,7 +406,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public List<String> getIndexExpressions(String clusterAlias) {
         List<String> expressions = indexExpressionsByCluster.get(clusterAlias);
         if (expressions != null) {
-            return expressions;
+            return List.copyOf(expressions);
         }
         Cluster cluster = clusterInfo.get(clusterAlias);
         return cluster == null || Strings.isNullOrBlank(cluster.getIndexExpression()) ? List.of() : List.of(cluster.getIndexExpression());

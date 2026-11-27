@@ -3677,7 +3677,7 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> listener
     ) {
-        executionInfo.clusterInfo.clear();
+        executionInfo.clearClusters();
         resolveIndicesAndAnalyze(
             parsed,
             unmappedResolution,

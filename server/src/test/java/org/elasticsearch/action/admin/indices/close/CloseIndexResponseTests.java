@@ -49,22 +49,15 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         boolean shardsAcknowledged = instance.isShardsAcknowledged();
         if (acknowledged) {
             if (shardsAcknowledged) {
-                if (randomBoolean()) {
-                    acknowledged = false;
-                    shardsAcknowledged = false;
-                } else {
-                    shardsAcknowledged = false;
-                }
+                shardsAcknowledged = false;
+            } else if (randomBoolean()) {
+                acknowledged = false;
             } else {
-                if (randomBoolean()) {
-                    acknowledged = false;
-                } else {
-                    shardsAcknowledged = true;
-                }
+                shardsAcknowledged = true;
             }
         } else {
             acknowledged = true;
-            shardsAcknowledged = randomBoolean();
+            shardsAcknowledged = false;
         }
         return new CloseIndexResponse(acknowledged, shardsAcknowledged, instance.getIndices());
     }

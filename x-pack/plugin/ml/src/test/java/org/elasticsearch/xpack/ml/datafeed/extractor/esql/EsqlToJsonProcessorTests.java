@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -80,8 +81,8 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         List<ColumnInfo> columns = List.of(column(TIME_FIELD, DATE));
         try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, WINDOW, outputStream)) {
-            processor.process(List.of(isoAtEpochMillis(100L)));
-            processor.process(List.of(isoAtEpochMillis(200L)));
+            process(processor, List.of(isoAtEpochMillis(100L)));
+            process(processor, List.of(isoAtEpochMillis(200L)));
             assertThat(processor.getWrittenDocumentCount(), equalTo(2L));
         }
     }
@@ -90,10 +91,10 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         List<ColumnInfo> columns = List.of(column("host", KEYWORD), column(TIME_FIELD, DATE));
         try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, WINDOW, outputStream)) {
-            processor.process(List.of("web-1", isoAtEpochMillis(100L)));
+            process(processor, List.of("web-1", isoAtEpochMillis(100L)));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> processor.process(List.of("web-2", isoAtEpochMillis(10_000L)))
+                () -> process(processor, List.of("web-2", isoAtEpochMillis(10_000L)))
             );
             assertThat(e.getMessage(), containsString("job-1"));
             assertThat(processor.getWrittenDocumentCount(), equalTo(1L));
@@ -114,10 +115,41 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(TIME_FIELD));
     }
 
+    public void testRowShouldBeReadOnceWhenTimeColumnIsLast() throws IOException {
+        List<ColumnInfo> columns = List.of(column("host", KEYWORD), column("count", LONG), column(TIME_FIELD, DATE));
+        List<Object> values = List.of("web-1", 7L, isoAtEpochMillis(100L));
+        int[] cellsRead = { 0 };
+        Iterable<Object> countingRow = () -> {
+            Iterator<Object> it = values.iterator();
+            return new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return it.hasNext();
+                }
+
+                @Override
+                public Object next() {
+                    cellsRead[0]++;
+                    return it.next();
+                }
+            };
+        };
+        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, WINDOW, new ByteArrayOutputStream())) {
+            processor.process(countingRow, values.get(processor.timeColumnIndex()));
+        }
+        assertThat(cellsRead[0], equalTo(values.size()));
+    }
+
+    /** Passes the time value the way the extractor does: the cell at the time column index, or null when the row is shorter. */
+    private static void process(EsqlToJsonProcessor processor, List<Object> row) throws IOException {
+        int index = processor.timeColumnIndex();
+        processor.process(row, index < row.size() ? row.get(index) : null);
+    }
+
     private static String rowsToString(List<ColumnInfo> columns, List<Object> rowValues) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, WINDOW, outputStream)) {
-            processor.process(rowValues);
+            process(processor, rowValues);
         }
         return outputStream.toString(StandardCharsets.UTF_8).stripTrailing();
     }

@@ -113,7 +113,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertValidationSucceeds(harness(Arrays.asList("@timestamp", "date", "time", "@timestamp", "mapped", null, null)), validation());
     }
 
-    public void testCheckDescriptionShouldReturnTheTimeColumnWithItsOriginAndInterval() {
+    public void testCheckDescriptionShouldReturnTheTimeColumnWithItsInterval() {
         EsqlQueryDescription description = new EsqlQueryDescription(
             Map.of("@timestamp", "date"),
             Map.of("@timestamp", "computed"),
@@ -124,7 +124,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         TimeColumn timeColumn = EsqlDatafeedQueryValidator.checkDescription(description, "@timestamp", null, "datafeed-1");
 
-        assertThat(timeColumn, equalTo(new TimeColumn("@timestamp", "computed", TimeValue.timeValueHours(2).millis())));
+        assertThat(timeColumn, equalTo(new TimeColumn("@timestamp", TimeValue.timeValueHours(2).millis())));
     }
 
     public void testCheckDescriptionWithoutOriginShouldAcceptTheTimeColumn() {
@@ -133,7 +133,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         TimeColumn timeColumn = EsqlDatafeedQueryValidator.checkDescription(description, "@timestamp", null, null);
 
-        assertThat(timeColumn, equalTo(new TimeColumn("@timestamp", null, 0L)));
+        assertThat(timeColumn, equalTo(new TimeColumn("@timestamp", 0L)));
     }
 
     public void testFixedIntervalTimeColumnShouldPassValidation() {

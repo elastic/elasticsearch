@@ -48,6 +48,9 @@ public class EsqlDatafeedQueryValidator {
 
     private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
 
+    /** The {@code DESCRIBE} origin of a field under another name. The datafeed cannot filter the source on such a column. */
+    private static final String RENAMED_ORIGIN = "renamed";
+
     private final EsqlQueryRunner queryRunner;
 
     public EsqlDatafeedQueryValidator() {
@@ -327,7 +330,7 @@ public class EsqlDatafeedQueryValidator {
             );
         }
         String origin = description.columnOrigins().get(timeField);
-        if (TimeColumn.RENAMED_ORIGIN.equals(origin)) {
+        if (RENAMED_ORIGIN.equals(origin)) {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(
                     Messages.DATAFEED_ESQL_TIME_COLUMN_RENAMED,
@@ -337,7 +340,7 @@ public class EsqlDatafeedQueryValidator {
                 )
             );
         }
-        return new TimeColumn(timeField, origin, timeBucketMillis(description, timeField, datafeedId));
+        return new TimeColumn(timeField, timeBucketMillis(description, timeField, datafeedId));
     }
 
     /**

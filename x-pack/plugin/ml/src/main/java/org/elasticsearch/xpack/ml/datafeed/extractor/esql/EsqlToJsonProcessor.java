@@ -16,13 +16,12 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Writes ES|QL rows as newline-delimited JSON documents for autodetect. While it writes a row it checks the row's time against the
- * extraction window, so the rows are read once and never copied.
+ * extraction window, so the rows are never copied.
  */
 class EsqlToJsonProcessor implements Releasable {
 
@@ -49,10 +48,19 @@ class EsqlToJsonProcessor implements Releasable {
         this.jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
     }
 
-    /** Writes {@code row}, or fails without writing it when its time is null, multi-valued or outside the window. */
-    void process(Iterable<Object> row) throws IOException {
+    /** The position of the time column in every row. */
+    int timeColumnIndex() {
+        return timeColumnIndex;
+    }
+
+    /**
+     * Writes {@code row}, or fails without writing it when its time is null, multi-valued or outside the window.
+     *
+     * @param timeValue the value of the time column in {@code row}, read by the caller through the response's column accessor
+     */
+    void process(Iterable<Object> row, Object timeValue) throws IOException {
         // Check before starting the object, so a failing row leaves no partial document behind.
-        long time = checkedTime(valueAt(row, timeColumnIndex));
+        long time = checkedTime(timeValue);
         jsonBuilder.startObject();
         int columnIndex = 0;
         for (Object value : row) {
@@ -77,15 +85,6 @@ class EsqlToJsonProcessor implements Releasable {
             timeWindow.start(),
             timeWindow.end()
         );
-    }
-
-    /** The value at {@code columnIndex}, or null when the row is shorter. */
-    private static Object valueAt(Iterable<Object> row, int columnIndex) {
-        Iterator<Object> values = row.iterator();
-        for (int index = 0; index < columnIndex && values.hasNext(); index++) {
-            values.next();
-        }
-        return values.hasNext() ? values.next() : null;
     }
 
     private static int indexOfColumn(List<? extends ColumnInfo> columns, String columnName) {

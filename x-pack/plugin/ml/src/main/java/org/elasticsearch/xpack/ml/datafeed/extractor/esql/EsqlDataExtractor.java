@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -202,7 +203,6 @@ public class EsqlDataExtractor implements DataExtractor {
                 .collect(Collectors.toMap(ColumnInfo::name, ColumnInfo::outputType, (first, second) -> second, LinkedHashMap::new));
             EsqlDatafeedQueryValidator.checkRequiredColumns(columnTypes, context.timeField(), context.requiredSummaryCountField(), null);
             BytesStreamOutput out = new BytesStreamOutput();
-            // The processor checks each row's time against the window while it writes the row, so the rows are read only once.
             EsqlToJsonProcessor.TimeWindow timeWindow = new EsqlToJsonProcessor.TimeWindow(
                 context.jobId(),
                 context.timeField(),
@@ -210,8 +210,9 @@ public class EsqlDataExtractor implements DataExtractor {
                 context.end()
             );
             try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, timeWindow, out)) {
+                Iterator<Object> times = esqlResponse.column(processor.timeColumnIndex()).iterator();
                 for (Iterable<Object> row : esqlResponse.rows()) {
-                    processor.process(row);
+                    processor.process(row, times.hasNext() ? times.next() : null);
                 }
                 rowCount = processor.getWrittenDocumentCount();
             }

@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -800,6 +801,10 @@ public class EsqlDataExtractorTests extends ESTestCase {
         doReturn(columns).when(response).columns();
         doReturn(clusters).when(response).clusters();
         when(response.rows()).thenReturn((Iterable<Iterable<Object>>) (Iterable<?>) rows);
+        when(response.column(anyInt())).thenAnswer(invocation -> {
+            int index = invocation.getArgument(0);
+            return rows.stream().map(row -> index < row.size() ? row.get(index) : null).toList();
+        });
         return response;
     }
 

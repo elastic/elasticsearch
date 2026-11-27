@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
-import org.elasticsearch.core.Nullable;
-
 import java.util.Objects;
 
 /**
@@ -18,17 +16,12 @@ import java.util.Objects;
  * {@code BY @timestamp = BUCKET(@timestamp, 1 hour)}.
  *
  * @param name         the column name, which is the job {@code time_field} and the field the source range filter targets
- * @param origin       the {@code DESCRIBE} origin, for example {@code mapped} or {@code computed}, or {@code null} when not reported
  * @param bucketMillis the length of the interval the query floors the column to, or 0 when the query emits source timestamps
  */
-record TimeColumn(String name, @Nullable String origin, long bucketMillis) {
-
-    /** The {@code DESCRIBE} origin of a field under another name. The datafeed cannot filter the source on such a column. */
-    static final String RENAMED_ORIGIN = "renamed";
+record TimeColumn(String name, long bucketMillis) {
 
     TimeColumn {
         Objects.requireNonNull(name);
-        assert RENAMED_ORIGIN.equals(origin) == false : "a renamed time column cannot filter the source";
         assert bucketMillis >= 0 : "negative bucket length " + bucketMillis;
     }
 }

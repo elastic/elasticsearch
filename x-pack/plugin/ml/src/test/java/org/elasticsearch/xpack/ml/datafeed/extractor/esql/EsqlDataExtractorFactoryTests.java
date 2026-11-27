@@ -54,7 +54,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     private static final String ESQL_QUERY =
         "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)";
     private static final String TIME_FIELD = "@timestamp";
-    private static final TimeColumn RAW_TIME_COLUMN = new TimeColumn(TIME_FIELD, "mapped", 0L);
+    private static final TimeColumn RAW_TIME_COLUMN = new TimeColumn(TIME_FIELD, 0L);
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
     private Client client;
@@ -139,7 +139,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     public void testCreateShouldKeepTheComputedTimeColumnWithItsInterval() {
         TimeColumn timeColumn = createFactoryWithInterval("1 hour").timeColumn();
 
-        assertThat(timeColumn, equalTo(new TimeColumn(TIME_FIELD, "computed", TimeValue.timeValueHours(1).millis())));
+        assertThat(timeColumn, equalTo(new TimeColumn(TIME_FIELD, TimeValue.timeValueHours(1).millis())));
     }
 
     public void testCreateShouldFailWhenTimeColumnIsRenamed() {

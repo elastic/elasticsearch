@@ -137,7 +137,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     );
 
     // TODO: drop the removed source_time_field slot together with grouping_interval under one transport version, in a single
-    // backportable clean-up PR (https://github.com/elastic/esql-planning/issues/2208). Until then the wire keeps the slot.
+    // backportable clean-up PR (https://github.com/elastic/elasticsearch/issues/161207). Until then the wire keeps the slot.
     /** Skips the slot of the removed {@code source_time_field}, which the wire still carries. */
     static void readRemovedSourceTimeField(StreamInput in) throws IOException {
         in.readOptionalString();

@@ -308,12 +308,14 @@ public class PlannerSettings {
      * instead of an IN list filter. Below or equal to this threshold, the subquery result is inlined
      * as {@code WHERE field IN (v1, v2, ...)}. Above it, a LEFT hash join is used for better performance.
      * <p>
-     * The default, {@code -1}, picks by cost, as described on {@code AbstractInSubqueryJoin#filterPathThreshold}. A value of {@code 0} or
-     * more is used as is for every query.
+     * The default is {@code 100}. A value of {@code -1} picks by cost, as described on
+     * {@code AbstractInSubqueryJoin#filterPathThreshold}. A value of {@code 0} or more is used for every query, except that a
+     * single-column positive {@code IN} that the planner expects to push to local indices, such as one over a plain indexed key that is
+     * not a date, is capped by a known {@code index.max_terms_count} below 100. A {@code NOT IN}, a date key or a remote index is not.
      */
     public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting(
         "esql.in_subquery_hash_join_threshold",
-        -1,
+        100,
         -1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

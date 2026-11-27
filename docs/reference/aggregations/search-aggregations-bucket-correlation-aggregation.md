@@ -2,12 +2,17 @@
 navigation_title: "Bucket correlation"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-correlation-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Bucket correlation aggregation [search-aggregations-bucket-correlation-aggregation]
 
 
 A sibling pipeline aggregation which executes a correlation function on the configured sibling multi-bucket aggregation.
+
+In {{stack}}, this aggregation is available with a Platinum or Enterprise license.
 
 ## Parameters [bucket-correlation-agg-syntax]
 

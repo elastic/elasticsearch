@@ -38,6 +38,8 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -434,10 +436,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }))) {
                 final Set<Integer> shardIds = shardIds();
                 for (final int shardId : shardIds) {
-                    ActionListener.run(refs.acquireListener().delegateResponse((l, e) -> {
+                    try {
+                        removeShard(shardId, reason, shardCloseExecutor, refs.acquire());
+                    } catch (Exception e) {
                         logger.warn("failed to close shard", e);
-                        l.onResponse(null);
-                    }), l -> removeShard(shardId, reason, shardCloseExecutor, l));
+                    }
                 }
             }
         } else {
@@ -639,32 +642,30 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
                 final var finalStore = store;
                 final var finalIndexShard = indexShard;
-                CloseUtils.executeDirectly(
-                    l -> closeShard(
-                        "initialization failed",
-                        shardId,
-                        finalIndexShard,
-                        finalStore,
-                        eventListener,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE /* closing a shard that failed to start up should be fast enough */,
-                        l
-                    )
+                closeShard(
+                    "initialization failed",
+                    shardId,
+                    finalIndexShard,
+                    finalStore,
+                    eventListener,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE /* closing a shard that failed to start up should be fast enough */,
+                    () -> {}
                 );
             }
         }
     }
 
     @Override
-    public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, ActionListener<Void> closeListener) {
+    public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, Releasable onClosed) {
         final IndexShard indexShard = shards.get(shardId);
         if (indexShard == null) {
-            closeListener.onResponse(null);
+            onClosed.close();
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        final var wrappedListener = logger.isDebugEnabled()
-            ? ActionListener.runBefore(closeListener, () -> logger.debug("[{}] closed (reason: [{}])", shardId, reason))
-            : closeListener;
+        final var wrappedOnClosed = logger.isDebugEnabled()
+            ? Releasables.wrap(() -> logger.debug("[{}] closed (reason: [{}])", shardId, reason), onClosed)
+            : onClosed;
 
         shards = Maps.copyMapWithRemovedEntry(shards, shardId);
         closeShard(
@@ -674,7 +675,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexShard.store(),
             indexShard.getIndexEventListener(),
             closeExecutor,
-            wrappedListener
+            wrappedOnClosed
         );
         logger.debug("[{}] removed (reason: [{}])", shardId, reason);
     }
@@ -686,40 +687,44 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Store store,
         IndexEventListener listener,
         Executor closeExecutor,
-        ActionListener<Void> closeListener
+        Releasable onClosed
     ) {
         final int shardId = sId.id();
         final Settings indexSettings = this.getIndexSettings().getSettings();
         if (store != null) {
             store.beforeClose();
         }
-        try {
+        // Whatever happens below, including a listener throwing, onClosed is released exactly once, after the asynchronous shard close (if
+        // any) has completed.
+        try (var refs = new RefCountingRunnable(onClosed::close)) {
             try {
                 listener.beforeIndexShardClosed(sId, indexShard, indexSettings);
             } finally {
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
-                if (indexShard == null) {
-                    closeListener.onResponse(null);
-                } else {
+                if (indexShard != null) {
                     // only flush if we are closed (closed index or shutdown) and if we are not deleted
                     final boolean flushEngine = deleted.get() == false && closed.get();
                     // if the store is still open, want to keep it open until afterIndexShardClosed
                     assert store == null || store.hasReferences() : "store exists but already closed";
                     final var hasStoreRef = store != null && store.tryIncRef(); // being cautious
+                    final var shardClosedRef = refs.acquire();
                     ActionListener.run(new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
                             try {
                                 // call this before we close the store, so we can release resources for it
                                 listener.afterIndexShardClosed(sId, indexShard, indexSettings);
+                            } catch (Exception e) {
+                                // CompositeIndexEventListener has already logged this at WARN
+                                logger.debug(() -> format("[%s] failed to run afterIndexShardClosed (reason: [%s])", shardId, reason), e);
                             } finally {
                                 try {
                                     if (hasStoreRef) {
                                         store.decRef();
                                     }
                                 } finally {
-                                    closeListener.onResponse(null);
+                                    shardClosedRef.close();
                                 }
                             }
                         }

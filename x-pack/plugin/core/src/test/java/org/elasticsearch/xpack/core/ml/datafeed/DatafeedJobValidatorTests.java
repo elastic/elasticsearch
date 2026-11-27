@@ -36,7 +36,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
             .build(new Date());
 
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "esql-job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueMinutes(30))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();
@@ -57,7 +56,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
             .build(new Date());
 
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "esql-job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .setFrequency(TimeValue.timeValueMinutes(10))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
@@ -85,7 +83,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
             .build(new Date());
 
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "esql-job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .setFrequency(TimeValue.timeValueHours(1))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
@@ -100,7 +97,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
             .build(new Date());
 
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "esql-job").setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();

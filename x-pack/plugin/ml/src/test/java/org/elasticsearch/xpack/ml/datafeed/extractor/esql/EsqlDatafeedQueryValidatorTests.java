@@ -98,6 +98,44 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.getMessage(), containsString("time column [@timestamp] has type [keyword]. It must be date or date_nanos."));
     }
 
+    public void testRenamedTimeColumnShouldFailValidationAndNameTheSourceField() {
+        Exception failure = assertValidationFails(
+            harness(Arrays.asList("@timestamp", "date", null, "event.ingested", "renamed", null, null)),
+            validation()
+        );
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("time column [@timestamp] is the field [event.ingested] renamed"));
+        assertThat(failure.getMessage(), containsString("set data_description.time_field to [event.ingested]"));
+    }
+
+    public void testMappedTimeColumnShouldPassValidation() {
+        assertValidationSucceeds(harness(Arrays.asList("@timestamp", "date", "time", "@timestamp", "mapped", null, null)), validation());
+    }
+
+    public void testCheckDescriptionShouldReturnTheTimeColumnWithItsOriginAndInterval() {
+        EsqlQueryDescription description = new EsqlQueryDescription(
+            Map.of("@timestamp", "date"),
+            Map.of("@timestamp", "computed"),
+            Map.of(),
+            Map.of("@timestamp", "2 hours"),
+            Map.of("@timestamp", "UTC")
+        );
+
+        TimeColumn timeColumn = EsqlDatafeedQueryValidator.checkDescription(description, "@timestamp", null, "datafeed-1");
+
+        assertThat(timeColumn, equalTo(new TimeColumn("@timestamp", "computed", TimeValue.timeValueHours(2).millis())));
+    }
+
+    public void testCheckDescriptionWithoutOriginShouldAcceptTheTimeColumn() {
+        // A DESCRIBE without the origin column (an older ES|QL) cannot show a rename, so the column is taken by its name.
+        EsqlQueryDescription description = new EsqlQueryDescription(Map.of("@timestamp", "date"), Map.of(), Map.of(), Map.of(), Map.of());
+
+        TimeColumn timeColumn = EsqlDatafeedQueryValidator.checkDescription(description, "@timestamp", null, null);
+
+        assertThat(timeColumn, equalTo(new TimeColumn("@timestamp", null, 0L)));
+    }
+
     public void testFixedIntervalTimeColumnShouldPassValidation() {
         assertValidationSucceeds(harness(row("@timestamp", "date", "90 minutes")), validation());
     }
@@ -940,7 +978,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     private static final List<String> DESCRIBE_COLUMNS = List.of("name", "type", "role", "field", "origin", "interval", "time_zone");
 
-    /** A DESCRIBE row: name and type are the columns the validator reads, the rest are reported but ignored. */
+    /** A DESCRIBE row of a computed column: the validator reads name, type, field, origin, interval and time zone. */
     private static List<Object> row(String name, String type) {
         return row(name, type, null);
     }
@@ -1150,7 +1188,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     private static DatafeedConfig.Builder updateDatafeed() {
         return new DatafeedConfig.Builder("df", "job").setEsqlQuery(UPDATE_ESQL_QUERY)
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
     }

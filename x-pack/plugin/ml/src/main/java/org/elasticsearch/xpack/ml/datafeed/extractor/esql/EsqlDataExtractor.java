@@ -116,7 +116,7 @@ public class EsqlDataExtractor implements DataExtractor {
 
     /**
      * One probe over the output of the user query: earliest and latest emitted time and the number of output rows, used to size
-     * lookback chunks. The source time filter applies as for extraction; {@code ??timeField} is the emitted time column.
+     * lookback chunks. The source time filter applies as for extraction; {@code ??timeField} is the time column.
      */
     @Override
     public DataSummary getSummary() {
@@ -131,7 +131,7 @@ public class EsqlDataExtractor implements DataExtractor {
                 // Every output row has a null time. Fail as the data query does instead of reporting an empty window.
                 EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow(
                     context.jobId(),
-                    context.emittedTimeField(),
+                    context.timeField(),
                     null,
                     context.start(),
                     context.end()
@@ -153,7 +153,7 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private QueryBuilder buildTimeFilter() {
-        return EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), context.start(), context.end());
+        return EsqlDataExtractorQueryUtils.timeRangeFilter(context.timeField(), context.start(), context.end());
     }
 
     private static DataSummary parseSummaryResponse(EsqlResponse response) {
@@ -200,31 +200,17 @@ public class EsqlDataExtractor implements DataExtractor {
             // Runtime extraction has no datafeed id for column-check messages.
             Map<String, String> columnTypes = columns.stream()
                 .collect(Collectors.toMap(ColumnInfo::name, ColumnInfo::outputType, (first, second) -> second, LinkedHashMap::new));
-            EsqlDatafeedQueryValidator.checkRequiredColumns(
-                columnTypes,
-                context.emittedTimeField(),
-                context.requiredSummaryCountField(),
-                null
-            );
-            List<List<Object>> materializedRows = new ArrayList<>();
-            for (Iterable<Object> row : esqlResponse.rows()) {
-                List<Object> values = new ArrayList<>();
-                for (Object value : row) {
-                    values.add(value);
-                }
-                materializedRows.add(values);
-            }
-            EsqlDatafeedQueryValidator.validateEmittedTimesInSourceWindow(
-                columns,
-                materializedRows,
+            EsqlDatafeedQueryValidator.checkRequiredColumns(columnTypes, context.timeField(), context.requiredSummaryCountField(), null);
+            BytesStreamOutput out = new BytesStreamOutput();
+            // The processor checks each row's time against the window while it writes the row, so the rows are read only once.
+            EsqlToJsonProcessor.TimeWindow timeWindow = new EsqlToJsonProcessor.TimeWindow(
                 context.jobId(),
-                context.emittedTimeField(),
+                context.timeField(),
                 context.start(),
                 context.end()
             );
-            BytesStreamOutput out = new BytesStreamOutput();
-            try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, out)) {
-                for (List<Object> row : materializedRows) {
+            try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, timeWindow, out)) {
+                for (Iterable<Object> row : esqlResponse.rows()) {
                     processor.process(row);
                 }
                 rowCount = processor.getWrittenDocumentCount();
@@ -247,7 +233,7 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private List<EsqlQueryParam> timeFieldParam() {
-        return List.of(new EsqlQueryParam("timeField", context.emittedTimeField(), IDENTIFIER));
+        return List.of(new EsqlQueryParam("timeField", context.timeField(), IDENTIFIER));
     }
 
     EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {

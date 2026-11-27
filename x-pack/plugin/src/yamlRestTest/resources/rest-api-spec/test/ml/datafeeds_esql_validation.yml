@@ -51,7 +51,6 @@ setup:
           {
             "job_id": "esql-feed-job",
             "esql_query": "FROM esql-feed-data | KEEP @timestamp, host",
-            "source_time_field": "@timestamp",
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
@@ -68,14 +67,13 @@ setup:
           {
             "job_id": "esql-feed-job",
             "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)",
-            "source_time_field": "@timestamp",
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
   - match: { datafeed_id: "esql-feed-bucket" }
 
 ---
-"Test put ES|QL datafeed with a time column named differently from its source field":
+"Test put ES|QL datafeed with a renamed time column":
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
@@ -92,6 +90,7 @@ setup:
             }
           }
   - do:
+      catch: /time column \[hour\] is the field \[@timestamp\] renamed/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       ml.put_datafeed:
@@ -99,12 +98,10 @@ setup:
         body: >
           {
             "job_id": "esql-feed-hour-job",
-            "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY hour = BUCKET(@timestamp, 1 hour)",
-            "source_time_field": "@timestamp",
+            "esql_query": "FROM esql-feed-data | KEEP @timestamp, host | RENAME @timestamp AS hour",
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
-  - match: { datafeed_id: "esql-feed-hour" }
 
 ---
 "Test put ES|QL datafeed with a bucket of a date field other than @timestamp":
@@ -132,7 +129,6 @@ setup:
           {
             "job_id": "esql-feed-event-time-job",
             "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY event_time = BUCKET(event_time, 1 hour)",
-            "source_time_field": "event_time",
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
@@ -165,7 +161,6 @@ setup:
           {
             "job_id": "esql-feed-host-job",
             "esql_query": "FROM esql-feed-data | KEEP host, @timestamp",
-            "source_time_field": "@timestamp",
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
@@ -197,7 +192,6 @@ setup:
           {
             "job_id": "esql-feed-summary-job",
             "esql_query": "FROM esql-feed-data | STATS doc_count = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)",
-            "source_time_field": "@timestamp",
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": true}
           }
@@ -231,7 +225,6 @@ setup:
           {
             "job_id": "esql-feed-summary-missing-job",
             "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)",
-            "source_time_field": "@timestamp",
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": true}
           }

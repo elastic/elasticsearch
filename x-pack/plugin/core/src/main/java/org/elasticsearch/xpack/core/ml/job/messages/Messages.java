@@ -41,12 +41,13 @@ public final class Messages {
     public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
     public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD = "{0} cannot be used in combination with esql_query";
     public static final String DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY = "{0} can only be set when esql_query is configured";
-    public static final String DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD =
-        "ES|QL datafeeds require source_time_field; set the indexed timestamp field used for request range filters";
     /** Arg {0} of the ES|QL datafeed messages below: the subject without and with the datafeed id. */
     public static final String DATAFEED_ESQL_SUBJECT = "ES|QL datafeed";
     public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
     public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
+    public static final String DATAFEED_ESQL_TIME_COLUMN_RENAMED =
+        "{0} time column [{1}] is the field [{2}] renamed. The datafeed filters the source on the job time_field, so the time column "
+            + "must keep the name of its source field. Keep the column as [{2}] and set data_description.time_field to [{2}].";
     public static final String DATAFEED_ESQL_TIME_BUCKET_CALENDAR_INTERVAL =
         "{0} time column [{1}] is bucketed by the calendar interval [{2}]. A calendar interval has no fixed length. "
             + "Use a fixed interval such as [1 hour] or [1 day].";
@@ -121,7 +122,7 @@ public final class Messages {
             + "Make sure that the clusters are connected, that the indices in the query exist on them, "
             + "and that the query returns the required columns.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
-        "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
+        "Recreate ES|QL datafeed [{0}] to change esql_query, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "
             + "settings: query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
     public static final String DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED =

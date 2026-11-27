@@ -196,7 +196,6 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         // These tests exercise LIMIT injection and chunk-truncation auditing, not delayed
         // data detection, which for ES|QL datafeeds separately requires summary_count_field_name.
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery(query)
-            .setSourceTimeField("event_time")
             .setGroupingInterval(BUCKET_SPAN)
             .setChunkingConfig(chunkingConfig)
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())

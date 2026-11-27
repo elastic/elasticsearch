@@ -1155,7 +1155,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     @Override
     protected DatafeedConfig mutateInstanceForVersion(DatafeedConfig instance, TransportVersion version) {
         if (version.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY) == false) {
-            // ES|QL datafeeds (esqlQuery, sourceTimeField, groupingInterval and no indicesOptions) have no representation before
+            // ES|QL datafeeds (esqlQuery, groupingInterval and no indicesOptions) have no representation before
             // ML_DATAFEED_ESQL_QUERY: DatafeedConfig#writeTo refuses to serialize them, so there is no expected deserialized instance.
             // Classic datafeeds always carry non-null indicesOptions (the builder defaults them), which older nodes read without a
             // presence flag, so they round-trip unchanged apart from the version-gated fields handled below.
@@ -1164,7 +1164,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 instance.getEsqlQuery(),
                 nullValue()
             );
-            assertThat(instance.getSourceTimeField(), nullValue());
             assertThat(instance.getGroupingInterval(), nullValue());
             assertThat(instance.getIndicesOptions(), notNullValue());
         }
@@ -1946,9 +1945,8 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         }
     }
 
-    public void testWireRoundTripEsqlQueryWithSourceTimeFieldAndGroupingIntervalShouldPreserveThem() throws IOException {
+    public void testWireRoundTripEsqlQueryWithGroupingIntervalShouldPreserveIt() throws IOException {
         DatafeedConfig original = createEsqlDatafeedBuilder().build();
-        assertThat(original.getSourceTimeField(), equalTo("@timestamp"));
         assertThat(original.getGroupingInterval(), equalTo(TimeValue.timeValueHours(1)));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -1961,9 +1959,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 // Explicit field assertions against literal expected values, not just equals(original) or
                 // DatafeedConfig#equals -- a round-trip bug in one field could otherwise hide behind a
                 // builder default that happens to coincidentally match.
-                assertThat(roundTripped.getSourceTimeField(), equalTo("@timestamp"));
                 assertThat(roundTripped.getGroupingInterval(), equalTo(TimeValue.timeValueHours(1)));
-                assertThat(roundTripped.getSourceTimeField(), equalTo(original.getSourceTimeField()));
                 assertThat(roundTripped.getGroupingInterval(), equalTo(original.getGroupingInterval()));
                 assertThat(roundTripped, equalTo(original));
             }
@@ -2091,7 +2087,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     static DatafeedConfig.Builder createRandomizedEsqlDatafeedConfigBuilder(String jobId, String datafeedId) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery("FROM " + randomAlphaOfLengthBetween(1, 10) + "-* | WHERE " + randomAlphaOfLengthBetween(1, 10) + " > 0");
-        builder.setSourceTimeField(randomAlphaOfLengthBetween(1, 10));
         builder.setGroupingInterval(TimeValue.timeValueSeconds(randomIntBetween(1, 3600)));
         if (randomBoolean()) {
             builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
@@ -2151,12 +2146,40 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         return indicesOptions;
     }
 
-    public void testEsqlQueryWithoutSourceTimeFieldShouldReject() {
-        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
-        builder.setSourceTimeField(null);
+    public void testStrictParserWithSourceTimeFieldShouldReject() throws IOException {
+        String json = """
+            {"datafeed_id": "datafeed1", "job_id": "job1", "esql_query": "FROM logs", "source_time_field": "@timestamp",
+             "grouping_interval": "1h"}""";
+        XContentParseException exception = expectThrows(
+            XContentParseException.class,
+            () -> DatafeedConfig.STRICT_PARSER.apply(createParser(JsonXContent.jsonXContent, json), null)
+        );
+        assertThat(exception.getMessage(), containsString("unknown field [source_time_field]"));
+    }
 
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(exception.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD)));
+    public void testLenientParserWithStoredSourceTimeFieldShouldIgnoreIt() throws IOException {
+        // A config stored before source_time_field was removed still parses; the datafeed filters on the job time_field.
+        String json = """
+            {"datafeed_id": "datafeed1", "job_id": "job1", "esql_query": "FROM logs", "source_time_field": "@timestamp",
+             "grouping_interval": "1h"}""";
+        DatafeedConfig config = DatafeedConfig.LENIENT_PARSER.apply(createParser(JsonXContent.jsonXContent, json), null).build();
+
+        assertThat(config, equalTo(createEsqlDatafeedBuilder().build()));
+    }
+
+    public void testWireBeforeSourceTimeFieldRemovalShouldKeepFieldsAligned() throws IOException {
+        // A peer that knows ES|QL datafeeds but not the removal still writes and reads the source_time_field slot.
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+        TransportVersion peer = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_SOURCE_TIME_FIELD_REMOVED);
+        assertTrue(peer.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(peer);
+            original.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(peer);
+                assertThat(new DatafeedConfig(in), equalTo(mutateInstanceForVersion(original, peer)));
+            }
+        }
     }
 
     public void testEsqlQueryWithoutGroupingIntervalShouldReject() {
@@ -2182,7 +2205,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         DatafeedConfig config = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(Collections.singletonList("logs"))
             .build();
 
-        assertThat(config.getSourceTimeField(), nullValue());
         assertThat(config.getGroupingInterval(), nullValue());
     }
 
@@ -2192,10 +2214,9 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         DatafeedConfig parsedConfig = DatafeedConfig.STRICT_PARSER.apply(parser(bytes), null).build();
 
-        assertThat(parsedConfig.getSourceTimeField(), equalTo(config.getSourceTimeField()));
         assertThat(parsedConfig.getGroupingInterval(), equalTo(config.getGroupingInterval()));
         String json = bytes.utf8ToString();
-        assertThat(json, containsString("\"source_time_field\""));
+        assertThat(json, not(containsString("source_time_field")));
         assertThat(json, containsString("\"grouping_interval\""));
     }
 
@@ -2208,7 +2229,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
                 in.setTransportVersion(TransportVersion.current());
                 DatafeedConfig roundTripped = new DatafeedConfig(in);
-                assertThat(roundTripped.getSourceTimeField(), equalTo(original.getSourceTimeField()));
                 assertThat(roundTripped.getGroupingInterval(), equalTo(original.getGroupingInterval()));
             }
         }
@@ -2217,14 +2237,11 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     public void testDatafeedConfigEqualsShouldConsiderEsqlFields() {
         DatafeedConfig base = createEsqlDatafeedBuilder().build();
         DatafeedConfig differentEsqlQuery = createEsqlDatafeedBuilder().setEsqlQuery("FROM other-index").build();
-        DatafeedConfig differentSourceTimeField = createEsqlDatafeedBuilder().setSourceTimeField("event.ingested").build();
         DatafeedConfig differentGroupingInterval = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(30)).build();
 
         assertThat(base, not(equalTo(differentEsqlQuery)));
-        assertThat(base, not(equalTo(differentSourceTimeField)));
         assertThat(base, not(equalTo(differentGroupingInterval)));
         assertThat(base.hashCode(), not(equalTo(differentEsqlQuery.hashCode())));
-        assertThat(base.hashCode(), not(equalTo(differentSourceTimeField.hashCode())));
         assertThat(base.hashCode(), not(equalTo(differentGroupingInterval.hashCode())));
     }
 
@@ -2233,7 +2250,6 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         // `indices` combined with `esql_query` (DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD).
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setEsqlQuery("FROM logs");
-        builder.setSourceTimeField("@timestamp");
         builder.setGroupingInterval(TimeValue.timeValueHours(1));
         return builder;
     }

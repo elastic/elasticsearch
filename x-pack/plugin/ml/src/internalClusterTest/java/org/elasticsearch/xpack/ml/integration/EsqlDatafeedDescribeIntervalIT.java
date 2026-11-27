@@ -138,7 +138,6 @@ public class EsqlDatafeedDescribeIntervalIT extends BaseMlIntegTestCase {
         jobBuilder.setDataDescription(new DataDescription.Builder().setTimeField("@timestamp").setTimeFormat(DataDescription.EPOCH_MS));
         Job job = jobBuilder.build(new Date());
         DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-describe-interval-datafeed", job.getId()).setEsqlQuery(esqlQuery)
-            .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();

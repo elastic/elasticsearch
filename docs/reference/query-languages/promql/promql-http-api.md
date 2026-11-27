@@ -15,9 +15,11 @@ products:
 Calls run under the `/_prometheus/` prefix and follow the [{{prom}} HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/).
 {{esql}} queries run {{promql}} with the [`PROMQL` source command](/reference/query-languages/esql/commands/promql.md).
 
-Parameters, methods, and response bodies for each call are in the [{{prom}} APIs]({{es-apis}}group/endpoint-prometheus).
+Parameters, methods, and response bodies for each call are in the [{{es}} {{prom}} APIs]({{es-apis}}group/endpoint-prometheus) and [{{es-serverless}} {{prom}} APIs]({{es-serverless-apis}}group/endpoint-prometheus).
 For differences from {{prom}}, refer to [{{prom}} compatibility](prometheus-compatibility.md).
 To connect Grafana, refer to [Use {{es}} as a {{prom}} data source in Grafana](promql-grafana.md).
+
+For an introduction to running queries with {{promql}} through the HTTP API, go to [](promql/promql-tutorial.md).
 
 ## Index scoping [promql-http-api-index-scope]
 

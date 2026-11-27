@@ -552,7 +552,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 noopUpdateResponse,
                 DocWriteResponse.Result.NOOP,
@@ -609,7 +609,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -674,7 +674,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -763,7 +763,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 created ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -857,7 +857,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 DocWriteResponse.Result.UPDATED,
@@ -926,7 +926,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 created ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -1008,7 +1008,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 DocWriteResponse.Result.UPDATED,
@@ -1086,7 +1086,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 DocWriteResponse.Result.DELETED,
@@ -1134,7 +1134,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         final ElasticsearchException err = new ElasticsearchException("oops");
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenThrow(err);
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenThrow(err);
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
@@ -1354,7 +1354,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -1882,7 +1882,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -1943,7 +1943,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.routingEntry()).thenReturn(shardRouting);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any(), any(), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any(), any(), anyBoolean())).thenReturn(
             new UpdateHelper.Result(
                 new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,

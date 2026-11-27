@@ -242,6 +242,10 @@ public final class InternalIndexingStats implements IndexingOperationListener {
         totalStats.noopUpdates.inc();
     }
 
+    void inPlaceDocValuesUpdate() {
+        totalStats.inPlaceDocValuesUpdates.inc();
+    }
+
     /**
      * Increment relevant stats when indexing buffers are written to disk using indexing threads,
      * in order to apply back-pressure on indexing.
@@ -269,6 +273,7 @@ public final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric indexFailedDueToTooManyDocs = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
+        private final CounterMetric inPlaceDocValuesUpdates = new CounterMetric();
 
         private LongAdder totalExecutionTimeNanos = new LongAdder();
         private ThreadUtilizationTracker indexingUtilizationTracker;
@@ -337,6 +342,7 @@ public final class InternalIndexingStats implements IndexingOperationListener {
                 TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()),
                 deleteCurrent.count(),
                 noopUpdates.count(),
+                inPlaceDocValuesUpdates.count(),
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
                 totalIndexingTimeSinceShardStartedInNanos,

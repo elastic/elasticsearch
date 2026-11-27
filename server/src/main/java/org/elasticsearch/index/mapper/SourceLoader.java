@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -19,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -586,6 +588,85 @@ public interface SourceLoader {
                 @Override
                 public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
                     throw new IllegalStateException("This operation is not allowed in the current context");
+                }
+            };
+        }
+    }
+
+    /**
+     * Overlays each {@code doc_values.updatable} field's current doc-values value onto the {@code _source} from a delegate loader.
+     * Needed for {@code columnar_stored} source, a whole-document blob computed at index time that an in-place doc-values update does
+     * not rewrite; reading the live doc values back and replacing the stale values keeps the returned {@code _source} correct. Other
+     * source modes need no overlay: synthetic already rebuilds every field from doc values.
+     */
+    class DocValuesUpdateOverlay implements SourceLoader {
+        private final SourceLoader delegate;
+        private final List<FieldMapper> updatableFields;
+
+        DocValuesUpdateOverlay(SourceLoader delegate, List<FieldMapper> updatableFields) {
+            this.delegate = delegate;
+            this.updatableFields = updatableFields;
+        }
+
+        @Override
+        public boolean reordersFieldValues() {
+            return delegate.reordersFieldValues();
+        }
+
+        @Override
+        public Set<String> requiredStoredFields() {
+            return delegate.requiredStoredFields();
+        }
+
+        @Override
+        public Leaf leaf(LeafReaderContext context, int[] docIdsInLeaf) throws IOException {
+            // The companion column is absent on a segment whose index has no updatable fields, and present otherwise; a per-document check
+            // of its value tells whether that document was updated in place (see source()). When it is absent, no overlay is needed: the
+            // index-time source blob still matches the doc values for every document in the segment.
+            final NumericDocValues updateSeqNo = context.reader().getNumericDocValues(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME);
+            if (updateSeqNo == null) {
+                return delegate.leaf(context, docIdsInLeaf);
+            }
+            var delegateLeaf = delegate.leaf(context, docIdsInLeaf);
+            List<Map.Entry<String, FieldMapper.DocValuesUpdateSourceReader>> readers = new ArrayList<>(updatableFields.size());
+            for (FieldMapper field : updatableFields) {
+                readers.add(Map.entry(field.fullPath(), field.docValuesUpdateSourceReader(context.reader())));
+            }
+            return new Leaf() {
+                @Override
+                public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
+                    Source source = delegateLeaf.source(storedFields, docId);
+                    // Only a document updated in place needs its source corrected; one never updated still matches its index-time blob. The
+                    // companion column is seeded with UNASSIGNED_SEQ_NO on every document at index time, so the marker being present is not
+                    // enough: a document is updated only once it carries a real sequence number.
+                    if (updateSeqNo.advanceExact(docId) == false || updateSeqNo.longValue() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        return source;
+                    }
+                    List<Map.Entry<String, Object>> overlay = null;
+                    for (var reader : readers) {
+                        Object value = reader.getValue().read(docId);
+                        if (value != null) {
+                            if (overlay == null) {
+                                overlay = new ArrayList<>(readers.size());
+                            }
+                            overlay.add(Map.entry(reader.getKey(), value));
+                        }
+                    }
+                    if (overlay == null) {
+                        return source;
+                    }
+                    List<Map.Entry<String, Object>> patches = overlay;
+                    return source.withMutations(map -> {
+                        for (var patch : patches) {
+                            XContentMapValues.insertValue(patch.getKey(), map, patch.getValue(), false);
+                        }
+                    });
+                }
+
+                @Override
+                public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
+                    Source source = source(storedFields, docId);
+                    b.rawValue(source.internalSourceRef().streamInput(), source.sourceContentType());
                 }
             };
         }

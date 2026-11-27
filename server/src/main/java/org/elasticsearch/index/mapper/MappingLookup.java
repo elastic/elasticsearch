@@ -60,6 +60,9 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
+    private final Set<String> updatableFields;
+    private final List<FieldMapper> updatableFieldMappers;
+    private final List<FieldMapper> columnarStoredOverlayFieldMappers;
     private final Set<String> vectorEmbeddingFields;
     private final Map<String, FieldMapper> dimensionFieldMappers;
     private final Map<String, FieldMapper> metricFieldMappers;
@@ -269,6 +272,8 @@ public final class MappingLookup {
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         Set<String> syntheticVectorFields = new LinkedHashSet<>();
+        Set<String> updatableFields = new LinkedHashSet<>();
+        List<FieldMapper> updatableFieldMappers = new ArrayList<>();
         Set<String> vectorEmbeddingFields = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
@@ -277,13 +282,26 @@ public final class MappingLookup {
             if (mapper.syntheticVectorsLoader() != null) {
                 syntheticVectorFields.add(mapper.fullPath());
             }
+            if (mapper.isDocValuesUpdatable()) {
+                updatableFields.add(mapper.fullPath());
+                updatableFieldMappers.add(mapper);
+            }
             if (mapper.fieldType().isVectorEmbedding()) {
                 vectorEmbeddingFields.add(mapper.fullPath());
             }
         }
         this.inferenceFields = Collections.unmodifiableMap(inferenceFields);
         this.syntheticVectorFields = Collections.unmodifiableSet(syntheticVectorFields);
+        this.updatableFields = Collections.unmodifiableSet(updatableFields);
+        this.updatableFieldMappers = List.copyOf(updatableFieldMappers);
         this.vectorEmbeddingFields = Collections.unmodifiableSet(vectorEmbeddingFields);
+
+        if (updatableFieldMappers.isEmpty() == false && nestedLookup.getNestedMappers().isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] cannot be used in a mapping with nested fields: an in-place update patches the field's doc values "
+                    + "on every document that shares the root's identity, which includes its nested documents"
+            );
+        }
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -315,6 +333,14 @@ public final class MappingLookup {
         this.isSourceEnabled = sfm != null && sfm.enabled();
         this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
         this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
+
+        // The columnar_stored overlay reflects an updated field's current doc values back into _source. A field the mapping excludes from
+        // _source is stripped from the stored blob at index time, so it must not reappear once it is updated in place: drop those fields
+        // from the overlay. Uses the mapping's own _source filter, not any request-level one.
+        final SourceFilter mappingSourceFilter = sfm == null ? null : sfm.sourceFilter();
+        this.columnarStoredOverlayFieldMappers = mappingSourceFilter == null
+            ? updatableFieldMappers
+            : updatableFieldMappers.stream().filter(m -> mappingSourceFilter.isPathFiltered(m.fullPath(), false) == false).toList();
 
         this.isColumnarId = IdFieldMapper.isColumnar(mapping);
     }
@@ -475,6 +501,15 @@ public final class MappingLookup {
 
     public Map<String, ObjectMapper> objectMappers() {
         return objectMappers;
+    }
+
+    /**
+     * The full paths of all fields whose doc-values column can be updated in place via the bulk API ({@code doc_values.updatable}).
+     * Used by the bulk layer to route an update whose partial document touches only these fields to an in-place doc-values update
+     * instead of a read-modify-reindex.
+     */
+    public Set<String> updatableFields() {
+        return updatableFields;
     }
 
     /**
@@ -721,6 +756,10 @@ public final class MappingLookup {
                 metrics,
                 mapping.ignoredSourceFormat()
             );
+            // columnar_stored source is a fixed index-time blob; overlay the updated fields' current doc values on top.
+            if (isSourceColumnarStored() && columnarStoredOverlayFieldMappers.isEmpty() == false) {
+                loader = new SourceLoader.DocValuesUpdateOverlay(loader, columnarStoredOverlayFieldMappers);
+            }
             // columnar_stored leaves vectors out of its blob, so they are patched back in from the vector index or doc values.
             // A synthetic _source has no patch loader: the loader above already rebuilds them.
             var patchLoader = syntheticVectorsLoader(filter);

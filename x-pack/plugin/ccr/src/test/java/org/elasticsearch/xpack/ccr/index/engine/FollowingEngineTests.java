@@ -6,10 +6,18 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -17,12 +25,14 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -34,6 +44,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
+import org.elasticsearch.index.engine.DocValuesUpdateBaseNotPresentException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -43,10 +54,15 @@ import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.EngineResetLock;
@@ -56,6 +72,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -255,6 +272,17 @@ public class FollowingEngineTests extends ESTestCase {
         final ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         final Store store
     ) throws IOException {
+        return engineConfig(shardIdValue, indexSettings, threadPool, threadPoolMergeExecutorService, store, "{}");
+    }
+
+    private EngineConfig engineConfig(
+        final ShardId shardIdValue,
+        final IndexSettings indexSettings,
+        final ThreadPool threadPool,
+        final ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        final Store store,
+        final String mapping
+    ) throws IOException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final Path translogPath = createTempDir("translog");
         final TranslogConfig translogConfig = new TranslogConfig(
@@ -263,7 +291,7 @@ public class FollowingEngineTests extends ESTestCase {
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE
         );
-        final MapperService mapperService = EngineTestCase.createMapperService(indexSettings.getSettings(), "{}");
+        final MapperService mapperService = EngineTestCase.createMapperService(indexSettings.getSettings(), mapping);
         return EngineConfig.builder()
             .shardId(shardIdValue)
             .threadPool(threadPool)
@@ -1030,5 +1058,185 @@ public class FollowingEngineTests extends ESTestCase {
                 EngineTestCase.assertMaxSeqNoInCommitUserData(engine);
             }
         }
+    }
+
+    private static final String UPDATABLE_COUNTER_MAPPING = """
+        {
+          "properties": {
+            "counter": { "type": "long", "index": false, "doc_values": { "updatable": true } }
+          }
+        }
+        """;
+
+    /**
+     * A CCR follower receives the leader's doc-values updates with PRIMARY origin, but must treat them as replayed operations: it keeps the
+     * leader's sequence number and resolves the delta against the live document, exactly as a replica does, instead of assigning a new
+     * sequence number and patching unconditionally. An in-order delta therefore applies in place and keeps the leader's sequence
+     * number.
+     */
+    public void testFollowerDocValuesUpdateAppliesInOrderKeepingLeaderSeqNo() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+        runColumnarFollowerTest(followingEngine -> {
+            followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(2L);
+            followingEngine.index(columnarIndexForFollowing("1", 0L, 1L));
+
+            Engine.DocValuesUpdateResult result = followingEngine.docValuesUpdate(docValuesUpdateForFollowing("1", 1L, 42L, 0L));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            // The leader already assigned the sequence number; the follower reuses it instead of generating a new one.
+            assertThat(result.getSeqNo(), equalTo(1L));
+            followingEngine.refresh("test");
+            assertThat(readLiveCounter(followingEngine), equalTo(42L));
+        });
+    }
+
+    /**
+     * CCR can redeliver an operation it has already applied, for instance after a retry. The follower must recognise the duplicate and skip
+     * it in Lucene rather than apply it a second time, as it already does for a redelivered index or delete.
+     */
+    public void testFollowerDocValuesUpdateSkipsDuplicateRedelivery() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+        runColumnarFollowerTest(followingEngine -> {
+            followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(1L);
+            followingEngine.index(columnarIndexForFollowing("1", 0L, 1L));
+            followingEngine.docValuesUpdate(docValuesUpdateForFollowing("1", 1L, 42L, 0L));
+            followingEngine.refresh("test");
+            assertThat(readLiveCounter(followingEngine), equalTo(42L));
+
+            // The same leader operation (same sequence number) arrives again: it is already in the commit, so it is reported as already
+            // processed and is not applied a second time.
+            Engine.DocValuesUpdateResult redelivered = followingEngine.docValuesUpdate(docValuesUpdateForFollowing("1", 1L, 42L, 0L));
+            assertThat(redelivered.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(redelivered.getFailure(), instanceOf(AlreadyProcessedFollowingEngineException.class));
+            followingEngine.refresh("test");
+            assertThat(readLiveCounter(followingEngine), equalTo(42L));
+        });
+    }
+
+    /**
+     * Peer recovery and CCR deliver operations concurrently, so a delta can reach the follower before the base version it was computed
+     * against. Patching the older document would corrupt it, so the follower fails the delta for retry until the base, delivered in
+     * sequence-number order, is present.
+     */
+    public void testFollowerDocValuesUpdateFailsWhenBaseNotYetApplied() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+        runColumnarFollowerTest(followingEngine -> {
+            followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(2L);
+            followingEngine.index(columnarIndexForFollowing("1", 0L, 1L));
+
+            // The delta's base is sequence number 1, which has not arrived yet (only the index at sequence number 0 has): it cannot apply.
+            expectThrows(
+                DocValuesUpdateBaseNotPresentException.class,
+                () -> followingEngine.docValuesUpdate(docValuesUpdateForFollowing("1", 2L, 99L, 1L))
+            );
+            followingEngine.refresh("test");
+            // The live document is untouched.
+            assertThat(readLiveCounter(followingEngine), equalTo(1L));
+        });
+    }
+
+    private void runColumnarFollowerTest(CheckedConsumer<FollowingEngine, Exception> body) throws Exception {
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).put("index.xpack.ccr.following_index", true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put("index.disable_sequence_numbers", false)
+            .build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        assertTrue("in-place doc-values updates require a seq-no-aware columnar index", indexSettings.seqNoAwareDocValuesUpdates());
+        try (Store store = createStore(shardId, indexSettings, newDirectory())) {
+            final EngineConfig engineConfig = engineConfig(
+                shardId,
+                indexSettings,
+                threadPool,
+                threadPoolMergeExecutorService,
+                store,
+                UPDATABLE_COUNTER_MAPPING
+            );
+            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
+                body.accept(followingEngine);
+            }
+        }
+    }
+
+    private Engine.Index columnarIndexForFollowing(String id, long seqNo, long counter) {
+        final ParsedDocument doc = columnarCounterDoc(id, counter);
+        return new Engine.Index(
+            EngineTestCase.newUid(doc),
+            doc,
+            seqNo,
+            primaryTerm.get(),
+            1L,
+            VersionType.EXTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.currentTimeMillis(),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    private Engine.DocValuesUpdate docValuesUpdateForFollowing(String id, long seqNo, long counter, long baseSeqNo) {
+        return new Engine.DocValuesUpdate(
+            id,
+            Uid.encodeId(id),
+            seqNo,
+            primaryTerm.get(),
+            1L,
+            VersionType.EXTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            List.of(new Translog.DocValuesUpdate.NumericFieldUpdate("counter", counter)),
+            baseSeqNo,
+            primaryTerm.get()
+        );
+    }
+
+    /** A columnar document carrying a single updatable numeric {@code counter} column and a doc-values-only {@code _seq_no}. */
+    private static ParsedDocument columnarCounterDoc(String id, long counter) {
+        final LuceneDocument document = new LuceneDocument();
+        document.add(new SortedNumericDocValuesField("counter", counter));
+        document.add(new StringField("_id", Uid.encodeId(id), Field.Store.YES));
+        final Field versionField = new NumericDocValuesField("_version", 0);
+        final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+            SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY
+        );
+        document.add(versionField);
+        seqID.addFields(document);
+        final BytesReference source = new BytesArray("{}");
+        final BytesRef ref = source.toBytesRef();
+        document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
+        return new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            null,
+            List.of(document),
+            source,
+            XContentType.JSON,
+            null,
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
+        );
+    }
+
+    private static long readLiveCounter(Engine engine) throws IOException {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+                final SortedNumericDocValues counter = leaf.reader().getSortedNumericDocValues("counter");
+                if (counter == null) {
+                    continue;
+                }
+                final Bits liveDocs = leaf.reader().getLiveDocs();
+                for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+                    if (liveDocs != null && liveDocs.get(docId) == false) {
+                        continue;
+                    }
+                    if (counter.advanceExact(docId)) {
+                        return counter.nextValue();
+                    }
+                }
+            }
+        }
+        throw new AssertionError("no live document with a [counter] doc value");
     }
 }

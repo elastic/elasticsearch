@@ -153,7 +153,9 @@ public class GeometryDocValueWriter {
 
         // 2. Build connectivity first, so the original geometry vertices take the first ordinals in geometry order.
         // It only holds type tags and counts, so it is small enough to buffer until it is written after the tree.
-        final VertexLookupTable.Builder vertexTableBuilder = VertexLookupTable.builder();
+        // A polygon of n vertices tessellates into at least n - 2 triangles and a line into n - 1 segments, so this
+        // is at least the vertex count of anything but lines of more than two parts, which grow the builder instead.
+        final VertexLookupTable.Builder vertexTableBuilder = VertexLookupTable.builder(fields.size() + 2);
         final BytesStreamOutput connectivity = new BytesStreamOutput();
         GeometryConnectivityWriter.writeTo(connectivity, geometries, coordinateEncoder, vertexTableBuilder);
 

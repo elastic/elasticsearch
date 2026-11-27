@@ -420,7 +420,15 @@ public class VertexLookupTable {
 
     /** Creates a new builder for constructing a vertex lookup table from triangle vertices. */
     public static Builder builder() {
-        return new Builder();
+        return builder(16);
+    }
+
+    /**
+     * Creates a new builder sized for about {@code expectedVertices} vertices. Most values are small geometries, so sizing the
+     * builder up front avoids allocating far more than they need, and growing repeatedly for large ones.
+     */
+    public static Builder builder(int expectedVertices) {
+        return new Builder(expectedVertices);
     }
 
     /**
@@ -435,10 +443,25 @@ public class VertexLookupTable {
      * are not already present (e.g. those created by dateline normalization).
      */
     public static class Builder {
-        private final LongIntHashMap coordToOrdinal = new LongIntHashMap(64);
+        private final int expectedVertices;
+        /** Created on first use, since tables of points never look vertices up. */
+        private LongIntHashMap coordToOrdinal;
         private int nextOrdinal = 0;
-        private int[] xs = new int[64];
-        private int[] ys = new int[64];
+        private int[] xs;
+        private int[] ys;
+
+        private Builder(int expectedVertices) {
+            this.expectedVertices = Math.max(1, expectedVertices);
+            this.xs = new int[this.expectedVertices];
+            this.ys = new int[this.expectedVertices];
+        }
+
+        private LongIntHashMap coordToOrdinal() {
+            if (coordToOrdinal == null) {
+                coordToOrdinal = new LongIntHashMap(expectedVertices);
+            }
+            return coordToOrdinal;
+        }
 
         /**
          * Appends a vertex at the next ordinal, even if the same coordinates were already added.
@@ -446,7 +469,7 @@ public class VertexLookupTable {
          */
         public int appendVertex(int x, int y) {
             int ordinal = append(x, y);
-            coordToOrdinal.putIfAbsent(packCoordinates(x, y), ordinal);
+            coordToOrdinal().putIfAbsent(packCoordinates(x, y), ordinal);
             return ordinal;
         }
 
@@ -456,6 +479,7 @@ public class VertexLookupTable {
          */
         public int addVertex(int x, int y) {
             long key = packCoordinates(x, y);
+            LongIntHashMap coordToOrdinal = coordToOrdinal();
             int index = coordToOrdinal.indexOf(key);
             if (coordToOrdinal.indexExists(index)) {
                 return coordToOrdinal.indexGet(index);

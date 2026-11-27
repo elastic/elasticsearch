@@ -57,7 +57,7 @@ final class V2PointsWriter {
         mortonSort(xs, ys);
         extent.writeCompressed(out);
         out.writeVInt(0);
-        final VertexLookupTable.Builder builder = VertexLookupTable.builder();
+        final VertexLookupTable.Builder builder = VertexLookupTable.builder(numPoints);
         for (int i = 0; i < numPoints; i++) {
             builder.appendUnindexed(xs[i], ys[i]);
         }

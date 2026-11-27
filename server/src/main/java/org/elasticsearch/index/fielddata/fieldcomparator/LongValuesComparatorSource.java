@@ -142,8 +142,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
                         if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
-                        // check that last document has a value to confirm that all documents have a value
-                            || lastDocumentHasValue(context, fieldname) == false) {
+                        // the tail holds the best hits only if every document has one value, which the last one confirms
+                            || lastDocumentHasSingleValue(context, fieldname) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
@@ -258,12 +258,18 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         };
     }
 
-    private boolean lastDocumentHasValue(LeafReaderContext context, String field) throws IOException {
+    /**
+     * Whether the segment's last document has a value and no document has more than one, so that the index sort and the search
+     * sort order documents by the same value.
+     */
+    private boolean lastDocumentHasSingleValue(LeafReaderContext context, String field) throws IOException {
         final int last = context.reader().maxDoc() - 1;
         if (indexFieldData != null) {
-            return indexFieldData.load(context).getLongValues().advanceExact(last);
+            final SortedNumericLongValues values = indexFieldData.load(context).getLongValues();
+            return SortedNumericLongValues.unwrapSingleton(values) != null && values.advanceExact(last);
         }
-        return DocValues.getSortedNumeric(context.reader(), field).advanceExact(last);
+        final NumericDocValues values = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), field));
+        return values != null && values.advanceExact(last);
     }
 
     private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {

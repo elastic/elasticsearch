@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.fielddata.plain.ColumnarLongIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.index.mapper.FieldArrayContext;
@@ -208,17 +209,18 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
 
     /**
      * A search sorted on a ColumNAR long column can skip: once its comparator holds a bottom, it leaves out the blocks the
-     * column's skip index shows can't beat it.
+     * column's skip index shows can't beat it, and keeps a block that holds a better value.
      */
     public void testSearchSortPrunesWithTheColumnSkipIndex() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, "type=long,index=false");
         final int docs = 50_000;
         final boolean reverse = randomBoolean();
+        final int lateWinner = between(docs / 2, docs - 1);
         final BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < docs; i++) {
-            // The best values come first, so the bottom of the first hits already rules out every block after them
-            final long value = reverse ? docs - i : i;
+            // The best values come first, so the bottom of the first hits rules out every block after them but the late winner's
+            final long value = i == lateWinner ? (reverse ? Long.MAX_VALUE : Long.MIN_VALUE) : reverse ? docs - i : i;
             bulk.add(
                 prepareIndex(WITH_CODEC).setId(Integer.toString(i))
                     .setSource("{\"@timestamp\":\"2024-01-01T00:00:00Z\",\"l\":" + value + "}", XContentType.JSON)
@@ -246,17 +248,24 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
             final DocIdSetIterator competitive = comparator.competitiveIterator();
             assertNotNull("the comparator prunes", competitive);
             int competing = 0;
+            boolean lateWinnerCompetes = false;
             while (competitive.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 competing++;
+                lateWinnerCompetes |= competitive.docID() == lateWinner;
             }
             assertThat("competing documents", competing, lessThan(docs / 2));
             assertThat(competing, greaterThanOrEqualTo(hits));
+            assertTrue("the late winner's block competes", lateWinnerCompetes);
+        });
+        assertResponse(client().prepareSearch(WITH_CODEC).addSort(FIELD, reverse ? SortOrder.DESC : SortOrder.ASC).setSize(3), response -> {
+            assertEquals(Integer.toString(lateWinner), response.getHits().getHits()[0].getId());
         });
     }
 
     /**
      * A match all search sorted on {@code @timestamp} ascending, over an index sorted on it descending, collects only the end of
-     * each segment. On a ColumNAR {@code @timestamp} it returns the documents it does on {@code SORTED_NUMERIC} doc values.
+     * each segment. On a ColumNAR {@code @timestamp} it returns the documents it does on {@code SORTED_NUMERIC} doc values, and a
+     * document with several values is found by its smallest one wherever the index sort put it.
      */
     public void testOldestFirstOnAnIndexSortedNewestFirst() throws IOException {
         final Settings sort = Settings.builder().put("index.sort.field", "@timestamp").put("index.sort.order", "desc").build();
@@ -264,12 +273,16 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         createIndex(WITH_CODEC, Settings.builder().put(settings(IndexMode.COLUMNAR, true)).put(sort).build(), "@timestamp", mapping);
         createIndex(WITHOUT_CODEC, Settings.builder().put(settings(IndexMode.COLUMNAR, false)).put(sort).build(), "@timestamp", mapping);
         final int docs = between(100, 5_000);
+        final int multiValued = randomBoolean() ? between(1, docs - 2) : -1;
         for (String index : List.of(WITH_CODEC, WITHOUT_CODEC)) {
             final BulkRequestBuilder bulk = client().prepareBulk();
             for (int i = 0; i < docs; i++) {
-                bulk.add(prepareIndex(index).setId(Integer.toString(i)).setSource("{\"@timestamp\":" + (i * 7L) + "}", XContentType.JSON));
+                // The index sorts this document by its largest value, the search by its smallest, which is the oldest of all
+                final String timestamp = i == multiValued ? "[" + (i * 7L) + ", -1]" : Long.toString(i * 7L);
+                bulk.add(prepareIndex(index).setId(Integer.toString(i)).setSource("{\"@timestamp\":" + timestamp + "}", XContentType.JSON));
             }
             assertNoFailures(bulk.get());
+            indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
             indicesAdmin().prepareRefresh(index).get();
         }
         final int size = between(1, 20);
@@ -285,6 +298,48 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         }
         assertEquals(oldest.get(1), oldest.get(0));
         assertEquals(size, oldest.get(0).size());
+        if (multiValued >= 0) {
+            assertEquals(Integer.toString(multiValued), oldest.get(0).get(0));
+            assertTailShortcutKeepsMultiValued(size);
+        }
+    }
+
+    /**
+     * The comparator of the oldest first search, with the shortcut a search turns on for it, keeps the document with several
+     * values competitive once it holds the oldest single values. A search can't show this: the whole segment is collected
+     * before the bottom is set.
+     */
+    private void assertTailShortcutKeepsMultiValued(int hits) throws IOException {
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(WITH_CODEC));
+        final SearchExecutionContext context = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, Map.of(), null, null);
+        final IndexNumericFieldData fieldData = (IndexNumericFieldData) context.getForField(
+            context.getFieldType("@timestamp"),
+            MappedFieldType.FielddataOperation.SEARCH
+        );
+        final SortField sortField = fieldData.sortField(null, MultiValueMode.MIN, null, false);
+        ((LongValuesComparatorSource) sortField.getComparatorSource()).setMatchTailQuery();
+        forEachLeaf(WITH_CODEC, leaf -> {
+            final SortedNumericLongValues values = fieldData.load(leaf).getLongValues();
+            int multiValuedDoc = -1;
+            for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
+                if (values.advanceExact(doc) && values.docValueCount() > 1) {
+                    multiValuedDoc = doc;
+                }
+            }
+            assertThat(multiValuedDoc, greaterThanOrEqualTo(0));
+            final LeafFieldComparator comparator = sortField.getComparator(hits, Pruning.GREATER_THAN_OR_EQUAL_TO).getLeafComparator(leaf);
+            comparator.setHitsThresholdReached();
+            // The newest first index puts the oldest single values last
+            final int maxDoc = leaf.reader().maxDoc();
+            for (int slot = 0; slot < hits; slot++) {
+                comparator.copy(slot, maxDoc - 1 - slot);
+            }
+            // The bottom is the newest of them
+            comparator.setBottom(hits - 1);
+            final DocIdSetIterator competitive = comparator.competitiveIterator();
+            assertNotNull(competitive);
+            assertEquals("the document with several values competes", multiValuedDoc, competitive.advance(multiValuedDoc));
+        });
     }
 
     /**

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -65,6 +66,21 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
         assertTrue(def.primaryKey().asc());
         assertFalse(def.primaryKey().nullsFirst());
         assertEquals(10, def.limit());
+    }
+
+    /**
+     * A scan that reads a collection at element grain gets no Top-N hint, keyed on its file columns, even for a sort key
+     * that is one of its parents' columns; the same plan over a scan that does not expand gets one (positive control).
+     */
+    public void testTopNNotPushedWhenSourceExpands() {
+        ReferenceAttribute qty = new ReferenceAttribute(Source.EMPTY, "items.qty", DataType.INTEGER);
+        ExternalSourceExec expanding = externalSource().withExpansion(
+            new ExternalSourceExec.Expansion("items", List.of(qty), List.of("qty"), FormatReader.NO_LIMIT)
+        );
+        TopNExec topN = topN(USER_ID, Order.OrderDirection.ASC, 10, aggregateExec(USER_ID, expanding, countStarAlias()));
+
+        assertNull(unwrap((TopNExec) applyRule(topN)).pushedTopN());
+        assertNotNull(unwrap((TopNExec) applyRule(topN(USER_ID, Order.OrderDirection.ASC, 10, externalAggregate()))).pushedTopN());
     }
 
     public void testTopNPushedDescLimit5() {
@@ -208,7 +224,7 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
      *
      * <p>Verifies end-to-end that {@link PushTopNIntoExternalSource} fires and annotates the
      * {@link ExternalSourceExec} when the query is
-     * {@code EXTERNAL "..." | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10}.
+     * {@code FROM <dataset> | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10}.
      * Uses {@link LocalMapper} (the data-node path) so that {@code TopNExec → AggregateExec(INITIAL) →
      * ExternalSourceExec} appears in one contiguous plan tree where the rule can see both nodes.
      */

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -16,9 +17,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Focused tests for {@link ExternalSourceExec#withAttributes(List)}: the attribute swap used by
@@ -60,6 +65,31 @@ public class ExternalSourceExecTests extends ESTestCase {
         assertEquals(original.splits(), rewritten.splits());
         // Original must remain unchanged — withAttributes returns a new node, never mutates.
         assertEquals(List.of(keep, drop, another), original.output());
+    }
+
+    /**
+     * S5: an expanding scan replaced the NestedExpandExec above it, so it is never written to the wire, where the
+     * expansion, a local hint, would be dropped and the parents returned unexpanded.
+     */
+    public void testWriteToRefusesAnExpandingScan() throws IOException {
+        FieldAttribute id = field("id", DataType.LONG);
+        FieldAttribute qty = field("items.qty", DataType.LONG);
+        ExternalSourceExec scan = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/file.parquet",
+            "parquet",
+            List.of(id),
+            Map.of(),
+            Map.of(),
+            null
+        );
+        ExternalSourceExec expanding = scan.withExpansion(
+            new ExternalSourceExec.Expansion("items", List.of(qty), List.of("qty"), FormatReader.NO_LIMIT)
+        );
+        assertEquals(List.of(id, qty), expanding.output());
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> expanding.writeTo(new BytesStreamOutput()));
+        assertThat(e.getMessage(), containsString("a scan that expands [items] runs where it was planned"));
+        assertEquals(scan, expanding.withExpansion(null));
     }
 
     public void testWithAttributesAcceptsEmptyList() {

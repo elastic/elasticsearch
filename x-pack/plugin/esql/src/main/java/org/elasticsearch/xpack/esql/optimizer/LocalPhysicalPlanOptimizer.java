@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersTo
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushMinMaxStatsToLocalSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushNestedExpandToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushNestedPredicateToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
@@ -124,6 +125,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
             new SpatialShapeDocValuesExtraction(),
+            // After every rule that rewrites attributes: the expansion's attributes sit in the scan, in a record those
+            // rules do not descend into. The pushdown rules above therefore never meet an expanding scan in a query;
+            // each still declines one, so that no reordering here can make it read element columns as file columns.
+            new PushNestedExpandToExternalSource(),
             // Runs after PushTopNIntoExternalSource (which lives in the pushdown batch above) so we
             // see the surviving TopN nodes that did not get fully pushed into the source. Inserts
             // an ExternalFieldExtractExec above each remaining TopN whose source supports it.

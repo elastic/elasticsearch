@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -324,6 +325,103 @@ public final class SchemaReconciliation {
         }
 
         return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
+    }
+
+    /**
+     * The nested columns of a {@code strict} dataset: every file must describe the same ones, as every file must have the
+     * same columns.
+     *
+     * @throws IllegalArgumentException naming the first file whose nested columns differ from the reference file's
+     */
+    public static NestedColumns reconcileNestedStrict(StoragePath referenceFile, Map<StoragePath, SourceMetadata> fileMetadata) {
+        SourceMetadata refMeta = fileMetadata.get(referenceFile);
+        if (refMeta == null) {
+            throw new IllegalArgumentException("Reference file not found in metadata: " + referenceFile.objectName());
+        }
+        NestedColumns reference = NestedColumns.read(refMeta.sourceMetadata());
+        FileLabels label = new FileLabels(fileMetadata.keySet());
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            NestedColumns file = NestedColumns.read(entry.getValue().sourceMetadata());
+            if (file.equals(reference) == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + label.apply(entry.getKey())
+                        + "] has nested columns "
+                        + describe(file)
+                        + ", ["
+                        + label.apply(referenceFile)
+                        + "] has "
+                        + describe(reference)
+                        + STRICT_MISMATCH_FIX
+                );
+            }
+        }
+        return reference;
+    }
+
+    /**
+     * The nested columns of a {@code union_by_name} dataset. A column nested in some files and absent from the others is
+     * nested, with no elements in the files that lack it. Its fields are the union of each file's, a field's type the
+     * {@link TypeWidening#join} of the files' types. A column nested in one file and, in another, a column of another type or a
+     * structure's fields carries a conflict, so a query reading it as nested is told why rather than reading half the files.
+     */
+    public static NestedColumns reconcileNestedUnionByName(Map<StoragePath, SourceMetadata> fileMetadata) {
+        FileLabels label = new FileLabels(fileMetadata.keySet());
+        Map<String, Map<String, DataType>> leaves = new LinkedHashMap<>();
+        Map<String, String> conflicts = new HashMap<>();
+        Map<String, StoragePath> nestedIn = new HashMap<>();
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            for (NestedColumns.NestedColumn column : NestedColumns.read(entry.getValue().sourceMetadata()).columns().values()) {
+                nestedIn.putIfAbsent(column.path(), entry.getKey());
+                if (column.conflict() != null) {
+                    conflicts.putIfAbsent(column.path(), column.conflict());
+                }
+                Map<String, DataType> merged = leaves.computeIfAbsent(column.path(), p -> new HashMap<>());
+                column.leaves().forEach((name, type) -> merged.merge(name, type, TypeWidening::join));
+            }
+        }
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            NestedColumns file = NestedColumns.read(entry.getValue().sourceMetadata());
+            for (Attribute attribute : entry.getValue().schema()) {
+                String path = nestedPathOf(attribute.name(), leaves.keySet());
+                if (path != null && file.get(path) == null) {
+                    conflicts.putIfAbsent(
+                        path,
+                        "["
+                            + path
+                            + "] is a list of structures in ["
+                            + label.apply(nestedIn.get(path))
+                            + "] but not in ["
+                            + label.apply(entry.getKey())
+                            + "]"
+                    );
+                }
+            }
+        }
+        List<NestedColumns.NestedColumn> columns = new ArrayList<>(leaves.size());
+        leaves.forEach((path, fields) -> columns.add(new NestedColumns.NestedColumn(path, fields, conflicts.get(path))));
+        return NestedColumns.of(columns);
+    }
+
+    /** The nested path {@code column} is, or a field of a structure at, or {@code null}. */
+    @Nullable
+    private static String nestedPathOf(String column, Set<String> paths) {
+        for (String path : paths) {
+            if (column.equals(path) || column.startsWith(path + ".")) {
+                return path;
+            }
+        }
+        return null;
+    }
+
+    private static String describe(NestedColumns columns) {
+        List<String> parts = new ArrayList<>();
+        columns.columns().values().stream().sorted((a, b) -> a.path().compareTo(b.path())).forEach(column -> {
+            List<String> fields = new ArrayList<>();
+            column.leaves().forEach((name, type) -> fields.add(name + " " + type.typeName()));
+            parts.add(column.path() + " " + fields);
+        });
+        return parts.toString();
     }
 
     private static void validateStrictMatch(

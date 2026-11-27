@@ -87,6 +87,38 @@ public class VirtualColumnIteratorTests extends ESTestCase {
         assertEquals(new BytesRef("us-east"), resultRegion.getBytesRef(0, new BytesRef()));
     }
 
+    /**
+     * W4, an expanding read over a partitioned dataset: the element column and the parent ordinals after the data
+     * columns are carried after the output, not released as surplus, and the partition column takes its slot.
+     */
+    public void testTrailingBlocksFollowTheOutput() {
+        List<Attribute> fullOutput = List.of(partAttr("year", DataType.INTEGER), attr("emp_no", DataType.INTEGER));
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            emptyDelegate(),
+            fullOutput,
+            Set.of("year"),
+            Map.of("year", 2024),
+            blockFactory,
+            2
+        );
+
+        Page dataPage = new Page(
+            blockFactory.newIntArrayVector(new int[] { 7, 7, 8 }, 3).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 70, 71, 80 }, 3).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 0, 0, 1 }, 3).asBlock()
+        );
+        Page result = it.inject(dataPage);
+        try {
+            assertEquals(4, result.getBlockCount());
+            assertEquals(2024, ((IntBlock) result.getBlock(0)).getInt(2));
+            assertEquals(8, ((IntBlock) result.getBlock(1)).getInt(2));
+            assertEquals(80, ((IntBlock) result.getBlock(2)).getInt(2));
+            assertEquals(1, ((IntBlock) result.getBlock(3)).getInt(2));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
     public void testAllBlockTypes() {
         List<Attribute> fullOutput = List.of(
             attr("data", DataType.INTEGER),

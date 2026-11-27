@@ -559,6 +559,17 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Whether this reader honours {@link FormatReadContext#expandRead()} / {@link RangeReadContext#expandRead()}. A
+     * reader that does not know an {@link ExpandRead} would return one row per file row and no element columns, which
+     * the layer above would then bind by position, so the operator factory refuses to hand one to a reader that does
+     * not say yes here. Overriding to {@code true} is a promise to emit the {@link ExpandRead} page layout on every read
+     * path the reader has.
+     */
+    default boolean supportsExpandRead() {
+        return false;
+    }
+
+    /**
      * Returns a fresh, zeroed counter struct for one operator driver, or {@code null} when this
      * reader tracks no format-specific counters. Called once per {@code get(DriverContext)} by
      * {@code AsyncExternalSourceOperatorFactory}; the returned struct is passed to every

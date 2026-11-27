@@ -147,6 +147,42 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), LocalSourceExec.class);
     }
 
+    /**
+     * A scan that reads a collection at element grain emits element rows: the footer's row count counts parents, and a
+     * column of the file named like an element column says nothing about the elements. The same aggregates over the
+     * same statistics are pushed when the scan does not expand (positive control), and not when it does.
+     */
+    public void testNotPushedWhenSourceExpands() {
+        ReferenceAttribute qty = referenceAttribute("items.qty", DataType.INTEGER);
+        Map<String, Object> metadata = statsMetadata(1000L, "items.qty", 0L, null);
+        metadata.put("_stats.columns.items.qty.max", 999);
+        ExternalSourceExec.Expansion expansion = new ExternalSourceExec.Expansion(
+            "items",
+            List.of(qty),
+            List.of("qty"),
+            FormatReader.NO_LIMIT
+        );
+        ExternalSourceExec plain = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            List.of(qty),
+            Map.of(),
+            metadata,
+            null
+        );
+        ExternalSourceExec expanding = externalSource(metadata).withExpansion(expansion);
+
+        as(applyRule(aggregateExec(plain, countStarAlias())), LocalSourceExec.class);
+        as(applyRule(aggregateExec(plain, alias("m", new Max(Source.EMPTY, qty)))), LocalSourceExec.class);
+
+        AggregateExec count = aggregateExec(expanding, countStarAlias());
+        assertEquals(count, applyRule(count));
+        AggregateExec max = aggregateExec(expanding, alias("m", new Max(Source.EMPTY, qty)));
+        assertEquals(max, applyRule(max));
+        assertNull(ExternalSourceAggregatePushdown.findExternalSource(expanding));
+    }
+
     public void testMaxPushedDown() {
         Map<String, Object> metadata = statsMetadata(100L, "age", 0L, null);
         metadata.put("_stats.columns.age.max", 99);

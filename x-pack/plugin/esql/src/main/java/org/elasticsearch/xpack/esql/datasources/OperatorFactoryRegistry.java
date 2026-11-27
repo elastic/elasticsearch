@@ -70,6 +70,13 @@ public class OperatorFactoryRegistry {
         String sourceType = context.sourceType();
 
         ExternalSourceFactory sf = sourceType != null ? sourceFactories.get(sourceType) : null;
+        if (context.expandRead() != null && sf instanceof FileSourceFactory == false) {
+            // Only the file factory hands the expand read to its reader; any other would drop it and return parent rows,
+            // which the plan's layout would then bind by position as if they carried the element columns
+            throw new IllegalArgumentException(
+                "NESTED_EXPAND over a dataset cannot be read through the [" + sourceType + "] source, which does not expand rows"
+            );
+        }
         if (sf != null) {
             if (sf instanceof ConnectorFactory cf) {
                 Connector connector = cf.open(context.config());

@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -2931,6 +2933,15 @@ public class ExternalSourceResolver {
                         buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats),
                         datasetFormat
                     );
+                    // buildUnifiedMetadata keeps the anchor's nested columns; the dataset's are merged by its policy. Only where
+                    // datasets support nested columns: elsewhere a list of structures is an unsupported column like any other,
+                    // and strict must not refuse files that differ only inside one.
+                    if (EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled()) {
+                        NestedColumns nested = schemaResolution == FormatReader.SchemaResolution.STRICT
+                            ? SchemaReconciliation.reconcileNestedStrict(firstFile, allMetadata)
+                            : SchemaReconciliation.reconcileNestedUnionByName(allMetadata);
+                        extMetadata = replaceSourceMetadata(extMetadata, Map.copyOf(nested.writeTo(extMetadata.sourceMetadata())));
+                    }
 
                     // Mirror the FFW invariants: file count enables canSkipSplitDiscovery. Partial-stats
                     // marking is gated on fileCount > 1 (a genuine single-file glob has no other file missing

@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -96,6 +97,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -548,6 +550,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
                 Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
             );
+        } else if (argClass == ExternalSourceExec.Expansion.class) {
+            // A record whose two lists must be index-parallel, so a mock or an unrelated random list would not do
+            List<Attribute> expanded = randomFieldAttributes(1, 3, false);
+            List<String> leaves = expanded.stream().map(a -> randomAlphaOfLength(5) + a.name()).toList();
+            return new ExternalSourceExec.Expansion(randomAlphaOfLength(6), expanded, leaves, randomFrom(FormatReader.NO_LIMIT, 10));
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));

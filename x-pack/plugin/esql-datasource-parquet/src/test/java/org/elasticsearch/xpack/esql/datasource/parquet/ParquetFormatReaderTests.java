@@ -76,6 +76,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -105,6 +106,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -371,6 +373,109 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // The flat struct leaf still publishes normally with a concrete null count.
         assertTrue(cols.containsKey("s.a"));
         assertEquals(OptionalLong.of(0L), cols.get("s.a").nullCount());
+    }
+
+    /**
+     * A {@code LIST} whose element is a group has several leaves that the flattener collapses onto the one
+     * logical name of the enclosing list, exactly as a MAP's key and value do. When that list is nested in a
+     * STRUCT it took neither the {@code isTopLevelListLeaf} arm (which reads {@code path[0]}) nor the
+     * map/variant skip, so its differently typed leaf extrema — a {@code String} {@code sku} against a
+     * {@code Long} {@code price} — met in {@code compareStatExtremum}: an {@code AssertionError} under
+     * {@code -ea}, and a meaningless last-writer-wins min/max otherwise. Metadata resolution alone was enough
+     * to hit it, so even {@code STATS COUNT(*)} over such a file failed in any test or CI run.
+     * <p>
+     * {@code isUnsupportedGroupDescendedLeaf} now skips every leaf under a group whose own ESQL type is
+     * {@code UNSUPPORTED}, which covers this shape while leaving {@code struct<list<primitive>>} publishing as
+     * {@link #testStructNestedListPublishedWithUnknownNullCount} pins.
+     */
+    public void testStructNestedListOfStructsPublishesNoFoldedStat() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list {
+                    optional group element {
+                      optional binary sku (UTF8);
+                      optional int64 price;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group items = g.addGroup("outer").addGroup("items");
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r).append("price", (long) r * 10);
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r + "b").append("price", (long) r * 10 + 1);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        // Resolving metadata at all is half the assertion: the fold used to throw here under -ea.
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        assertTrue(metadata.statistics().isPresent());
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+
+        assertFalse("no folded stats for the list of structs", cols.containsKey("outer.items"));
+        assertFalse("no phantom marker under the struct root", cols.containsKey("outer"));
+        // The flat control keeps its concrete null count, so the skip is scoped to the folded leaves.
+        assertTrue(cols.containsKey("id"));
+        assertEquals(OptionalLong.of(0L), cols.get("id").nullCount());
+    }
+
+    /**
+     * The {@code buildRowGroupStats} half of {@link #testStructNestedListOfStructsPublishesNoFoldedStat}. That
+     * path has no UNSUPPORTED publish filter, so the skip is the only thing keeping folded
+     * last-writer-wins keys out of a split's serialized statistics, where a planner would then push them
+     * down. Mirrors {@link #testHomogeneousMapPublishesNoFoldedSplitStat}.
+     */
+    public void testStructNestedListOfStructsPublishesNoFoldedSplitStat() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list {
+                    optional group element {
+                      optional binary sku (UTF8);
+                      optional int64 price;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group items = g.addGroup("outer").addGroup("items");
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r).append("price", (long) r * 10);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(createStorageObject(parquetData));
+        assertEquals(1, ranges.size());
+        Map<String, Object> stats = ranges.getFirst().statistics();
+        assertNull("no folded min in split stats", stats.get("_stats.columns.outer.items.min"));
+        assertNull("no folded max in split stats", stats.get("_stats.columns.outer.items.max"));
+        assertNull("no folded null_count in split stats", stats.get("_stats.columns.outer.items.null_count"));
+        assertNull("no folded size in split stats", stats.get("_stats.columns.outer.items.size_bytes"));
+        // The flat control is still serialized, so the skip is scoped to the folded leaves.
+        assertNotNull("flat column still serialized", stats.get("_stats.columns.id.size_bytes"));
     }
 
     /**
@@ -3130,7 +3235,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Empty projection (e.g. EXTERNAL parquet | STATS COUNT(*) — or a query that only references
+     * Empty projection (e.g. FROM a Parquet dataset | STATS COUNT(*) — or a query that only references
      * {@code _file.*} virtual columns) must not allocate any column reader. The reader emits
      * row-count-only pages directly from the row group metadata, and the request circuit breaker
      * stays at zero because no buffer is ever charged. Regression test for the ~44KB-per-query
@@ -9242,6 +9347,175 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         }
         return outputStream.toByteArray();
+    }
+
+    /**
+     * A {@code LIST} of structures is a collection with its element's leaves; a {@code LIST} of primitives is a multivalued
+     * column and is not one, and neither is a {@code MAP}; a list inside an element is a multivalued leaf and a map inside an
+     * element is skipped; a list of structures with more than one field inside an element would arrive unpaired, so its
+     * collection says why it cannot be read.
+     */
+    public void testCollectionsDescribedFromFooter() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group tags (LIST) { repeated group list { optional binary element (UTF8); } }
+              optional group answers (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary type (UTF8);
+                    optional int64 ttl;
+                    optional group flags (LIST) { repeated group list { optional binary element (UTF8); } }
+                    optional group labels (MAP) {
+                      repeated group key_value { required binary key (UTF8); optional binary value (UTF8); }
+                    }
+                  }
+                }
+              }
+              optional group headers (MAP) {
+                repeated group key_value { required binary key (UTF8); optional binary value (UTF8); }
+              }
+              optional group hops (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary host (UTF8);
+                    optional group links (LIST) {
+                      repeated group list { optional group element { optional binary to (UTF8); optional int64 ms; } }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(schema),
+            equalTo(
+                List.of(
+                    new ParquetCollections.Collection(
+                        "answers",
+                        List.of(
+                            new ParquetCollections.Leaf("flags", DataType.KEYWORD),
+                            new ParquetCollections.Leaf("ttl", DataType.LONG),
+                            new ParquetCollections.Leaf("type", DataType.KEYWORD)
+                        ),
+                        null
+                    ),
+                    new ParquetCollections.Collection(
+                        "hops",
+                        List.of(new ParquetCollections.Leaf("host", DataType.KEYWORD)),
+                        "[hops.links] is a collection with more than one field inside each element of [hops], which cannot be read yet"
+                    )
+                )
+            )
+        );
+    }
+
+    /**
+     * A repeated group with no annotation is a list in Parquet's older layout. A list of structures below it is not described:
+     * its elements would merge across the outer list's entries.
+     */
+    /** Only a list whose element is a structure is described: a list of lists or of maps is not a list of structures. */
+    public void testListOfListsOrMapsIsNotDescribed() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group lists (LIST) {
+                repeated group list { optional group element (LIST) { repeated group list { optional int32 element; } } }
+              }
+              optional group maps (LIST) {
+                repeated group list {
+                  optional group element (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+                }
+              }
+              optional group structs (LIST) {
+                repeated group list { optional group element { optional binary t (UTF8); } }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(schema).stream().map(ParquetCollections.Collection::path).toList(),
+            equalTo(List.of("structs"))
+        );
+    }
+
+    public void testListOfStructsUnderLegacyRepeatedGroupIsNotDescribed() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              repeated group legacy {
+                optional group tags (LIST) {
+                  repeated group list { optional group element { optional binary t (UTF8); optional int64 n; } }
+                }
+              }
+              optional group plain {
+                optional group tags (LIST) {
+                  repeated group list { optional group element { optional binary t (UTF8); } }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(schema).stream().map(ParquetCollections.Collection::path).toList(),
+            equalTo(List.of("plain.tags"))
+        );
+    }
+
+    /**
+     * The footer's metadata says which columns are lists of structures and what each element holds, so the dataset's schema
+     * carries the nested type from discovery; a file without one records none.
+     */
+    public void testMetadataDescribesListOfStructs() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group tags (LIST) { repeated group list { optional binary element (UTF8); } }
+              optional group answers (LIST) {
+                repeated group list { optional group element { optional binary type (UTF8); optional int64 ttl; } }
+              }
+            }
+            """);
+        byte[] data = createParquetFile(schema, factory -> List.of(factory.newGroup().append("id", "a")));
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(data));
+        assertThat(
+            NestedColumns.read(metadata.sourceMetadata()),
+            equalTo(
+                NestedColumns.of(
+                    List.of(new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD, "ttl", DataType.LONG), null))
+                )
+            )
+        );
+
+        MessageType flat = MessageTypeParser.parseMessageType("message t { required binary id (UTF8); }");
+        byte[] flatData = createParquetFile(flat, factory -> List.of(factory.newGroup().append("id", "a")));
+        SourceMetadata flatMetadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(flatData));
+        assertThat(flatMetadata.sourceMetadata().containsKey(NestedColumns.KEY), equalTo(false));
+    }
+
+    /**
+     * Item 2: where {@code NESTED_EXPAND_DATASET} is off, as in a release build, the footer metadata is what it was before
+     * nested columns: no description is written, and the leaves of a list of structures are folded into the footer
+     * statistics as before, so nothing new is serialized or cached. The capability is the build's, so the two call sites
+     * are exercised through the seams they read it through.
+     */
+    public void testWithoutNestedExpandDatasetTheMetadataIsAsBefore() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group answers (LIST) {
+                repeated group list { optional group element { optional binary type (UTF8); optional int64 ttl; } }
+              }
+              optional group attrs (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+            }
+            """);
+        assertThat(ParquetFormatReader.describedNestedColumns(schema, false), equalTo(null));
+        assertThat(ParquetFormatReader.describedNestedColumns(schema, true).containsKey(NestedColumns.KEY), equalTo(true));
+        assertThat(ParquetFormatReader.DESCRIBES_NESTED_COLUMNS, equalTo(EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled()));
+
+        String[] elementLeaf = { "answers", "list", "element", "type" };
+        assertThat(ParquetFormatReader.isUnsupportedGroupDescendedLeaf(schema, elementLeaf, false), equalTo(false));
+        assertThat(ParquetFormatReader.isUnsupportedGroupDescendedLeaf(schema, elementLeaf, true), equalTo(true));
+        // A map's leaves were skipped before nested columns, and still are
+        String[] mapLeaf = { "attrs", "key_value", "key" };
+        assertThat(ParquetFormatReader.isUnsupportedGroupDescendedLeaf(schema, mapLeaf, false), equalTo(true));
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {

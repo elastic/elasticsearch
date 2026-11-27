@@ -168,6 +168,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     @Nullable
     private final ColumnarRowDropHelper rowDropHelper;
     private final ColumnInfo[] columnInfos;
+    /**
+     * The collection this read expands each batch's rows by, or {@code null} when it emits one row per file row. Kept
+     * apart from {@link #columnInfos}, which is index-parallel to {@link #attributes} and so to the parent page's blocks:
+     * the element columns join that page only when it is expanded.
+     */
+    @Nullable
+    private final ParquetExpansion expansion;
+    /**
+     * The rows the last late-materialized batch kept, ascending, or {@code null} when it kept them all; the parents
+     * {@link ParquetExpansion#expand} expands.
+     */
+    @Nullable
+    private int[] lateMaterializationSurvivors;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
     private final ParquetStorageObjectAdapter adapter;
@@ -528,7 +541,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         @Nullable ParquetReaderCounters counters,
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink,
-        @Nullable SharedErrorBudget sharedErrorBudget
+        @Nullable SharedErrorBudget sharedErrorBudget,
+        @Nullable ParquetExpansion.Spec expansion
     ) {
         this.errorPolicy = errorPolicy;
         this.warningSink = warningSink;
@@ -599,12 +613,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // the trivially-passes check is gated by a single condition below.
         this.triviallyPassesPredicate = lateMaterialization ? triviallyPassesPredicate : null;
 
-        this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
-        this.listColumnPaths = buildListColumnPaths(columnInfos);
+        this.expansion = expansion == null
+            ? null
+            : ParquetExpansion.of(
+                expansion,
+                projectedSchema,
+                blockFactory,
+                path -> nullListElementWarnings().addOnce(ParquetColumnDecoding.nullListElementsMessage(path))
+            );
+        Set<String> projectedPaths = buildProjectedColumnPaths(columnInfos);
+        Set<String> leafPaths = this.expansion == null ? Set.of() : leafColumnPaths(this.expansion, projectedPaths);
+        this.projectedColumnPaths = union(projectedPaths, leafPaths);
+        // Every element leaf is repeated, so its rows synchronize under page filtering only through an OffsetIndex
+        this.listColumnPaths = union(buildListColumnPaths(columnInfos), leafPaths);
         this.predicateColumnPaths = buildColumnPaths(columnInfos, isPredicateColumn, true);
         this.projectionOnlyColumnPaths = buildColumnPaths(columnInfos, isPredicateColumn, false);
         this.useTwoPhase = shouldUseTwoPhase(
             lateMaterialization,
+            this.expansion != null,
             storageObject,
             columnInfos,
             reader.getRowGroups(),
@@ -1700,6 +1726,31 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return paths;
     }
 
+    /**
+     * The dotted paths of the element leaves {@code expansion} decodes. Refuses one the row's own columns read too: the
+     * column-read store holds a single stateful page reader per column, which two decodes cannot share.
+     */
+    private static Set<String> leafColumnPaths(ParquetExpansion expansion, Set<String> rowColumns) {
+        Set<String> paths = new HashSet<>();
+        for (ColumnDescriptor descriptor : expansion.descriptors()) {
+            String path = String.join(".", descriptor.getPath());
+            if (rowColumns.contains(path)) {
+                throw new IllegalArgumentException("column [" + path + "] cannot be read both as a column and as an element leaf");
+            }
+            paths.add(path);
+        }
+        return paths;
+    }
+
+    private static Set<String> union(Set<String> a, Set<String> b) {
+        if (b.isEmpty()) {
+            return a;
+        }
+        Set<String> union = new HashSet<>(a);
+        union.addAll(b);
+        return union;
+    }
+
     private static Set<String> buildListColumnPaths(ColumnInfo[] columnInfos) {
         Set<String> paths = new HashSet<>();
         for (ColumnInfo info : columnInfos) {
@@ -1753,11 +1804,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * the fallback is the single-phase late-mat path, so the worst case is wasted CPU on the
      * unnecessary survivor-mask plumbing rather than incorrect results.), (d) no list columns
      * (their decode path needs a unified {@code ColumnReadStoreImpl} that we don't split between
-     * predicate and projection stores), and (e) the projected bytes must be dominated by
-     * projection-only columns rather than predicate columns.
+     * predicate and projection stores), (e) the projected bytes must be dominated by
+     * projection-only columns rather than predicate columns, and (f) no expand read: two-phase
+     * decodes a row group's predicate columns whole before the first batch, so it could not end a
+     * batch where its expanded rows reach the budget, and it builds no column-read store for the
+     * element leaves to decode from.
      */
     private static boolean shouldUseTwoPhase(
         boolean lateMaterialization,
+        boolean expands,
         StorageObject storageObject,
         ColumnInfo[] columnInfos,
         List<BlockMetaData> rowGroups,
@@ -1767,6 +1822,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         String fileLocation
     ) {
         if (lateMaterialization == false) {
+            return false;
+        }
+        if (expands) {
+            // Condition (f)
             return false;
         }
         if (projectionOnlyColumnPaths.isEmpty() || predicateColumnPaths.isEmpty()) {
@@ -3267,13 +3326,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 break;
             }
         }
-        if (hasListColumns) {
+        if (hasListColumns || expansion != null) {
             ColumnReadStoreImpl store = new ColumnReadStoreImpl(
                 rowGroup,
                 new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
                 projectedSchema,
                 createdBy
             );
+            // One store for the row's repeated columns and the elements: it hands out each column's one page reader once
+            if (expansion != null) {
+                expansion.bind(store, listCorruptionHandler, fileLocation, rowGroupOrdinal, rowsBeforeCurrentGroup);
+            }
             columnReaders = new ColumnReader[columnInfos.length];
             listColumnReaders = new ParquetColumnDecoding.ListColumnReader[columnInfos.length];
             for (int i = 0; i < columnInfos.length; i++) {
@@ -3888,6 +3951,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private Page emitReadyPage() {
         if (twoPhase != null) {
+            if (expansion != null) {
+                throw new IllegalStateException("an expanding read cannot run on the two-phase path");
+            }
             // Captured before nextTwoPhaseBatch decrements rowsRemainingInGroup: the in-block index
             // of the first source row this batch is about to emit. Same shape as the standard /
             // late-mat paths, just computed in the two-phase branch where the source-row delta is
@@ -3900,20 +3966,60 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             effectiveBatch = Math.min(effectiveBatch, rowBudget);
         }
         int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
+        if (expansion != null) {
+            // The elements are decoded first so a batch whose expanded rows reach the budget ends at that row, and every
+            // column below then reads that many rows
+            try {
+                rowsToRead = expansion.decodeBatch(rowsToRead);
+            } catch (CircuitBreakingException e) {
+                throw e;
+            } catch (Exception e) {
+                throw ParquetReadFailures.wrap(e, expansion.failureContext(rowGroupOrdinal, pageBatchIndexInRowGroup, fileLocation));
+            }
+        }
         // Captured before the row counts are subtracted: the in-block index of the first row this
         // batch is about to emit. The row-position injector uses it to compute file-global ids.
         int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
 
         boolean useLateMaterialization = lateMaterialization && currentRowGroupTriviallyPasses == false;
-        Page result = useLateMaterialization
-            ? nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG)
-            : nextStandard(rowsToRead, firstRowOfBatchInRG);
+        Page result;
+        try {
+            result = useLateMaterialization
+                ? nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG)
+                : nextStandard(rowsToRead, firstRowOfBatchInRG);
+        } catch (RuntimeException e) {
+            if (expansion != null) {
+                expansion.discardBatch();
+            }
+            throw e;
+        }
         int droppedRows = useLateMaterialization == false && rowDropHelper != null ? rowDropHelper.failedCount() : 0;
+        // The parents the batch kept; the row limit counts them, not the rows they expand to
+        int parentRows = result.getPositionCount();
         try {
             listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
         } catch (RuntimeException e) {
+            if (expansion != null) {
+                expansion.discardBatch();
+            }
             result.releaseBlocks();
             throw e;
+        }
+        if (expansion != null) {
+            // The elements follow the rows the batch kept: the late-materialization survivors, or the rows a skip_row
+            // drop did not remove. The expansion owns the parent page from here, and releases it if it fails.
+            int[] survivors = useLateMaterialization
+                ? lateMaterializationSurvivors
+                : (rowDropHelper != null && rowDropHelper.hasFailures() ? rowDropHelper.survivorPositions() : null);
+            try {
+                result = expansion.expand(result, survivors, rowDropHelper != null);
+                parentRows -= expansion.lastDroppedParents();
+            } catch (CircuitBreakingException e) {
+                throw e;
+            } catch (Exception e) {
+                throw ParquetReadFailures.wrap(e, expansion.failureContext(rowGroupOrdinal, pageBatchIndexInRowGroup, fileLocation));
+            }
+            expansion.chargeDroppedParents(rowDropHelper, result);
         }
 
         pageBatchIndexInRowGroup++;
@@ -3929,7 +4035,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (rowBudget != FormatReader.NO_LIMIT) {
             // Decrement by emitted (post-drop) rows so that skip_row failures on the standard
             // path don't eat from the LIMIT budget — the downstream sees only surviving rows.
-            rowBudget -= result.getPositionCount();
+            // For an expanding read these are the parents, before expansion.
+            rowBudget -= parentRows;
         }
         return result;
     }
@@ -4228,7 +4335,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (counters != null) {
             counters.addRowsEmitted(producedRows);
         }
-        return new Page(blocks);
+        // An expanding read may project no column of its own, so a page without blocks still counts its rows
+        return blocks.length == 0 ? new Page(producedRows) : new Page(blocks);
     }
 
     private Page nextWithLateMaterialization(int rowsToRead, int firstRowOfBatchInRG) {
@@ -4261,11 +4369,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
             int survivorCount = rowsToRead;
             int[] positions = null;
+            lateMaterializationSurvivors = null;
             if (mask != null) {
                 survivorCount = mask.popCount();
                 rowsEliminatedByLateMaterialization += (rowsToRead - survivorCount);
                 if (survivorCount < rowsToRead) {
                     positions = mask.survivingPositions();
+                    lateMaterializationSurvivors = positions;
                     // Compact predicate blocks
                     for (int col = 0; col < columnInfos.length; col++) {
                         if (isPredicateColumn[col] && blocks[col] != null) {
@@ -4322,7 +4432,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (counters != null) {
                 counters.addRowsEmitted(survivorCount);
             }
-            return new Page(blocks);
+            return blocks.length == 0 ? new Page(survivorCount) : new Page(blocks);
         } catch (CircuitBreakingException e) {
             ParquetReadFailures.closePreservingCause(e, blocks);
             throw e;
@@ -4448,6 +4558,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     private void validateListColumnsExhausted() {
+        if (expansion != null) {
+            expansion.validateExhausted();
+        }
         if (listColumnReaders == null) {
             return;
         }
@@ -4533,6 +4646,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     @Override
     public void close() throws IOException {
+        if (expansion != null) {
+            // First, and it cannot throw: the batch in progress is released whatever the rest of the close does
+            expansion.close();
+        }
         closed.set(true);
         ticketAbandoned.set(true);
         pendingTicket = null;

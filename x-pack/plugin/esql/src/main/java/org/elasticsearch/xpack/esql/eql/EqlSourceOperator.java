@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -104,6 +105,9 @@ public class EqlSourceOperator extends SourceOperator {
     // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
+    // Set when close() runs before the page is pulled, including while the search is still in flight.
+    private volatile boolean undelivered;
+    private final Set<String> recordedClusters = ConcurrentHashMap.newKeySet();
 
     private EqlSourceOperator(
         DriverContext driverContext,
@@ -288,10 +292,7 @@ public class EqlSourceOperator extends SourceOperator {
         executionInfo.markPartial();
         Map<String, List<ShardSearchFailure>> failuresByCluster = new HashMap<>();
         for (ShardSearchFailure failure : failures) {
-            String cluster = failure.shard() == null || failure.shard().getClusterAlias() == null
-                ? searchedCluster
-                : failure.shard().getClusterAlias();
-            failuresByCluster.computeIfAbsent(cluster, k -> new ArrayList<>()).add(failure);
+            failuresByCluster.computeIfAbsent(failureCluster(failure, searchedCluster), k -> new ArrayList<>()).add(failure);
         }
         boolean mainPlan = executionInfo.isMainPlan();
         failuresByCluster.forEach((cluster, clusterFailures) -> {
@@ -344,6 +345,7 @@ public class EqlSourceOperator extends SourceOperator {
                 continue;
             }
             executionInfo.swapCluster(cluster, (alias, current) -> {
+                recordedClusters.add(alias);
                 EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(current);
                 boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias);
                 boolean reportsStatus = executionInfo.isMainPlan() || local;
@@ -358,7 +360,7 @@ public class EqlSourceOperator extends SourceOperator {
                         true
                     );
                     if (reportsStatus) {
-                        boolean failed = executionInfo.isStopped()
+                        boolean failed = (undelivered && executionInfo.isStopped())
                             || counts.failed() > 0
                             || (current.getFailedShards() != null && current.getFailedShards() > 0)
                             || current.getFailures().isEmpty() == false;
@@ -370,7 +372,9 @@ public class EqlSourceOperator extends SourceOperator {
                 } else {
                     builder.setTook(took);
                 }
-                if (counts.failed() > 0 && current.getFailures().isEmpty() && response.shardFailures().isEmpty()) {
+                if (counts.failed() > 0
+                    && current.getFailures().isEmpty()
+                    && listedForCluster(response.shardFailures(), alias, searchedCluster) == false) {
                     builder.addFailures(
                         List.of(new ShardSearchFailure(new ElasticsearchException("[" + counts.failed() + "] shards failed")))
                     );
@@ -387,6 +391,21 @@ public class EqlSourceOperator extends SourceOperator {
                 executionInfo.markPartial();
             }
         }
+    }
+
+    private static String failureCluster(ShardSearchFailure failure, String searchedCluster) {
+        return failure.shard() == null || failure.shard().getClusterAlias() == null
+            ? searchedCluster
+            : failure.shard().getClusterAlias();
+    }
+
+    private static boolean listedForCluster(List<ShardSearchFailure> failures, String clusterAlias, String searchedCluster) {
+        for (ShardSearchFailure failure : failures) {
+            if (clusterAlias.equals(failureCluster(failure, searchedCluster))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // EQL lists a shard once per search that lost it, and a FORK runs the search once per branch.
@@ -424,12 +443,37 @@ public class EqlSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
+        boolean stoppedBeforeDelivery;
         synchronized (this) {
             closed = true;
+            if (emitted == false) {
+                undelivered = true;
+            }
+            stoppedBeforeDelivery = undelivered && executionInfo.isStopped();
             if (page != null) {
                 page.releaseBlocks();
                 page = null;
             }
+        }
+        if (stoppedBeforeDelivery) {
+            markUndeliveredStopPartial();
+        }
+    }
+
+    private void markUndeliveredStopPartial() {
+        for (String cluster : recordedClusters) {
+            if (executionInfo.getCluster(cluster) == null) {
+                continue;
+            }
+            executionInfo.swapCluster(cluster, (alias, current) -> {
+                boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias);
+                if (executionInfo.isMainPlan() == false && local == false) {
+                    return current;
+                }
+                EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(current);
+                ComputeService.applyClusterStatusAfterBranch(builder, current, true, true);
+                return builder.build();
+            });
         }
     }
 }

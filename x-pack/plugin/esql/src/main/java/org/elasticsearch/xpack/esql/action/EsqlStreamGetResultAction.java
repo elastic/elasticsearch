@@ -11,8 +11,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.esql.EsqlStreamActionNames;
 
 /**
- * Reads the stored result of an ES|QL stream, the counterpart of {@code EsqlAsyncGetResultAction}. For now nothing is stored, so every id
- * is not found.
+ * Reads the stored result of an ES|QL stream, the counterpart of {@code EsqlAsyncGetResultAction}.
  */
 public class EsqlStreamGetResultAction extends ActionType<ActionResponse.Empty> {
 

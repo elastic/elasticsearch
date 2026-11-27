@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.streaming.StreamId;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Runs the stream GET and DELETE transport actions on a real node. Nothing is stored yet, so no stream exists and every id is not found.
+ * Runs the stream GET and DELETE transport actions on a real node.
  */
 public class EsqlStreamActionsIT extends AbstractEsqlIntegTestCase {
 

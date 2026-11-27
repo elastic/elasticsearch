@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.STREAM_TOTAL_ROWS;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.STREAM_WARNINGS;
 
-final class StreamMetadataDocument {
+public final class StreamMetadataDocument {
 
     private static final int METADATA_PAGE_SEQ = -1;
 
@@ -85,7 +85,7 @@ final class StreamMetadataDocument {
         return source.endObject();
     }
 
-    static StreamMetadata fromSource(Map<String, Object> source) throws IOException {
+    public static StreamMetadata fromSource(Map<String, Object> source) throws IOException {
         StreamMetadata.StreamCompletionInfo completion = null;
         if (source.containsKey(STREAM_PARTIAL)) {
             completion = new StreamMetadata.StreamCompletionInfo(

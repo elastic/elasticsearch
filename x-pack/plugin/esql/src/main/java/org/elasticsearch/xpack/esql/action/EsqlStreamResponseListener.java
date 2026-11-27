@@ -138,6 +138,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
     private final AtomicLong rowsWritten = new AtomicLong();
     private final AtomicLong bytesWritten = new AtomicLong();
+    private volatile long firstRow;
+    private volatile boolean complete = true;
     private volatile SystemIndexStreamWriter writer;
     private volatile Exception storeFailure;
     private volatile String streamId;
@@ -149,6 +151,10 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private boolean responseSent = false;
 
     private volatile PageStreamPublisher.StreamFooter preHeaderFailureFooter;
+
+    EsqlStreamResponseListener(RestChannel channel, ThreadContext threadContext, StreamOptions options) {
+        this(channel, threadContext, null, null, null, null, options);
+    }
 
     EsqlStreamResponseListener(
         RestChannel channel,
@@ -301,6 +307,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.nullColumns = resultStream.nullColumns();
         this.zoneId = resultStream.zoneId();
         this.isPartial = resultStream.isPartial();
+        this.firstRow = resultStream.firstRow();
+        this.complete = resultStream.complete();
         assert zoneId != null : "ResultStream must carry the resolved query time zone";
         this.contextRestorer = threadContext.newRestorableContext(false);
         if (client != null && options.store() != StreamOptions.Store.NONE) {
@@ -556,7 +564,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
                 Exception failure = storeFailure;
                 ChunkedRestResponseBodyPart footerPart = failure == null
-                    ? new NdjsonFooterBodyPart(footer, true)
+                    ? new NdjsonFooterBodyPart(footer, complete)
                     : new NdjsonFooterBodyPart(footerWithError(footer, failure), false);
                 if (responseSent == false) {
                     responseSent = true;
@@ -848,7 +856,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                         b.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), footer.isPartial());
                         b.array("warnings", footer.warnings().toArray(String[]::new));
                         b.field("complete", complete);
-                        b.field("next_offset", rowsWritten.get());
+                        b.field("next_offset", firstRow + rowsWritten.get());
                         if (footer.completionInfo() != null) {
                             DriverCompletionInfo ci = footer.completionInfo();
                             b.field("documents_found", ci.documentsFound());

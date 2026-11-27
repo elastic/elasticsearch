@@ -55,6 +55,19 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
         boolean[] nullColumns,
         ZoneId zoneId,
         TaskId taskId,
-        BooleanSupplier isPartial
-    ) {}
+        BooleanSupplier isPartial,
+        long firstRow,
+        boolean complete
+    ) {
+        public ResultStream(
+            List<ColumnInfoImpl> columns,
+            PageStreamPublisher publisher,
+            boolean[] nullColumns,
+            ZoneId zoneId,
+            TaskId taskId,
+            BooleanSupplier isPartial
+        ) {
+            this(columns, publisher, nullColumns, zoneId, taskId, isPartial, 0L, true);
+        }
+    }
 }

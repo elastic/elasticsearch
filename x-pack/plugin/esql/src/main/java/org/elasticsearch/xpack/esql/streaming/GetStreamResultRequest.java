@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.streaming;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.TransportAction;
@@ -15,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 
 import java.io.IOException;
 import java.util.Map;
@@ -47,6 +49,7 @@ public class GetStreamResultRequest extends UntypedActionRequest {
     private final long maxRows;
     private final long maxBytes;
     private final TimeValue waitTimeout;
+    private final ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener;
 
     /**
      * @param streamId    the stream id
@@ -59,7 +62,19 @@ public class GetStreamResultRequest extends UntypedActionRequest {
      *                    negative duration. Must not exceed {@link #MAX_WAIT_TIMEOUT}.
      */
     public GetStreamResultRequest(String streamId, long offset, long maxRows, long maxBytes, TimeValue waitTimeout) {
+        this(streamId, offset, maxRows, maxBytes, waitTimeout, null);
+    }
+
+    public GetStreamResultRequest(
+        String streamId,
+        long offset,
+        long maxRows,
+        long maxBytes,
+        TimeValue waitTimeout,
+        ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener
+    ) {
         this.streamId = streamId;
+        this.resultStreamListener = resultStreamListener;
         if (offset < 0) {
             throw new IllegalArgumentException("[offset] must be greater than or equal to 0 but was [" + offset + "]");
         }
@@ -98,6 +113,14 @@ public class GetStreamResultRequest extends UntypedActionRequest {
 
     public TimeValue waitTimeout() {
         return waitTimeout;
+    }
+
+    public ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener() {
+        return resultStreamListener;
+    }
+
+    public GetStreamResultRequest withResultStreamListener(ActionListener<EsqlStreamQueryAction.ResultStream> listener) {
+        return new GetStreamResultRequest(streamId, offset, maxRows, maxBytes, waitTimeout, listener);
     }
 
     public boolean hasRowLimit() {

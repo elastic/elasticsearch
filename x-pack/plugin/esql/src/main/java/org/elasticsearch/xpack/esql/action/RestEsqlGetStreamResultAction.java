@@ -6,17 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xpack.esql.streaming.GetStreamResultRequest;
 
@@ -27,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * {@code GET /_query/stream/{id}}: reads the stored result of a stream, from {@code offset}, limited by {@code max_rows} and
  * {@code max_bytes} when they are set. It is the counterpart of {@code RestEsqlGetAsyncResultAction}, and {@code wait_timeout} plays the
- * role of {@code wait_for_completion_timeout}. For now nothing is stored, so every id is not found.
+ * role of {@code wait_for_completion_timeout}.
  * <p>
  * {@code max_rows=0} and {@code max_bytes=0} are both accepted and return the status only. This differs from {@code POST /_query/stream},
  * which rejects {@code max_bytes=0} because its response always writes the first row.
@@ -51,18 +46,19 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         GetStreamResultRequest get = parseRequest(request);
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
-            EsqlStreamGetResultAction.INSTANCE,
-            get,
-            new RestActionListener<ActionResponse.Empty>(channel) {
-                @Override
-                protected void processResponse(ActionResponse.Empty response) {
-                    // Unreachable until streams are stored: every id is not found, so the action fails. The real implementation replaces
-                    // this with the body that streams the rows.
-                    channel.sendResponse(new RestResponse(RestStatus.OK, RestEsqlStreamQueryAction.NDJSON_MEDIA_TYPE, BytesArray.EMPTY));
-                }
-            }
-        );
+        StreamOptions options = new StreamOptions(StreamOptions.Store.NONE, get.maxRows(), get.maxBytes());
+        return channel -> {
+            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(
+                channel,
+                client.threadPool().getThreadContext(),
+                options
+            );
+            new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+                EsqlStreamGetResultAction.INSTANCE,
+                get.withResultStreamListener(restListener.resultStreamListener()),
+                restListener
+            );
+        };
     }
 
     /**

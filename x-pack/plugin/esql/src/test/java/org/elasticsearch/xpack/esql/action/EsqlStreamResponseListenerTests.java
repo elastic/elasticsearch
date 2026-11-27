@@ -135,6 +135,34 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(drained.footer().get("complete"), equalTo(true));
     }
 
+    public void testNextOffsetStartsFromTheFirstRowOfTheStream() throws IOException {
+        Subscribed s = subscribeFrom(10, true);
+        Drained drained = drainStream(s, List.of(buildLargePage(3, 1), buildLargePage(2, 1)), 5L, List.of());
+
+        assertThat(drained.rows().size(), equalTo(5));
+        assertThat(drained.footer().get("next_offset"), equalTo(15));
+        assertThat(drained.footer().get("complete"), equalTo(true));
+    }
+
+    public void testStreamThatDoesNotReachTheEndOfTheResultIsIncomplete() throws IOException {
+        Subscribed s = subscribeFrom(10, false);
+        Drained drained = drainStream(s, List.of(buildLargePage(3, 1)), 5L, List.of());
+
+        assertThat(drained.rows().size(), equalTo(3));
+        assertThat(drained.footer().get("next_offset"), equalTo(13));
+        assertThat(drained.footer().get("complete"), equalTo(false));
+        assertThat(drained.footer(), not(hasKey("error")));
+    }
+
+    public void testMaxRowsLimitFooterStartsFromTheFirstRowOfTheStream() throws IOException {
+        Subscribed s = subscribeFrom(10, true, new StreamOptions(StreamOptions.Store.NONE, 2, StreamOptions.NO_LIMIT));
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildLargePage(5, 1));
+        assertThat(decodeRows(pagePart).size(), equalTo(2));
+
+        assertLimitFooter(decodeLine(nextPart(pagePart, () -> {})), 12);
+        s.response().close();
+    }
+
     /** The bytes of the columns line for {@link #simpleColumns()}, measured rather than hard-coded. */
     private int columnsLineBytes() throws IOException {
         Subscribed probe = subscribe(StreamOptions.NONE);
@@ -957,6 +985,31 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, threadContext, null, null, null, null, options);
         listener.resultStreamListener()
             .onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId, null, isPartial));
+        return new Subscribed(publisher, producer, channel, listener);
+    }
+
+    private Subscribed subscribeFrom(long firstRow, boolean complete) {
+        return subscribeFrom(firstRow, complete, StreamOptions.NONE);
+    }
+
+    private Subscribed subscribeFrom(long firstRow, boolean complete, StreamOptions options) {
+        PageStreamPublisher publisher = new PageStreamPublisher();
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY), options);
+        listener.resultStreamListener()
+            .onResponse(
+                new EsqlStreamQueryAction.ResultStream(
+                    simpleColumns(),
+                    publisher,
+                    null,
+                    ZoneOffset.UTC,
+                    null,
+                    () -> false,
+                    firstRow,
+                    complete
+                )
+            );
         return new Subscribed(publisher, producer, channel, listener);
     }
 

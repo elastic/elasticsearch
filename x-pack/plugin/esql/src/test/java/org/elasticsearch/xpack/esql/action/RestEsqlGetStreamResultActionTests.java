@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
@@ -43,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests the route, the registration and the parameter parsing of {@code GET /_query/stream/{id}}.
@@ -176,8 +179,7 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
 
     /**
      * The handler runs {@link EsqlStreamGetResultAction} with the parsed request, and answers 404 when the action does not find the
-     * stream, which is what every id gets while nothing is stored. The client answers the action itself, so only the handler is under
-     * test.
+     * stream. The client answers the action itself, so only the handler is under test.
      */
     public void testExecutesTheActionAndAnswersNotFoundWhenTheStreamIsNotFound() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
@@ -211,8 +213,10 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
             assertThat(get.streamId(), equalTo("the-id"));
             assertThat(get.offset(), equalTo(5L));
             assertThat(get.maxRows(), equalTo(10L));
+            assertThat(get.resultStreamListener(), notNullValue());
             assertThat(channel.capturedResponse().status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(channel.capturedResponse().content().utf8ToString(), containsString("the-id"));
+            ChunkedRestResponseBodyPart body = channel.capturedResponse().chunkedContent();
+            assertThat(body.encodeChunk(1024, BytesRefRecycler.NON_RECYCLING_INSTANCE).utf8ToString(), containsString("the-id"));
         } finally {
             // RestCancellableNodeClient tracks the HTTP channel in a static map until it is closed
             request.getHttpChannel().close();

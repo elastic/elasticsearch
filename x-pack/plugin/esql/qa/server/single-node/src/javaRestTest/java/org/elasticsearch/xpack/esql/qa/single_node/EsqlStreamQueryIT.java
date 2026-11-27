@@ -13,10 +13,12 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -32,9 +34,12 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.parseNdjson;
@@ -464,6 +469,68 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
 
         assertThat(streamed.rows(), hasSize(4));
         assertThat(streamed.footer().get("complete"), equalTo(true));
+    }
+
+    public void testRemainderOfAStoredStreamIsReadWithGet() throws Exception {
+        enableBatchIndexing();
+        Streamed initial = stream(
+            "{\"query\": \"FROM stream-test | SORT value | LIMIT 100 | KEEP value\", \"store\": \""
+                + randomFrom("overflow", "all")
+                + "\", \"max_rows\": 2}"
+        );
+
+        assertThat(initial.rows(), equalTo(List.of(List.of(1), List.of(2))));
+        assertThat(initial.footer().get("complete"), equalTo(false));
+        assertThat(initial.footer().get("next_offset"), equalTo(2));
+        String streamId = (String) initial.header().get("stream_id");
+        assertThat(streamId, notNullValue());
+
+        Streamed remainder = getUntilComplete(streamId, "offset=2");
+
+        assertThat(remainder.header().get("columns"), equalTo(initial.header().get("columns")));
+        assertThat(remainder.rows(), equalTo(List.of(List.of(3), List.of(4))));
+        assertThat(remainder.footer().get("status"), equalTo(200));
+        assertThat(remainder.footer().get("next_offset"), equalTo(4));
+        assertThat(remainder.footer(), not(hasKey("error")));
+    }
+
+    public void testStoredStreamIsReadInRanges() throws Exception {
+        enableBatchIndexing();
+        Streamed initial = stream("""
+            {"query": "FROM stream-test | SORT value | LIMIT 100 | KEEP value", "store": "all", "max_rows": 1}
+            """);
+        String streamId = (String) initial.header().get("stream_id");
+        assertThat(streamId, notNullValue());
+
+        Streamed middle = getUntil(
+            streamId,
+            streamed -> assertThat(streamed.rows(), equalTo(List.of(List.of(2), List.of(3)))),
+            "offset=1",
+            "max_rows=2"
+        );
+        assertThat("a row is left", middle.footer().get("complete"), equalTo(false));
+        assertThat(middle.footer().get("next_offset"), equalTo(3));
+
+        Streamed last = getUntilComplete(streamId, "offset=3", "max_rows=10");
+        assertThat(last.rows(), equalTo(List.of(List.of(4))));
+        assertThat(last.footer().get("next_offset"), equalTo(4));
+
+        Streamed all = getUntilComplete(streamId);
+        assertThat(all.rows(), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(4))));
+        assertThat(all.footer().get("next_offset"), equalTo(4));
+
+        Streamed statusOnly = get(streamId, "offset=4", "max_rows=0");
+        assertThat(statusOnly.lines(), hasSize(2));
+        assertThat(statusOnly.footer().get("complete"), equalTo(true));
+        assertThat(statusOnly.footer().get("next_offset"), equalTo(4));
+    }
+
+    public void testGetOfAnUnknownStreamIsNotFound() {
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request("GET", "/_query/stream/" + randomAlphaOfLength(20)))
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testUnknownStoreIsRejected() {
@@ -1154,12 +1221,12 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     private record Streamed(List<Object> lines) {
         @SuppressWarnings("unchecked")
         Map<String, Object> header() {
-            return (Map<String, Object>) lines.get(0);
+            return (Map<String, Object>) lines.getFirst();
         }
 
         @SuppressWarnings("unchecked")
         Map<String, Object> footer() {
-            return (Map<String, Object>) lines.get(lines.size() - 1);
+            return (Map<String, Object>) lines.getLast();
         }
 
         /** Every line between the columns line and the last line. Fails if one of them is not a row. */
@@ -1185,5 +1252,56 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             containsString("application/x-ndjson")
         );
         return new Streamed(parseNdjson(response));
+    }
+
+    private static void enableBatchIndexing() throws IOException {
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build());
+    }
+
+    private Streamed getOnce(String streamId, String... queryParams) throws IOException {
+        String path = "/_query/stream/" + streamId;
+        if (queryParams.length > 0) {
+            path += "?" + String.join("&", queryParams);
+        }
+        Response response = client().performRequest(new Request("GET", path));
+        assertThat(
+            "/_query/stream/{id} must respond with application/x-ndjson",
+            response.getEntity().getContentType().getValue(),
+            containsString("application/x-ndjson")
+        );
+        return new Streamed(parseNdjson(response));
+    }
+
+    private Streamed get(String streamId, String... queryParams) throws Exception {
+        return getUntil(streamId, streamed -> {}, queryParams);
+    }
+
+    private Streamed getUntilComplete(String streamId, String... queryParams) throws Exception {
+        return getUntil(streamId, streamed -> assertThat(streamed.footer().get("complete"), equalTo(true)), queryParams);
+    }
+
+    private Streamed getUntil(String streamId, Consumer<Streamed> check, String... queryParams) throws Exception {
+        AtomicReference<Streamed> result = new AtomicReference<>();
+        assertBusy(() -> {
+            Streamed streamed;
+            try {
+                streamed = getOnce(streamId, withWaitTimeout(queryParams));
+            } catch (ResponseException e) {
+                int status = e.getResponse().getStatusLine().getStatusCode();
+                if (status == 404 || status == 503) {
+                    throw new AssertionError(e);
+                }
+                throw e;
+            }
+            check.accept(streamed);
+            result.set(streamed);
+        });
+        return result.get();
+    }
+
+    private static String[] withWaitTimeout(String[] queryParams) {
+        String[] withTimeout = Arrays.copyOf(queryParams, queryParams.length + 1);
+        withTimeout[queryParams.length] = "wait_timeout=5s";
+        return withTimeout;
     }
 }

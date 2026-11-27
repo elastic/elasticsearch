@@ -36,9 +36,9 @@ public record StreamMetadata(
         CANCELED
     }
 
-    record StreamCompletionInfo(boolean partial, long tookMillis, Long pages, Long rows, @Nullable StreamFailure failure) {}
+    public record StreamCompletionInfo(boolean partial, long tookMillis, Long pages, Long rows, @Nullable StreamFailure failure) {}
 
-    record StreamFailure(String type, @Nullable String reason, RestStatus status) {
+    public record StreamFailure(String type, @Nullable String reason, RestStatus status) {
 
         static StreamFailure of(Exception exception) {
             Throwable cause = ExceptionsHelper.unwrapCause(exception);

@@ -13,11 +13,11 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
@@ -28,6 +28,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
@@ -55,11 +57,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -70,13 +70,14 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     /**
      * A sort that a {@link LuceneSourceOperatorTests.MockShardContext}, which has no mappings, resolves the sort builders to.
      *
-     * @param sharesScore whether its collectors skip documents by score
      * @param skipsTies whether its collectors skip the documents that tie with the lowest score of a full top N
      */
-    private record TestSort(String name, Function<List<SortBuilder<?>>, Sort> resolver, int keys, boolean sharesScore, boolean skipsTies) {
+    private record TestSort(String name, Sort sort, boolean skipsTies) {
         List<SortBuilder<?>> builders() {
             // The operator reads the score from the sort values, at a position that depends on the number of sort keys
-            return keys == 1 ? List.of(new ScoreSortBuilder()) : List.of(new ScoreSortBuilder(), new FieldSortBuilder("s"));
+            return sort.getSort().length == 1
+                ? List.of(new ScoreSortBuilder())
+                : List.of(new ScoreSortBuilder(), new FieldSortBuilder("s"));
         }
 
         @Override
@@ -85,49 +86,19 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         }
     }
 
-    private static final SortField VALUE_EQUAL_FIELD = new SortedNumericSortField("s", SortField.Type.LONG);
+    private static final SortField FIELD_SORT = new SortedNumericSortField("s", SortField.Type.LONG);
 
-    private static final TestSort SCORE = new TestSort("score", sorts -> Sort.RELEVANCE, 1, true, true);
-    /**
-     * The second key compares by value, like the sort field of a keyword.
-     */
-    private static final TestSort SCORE_THEN_VALUE_EQUAL_FIELD = new TestSort(
-        "score, value-equal field",
-        sorts -> new Sort(SortField.FIELD_SCORE, VALUE_EQUAL_FIELD),
-        2,
-        true,
-        false
-    );
-    /**
-     * The second key compares by identity and is built again every time the shard resolves the sort, like the sort fields
-     * of numeric and date fields, whose {@code IndexFieldData.XFieldComparatorSource} doesn't override {@code equals()}.
-     */
-    private static final TestSort SCORE_THEN_IDENTITY_EQUAL_FIELD = new TestSort("score, identity-equal field", sorts -> {
-        FieldComparatorSource source = new FieldComparatorSource() {
-            @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
-                return VALUE_EQUAL_FIELD.getComparator(numHits, pruning);
-            }
-        };
-        return new Sort(SortField.FIELD_SCORE, new SortField("s", source, false));
-    }, 2, true, false);
+    private static final TestSort SCORE = new TestSort("score", Sort.RELEVANCE, true);
+    private static final TestSort SCORE_THEN_FIELD = new TestSort("score, field", new Sort(SortField.FIELD_SCORE, FIELD_SORT), false);
     private static final TestSort SCORE_ASCENDING = new TestSort(
         "score ascending",
-        sorts -> new Sort(new SortField(null, SortField.Type.SCORE, true)),
-        1,
-        false,
+        new Sort(new SortField(null, SortField.Type.SCORE, true)),
         false
     );
-    private static final TestSort FIELD = new TestSort("field", sorts -> new Sort(VALUE_EQUAL_FIELD), 1, false, false);
-    private static final TestSort FIELD_THEN_SCORE = new TestSort(
-        "field, score",
-        sorts -> new Sort(VALUE_EQUAL_FIELD, SortField.FIELD_SCORE),
-        2,
-        false,
-        false
-    );
+    private static final TestSort FIELD = new TestSort("field", new Sort(FIELD_SORT), false);
+    private static final TestSort FIELD_THEN_SCORE = new TestSort("field, score", new Sort(FIELD_SORT, SortField.FIELD_SCORE), false);
 
-    private static final List<TestSort> SHARING = List.of(SCORE, SCORE_THEN_VALUE_EQUAL_FIELD, SCORE_THEN_IDENTITY_EQUAL_FIELD);
+    private static final List<TestSort> SHARING = List.of(SCORE, SCORE_THEN_FIELD);
     private static final List<TestSort> NOT_SHARING = List.of(SCORE_ASCENDING, FIELD, FIELD_THEN_SCORE);
 
     private final Directory directory = newDirectory();
@@ -151,7 +122,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
         float lowest = collectIncreasingScores(provider.newPerShardCollector(ctx), limit + between(1, 30), limit);
         float expected = sort.skipsTies ? Math.nextUp(lowest) : lowest;
-        assertThat(sort.toString(), provider.sharedMinCompetitiveScore.get(), equalTo(expected));
+        assertThat(sort.toString(), provider.sharedScoreBound.get(), equalTo(expected));
 
         var other = provider.newPerShardCollector(randomBoolean() ? ctx : createMockShardContext(1, sort));
         RecordingScorable scorer = new RecordingScorable();
@@ -170,9 +141,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, sort != FIELD || randomBoolean(), sort.builders());
 
         collectIncreasingScores(provider.newPerShardCollector(ctx), limit + between(1, 30), limit);
-        assertThat(sort.toString(), provider.sharedMinCompetitiveScore.get(), equalTo(0f));
+        assertThat(sort.toString(), provider.sharedScoreBound.get(), equalTo(0f));
 
-        provider.sharedMinCompetitiveScore.offer(randomFloat() + 1);
+        provider.sharedScoreBound.offer(randomFloat() + 1);
         RecordingScorable scorer = new RecordingScorable();
         LeafCollector leafCollector = provider.newPerShardCollector(ctx).getLeafCollector(reader.leaves().getFirst());
         leafCollector.setScorer(scorer);
@@ -191,7 +162,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         ShardContext ctx = createMockShardContext(0, sort);
         var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, true, sort.builders());
         float shared = hits + between(1, 100);
-        provider.sharedMinCompetitiveScore.offer(shared);
+        provider.sharedScoreBound.offer(shared);
 
         var collector = provider.newPerShardCollector(ctx);
         RecordingScorable scorer = new RecordingScorable();
@@ -204,7 +175,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         }
         assertThat(scorer.minCompetitiveScore, equalTo(shared));
         assertThat(scorer.lowered, equalTo(false));
-        assertThat(provider.sharedMinCompetitiveScore.get(), equalTo(shared));
+        assertThat(provider.sharedScoreBound.get(), equalTo(shared));
     }
 
     /**
@@ -222,7 +193,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         assertThat(scorer.minCompetitiveScore, equalTo(0f));
 
         float shared = randomFloat() + 1;
-        provider.sharedMinCompetitiveScore.offer(shared);
+        provider.sharedScoreBound.offer(shared);
         for (int i = 0; i < 1024; i++) {
             leafCollector.collect(0);
         }
@@ -238,7 +209,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var otherProvider = new LuceneTopNSourceOperator.PerShardCollectorProvider(limit, true, sort.builders());
 
         collectIncreasingScores(provider.newPerShardCollector(ctx), limit + between(1, 30), limit);
-        assertThat(otherProvider.sharedMinCompetitiveScore.get(), equalTo(0f));
+        assertThat(otherProvider.sharedScoreBound.get(), equalTo(0f));
     }
 
     public void testOperatorsOfAFactoryShareTheProvider() throws IOException {
@@ -265,11 +236,6 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             for (var operator : operators) {
                 assertThat(operator.perShardCollectorProvider, sameInstance(factory.perShardCollectorProvider));
             }
-            ShardContext ctx = createMockShardContext(0, SCORE);
-            assertThat(
-                factory.perShardCollectorProvider.newPerShardCollector(ctx).collector,
-                not(sameInstance(factory.perShardCollectorProvider.newPerShardCollector(ctx).collector))
-            );
         } finally {
             IOUtils.close(operators);
         }
@@ -277,9 +243,13 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     /**
      * Runs a top N by descending score over several shards with several drivers. Each driver skips the documents that score
-     * below a top N another driver has already filled. The best {@code limit} rows the drivers emit must still score exactly
-     * like the best {@code limit} documents of all shards. Rows that tie on the score are interchangeable, so only scores are
-     * compared.
+     * below a top N another driver has already filled. The best {@code limit} rows the drivers emit must still be the best
+     * {@code limit} documents of all shards. Rows that tie on every sort key are interchangeable, so the sort keys of the
+     * rows are compared rather than the documents.
+     * <p>
+     *     Some shards are a single segment of more documents than the operator scores in one go, so its scorer is handed to
+     *     the collector several times, and {@link DataPartitioning#DOC} splits such a segment between drivers.
+     * </p>
      */
     public void testDriversSharingAScoreEmitTopN() throws IOException {
         TestSort sort = randomFrom(SHARING);
@@ -292,12 +262,16 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                 Directory shardDirectory = newDirectory();
                 directories.add(shardDirectory);
                 try (RandomIndexWriter writer = new RandomIndexWriter(random(), shardDirectory)) {
-                    for (int d = between(500, 3000); d > 0; d--) {
+                    boolean large = randomBoolean();
+                    for (int d = large ? between(10_000, 20_000) : between(500, 3000); d > 0; d--) {
                         List<IndexableField> doc = new ArrayList<>();
                         doc.add(new SortedNumericDocValuesField("s", d));
                         // The frequency of "a" and the length of the field vary, so the scores do
                         doc.add(new TextField("t", "a ".repeat(between(1, 20)) + "b ".repeat(between(0, 20)), Field.Store.NO));
                         writer.addDocument(doc);
+                    }
+                    if (large) {
+                        writer.forceMerge(1);
                     }
                     readers.add(writer.getReader());
                 }
@@ -309,7 +283,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             var factory = new LuceneTopNSourceOperator.Factory(
                 new IndexedByShardIdFromList<>(contexts),
                 c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
-                randomFrom(DataPartitioning.SHARD, DataPartitioning.SEGMENT),
+                randomFrom(DataPartitioning.SHARD, DataPartitioning.SEGMENT, DataPartitioning.DOC),
                 DataPartitioning.AutoStrategy.DEFAULT,
                 taskConcurrency,
                 between(10, 100),
@@ -321,13 +295,14 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                 QueryWarnings.EMIT
             );
 
-            List<Float> expected = new ArrayList<>();
-            for (ShardContext ctx : contexts) {
-                for (ScoreDoc scoreDoc : ctx.searcher().search(query, limit).scoreDocs) {
-                    expected.add(scoreDoc.score);
+            List<SortKeys> expected = new ArrayList<>();
+            for (int shard = 0; shard < numShards; shard++) {
+                IndexSearcher searcher = contexts.get(shard).searcher();
+                for (ScoreDoc scoreDoc : searcher.search(query, limit, new Sort(SortField.FIELD_SCORE, FIELD_SORT), true).scoreDocs) {
+                    expected.add(sortKeys(sort, readers.get(shard), scoreDoc.doc, scoreDoc.score));
                 }
             }
-            expected.sort(Collections.reverseOrder());
+            Collections.sort(expected);
             expected = expected.subList(0, limit);
 
             List<Page> results = new CopyOnWriteArrayList<>();
@@ -345,20 +320,44 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             }
             new TestDriverRunner().run(drivers);
 
-            List<Float> actual = new ArrayList<>();
+            List<SortKeys> actual = new ArrayList<>();
             for (Page page : results) {
+                DocVector docs = page.<DocBlock>getBlock(0).asVector();
                 DoubleBlock scores = page.getBlock(1);
                 for (int p = 0; p < page.getPositionCount(); p++) {
-                    actual.add((float) scores.getDouble(p));
+                    IndexReader shardReader = readers.get(docs.shards().getInt(p));
+                    int doc = shardReader.leaves().get(docs.segments().getInt(p)).docBase + docs.docs().getInt(p);
+                    actual.add(sortKeys(sort, shardReader, doc, (float) scores.getDouble(p)));
                 }
             }
-            actual.sort(Collections.reverseOrder());
+            Collections.sort(actual);
             assertThat(sort.toString(), actual.size(), greaterThanOrEqualTo(limit));
             assertThat(sort.toString(), actual.subList(0, limit), equalTo(expected));
         } finally {
             IOUtils.close(readers);
             IOUtils.close(directories);
         }
+    }
+
+    /**
+     * The sort keys of a row: its score and, if {@code sort} has a second key, its value of {@code s}.
+     */
+    private record SortKeys(float score, long s) implements Comparable<SortKeys> {
+        @Override
+        public int compareTo(SortKeys other) {
+            int cmp = Float.compare(other.score, score);
+            return cmp != 0 ? cmp : Long.compare(s, other.s);
+        }
+    }
+
+    private static SortKeys sortKeys(TestSort sort, IndexReader reader, int doc, float score) throws IOException {
+        if (sort == SCORE) {
+            return new SortKeys(score, 0);
+        }
+        LeafReaderContext leaf = reader.leaves().get(ReaderUtil.subIndex(doc, reader.leaves()));
+        SortedNumericDocValues values = leaf.reader().getSortedNumericDocValues("s");
+        assertTrue(values.advanceExact(doc - leaf.docBase));
+        return new SortKeys(score, values.nextValue());
     }
 
     private void setupIndex(int numDocs) throws IOException {
@@ -368,6 +367,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                 doc.add(new SortedNumericDocValuesField("s", d));
                 writer.addDocument(doc);
             }
+            // One leaf, so a collector that collects more than limit documents of it fills its top N
+            writer.forceMerge(1);
             reader = writer.getReader();
         }
     }
@@ -380,10 +381,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         return new LuceneSourceOperatorTests.MockShardContext(reader, shardId) {
             @Override
             public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
-                Sort resolved = sort.resolver.apply(sorts);
-                DocValueFormat[] formats = new DocValueFormat[resolved.getSort().length];
+                DocValueFormat[] formats = new DocValueFormat[sort.sort.getSort().length];
                 Arrays.fill(formats, DocValueFormat.RAW);
-                return Optional.of(new SortAndFormats(resolved, formats));
+                return Optional.of(new SortAndFormats(sort.sort, formats));
             }
         };
     }

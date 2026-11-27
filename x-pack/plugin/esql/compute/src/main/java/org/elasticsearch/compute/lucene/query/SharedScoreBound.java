@@ -13,14 +13,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The highest minimum competitive score that any of the collectors of a top N by descending {@code _score} has reached,
- * shared by the drivers that run it. A collector only offers a score once it holds a full top N of rows that score at
- * least as high, and those rows are part of the output. So every other collector can skip the documents that score
- * lower, whichever shard they are in, by handing the score to {@link Scorable#setMinCompetitiveScore}.
+ * shared by the drivers that run it. A collector only offers a score once it holds a full top N, whose rows are part of
+ * the output. A document that scores below the offered score either scores below every row of that top N or, when the
+ * score is the only sort key, ties with its last row. So every other collector can skip those documents, whichever shard
+ * they are in, by handing the score to {@link Scorable#setMinCompetitiveScore}.
  * <p>
  *     The score only grows, which {@link Scorable#setMinCompetitiveScore} requires.
  * </p>
  */
-final class SharedMinCompetitiveScore {
+final class SharedScoreBound {
     /**
      * The bits of the score. Scores are never negative, and the bits of non-negative floats sort like the floats.
      */

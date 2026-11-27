@@ -11,13 +11,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SharedMinCompetitiveScoreTests extends ESTestCase {
+public class SharedScoreBoundTests extends ESTestCase {
     public void testStartsAtZero() {
-        assertThat(new SharedMinCompetitiveScore().get(), equalTo(0f));
+        assertThat(new SharedScoreBound().get(), equalTo(0f));
     }
 
     public void testOnlyGrows() {
-        SharedMinCompetitiveScore shared = new SharedMinCompetitiveScore();
+        SharedScoreBound shared = new SharedScoreBound();
         float max = 0;
         for (int i = between(1, 100); i > 0; i--) {
             float score = randomFloat() * between(1, 1000);
@@ -28,7 +28,7 @@ public class SharedMinCompetitiveScoreTests extends ESTestCase {
     }
 
     public void testIgnoresScoresThatAreNotABound() {
-        SharedMinCompetitiveScore shared = new SharedMinCompetitiveScore();
+        SharedScoreBound shared = new SharedScoreBound();
         float score = randomFloat() + 1;
         shared.offer(score);
         shared.offer(randomFrom(Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, -randomFloat() - 1, 0f, -0f));
@@ -36,7 +36,7 @@ public class SharedMinCompetitiveScoreTests extends ESTestCase {
     }
 
     public void testConcurrentOffersKeepTheHighest() {
-        SharedMinCompetitiveScore shared = new SharedMinCompetitiveScore();
+        SharedScoreBound shared = new SharedScoreBound();
         int threads = between(2, 8);
         float[][] scores = new float[threads][between(100, 1000)];
         float max = 0;

@@ -630,8 +630,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     static class PerShardCollector {
         /**
-         * How many collected documents go by before a collector reads the shared score again. It also reads it every time
-         * it gets a scorer. Same interval as Lucene's collectors use for the score they share.
+         * A collector reads the shared score every time it gets a scorer, and every 1024 documents it collects, when the
+         * count masked with this is zero. Lucene's collectors read the score they share at the same interval.
          */
         private static final int SHARED_SCORE_INTERVAL_MASK = 0x3ff;
 
@@ -641,27 +641,23 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
          * The score shared with the other collectors, or {@code null} if this collector doesn't skip by score.
          */
         @Nullable
-        private final SharedMinCompetitiveScore sharedMinCompetitiveScore;
+        private final SharedScoreBound sharedScoreBound;
 
         private int leafIndex;
         private LeafCollector leafCollector;
         private Thread currentThread;
 
-        PerShardCollector(
-            ShardContext shardContext,
-            TopDocsCollector<?> collector,
-            @Nullable SharedMinCompetitiveScore sharedMinCompetitiveScore
-        ) {
+        PerShardCollector(ShardContext shardContext, TopDocsCollector<?> collector, @Nullable SharedScoreBound sharedScoreBound) {
             this.shardContext = shardContext;
             this.collector = collector;
-            this.sharedMinCompetitiveScore = sharedMinCompetitiveScore;
+            this.sharedScoreBound = sharedScoreBound;
         }
 
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {
             if (currentThread != Thread.currentThread() || leafIndex != leafReaderContext.ord) {
                 leafCollector = collector.getLeafCollector(leafReaderContext);
-                if (sharedMinCompetitiveScore != null) {
-                    leafCollector = new SharingLeafCollector(leafCollector, sharedMinCompetitiveScore);
+                if (sharedScoreBound != null) {
+                    leafCollector = new SharingLeafCollector(leafCollector, sharedScoreBound);
                 }
                 leafIndex = leafReaderContext.ord;
                 currentThread = Thread.currentThread();
@@ -675,11 +671,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
          * scorer.
          */
         private static class SharingLeafCollector extends FilterLeafCollector {
-            private final SharedMinCompetitiveScore shared;
+            private final SharedScoreBound shared;
             private SharingScorable scorer;
             private int collected;
 
-            SharingLeafCollector(LeafCollector in, SharedMinCompetitiveScore shared) {
+            SharingLeafCollector(LeafCollector in, SharedScoreBound shared) {
                 super(in);
                 this.shared = shared;
             }
@@ -706,14 +702,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         private static class SharingScorable extends FilterScorable {
-            private final SharedMinCompetitiveScore shared;
+            private final SharedScoreBound shared;
             /**
              * The last score set on the scorer. The collector doesn't know about the scores of the other collectors, so it
              * can set a lower one, which must not reach the scorer.
              */
             private float minCompetitiveScore;
 
-            SharingScorable(Scorable in, SharedMinCompetitiveScore shared) {
+            SharingScorable(Scorable in, SharedScoreBound shared) {
                 super(in);
                 this.shared = shared;
             }
@@ -754,9 +750,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     /**
      * Creates the top N collectors of the operators of a {@link Factory}, one per driver and shard.
      * <p>
-     *     Every collector is created on its own, so nothing keeps it once its operator is done with it. The collectors that
-     *     skip documents by score, the ones Lucene gives {@link ScoreMode#TOP_SCORES} because their sort starts with
-     *     {@code _score} descending, share their minimum competitive score through a {@link SharedMinCompetitiveScore}:
+     *     The collectors that skip documents by score, the ones Lucene gives {@link ScoreMode#TOP_SCORES} because their sort starts with
+     *     {@code _score} descending, share their minimum competitive score through a {@link SharedScoreBound}:
      *     a driver skips the documents that score below a top N another driver has already filled, in any shard.
      * </p>
      * <p>
@@ -770,7 +765,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         private final int limit;
         private final boolean needsScore;
         private final List<SortBuilder<?>> sorts;
-        final SharedMinCompetitiveScore sharedMinCompetitiveScore = new SharedMinCompetitiveScore();
+        final SharedScoreBound sharedScoreBound = new SharedScoreBound();
 
         PerShardCollectorProvider(int limit, boolean needsScore, List<SortBuilder<?>> sorts) {
             this.limit = limit;
@@ -803,7 +798,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             TopDocsCollector<?> collector = newTopDocsCollector(sortAndFormats.get().sort);
             // TOP_SCORES is the score mode of the collectors that set a minimum competitive score on their scorer
             boolean skipsByScore = collector.scoreMode() == ScoreMode.TOP_SCORES;
-            return new PerShardCollector(context, collector, skipsByScore ? sharedMinCompetitiveScore : null);
+            return new PerShardCollector(context, collector, skipsByScore ? sharedScoreBound : null);
         }
     }
 }

@@ -5112,8 +5112,12 @@ public class EsqlCapabilities {
         FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
         /**
-         * The error for a field mapped to different types, and unmapped in some indices, with {@code unmapped_fields="load"}
-         * counts the indices of each type like it does without it. Older nodes listed {@code ...} as an index and undercounted.
+         * The type conflict error reports the right number of indices for each type when {@code unmapped_fields="load"} is set and the
+         * field is missing from some indices, as it does without that setting.
+         * <p>
+         * Before, the index names were shortened twice, so the error listed the placeholder {@code ...} as if it were an index and the
+         * "and [N] other indices" count was too low. For example, {@code [long] in [..., l1, l2] and [1] other index} instead of
+         * {@code [long] in [l1, l2, l3] and [2] other indices}.
          */
         PARTIALLY_UNMAPPED_CONFLICT_INDEX_COUNT,
 

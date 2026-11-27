@@ -205,12 +205,6 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
                     description = "If true, enable position increments in queries constructed from a query_string search. Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
-                    name = "fields",
-                    type = "keyword",
-                    valueHint = { "standard" },
-                    description = "Array of fields to search. Supports wildcards (*)."
-                ),
-                @MapParam.MapParamEntry(
                     name = "fuzzy_max_expansions",
                     type = "integer",
                     valueHint = { "50" },

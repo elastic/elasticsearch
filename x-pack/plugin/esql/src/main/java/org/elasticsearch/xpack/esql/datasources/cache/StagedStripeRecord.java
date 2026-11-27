@@ -190,7 +190,8 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * <p>
      * A column whose extremum a fold found unservable is written with its counts and no extremum, which is the
      * only encoding a staged contribution has had: the reconciler reads a column that is present, carries
-     * non-null rows and offers no extremum as one it cannot answer, and poisons it as the marker would.
+     * non-null rows and offers no extremum as one it cannot answer, and poisons it as the marker would. A
+     * column whose extremum was too wide to publish arrives the same way.
      */
     private Map<String, Object> flatten() {
         builds++;

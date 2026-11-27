@@ -19,10 +19,10 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
 
-    private static final long GROUPING_INTERVAL_MILLIS = 1_000L;
+    private static final long TIME_BUCKET_MILLIS = 1_000L;
 
     private static long representativeChunkEnd() {
-        long end = GROUPING_INTERVAL_MILLIS;
+        long end = TIME_BUCKET_MILLIS;
         for (int i = 0; i < ChunkedDataExtractorEsqlSizing.MAX_ESQL_SHRINK_ATTEMPTS; i++) {
             end = Math.multiplyExact(end, ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR);
         }
@@ -39,16 +39,16 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
         assertThat(shrunkEnd.getAsLong(), equalTo(expectedUnaligned));
     }
 
-    public void testShrinkBelowGroupingIntervalShouldClampToOneInterval() {
-        long initialEnd = GROUPING_INTERVAL_MILLIS * ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
+    public void testShrinkBelowTimeBucketShouldClampToOneInterval() {
+        long initialEnd = TIME_BUCKET_MILLIS * ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing();
         OptionalLong shrunkEnd = truncated(sizing, 0L, initialEnd);
-        assertThat(shrunkEnd, equalTo(OptionalLong.of(GROUPING_INTERVAL_MILLIS)));
+        assertThat(shrunkEnd, equalTo(OptionalLong.of(TIME_BUCKET_MILLIS)));
     }
 
-    public void testTruncatedChunkAtOneGroupingIntervalShouldBeRecordedIncomplete() {
+    public void testTruncatedChunkAtOneTimeBucketShouldBeRecordedIncomplete() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing();
-        long end = GROUPING_INTERVAL_MILLIS;
+        long end = TIME_BUCKET_MILLIS;
         assertThat(truncated(sizing, 0L, end), equalTo(OptionalLong.empty()));
         assertThat(sizing.incompleteInterval(), equalTo(Optional.of(new SearchInterval(0L, end))));
     }
@@ -94,7 +94,7 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
     public void testSparseChunkWithoutShrinkShouldRegrowTowardTargetRowCountCappedAtInitialSpan() {
         long initialSpan = representativeChunkEnd();
         long chunkSpan = initialSpan / ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
-        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(GROUPING_INTERVAL_MILLIS);
+        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(TIME_BUCKET_MILLIS);
         long targetDocs = ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS;
         long scaled = (chunkSpan * targetDocs) / 500L;
         long expected = aligner.alignToCeil(Math.min(initialSpan, scaled));
@@ -105,7 +105,7 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
 
     public void testSparseChunkJustUnderTargetShouldNotDoubleSpan() {
         long initialSpan = representativeChunkEnd();
-        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(GROUPING_INTERVAL_MILLIS);
+        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(TIME_BUCKET_MILLIS);
         long chunkSpan = initialSpan / ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing();
         sizing.captureInitialChunkSpan(initialSpan);
@@ -119,7 +119,7 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
     public void testVerySparseChunkShouldRegrowUpToInitialSpan() {
         long initialSpan = representativeChunkEnd();
         long chunkSpan = initialSpan / ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
-        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(GROUPING_INTERVAL_MILLIS);
+        ChunkedDataExtractorContext.TimeAligner aligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(TIME_BUCKET_MILLIS);
         long scaled = (chunkSpan * ChunkedDataExtractorEsqlSizing.DEFAULT_ESQL_CHUNK_DOCS) / 1_000L;
         long expected = aligner.alignToCeil(Math.min(initialSpan, scaled));
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing();
@@ -141,7 +141,7 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
         long intervalLength = Long.MAX_VALUE / 4L;
         OptionalLong shrunkEnd = truncated(sizing, 0L, intervalLength);
         long headroom = ChunkedDataExtractorEsqlSizing.CHUNK_HEADROOM_FACTOR;
-        long expected = intervalLength / headroom - (intervalLength / headroom) % GROUPING_INTERVAL_MILLIS;
+        long expected = intervalLength / headroom - (intervalLength / headroom) % TIME_BUCKET_MILLIS;
         assertThat(shrunkEnd, equalTo(OptionalLong.of(expected)));
     }
 
@@ -156,7 +156,7 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
     }
 
     private static ChunkedDataExtractorEsqlSizing esqlSizing() {
-        ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(GROUPING_INTERVAL_MILLIS);
+        ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(TIME_BUCKET_MILLIS);
         ChunkedDataExtractorContext context = new ChunkedDataExtractorContext(
             "job",
             1000,

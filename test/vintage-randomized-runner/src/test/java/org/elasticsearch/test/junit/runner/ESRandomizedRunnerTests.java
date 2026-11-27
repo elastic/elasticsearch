@@ -15,6 +15,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -41,6 +42,7 @@ import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertFalse;
 
 /**
  * Tests how {@link ESRandomizedRunner} applies filters, by looking at the descriptions that remain after filtering a runner for a
@@ -233,6 +235,44 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
     }
 
     /**
+     * The iterations of a test are distinct descriptions, but their names do not carry the seed, so that name based filters, such as
+     * Gradle's {@code --tests Class.method}, match them.
+     */
+    public void testIterationsAreDistinctDescriptionsWithTheSameName() throws Exception {
+        Description description = withIterations(3, () -> new ESRandomizedRunner(PlainFixture.class, VINTAGE_SELECTING_FILTER_PREFIX))
+            .getDescription();
+
+        assertThat(description.getChildren().size(), equalTo(9));
+        assertThat(new HashSet<>(description.getChildren()).size(), equalTo(9));
+        for (Description child : description.getChildren()) {
+            assertFalse(child.getMethodName(), SEED_IN_NAME.matcher(child.getMethodName()).find());
+        }
+    }
+
+    /** What {@code --tests Class.method -Dtests.iters=N} does for a test without parameters. */
+    public void testSelectingAMethodWorksWithIterations() throws Exception {
+        ESRandomizedRunner runner = withIterations(3, () -> new ESRandomizedRunner(PlainFixture.class, VINTAGE_SELECTING_FILTER_PREFIX));
+
+        runner.filter(new VintageLikeSelectingFilter("testOne"));
+
+        assertThat(leafNames(runner.getDescription()), containsInAnyOrder("testOne"));
+        assertThat(runner.getDescription().getChildren().size(), equalTo(3));
+    }
+
+    /** The same for one variant of a parameterized test: the other variants of the method must not run. */
+    public void testSelectingAMethodOfAParameterizedClassWorksWithIterations() throws Exception {
+        ESRandomizedRunner runner = withIterations(
+            3,
+            () -> new ESRandomizedRunner(ParameterizedFixture.class, VINTAGE_SELECTING_FILTER_PREFIX)
+        );
+
+        runner.filter(new VintageLikeSelectingFilter("testOne {p=a}"));
+
+        assertThat(leafNames(runner.getDescription()), containsInAnyOrder("testOne {p=a}"));
+        assertThat(runner.getDescription().getChildren().size(), equalTo(3));
+    }
+
+    /**
      * The Vintage engine is quadratic in the number of tests under suites that are not the root, so the tests must be its direct
      * children.
      */
@@ -378,5 +418,55 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
 
     private static String withoutSeed(String methodName) {
         return SEED_IN_NAME.matcher(methodName).replaceAll("").replace(" {}", "");
+    }
+
+    /**
+     * Accepts only descriptions whose method name is exactly one of the given ones, as the filter Gradle builds for
+     * {@code --tests Class.method} does. Unlike {@link RejectingFilter} it says "no" to anything else, so it also rejects descriptions
+     * that carry the {@code seed=[...]} suffix added by {@code tests.iters}.
+     */
+    public static final class VintageLikeSelectingFilter extends Filter {
+        private final Set<String> selected;
+
+        VintageLikeSelectingFilter(String... selected) {
+            this.selected = Set.of(selected);
+        }
+
+        @Override
+        public boolean shouldRun(Description description) {
+            // like Gradle's matcher, the suite is accepted when any of its children is
+            if (description.getMethodName() == null) {
+                return description.getChildren().stream().anyMatch(this::shouldRun);
+            }
+            return selected.contains(description.getMethodName());
+        }
+
+        @Override
+        public String describe() {
+            return "selects " + selected;
+        }
+    }
+
+    private static final String VINTAGE_SELECTING_FILTER_PREFIX = ESRandomizedRunnerTests.class.getName() + "$VintageLikeSelecting";
+
+    @SuppressForbidden(reason = "tests.iters is read from the system properties when a runner is created")
+    private static <T> T withIterations(int iters, ThrowingSupplier<T> body) throws Exception {
+        String key = "tests.iters";
+        String previous = System.getProperty(key);
+        System.setProperty(key, Integer.toString(iters));
+        try {
+            return body.get();
+        } finally {
+            if (previous == null) {
+                System.clearProperty(key);
+            } else {
+                System.setProperty(key, previous);
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingSupplier<T> {
+        T get() throws Exception;
     }
 }

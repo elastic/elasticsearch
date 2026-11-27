@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene70;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.codecs.Codec;
@@ -21,16 +22,20 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.LegacyBaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
 import java.util.function.LongSupplier;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 public class Lucene70DocValuesFormatTests extends LegacyBaseDocValuesFormatTestCase {

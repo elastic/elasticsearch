@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.search.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -52,6 +54,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.Before;
 import org.junit.runner.RunWith;
@@ -68,6 +71,8 @@ import static org.hamcrest.Matchers.equalTo;
  * Abstract test case for IVF KNN sliced vector queries. Provides shared test infrastructure
  * for both float and byte vector sliced query implementations.
  */
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTestCase {
 

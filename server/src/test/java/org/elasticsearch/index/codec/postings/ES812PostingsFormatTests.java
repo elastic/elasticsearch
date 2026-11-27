@@ -19,6 +19,8 @@
  */
 package org.elasticsearch.index.codec.postings;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.backward_codecs.lucene90.blocktree.FieldReader;
 import org.apache.lucene.backward_codecs.lucene90.blocktree.Stats;
 import org.apache.lucene.codecs.Codec;
@@ -36,12 +38,16 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BasePostingsFormatTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class ES812PostingsFormatTests extends BasePostingsFormatTestCase {
     private final Codec codec = TestUtil.alwaysPostingsFormat(new ES812PostingsFormat());

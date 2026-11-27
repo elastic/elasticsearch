@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene.index;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.document.Document;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.LazySoftDeletesDirectoryReaderWrapper;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -39,6 +41,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
 

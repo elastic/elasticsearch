@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join, dirname } from "path";
 
-import { analyzeReports, classifyFailure, stripSeedSuffix, StripSystemStreams } from "./junit-reports-analyzer.ts";
+import { analyzeReports, classifyFailure, nameWithFailureSeed, stripSeedSuffix, StripSystemStreams } from "./junit-reports-analyzer.ts";
 
 describe("stripSeedSuffix", () => {
   test("strips a trailing randomized-runner seed suffix", () => {
@@ -13,6 +13,23 @@ describe("stripSeedSuffix", () => {
   test("leaves plain names and non-seed parameterization suffixes intact", () => {
     expect(stripSeedSuffix("testFoo")).toBe("testFoo");
     expect(stripSeedSuffix("testFoo {p0=x}")).toBe("testFoo {p0=x}");
+  });
+});
+
+describe("nameWithFailureSeed", () => {
+  const trace = "java.lang.AssertionError: boom\n\tat __randomizedtesting.SeedInfo.seed([8544FD1F1DFC3257:2FA692AE0E1C5071]:0)\n\tat org.junit.Assert.fail(Assert.java:89)";
+
+  test("adds the seed of the failing iteration, which testcase names of the JUnit Platform do not carry", () => {
+    expect(nameWithFailureSeed("testBoom", trace)).toBe("testBoom {seed=[8544FD1F1DFC3257:2FA692AE0E1C5071]}");
+  });
+
+  test("puts the seed inside the parameters of a parameterized test", () => {
+    expect(nameWithFailureSeed("testBoom {p=a}", trace)).toBe("testBoom {p=a seed=[8544FD1F1DFC3257:2FA692AE0E1C5071]}");
+  });
+
+  test("leaves names that have a seed, and failures without one, unchanged", () => {
+    expect(nameWithFailureSeed("testBoom {seed=[AAAA:1111]}", trace)).toBe("testBoom {seed=[AAAA:1111]}");
+    expect(nameWithFailureSeed("testBoom", "java.lang.AssertionError: boom")).toBe("testBoom");
   });
 });
 
@@ -99,6 +116,29 @@ describe("analyzeReports", () => {
     expect(flaky.exampleFailures).toEqual([
       { name: "testFlaky {seed=[AAAA:2222]}", message: "boom" },
     ]);
+  });
+
+  test("records the seed of a failing iteration from its stack trace when the testcase names carry none", async () => {
+    // Tests run on the JUnit Platform report every iteration under the same seedless name.
+    const root = await mkTmpReports([
+      {
+        path: "server/build/test-results/test/TEST-org.example.PlatformSeedTests.xml",
+        body: `<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.example.PlatformSeedTests" tests="2" failures="1" errors="0">
+  <testcase classname="org.example.PlatformSeedTests" name="testFlaky"/>
+  <testcase classname="org.example.PlatformSeedTests" name="testFlaky">
+    <failure type="java.lang.AssertionError" message="boom">java.lang.AssertionError: boom
+\tat __randomizedtesting.SeedInfo.seed([AAAA:2222]:0)
+</failure>
+  </testcase>
+</testsuite>`,
+      },
+    ]);
+    const report = await analyzeReports([root]);
+    expect(report.perTest).toHaveLength(1);
+    expect(report.perTest[0].passes).toBe(1);
+    expect(report.perTest[0].failures).toBe(1);
+    expect(report.perTest[0].exampleFailures).toEqual([{ name: "testFlaky {seed=[AAAA:2222]}", message: "boom" }]);
   });
 
   test("processes every <testsuite> inside a <testsuites> wrapper", async () => {

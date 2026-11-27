@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.storedfields;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.StoredFieldsReader;
@@ -23,9 +25,11 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -35,6 +39,8 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTe
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 

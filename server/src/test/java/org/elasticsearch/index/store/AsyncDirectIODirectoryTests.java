@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -34,8 +35,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
@@ -48,6 +51,8 @@ import java.nio.file.Path;
 import static org.apache.lucene.store.FSDirectory.open;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
 

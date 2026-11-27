@@ -6,18 +6,13 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.test.junit.listeners;
+package org.elasticsearch.test.junit.listener;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.runner.IterationSeeds;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -28,32 +23,30 @@ import java.util.TimeZone;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
+import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_RANDOM_SEED;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 
 /**
  * A {@link RunListener} that emits a command you can use to re-run a failing test with the failing random seed to
  * {@link System#err}.
+ * <p>
+ * This listener is registered with {@code @Listeners}, which is handled by the {@code RandomizedRunner} that
+ * {@link org.elasticsearch.test.junit.runner.ESRandomizedRunner} wraps, not by the wrapper. It therefore sees the descriptions as
+ * {@code RandomizedRunner} creates them, where with {@code tests.iters} the name of a test has the seed of its iteration
+ * ({@code testFoo {seed=[X:Y]}}).
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final Logger logger = LogManager.getLogger(ESTestCase.class);
-
-    @Override
-    public void testStarted(Description description) throws Exception {
-        logger.trace("Test {} started", description.getDisplayName());
-    }
-
-    @Override
-    public void testFinished(Description description) throws Exception {
-        logger.trace("Test {} finished", description.getDisplayName());
-    }
+    private static final boolean IS_WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
+    private static final String FIPS_SYSPROP = "tests.fips.enabled";
+    private static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
     /**
      * Are we in the integ test phase?
      */
     static boolean inVerifyPhase() {
-        return Booleans.parseBoolean(System.getProperty("tests.verify.phase", "false"));
+        return parseBoolean(System.getProperty("tests.verify.phase", "false"));
     }
 
     @Override
@@ -62,11 +55,15 @@ public class ReproduceInfoPrinter extends RunListener {
         if (failure.getException() instanceof AssumptionViolatedException) {
             return;
         }
+        printToErr(reproduceMessage(failure));
+    }
 
-        final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
+    // visible for testing
+    static String reproduceMessage(Failure failure) {
+        final String gradlew = IS_WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
-        boolean isBwcTest = Booleans.parseBoolean(System.getProperty("tests.bwc", "false"))
+        boolean isBwcTest = parseBoolean(System.getProperty("tests.bwc", "false"))
             || System.getProperty("tests.bwc.main.version") != null
             || System.getProperty("tests.bwc.refspec.main") != null;
 
@@ -80,7 +77,7 @@ public class ReproduceInfoPrinter extends RunListener {
         }
         b.append(failure.getDescription().getClassName());
 
-        final String methodName = failure.getDescription().getMethodName();
+        final String methodName = IterationSeeds.withoutSeed(failure.getDescription().getMethodName());
         if (methodName != null) {
             // fallback to system property filter when tests contain "."
             if (methodName.contains(".") || isBwcTest) {
@@ -103,11 +100,11 @@ public class ReproduceInfoPrinter extends RunListener {
                     + "https://github.com/elastic/elasticsearch/blob/main/REST_API_COMPATIBILITY.md"
             );
         }
-        printToErr(b.toString());
+        return b.toString();
     }
 
     private static boolean isRestApiCompatibilityTest() {
-        return Booleans.parseBoolean(System.getProperty("tests.restCompat", "false"));
+        return parseBoolean(System.getProperty("tests.restCompat", "false"));
     }
 
     @SuppressForbidden(reason = "printing repro info")
@@ -117,12 +114,16 @@ public class ReproduceInfoPrinter extends RunListener {
 
     protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {
 
+        @Nullable
+        private String iterationSeed;
+
         public GradleMessageBuilder(StringBuilder b) {
             super(b);
         }
 
         @Override
         public ReproduceErrorMessageBuilder appendAllOpts(Description description) {
+            iterationSeed = IterationSeeds.seedOf(description.getMethodName());
             super.appendAllOpts(description);
 
             return appendESProperties();
@@ -156,7 +157,11 @@ public class ReproduceInfoPrinter extends RunListener {
                 // we always use the default prefix
                 return this;
             }
-            if (Strings.hasLength(value)) {
+            if (iterationSeed != null && sysPropName.equals(SYSPROP_RANDOM_SEED())) {
+                // the seed of the iteration that failed (classSeed:methodSeed), the name of the test does not tell iterations apart
+                return super.appendOpt(sysPropName, iterationSeed);
+            }
+            if (hasLength(value)) {
                 return super.appendOpt(sysPropName, value);
             }
             return this;
@@ -166,7 +171,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests
-                appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
+                appendProperties(TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties(
                 "tests.assertion.disabled",
@@ -185,7 +190,7 @@ public class ReproduceInfoPrinter extends RunListener {
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
-            if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true")) == false) {
+            if (parseBoolean(System.getProperty("build.snapshot", "true")) == false) {
                 appendOpt("license.key", "x-pack/license-tools/src/test/resources/public.key");
             }
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
@@ -199,18 +204,30 @@ public class ReproduceInfoPrinter extends RunListener {
             } else {
                 appendOpt("runtime.java", Integer.toString(Runtime.version().feature()));
             }
-            appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
+            appendOpt(FIPS_SYSPROP, System.getProperty(FIPS_SYSPROP));
             return this;
         }
 
-        protected ReproduceErrorMessageBuilder appendProperties(String... properties) {
+        private void appendProperties(String... properties) {
             for (String sysPropName : properties) {
-                if (Strings.hasLength(System.getProperty(sysPropName))) {
+                if (hasLength(System.getProperty(sysPropName))) {
                     appendOpt(sysPropName, System.getProperty(sysPropName));
                 }
             }
-            return this;
         }
+    }
 
+    private static boolean hasLength(@Nullable String s) {
+        return s != null && s.isEmpty() == false;
+    }
+
+    private static boolean parseBoolean(String value) {
+        if ("true".equals(value)) {
+            return true;
+        }
+        if ("false".equals(value)) {
+            return false;
+        }
+        throw new AssertionError("not a boolean: " + value);
     }
 }

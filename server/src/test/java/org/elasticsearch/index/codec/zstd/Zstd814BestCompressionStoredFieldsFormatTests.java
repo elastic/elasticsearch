@@ -9,13 +9,19 @@
 
 package org.elasticsearch.index.codec.zstd;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class Zstd814BestCompressionStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 

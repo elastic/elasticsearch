@@ -9,6 +9,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.logging.log4j.Level;
@@ -25,6 +26,7 @@ import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -49,6 +51,8 @@ import static org.hamcrest.Matchers.is;
  * tests that extend ESTestCase for the same reason.
  */
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 @RunWith(ESRandomizedRunner.class)
 public class SpawnerNoBootstrapTests extends LuceneTestCase {

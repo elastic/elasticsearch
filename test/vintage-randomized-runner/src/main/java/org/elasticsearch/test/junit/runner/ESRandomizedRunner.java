@@ -15,6 +15,8 @@ import org.junit.runner.Runner;
 import org.junit.runner.manipulation.Filter;
 import org.junit.runner.manipulation.Filterable;
 import org.junit.runner.manipulation.NoTestsRemainException;
+import org.junit.runner.notification.Failure;
+import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
 import org.junit.runners.model.InitializationError;
 
@@ -77,7 +79,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
         for (Description child : description.getChildren()) {
             if (child.isTest()) {
                 if (child.getMethodName() != null) {
-                    flat.addChild(child);
+                    flat.addChild(expose(child));
                 }
             } else {
                 addLeaves(child, flat);
@@ -86,8 +88,45 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
     }
 
     @Override
-    public void run(RunNotifier notifier) {
-        delegate.run(notifier);
+    public void run(RunNotifier actualNotifier) {
+        RunNotifier wrappedNotifier = new RunNotifier();
+        wrappedNotifier.addListener(new RunListener() {
+            @Override
+            public void testSuiteStarted(Description description) {
+                actualNotifier.fireTestSuiteStarted(exposeIfTest(description));
+            }
+
+            @Override
+            public void testSuiteFinished(Description description) {
+                actualNotifier.fireTestSuiteFinished(exposeIfTest(description));
+            }
+
+            @Override
+            public void testStarted(Description description) {
+                actualNotifier.fireTestStarted(exposeIfTest(description));
+            }
+
+            @Override
+            public void testFinished(Description description) {
+                actualNotifier.fireTestFinished(exposeIfTest(description));
+            }
+
+            @Override
+            public void testFailure(Failure failure) {
+                actualNotifier.fireTestFailure(new Failure(exposeIfTest(failure.getDescription()), failure.getException()));
+            }
+
+            @Override
+            public void testAssumptionFailure(Failure failure) {
+                actualNotifier.fireTestAssumptionFailed(new Failure(exposeIfTest(failure.getDescription()), failure.getException()));
+            }
+
+            @Override
+            public void testIgnored(Description description) {
+                actualNotifier.fireTestIgnored(exposeIfTest(description));
+            }
+        });
+        delegate.run(wrappedNotifier);
     }
 
     @Override
@@ -119,7 +158,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
 
     private static void collectAccepted(Description description, Filter filter, Set<Description> accepted) {
         if (description.isTest()) {
-            if (filter.shouldRun(description)) {
+            if (description.getMethodName() != null && filter.shouldRun(expose(description))) {
                 accepted.add(description);
             }
         } else {
@@ -127,5 +166,23 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
                 collectAccepted(child, filter, accepted);
             }
         }
+    }
+
+    private static Description exposeIfTest(Description description) {
+        return description.isTest() && description.getMethodName() != null ? expose(description) : description;
+    }
+
+    /**
+     * The description of a test as seen by the JUnit Platform. With {@code tests.iters} {@link RandomizedRunner} puts the seed of each
+     * iteration in the name of the test ({@code testFoo {p=b seed=[X:Y]}}), so Gradle's {@code --tests Class.method} would not match any
+     * of them. The seed is moved to the description, which is a part of Vintage UniqueId -- it is what tells the iterations apart when they
+     * are filtered.
+     */
+    private static Description expose(Description test) {
+        String name = IterationSeeds.withoutSeed(test.getMethodName());
+        if (name.equals(test.getMethodName())) {
+            return test;
+        }
+        return Description.createTestDescription(test.getClassName(), name, test.getDisplayName());
     }
 }

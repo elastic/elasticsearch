@@ -19,6 +19,8 @@
  */
 package org.elasticsearch.search.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -76,6 +78,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.Before;
 import org.junit.runner.RunWith;
@@ -95,6 +98,8 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /** Test cases for {@link AbstractIVFKnnVectorQuery} objects. */
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
     // handle quantization noise

@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -23,6 +27,8 @@ import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.UnigramTokeniz
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class UnigramTokenizerTests extends BaseTokenStreamTestCase {
     private static final String UNKNOWN_TOKEN = "<unk>";

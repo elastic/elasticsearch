@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.index.codec;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -30,12 +31,15 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.Arrays;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class ForUtilTests extends LuceneTestCase {
 

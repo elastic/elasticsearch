@@ -88,6 +88,26 @@ export function stripSeedSuffix(name: string): string {
   return name.replace(/ \{seed=\[[0-9A-Fa-f:]+\]\}$/, "");
 }
 
+// The randomized runner puts the seed of an iteration in the first frame of the
+// stack trace of its failures (`at
+// __randomizedtesting.SeedInfo.seed([<classSeed>:<methodSeed>]:0)`). The
+// testcase name of a test run on the JUnit Platform does not carry the seed (so
+// that Gradle's `--tests Class.method` matches every iteration), so this is
+// where a failure's seed is read from to rebuild the full RandomizedRunner
+// name.
+const FAILURE_SEED_PATTERN = /SeedInfo\.seed\(\[([0-9A-Fa-f]+:[0-9A-Fa-f]+)\]/;
+
+export function nameWithFailureSeed(name: string, failureText: string): string {
+  if (name.includes("seed=[")) {
+    return name;
+  }
+  const seed = FAILURE_SEED_PATTERN.exec(failureText)?.[1];
+  if (!seed) {
+    return name;
+  }
+  return name.endsWith("}") ? `${name.slice(0, -1)} seed=[${seed}]}` : `${name} {seed=[${seed}]}`;
+}
+
 export function classifyFailure(f: FailureEntry): FailureKind {
   const msg = f.message ?? "";
   for (const pat of SUITE_TIMEOUT_PATTERNS) {
@@ -387,11 +407,12 @@ function streamParseReport(file: string, state: AggregateState): Promise<BatchSu
             state.realFailures += 1;
             curCase.entry.failures += 1;
             curCase.entry.failureKinds.push(kind);
+            const failureName = nameWithFailureSeed(curCase.rawName, pending.text);
             if (
               curCase.entry.exampleFailures.length < 3 &&
-              !curCase.entry.exampleFailures.some((e) => e.name === curCase!.rawName && e.message === message)
+              !curCase.entry.exampleFailures.some((e) => e.name === failureName && e.message === message)
             ) {
-              curCase.entry.exampleFailures.push({ name: curCase.rawName, message });
+              curCase.entry.exampleFailures.push({ name: failureName, message });
             }
             batchFailed += 1;
           }

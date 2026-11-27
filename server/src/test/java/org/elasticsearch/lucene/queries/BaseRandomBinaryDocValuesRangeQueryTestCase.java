@@ -8,13 +8,17 @@
  */
 package org.elasticsearch.lucene.queries;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.search.BaseRangeFieldQueryTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -27,6 +31,8 @@ import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryTy
 import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
 import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRangeFieldQueryTestCase {
 

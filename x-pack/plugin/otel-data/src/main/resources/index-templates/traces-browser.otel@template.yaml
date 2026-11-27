@@ -14,6 +14,7 @@ composed_of:
   - otel@settings
   - traces-otel@mappings
   - semconv-resource-to-ecs@mappings
+  - otel-client-session@settings
   - traces@custom
   - traces-otel@custom
   - ecs@mappings
@@ -21,11 +22,6 @@ ignore_missing_component_templates:
   - traces@custom
   - traces-otel@custom
 template:
-  settings:
-    index:
-      sort:
-        field: [ "resource.attributes.service.name", "attributes.session.id", "@timestamp" ]
-        order: [ "asc", "asc", "desc" ]
   mappings:
     properties:
       data_stream.type:

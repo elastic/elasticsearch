@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -113,31 +112,6 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
             () -> new EsqlToJsonProcessor(List.of(column("host", KEYWORD)), WINDOW, new ByteArrayOutputStream())
         );
         assertThat(e.getMessage(), containsString(TIME_FIELD));
-    }
-
-    public void testRowShouldBeReadOnceWhenTimeColumnIsLast() throws IOException {
-        List<ColumnInfo> columns = List.of(column("host", KEYWORD), column("count", LONG), column(TIME_FIELD, DATE));
-        List<Object> values = List.of("web-1", 7L, isoAtEpochMillis(100L));
-        int[] cellsRead = { 0 };
-        Iterable<Object> countingRow = () -> {
-            Iterator<Object> it = values.iterator();
-            return new Iterator<>() {
-                @Override
-                public boolean hasNext() {
-                    return it.hasNext();
-                }
-
-                @Override
-                public Object next() {
-                    cellsRead[0]++;
-                    return it.next();
-                }
-            };
-        };
-        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, WINDOW, new ByteArrayOutputStream())) {
-            processor.process(countingRow, values.get(processor.timeColumnIndex()));
-        }
-        assertThat(cellsRead[0], equalTo(values.size()));
     }
 
     /** Passes the time value the way the extractor does: the cell at the time column index, or null when the row is shorter. */

@@ -56,6 +56,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -294,6 +295,40 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(JOB_ID));
         assertThat(e.getMessage(), containsString(TIME_FIELD));
         assertThat(e.getMessage(), containsString("multi-valued"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTimeColumnLastShouldDecodeEachCellOnceOnNext() throws IOException {
+        List<ColumnInfo> columns = List.of(column("host", KEYWORD), column("count", LONG), column(TIME_FIELD, DATE));
+        List<Object> values = List.of("web-1", 7L, isoAtEpochMillis(100L));
+        int[] cellsRead = { 0 };
+        Iterable<Object> countingRow = () -> {
+            Iterator<Object> it = values.iterator();
+            return new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return it.hasNext();
+                }
+
+                @Override
+                public Object next() {
+                    cellsRead[0]++;
+                    return it.next();
+                }
+            };
+        };
+        EsqlResponse response = mock(EsqlResponse.class);
+        doReturn(columns).when(response).columns();
+        doReturn(List.of()).when(response).clusters();
+        when(response.rows()).thenReturn(List.of(countingRow));
+        when(response.column(anyInt())).thenAnswer(invocation -> List.of(values.get(invocation.getArgument(0))));
+        RecordingSyncQuery extractor = createExtractor(0L, 10000L, DEFAULT_QUERY, TIME_FIELD);
+        extractor.enqueueResponse(wrapResponse(response));
+
+        DataExtractor.Result result = extractor.next();
+
+        assertThat(result.rowCount(), equalTo(1L));
+        assertThat(cellsRead[0], equalTo(columns.size()));
     }
 
     public void testMissingTimeFieldShouldThrowIllegalArgumentOnNext() throws IOException {

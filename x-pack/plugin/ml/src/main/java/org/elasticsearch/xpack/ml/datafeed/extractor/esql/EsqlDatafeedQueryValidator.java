@@ -48,7 +48,10 @@ public class EsqlDatafeedQueryValidator {
 
     private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
 
-    /** The {@code DESCRIBE} origin of a field under another name. The datafeed cannot filter the source on such a column. */
+    /**
+     * The {@code DESCRIBE} origin of a field under another name. The datafeed cannot filter the source on such a column.
+     * Must match the {@code "renamed"} origin that ES|QL's {@code ColumnDescription} emits.
+     */
     private static final String RENAMED_ORIGIN = "renamed";
 
     private final EsqlQueryRunner queryRunner;

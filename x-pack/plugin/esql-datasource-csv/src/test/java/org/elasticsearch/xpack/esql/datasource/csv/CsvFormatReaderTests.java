@@ -8315,17 +8315,21 @@ public class CsvFormatReaderTests extends ESTestCase {
      * whole: the marker reports the list's rendered width and the kept ends are the escape's.
      */
     public void testAWideQuotedDuplicateNameIsCountedAtItsEscapedWidth() {
-        String quotes = "'".repeat(300);
+        // A distinguishable end, quotes included, so the tail the reverse walk builds is checked as well as the head.
+        String name = "'".repeat(300) + "z'end'";
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
         Exception e = expectThrows(
             ExternalClientException.class,
             () -> bindingReader(new CsvFormatReader(blockFactory)).read(
-                createStorageObject("\"" + quotes + "\",ts,\"" + quotes + "\"\n1,2,3\n"),
+                createStorageObject("\"" + name + "\",ts,\"" + name + "\"\n1,2,3\n"),
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
             )
         );
-        assertThat(e.getMessage(), containsString("(truncated, " + 6 * quotes.length() + " chars total)"));
-        assertThat(e.getMessage(), containsString("['\\u0027\\u0027"));
+        String escaped = name.replace("'", "\\u0027");
+        assertThat(e.getMessage(), containsString("(truncated, " + escaped.length() + " chars total)"));
+        // The whole capped excerpt, against the one the fully escaped name renders: both ends and the marker.
+        assertThat(e.getMessage(), containsString("['" + ErrorExcerpts.summarizeEscaped(escaped) + "']"));
+        assertThat(e.getMessage(), containsString("z\\u0027end\\u0027']"));
     }
 
     /**
@@ -8364,6 +8368,49 @@ public class CsvFormatReaderTests extends ESTestCase {
             )
         );
         assertThat(first.getMessage(), containsString("CSV schema sampling failed at row [2] of [test.csv]: "));
+    }
+
+    /**
+     * The sampling budget's refusal reports a count of rows, and on a later split that count is the split's, so it
+     * names the window as the single-row refusal above does. The first split's count is the file's and takes none.
+     */
+    public void testASamplingBudgetRefusalNamesTheWindowOnALaterSplit() {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            csv.append(i).append(",\"unterminated\n");
+        }
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "multiline_fields", true)
+        );
+        ErrorPolicy budget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 5, 0.0, false);
+        Exception later = expectThrows(
+            ExternalClientException.class,
+            () -> drainAllPages(
+                reader.read(
+                    createStorageObject(csv.toString()),
+                    FormatReadContext.builder()
+                        .firstSplit(false)
+                        .recordAligned(true)
+                        .splitStartByte(4096)
+                        .batchSize(10)
+                        .errorPolicy(budget)
+                        .build()
+                )
+            )
+        );
+        assertThat(later.getMessage(), containsString("CSV schema sampling of [test.csv]: ["));
+        assertThat(later.getMessage(), containsString("] rows counted from byte [4096] of the decoded stream, "));
+        Exception first = expectThrows(
+            ExternalClientException.class,
+            () -> drainAllPages(
+                reader.read(
+                    createStorageObject(csv.toString()),
+                    FormatReadContext.builder().firstSplit(true).batchSize(10).errorPolicy(budget).build()
+                )
+            )
+        );
+        assertThat(first.getMessage(), containsString("CSV schema sampling of [test.csv]: ["));
+        assertThat(first.getMessage(), not(containsString("counted")));
     }
 
     /** A malformed typed header is one file's fault, so both of its refusals name the file, and the format. */

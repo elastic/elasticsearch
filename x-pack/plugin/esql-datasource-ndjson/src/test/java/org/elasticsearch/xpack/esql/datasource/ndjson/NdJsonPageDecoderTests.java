@@ -1261,6 +1261,33 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * Past the client-warning cap the description is no longer built for a warning, and the log must build it
+     * itself: a lenient scan's later bad lines still reach the node log with their row and object.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonPageDecoder:INFO",
+        reason = "a lenient scan logs its dropped lines at info, and this asserts one past the warning cap"
+    )
+    public void testADroppedLinePastTheWarningCapIsStillLogged() {
+        StringBuilder ndjson = new StringBuilder("{\"v\":1}\n");
+        int badLines = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        for (int i = 0; i < badLines; i++) {
+            ndjson.append("{not json\n");
+        }
+        long lastRow = badLines + 1;
+        MockLog.assertThatLogger(
+            () -> decodeDiscardingPages(ndjson.toString(), "test://past-the-cap"),
+            NdJsonPageDecoder.class,
+            new MockLog.PatternSeenEventExpectation(
+                "the last dropped line, past the cap",
+                NdJsonPageDecoder.class.getCanonicalName(),
+                Level.INFO,
+                "row \\[" + lastRow + "\\] of \\[test://past-the-cap\\]: .*"
+            )
+        );
+    }
+
+    /**
      * A user may call an object anything, including a name the storage-path guard reads as a host. Every failure this
      * decoder raises with the object's name in it has to classify as the 400 it is, rather than trip that guard's
      * assertion: the line Jackson cannot parse, the value that cannot be read as its column's type, and the error

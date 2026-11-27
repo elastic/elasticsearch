@@ -1720,6 +1720,53 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("because it is used in the index sort"));
     }
 
+    /**
+     * An updatable keyword with a {@code normalizer} that keeps the original value outside the field's column is rejected: the doc-values
+     * column holds only the normalized value, so an in-place update that rewrites just that column would leave {@code _source} and GET
+     * stale relative to search and aggregations.
+     */
+    public void testUpdatableRejectedWithNormalizerThatStoresOriginal() {
+        assumeUpdatableEnabled();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnar(),
+                fieldMapping(
+                    b -> b.field("type", "keyword")
+                        .field("index", false)
+                        .field("normalizer", "lowercase")
+                        .field("normalizer_skip_store_original_value", false)
+                        .startObject("doc_values")
+                        .field("updatable", true)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("is not supported for keyword field [field] with a [normalizer]"));
+    }
+
+    /**
+     * The lowercase normalizer that skips storing the original value is exempt from the normalizer rejection: its {@code _source} is
+     * rebuilt from the same column an in-place update rewrites, so they stay consistent.
+     */
+    public void testUpdatableAllowedWithLowercaseNormalizerSkippingOriginal() throws Exception {
+        assumeUpdatableEnabled();
+        // normalizer_skip_store_original_value defaults to true for the lowercase normalizer, so the original is never kept outside the
+        // column and the field is accepted.
+        MapperService mapperService = createMapperService(
+            columnar(),
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .field("index", false)
+                    .field("normalizer", "lowercase")
+                    .startObject("doc_values")
+                    .field("updatable", true)
+                    .endObject()
+            )
+        );
+        assertThat(mapperService.mappingLookup().updatableFields(), containsInAnyOrder("field"));
+    }
+
     public void testUpdatableRejectedWhenSequenceNumbersDisabled() {
         assumeUpdatableEnabled();
         // The update path requires sequence numbers, so updatable must be rejected when they are disabled.

@@ -25,6 +25,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 import java.util.Set;
@@ -299,6 +301,52 @@ public class DocValuesUpdateReplicaCheckpointGateTests extends IndexShardTestCas
                 // ...even though it does not hold the base yet (the known on-permit race; flips when the wait-for-base follow-up lands).
                 assertThat(primary.getMinTrackedReplicaLocalCheckpoint(), lessThan(baseSeqNo));
             }
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    /**
+     * A slice-enabled index keys documents by the compound {@code id#slice} term, but the in-place apply path looks the document up by
+     * its plain {@code _id}, so it would patch the wrong (or no) document. The fast path must therefore be declined on a slice-enabled
+     * index regardless of the replica checkpoint - the update is realized as a full reindex. Here a single primary with no tracked copy
+     * would otherwise take the in-place path (the checkpoint gate passes), so an {@link IndexRequest} result isolates the slice guard.
+     */
+    public void testFastPathDeclinedOnSliceEnabledIndex() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            // updatable fields need sequence numbers, which columnar disables by default
+            .put("index.disable_sequence_numbers", false)
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(shardId.getIndexName())
+            .settings(settings)
+            .putMapping(MAPPING)
+            .primaryTerm(0, 1)
+            .build();
+
+        final IndexShard primary = newShard(shardId, true, "primary-node", indexMetadata, null);
+        try {
+            recoverShardFromStore(primary);
+            // A slice-enabled index keys documents by id#slice, so both the base document and the lookup carry the slice as the routing
+            // value.
+            indexDoc(primary, "1", "{\"count\":1}", XContentType.JSON, "0");
+
+            final UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class));
+            final UpdateRequest request = new UpdateRequest(shardId.getIndexName(), "1").doc(Map.of("count", 42)).routing("0");
+
+            UpdateHelper.Result result = updateHelper.prepare(
+                request,
+                primary,
+                () -> 0L,
+                FetchSourceContext.FETCH_SOURCE,
+                SplitShardCountSummary.UNSET,
+                true
+            );
+            assertThat("slice-enabled index must decline the in-place fast path", result.action(), instanceOf(IndexRequest.class));
         } finally {
             closeShards(primary);
         }

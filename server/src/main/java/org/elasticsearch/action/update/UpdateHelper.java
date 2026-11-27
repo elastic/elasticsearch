@@ -101,9 +101,13 @@ public class UpdateHelper {
         // In-place doc-values fast path: when the partial document only sets doc_values.updatable scalar fields, the update needs
         // nothing from the current _source and can skip the read-modify-write, whose synthetic-source reconstruction dominates an
         // update on a columnar index. Only taken when no _source is echoed back and the index has no inference fields (both need the
-        // merged source), and the document exists; a missing document falls through to the upsert path.
+        // merged source), and the document exists; a missing document falls through to the upsert path. A slice-enabled index is
+        // excluded here and declined again in tryBuildDocValuesUpdate: it keys documents by the compound id#slice term, but the in-place
+        // apply looks the document up by its plain _id, so the fast path would patch the wrong document.
         final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
-        if (sourceReturnRequested(request) == false && mappingLookup.inferenceFields().isEmpty()) {
+        if (sourceReturnRequested(request) == false
+            && mappingLookup.inferenceFields().isEmpty()
+            && indexShard.indexSettings().isSliceEnabled() == false) {
             List<Translog.DocValuesUpdate.FieldUpdate> updates = buildDocValuesFieldUpdates(
                 request,
                 mappingLookup,
@@ -164,10 +168,12 @@ public class UpdateHelper {
         boolean inPlaceDocValuesUpdatesSupported
     ) {
         // The in-place doc-values fast path reads no _source, so skip pre-resolution (which prefetches stored fields) and let
-        // prepare() take that path directly.
+        // prepare() take that path directly. A slice-enabled index never takes the fast path (see prepare), so it pre-resolves like an
+        // ordinary update and prefetches the source its reindex needs.
         final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         if (sourceReturnRequested(request) == false
             && mappingLookup.inferenceFields().isEmpty()
+            && indexShard.indexSettings().isSliceEnabled() == false
             && buildDocValuesFieldUpdates(request, mappingLookup, inPlaceDocValuesUpdatesSupported) != null) {
             return null;
         }

@@ -171,11 +171,6 @@ tests:
   - :x-pack:plugin:ml:test
   method: testDistributionChange
   issue: https://github.com/elastic/elasticsearch/issues/156294
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/156415
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

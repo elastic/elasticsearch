@@ -67,45 +67,7 @@ public class ForkGenerator implements CommandGenerator {
             }
             forkCmd.append(" (").append("where ").append(expr);
 
-            var exec = new EsqlQueryGenerator.Executor() {
-                @Override
-                public void run(CommandGenerator generator, CommandDescription current) {
-                    final String command = current.commandString();
-
-                    // Try appending new command to parent of Fork. If we successfully execute (without exception) AND still retain the same
-                    // schema, we append the command. Enforcing the same schema is stricter than the Fork needs (it only needs types to be
-                    // the same on columns which are present), but given we currently generate independent sub-pipelines, this way we can
-                    // generate more valid Fork queries.
-                    final QueryExecuted result = previousResult == null
-                        ? executor.execute(command, 0)
-                        : executor.execute(previousResult.query() + command, previousResult.depth());
-                    previousResult = result;
-
-                    continueExecuting = result.exception() == null && result.outputSchema().equals(previousOutput);
-                    if (continueExecuting) {
-                        previousCommands.add(current);
-                    }
-                }
-
-                @Override
-                public List<CommandDescription> previousCommands() {
-                    return previousCommands;
-                }
-
-                @Override
-                public boolean continueExecuting() {
-                    return continueExecuting;
-                }
-
-                @Override
-                public List<Column> currentSchema() {
-                    return previousOutput;
-                }
-
-                final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
-                boolean continueExecuting;
-                QueryExecuted previousResult;
-            };
+            var exec = new BranchExecutor(executor, previousOutput);
 
             var gen = new CommandGenerator() {
                 @Override
@@ -158,5 +120,65 @@ public class ForkGenerator implements CommandGenerator {
         List<List<Object>> output
     ) {
         return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
+    }
+
+    /**
+     * Builds one FORK branch: replays the commands before FORK, then appends each generated command only if it runs and keeps the
+     * input schema. Enforcing the same schema is stricter than FORK needs (it only needs types to match on columns that are present),
+     * but since branches are generated independently, this produces more valid FORK queries.
+     */
+    static final class BranchExecutor implements EsqlQueryGenerator.Executor {
+        private final QueryExecutor executor;
+        private final List<Column> inputSchema;
+        private final List<CommandDescription> previousCommands = new ArrayList<>();
+        private boolean continueExecuting;
+        private QueryExecuted previousResult;
+
+        BranchExecutor(QueryExecutor executor, List<Column> inputSchema) {
+            this.executor = executor;
+            this.inputSchema = inputSchema;
+        }
+
+        @Override
+        public void run(CommandGenerator generator, CommandDescription current) {
+            final String command = current.commandString();
+            final QueryExecuted result = previousResult == null
+                ? executor.execute(command, 0)
+                : executor.execute(previousResult.query() + command, previousResult.depth());
+            previousResult = result;
+
+            continueExecuting = result.exception() == null && sameSchema(result.outputSchema(), inputSchema);
+            if (continueExecuting) {
+                previousCommands.add(current);
+            }
+        }
+
+        @Override
+        public List<CommandDescription> previousCommands() {
+            return previousCommands;
+        }
+
+        @Override
+        public boolean continueExecuting() {
+            return continueExecuting;
+        }
+
+        @Override
+        public List<Column> currentSchema() {
+            return inputSchema;
+        }
+    }
+
+    /**
+     * Compares names and types (including union types) but not {@link Column#indexMapped()}: the input schema carries flags
+     * derived by the test, while a freshly executed schema has them all {@code true}, so comparing them would reject every branch
+     * whose input has a derived column.
+     */
+    private static boolean sameSchema(List<Column> executed, List<Column> expected) {
+        return withoutIndexMapped(executed).equals(withoutIndexMapped(expected));
+    }
+
+    private static List<Column> withoutIndexMapped(List<Column> columns) {
+        return columns.stream().map(c -> new Column(c.name(), c.type(), c.originalTypes())).toList();
     }
 }

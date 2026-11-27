@@ -418,25 +418,25 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             crossProjectModeDecider,
             datafeed.getCloudInternalCredential() != null
         );
-        if (datafeed.getEsqlQuery() == null || skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider)) {
-            params.setDatafeedIndices(datafeed.getIndices());
+        if (effectiveDatafeed.getEsqlQuery() == null || skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider)) {
+            params.setDatafeedIndices(effectiveDatafeed.getIndices());
             listener.onResponse(trueRemoteIndices(params.getDatafeedIndices()));
             return;
         }
         validator.validateAtStart(
             probeClient.get(),
-            datafeed.getHeaders(),
-            datafeed.getEsqlQuery(),
+            effectiveDatafeed.getHeaders(),
+            effectiveDatafeed.getEsqlQuery(),
             effectiveDatafeed.getProjectRouting(),
             job.getDataDescription().getTimeField(),
             EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeed, job),
             job.getAnalysisConfig().getBucketSpan(),
-            datafeed.getFrequency(),
+            effectiveDatafeed.getFrequency(),
             ActionListener.wrap(remoteSources -> {
                 params.setDatafeedIndices(remoteSources);
                 listener.onResponse(trueRemoteIndices(remoteSources));
             }, listener::onFailure),
-            datafeed.getId()
+            effectiveDatafeed.getId()
         );
     }
 

@@ -847,12 +847,12 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry(), 0));
     }
 
-    public void testSkipRemovedGroupingIntervalGivenValueFromOlderPeerShouldConsumeWholeSlot() throws IOException {
+    public void testReadRemovedGroupingIntervalGivenValueFromOlderPeerShouldConsumeWholeSlot() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeOptionalTimeValue(TimeValue.timeValueHours(1));
             out.writeString("next-field");
             try (StreamInput in = out.bytes().streamInput()) {
-                DatafeedConfig.skipRemovedGroupingInterval(in);
+                DatafeedConfig.readRemovedGroupingInterval(in);
                 assertThat(in.readString(), equalTo("next-field"));
                 assertThat(in.available(), equalTo(0));
             }

@@ -310,6 +310,36 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertEsqlRestartOffset(2 * hour, 10 * hour, 10 * hour + 2 * hour - 1);
     }
 
+    public void testBuildGivenEsqlBucketAndNoFrequencyShouldScheduleOnMultipleOfDescribeBucket() throws Exception {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
+        datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 15 minutes)");
+        datafeed.setSourceTimeField("@timestamp");
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+            // a 15 minute frequency searches 96 times a day, the 10 minute default of a one hour job would search 144 times
+            assertThat(datafeedJob.numberOfSearchesIn24Hours(), equalTo(96L));
+            wasHandlerCalled.set(true);
+        });
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(null, null, true),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
+
+        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, TimeValue.timeValueMinutes(15).millis(), datafeedJobHandler);
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
     private void assertEsqlRestartOffset(long timeBucketMillis, long recordStamp, long expectedLastEndTimeMs) throws Exception {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         DataDescription.Builder dataDescription = new DataDescription.Builder();

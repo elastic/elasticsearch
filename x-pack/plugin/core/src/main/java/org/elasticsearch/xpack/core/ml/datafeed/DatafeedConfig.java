@@ -140,11 +140,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      * Reads the slot of the removed ES|QL {@code grouping_interval} setting. Nodes since {@link #ML_DATAFEED_ESQL_QUERY} still carry it
      * after {@code source_time_field}. This node writes it empty; a value from an older snapshot peer is read and discarded.
      */
-    static void skipRemovedGroupingInterval(StreamInput in) throws IOException {
+    static void readRemovedGroupingInterval(StreamInput in) throws IOException {
         in.readOptionalTimeValue();
     }
 
-    /** Writes the empty slot of the removed ES|QL {@code grouping_interval} setting, see {@link #skipRemovedGroupingInterval}. */
+    /** Writes the empty slot of the removed ES|QL {@code grouping_interval} setting, see {@link #readRemovedGroupingInterval}. */
     static void writeRemovedGroupingInterval(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(null);
     }
@@ -413,7 +413,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
             this.esqlQuery = in.readOptionalString();
             this.sourceTimeField = in.readOptionalString();
-            skipRemovedGroupingInterval(in);
+            readRemovedGroupingInterval(in);
         } else {
             this.queryProvider = QueryProvider.fromStream(in);
             this.esqlQuery = null;
@@ -1128,12 +1128,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return defaultFrequency;
     }
 
-    /** The configured frequency, or {@link #defaultFrequency} derived from the job's bucket span when none is configured. */
-    public TimeValue getFrequencyOrDefault(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry) {
-        return getFrequencyOrDefault(bucketSpan, xContentRegistry, 0);
-    }
-
-    /** As {@link #getFrequencyOrDefault(TimeValue, NamedXContentRegistry)}, for an ES|QL time column bucketed by the given interval. */
+    /**
+     * The configured frequency, or {@link #defaultFrequency} derived from the job's bucket span when none is configured.
+     *
+     * @param esqlTimeBucketMillis the interval {@code DESCRIBE} reports for the ES|QL time column, 0 when the column is not bucketed
+     */
     public TimeValue getFrequencyOrDefault(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry, long esqlTimeBucketMillis) {
         return frequency != null ? frequency : defaultFrequency(bucketSpan, xContentRegistry, esqlTimeBucketMillis);
     }
@@ -1233,7 +1232,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
                 this.esqlQuery = in.readOptionalString();
                 this.sourceTimeField = in.readOptionalString();
-                skipRemovedGroupingInterval(in);
+                readRemovedGroupingInterval(in);
             } else {
                 this.queryProvider = QueryProvider.fromStream(in);
                 this.esqlQuery = null;

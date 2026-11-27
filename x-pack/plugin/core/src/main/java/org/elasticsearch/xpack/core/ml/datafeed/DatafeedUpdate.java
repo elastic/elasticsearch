@@ -182,7 +182,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (in.getTransportVersion().supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY)) {
             this.esqlQuery = in.readOptionalString();
             this.sourceTimeField = in.readOptionalString();
-            DatafeedConfig.skipRemovedGroupingInterval(in);
+            DatafeedConfig.readRemovedGroupingInterval(in);
         } else {
             this.esqlQuery = null;
             this.sourceTimeField = null;

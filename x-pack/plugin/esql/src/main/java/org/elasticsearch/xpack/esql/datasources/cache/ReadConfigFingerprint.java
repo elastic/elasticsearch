@@ -93,13 +93,18 @@ public final class ReadConfigFingerprint {
     public static final String MIXED = "mixed";
 
     /**
-     * Hashed into every fingerprint. Bump it whenever a reader starts decoding the same bytes into different values
-     * under an unchanged column name, type, date format and binding mode: no other hashed component moves then, so a
-     * statistic harvested under the old decode would match a read under the new one. The window is a rolling upgrade,
-     * where a data node on an older build that already computes this fingerprint contributes to an upgraded
-     * coordinator's cache. It only separates statistics; the rows such a node reads still follow its own decode.
+     * Hashed into every fingerprint. Bump it whenever a reader starts making something different of the same bytes
+     * under an unchanged column name, type, date format and binding mode -- decoding a value differently, or keeping
+     * a row it used to drop or dropping one it used to keep. No other hashed component moves then, so a statistic
+     * harvested under the old reading would match a read under the new one. The window is a rolling upgrade, where a
+     * data node on an older build that already computes this fingerprint contributes to an upgraded coordinator's
+     * cache. It only separates statistics; the rows such a node reads still follow its own decode.
+     *
+     * <p>Revision 2: a CSV or TSV row short of the width its file states is a row error rather than being read with
+     * its missing trailing fields as null, so an older node's row count for such a file no longer describes what
+     * this one reads.
      */
-    static final int DECODE_SEMANTICS_REVISION = 1;
+    static final int DECODE_SEMANTICS_REVISION = 2;
 
     /**
      * Computes the fingerprint of one file's resolved read configuration. {@code readSchema} is the per-file effective schema the

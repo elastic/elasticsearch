@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.BoundRange;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -238,10 +239,219 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
     }
 
-    /** A range is not a finite set of folders, so a branch that uses one leaves its column open. */
-    public void testOrWithARangeBranchEmitsNothing() {
+    /**
+     * A range is not a finite set of folders, so the column cannot become {@code IN}. It is still a bound:
+     * the {@code ==} branch is a point and the {@code >} branch is one-sided, so the hint is {@code RANGE}
+     * with no hull (the union is unbounded).
+     */
+    public void testOrWithARangeBranchEmitsRangeNotIn() {
         Expression condition = new Or(SRC, unresolvedEquals("hour", 5), new GreaterThan(SRC, unresolved("hour"), intLiteral(20)));
+        assertEquals(
+            List.of(
+                new PartitionFilterHint(
+                    "hour",
+                    Operator.RANGE,
+                    List.of(new BoundRange(5, true, 5, true), new BoundRange(20, false, null, true))
+                )
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** Closed ranges in every branch also emit a hull the AND-of-hints matcher can apply to a plain column. */
+    public void testOrOfClosedRangesEmitsRangeAndHull() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(5)),
+                new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(6))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(8)),
+                new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(9))
+            )
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint(
+                    "hour",
+                    Operator.RANGE,
+                    List.of(new BoundRange(5, true, 6, true), new BoundRange(8, true, 9, true))
+                ),
+                new PartitionFilterHint("hour", Operator.GREATER_THAN_OR_EQUAL, List.of(5)),
+                new PartitionFilterHint("hour", Operator.LESS_THAN_OR_EQUAL, List.of(9))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** Wraparound is unbounded: {@code RANGE} only, no hull that would claim every hour. */
+    public void testOrWraparoundEmitsRangeWithoutHull() {
+        Expression condition = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(22)),
+            new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(1))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint(
+                    "hour",
+                    Operator.RANGE,
+                    List.of(new BoundRange(null, true, 1, true), new BoundRange(22, true, null, true))
+                )
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** A branch that leaves {@code hour} open can match any hour, so the {@code OR} must not narrow it. */
+    public void testOrRangeWithAnOpenBranchEmitsNothingForThatColumn() {
+        Expression condition = new Or(SRC, new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(22)), unresolvedEquals("day", 18));
         assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /**
+     * {@code (day==17 AND hour>=22) OR (day==18 AND hour<=1)} still unions {@code day}. Hour is wraparound:
+     * {@code RANGE} without a hull, so listing glob rewrite keeps only the day IN.
+     */
+    public void testOrMixedEqualsAndWraparoundKeepsDayIn() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(22))),
+            new And(SRC, unresolvedEquals("day", 18), new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(1)))
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(new PartitionFilterHint("day", Operator.IN, List.of(17, 18)), hints.get(0));
+        assertEquals("hour", hints.get(1).columnName());
+        assertEquals(Operator.RANGE, hints.get(1).operator());
+        assertEquals(2, hints.size());
+    }
+
+    /** Same OR in either branch order yields the same RANGE (sorted BoundRanges). */
+    public void testOrRangeBranchOrderDoesNotChangeHint() {
+        Expression firstThenSecond = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(8)),
+                new LessThan(SRC, unresolved("hour"), intLiteral(10))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(4)),
+                new LessThan(SRC, unresolved("hour"), intLiteral(6))
+            )
+        );
+        Expression secondThenFirst = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(4)),
+                new LessThan(SRC, unresolved("hour"), intLiteral(6))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(8)),
+                new LessThan(SRC, unresolved("hour"), intLiteral(10))
+            )
+        );
+        assertEquals(hintsOf(firstThenSecond), hintsOf(secondThenFirst));
+    }
+
+    /**
+     * {@code Integer 5} and {@code Double 5.0} compare equal in the matcher but are not {@code equals}.
+     * RANGE keeps both spellings, sorted by class so branch order does not split FORK identity.
+     */
+    public void testOrRangeMixedNumericSpellingsStableIdentity() {
+        Expression intThenDouble = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(5)),
+            new GreaterThanOrEqual(SRC, unresolved("hour"), new Literal(SRC, 5.0, DataType.DOUBLE))
+        );
+        Expression doubleThenInt = new Or(
+            SRC,
+            new GreaterThanOrEqual(SRC, unresolved("hour"), new Literal(SRC, 5.0, DataType.DOUBLE)),
+            new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(5))
+        );
+        List<PartitionFilterHint> expected = List.of(
+            new PartitionFilterHint(
+                "hour",
+                Operator.RANGE,
+                List.of(new BoundRange(5.0, true, null, true), new BoundRange(5, true, null, true))
+            )
+        );
+        assertEquals(expected, hintsOf(intThenDouble));
+        assertEquals(expected, hintsOf(doubleThenInt));
+    }
+
+    /**
+     * Closed mixed integral/float is still RANGE-only: a hull that kept the double exclusive
+     * bound at 2^53 would drop the matching long {@code 2^53+1} folder.
+     */
+    public void testOrClosedMixedNumericSpellingsOmitsHull() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("id"), new Literal(SRC, 9007199254740992L, DataType.LONG)),
+                new LessThan(SRC, unresolved("id"), new Literal(SRC, 9007199254740994L, DataType.LONG))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("id"), new Literal(SRC, 9007199254740992.0, DataType.DOUBLE)),
+                new LessThan(SRC, unresolved("id"), new Literal(SRC, 9007199254740994.0, DataType.DOUBLE))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        assertEquals(1, hints.size());
+    }
+
+    /**
+     * An {@code OR} nested under {@code AND} is extracted as {@code RANGE} first; the outer {@code OR}
+     * copies those {@code BoundRange}s rather than dropping the column.
+     */
+    public void testOrNestedRangeDisjunctionUnionsBoundRanges() {
+        Expression inner = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(5)),
+                new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(6))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(8)),
+                new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(9))
+            )
+        );
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, inner, unresolvedEquals("day", 17)),
+            new And(
+                SRC,
+                unresolvedEquals("day", 18),
+                new And(
+                    SRC,
+                    new GreaterThanOrEqual(SRC, unresolved("hour"), intLiteral(11)),
+                    new LessThanOrEqual(SRC, unresolved("hour"), intLiteral(12))
+                )
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(new PartitionFilterHint("day", Operator.IN, List.of(17, 18)), hints.get(0));
+        assertEquals(
+            new PartitionFilterHint(
+                "hour",
+                Operator.RANGE,
+                List.of(new BoundRange(5, true, 6, true), new BoundRange(8, true, 9, true), new BoundRange(11, true, 12, true))
+            ),
+            hints.get(1)
+        );
+        assertEquals(new PartitionFilterHint("hour", Operator.GREATER_THAN_OR_EQUAL, List.of(5)), hints.get(2));
+        assertEquals(new PartitionFilterHint("hour", Operator.LESS_THAN_OR_EQUAL, List.of(12)), hints.get(3));
     }
 
     public void testOrMergesInValuesWithoutDuplicates() {
@@ -1247,6 +1457,97 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
     public void testResolvedOrWithADataColumnBranchEmitsNothing() {
         Expression filter = new Or(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("id"), intLiteral(1)));
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day")).isEmpty());
+    }
+
+    public void testResolvedOrOfTimestampWindowsEmitsRange() {
+        Instant start1 = Instant.parse("2026-11-17T22:00:00Z");
+        Instant end1 = Instant.parse("2026-11-18T00:00:00Z");
+        Instant start2 = Instant.parse("2026-11-19T04:00:00Z");
+        Instant end2 = Instant.parse("2026-11-19T06:00:00Z");
+        Expression filter = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, datetimeField("ts"), datetimeLiteral(start1.toEpochMilli())),
+                new LessThan(SRC, datetimeField("ts"), datetimeLiteral(end1.toEpochMilli()))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, datetimeField("ts"), datetimeLiteral(start2.toEpochMilli())),
+                new LessThan(SRC, datetimeField("ts"), datetimeLiteral(end2.toEpochMilli()))
+            )
+        );
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(),
+            Set.of("ts"),
+            PartitionFilterHintExtractor.TEMPORAL
+        );
+        assertEquals("ts", hints.get(0).columnName());
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        assertEquals(List.of(new BoundRange(start1, true, end1, false), new BoundRange(start2, true, end2, false)), hints.get(0).values());
+        assertEquals("temporal hull stays off extract so PartitionSpec cannot clip UTC windows with it", 1, hints.size());
+    }
+
+    /**
+     * Quoted offset windows whose text order is not UTC order. A string hull would invert and
+     * drop both; RANGE-only extract keeps Nov 17 10:00 UTC and Nov 18 10:00 UTC.
+     */
+    public void testQuotedOffsetWindowsSkipHullAndKeepBothFolders() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-17T22:00:00-12:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-17T23:00:00-12:00"))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-18T00:00:00+14:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-18T01:00:00+14:00"))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(1, hints.size());
+        assertEquals("ts", hints.get(0).columnName());
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "10")));
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "10")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "22")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "0")));
+    }
+
+    /**
+     * Offset-less quoted {@code LocalDateTime} windows. Without the local-date-time check,
+     * extract would emit a lexical hull; RANGE-only keeps both UTC hours and the gap.
+     */
+    public void testQuotedOffsetlessWindowsSkipHullAndKeepBothFolders() {
+        Expression condition = new Or(
+            SRC,
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-17T22:00:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-18T00:00:00"))
+            ),
+            new And(
+                SRC,
+                new GreaterThanOrEqual(SRC, unresolved("ts"), keywordLiteral("2026-11-19T04:00:00")),
+                new LessThan(SRC, unresolved("ts"), keywordLiteral("2026-11-19T06:00:00"))
+            )
+        );
+        List<PartitionFilterHint> hints = hintsOf(condition);
+        assertEquals(1, hints.size());
+        assertEquals("ts", hints.get(0).columnName());
+        assertEquals(Operator.RANGE, hints.get(0).operator());
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts), hour(ts)");
+        var predicate = spec.folderRangePredicate(hints);
+        assertNotNull(predicate);
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "17", "hour", "22")));
+        assertTrue(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "19", "hour", "4")));
+        assertFalse(predicate.mayContain(Map.of("year", "2026", "month", "11", "day", "18", "hour", "3")));
     }
 
     public void testResolvedOrOfTwoPrefixesEmitsNothing() {

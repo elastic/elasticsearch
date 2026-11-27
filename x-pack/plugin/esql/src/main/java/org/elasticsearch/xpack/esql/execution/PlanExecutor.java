@@ -11,10 +11,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
@@ -308,6 +309,8 @@ public class PlanExecutor {
      *                               in-flight reads rather than pinning that many threads.
      * @param cancellation consulted before each per-file footer read so a wide-glob discovery aborts promptly when
      *                               the originating query is cancelled.
+     * @param planningBreaker the breaker the query's external planning charges: the query's own breaker on this node,
+     *                               so planning memory counts towards the query like the memory of its computes.
      */
     public void esql(
         EsqlQueryRequest request,
@@ -324,6 +327,7 @@ public class PlanExecutor {
         Executor externalSourceExecutor,
         int externalSourceConcurrency,
         BooleanSupplier cancellation,
+        CircuitBreaker planningBreaker,
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry, applicableSettings);
@@ -378,7 +382,7 @@ public class PlanExecutor {
             services
         );
         ActionListener<Versioned<Result>> releasingListener = bindPlanningReservation(
-            services,
+            planningBreaker,
             executionInfo,
             externalSourceResolver,
             listener
@@ -412,24 +416,19 @@ public class PlanExecutor {
     }
 
     /**
-     * Creates the query's external-planning reservation, which charges listings, schema maps and split shells to the
-     * request breaker, and returns {@code listener} wrapped to close it. Creating and closing it here, around the whole
+     * Creates the query's external-planning reservation, which charges listings, schema maps and split shells to
+     * {@code breaker}, and returns {@code listener} wrapped to close it. Creating and closing it here, around the whole
      * session, releases it for every caller whether the session succeeds, fails, or throws synchronously out of
      * {@code session.execute}. The release runs after this class's telemetry in {@link #onQuerySuccess} and
      * {@link #onQueryFailure} and before {@code listener}, so callers must not use the reservation once notified.
-     * Without a breaker there is nothing to charge and {@code listener} is returned as is.
      */
     private static ActionListener<Versioned<Result>> bindPlanningReservation(
-        TransportActionServices services,
+        CircuitBreaker breaker,
         EsqlExecutionInfo executionInfo,
         ExternalSourceResolver externalSourceResolver,
         ActionListener<Versioned<Result>> listener
     ) {
-        BlockFactory blockFactory = services.blockFactoryProvider().blockFactory();
-        if (blockFactory == null || blockFactory.breaker() == null) {
-            return listener;
-        }
-        ExternalPlanningReservation reservation = new ExternalPlanningReservation(blockFactory.breaker());
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(Objects.requireNonNull(breaker, "planning breaker"));
         executionInfo.externalPlanning(reservation);
         externalSourceResolver.planning(reservation);
         return ActionListener.releaseBefore(reservation, listener);

@@ -144,9 +144,3 @@ The API returns:
 together in a compressed format, the sizes of stored fields are
 estimates and can be inaccurate. The stored size of the `_id` field
 is likely underestimated while the `_source` field is overestimated.
-
-The `doc_values_skipper` counters report the disk space used by doc values skip indexes that Lucene exposes as doc values skippers, separately from `doc_values`.
-During a rolling upgrade, shards analyzed by nodes on an older version include their skipper bytes in `doc_values_in_bytes`.
-For those shards `doc_values_skipper_in_bytes` is `0`, even when skip indexes exist.
-Treat `doc_values_skipper_in_bytes` as a measurement of the whole index only when all nodes run the same version.
-A coordinating node on an older version omits the `doc_values_skipper` counters.

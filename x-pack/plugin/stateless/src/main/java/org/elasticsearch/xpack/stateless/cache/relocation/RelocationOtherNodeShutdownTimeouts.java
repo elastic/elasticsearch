@@ -82,8 +82,8 @@ public class RelocationOtherNodeShutdownTimeouts {
         final var deadlineShares = deadlineShares(state, targetNodeId);
         // The latest deadline counts every recovery on the target, so we check it as the worst case
         if (deadlineShares.isEmpty() || deadlineShares.getFirst().noShardWaitingForRelocationSlot()) {
-            // no shutting-down node waits for this target before its deadline, or nobody queues behind anybody: treat this as if it were
-            // not a shutting-down node
+            // no shutting-down node waits for this target before its deadline, or nobody queues behind anybody: there is nothing to
+            // share, so use the plain relocation-with-shutdown timeout.
             return new SearchRecoveryTimeout(
                 searchRecoveryWarmingRelocationWithShutdownTimeout,
                 TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE
@@ -134,7 +134,7 @@ public class RelocationOtherNodeShutdownTimeouts {
             // non-critical recoveries on the target, as every relocation is, and only the shards with a later deadline are taken off. So
             // the share, which divides by the recoveries, is well defined. The `max` only guards that, should a state ever break it.
             deadlineShares.add(new DeadlineShare(remainingMs, Math.max(1, recoveriesOnTarget - shardsWithLaterDeadline), slots));
-            shardsWithLaterDeadline += nodeShards.shards();
+            shardsWithLaterDeadline += nodeShards.relocationsToTarget();
         }
         return deadlineShares;
     }
@@ -154,12 +154,12 @@ public class RelocationOtherNodeShutdownTimeouts {
                     SearchShardRelocations.countBetween(state, shutdown.getNodeId(), targetNodeId)
                 )
             )
-            .filter(nodeShards -> nodeShards.shards() > 0);
+            .filter(nodeShards -> nodeShards.relocationsToTarget() > 0);
     }
 
-    /// The `shards` of a shutting-down node that are relocating to the target, which have to be through before the node's
-    /// `graceDeadlineMillis`.
-    private record ShuttingDownNodeShards(long graceDeadlineMillis, long shards) {}
+    /// The number of shards (`relocationsToTarget`) of a shutting-down node that are relocating to the target, which have to be through
+    /// before the node's `graceDeadlineMillis`.
+    private record ShuttingDownNodeShards(long graceDeadlineMillis, long relocationsToTarget) {}
 
     /// What one grace deadline leaves to the shards competing for the target: the time left until it, the non-critical recoveries that
     /// share the target's slots with them, and the slots. The `recoveries` are the shards due by the deadline, this shard, and the other

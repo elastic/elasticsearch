@@ -1147,7 +1147,8 @@ final class PartitionPruningWalk {
      * Parallel recursive {@code listObjects} of remaining finish dirs. Same {@link ThrottledIterator}
      * batching as {@link #listChildrenParallel}: cancellable, fail-closed, in-flight bounded by
      * {@code concurrency}, results merged in directory-slot order into {@code collector}. Unstarted
-     * slots skip once the collector is truncated or the batch fails. Does not increment the
+     * slots skip once the collector is truncated or the batch fails. A failed slot that is still
+     * waiting to merge also stops later slots: those results cannot be used. Does not increment the
      * directory-listing ceiling. Does not block the caller.
      */
     private static void listObjectsParallel(
@@ -1168,12 +1169,13 @@ final class PartitionPruningWalk {
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicBoolean skipRest = new AtomicBoolean();
         AtomicInteger nextMerge = new AtomicInteger();
+        AtomicInteger earliestFailedSlot = new AtomicInteger(Integer.MAX_VALUE);
         Object mergeLock = new Object();
         ThrottledIterator.run(indexIterator(size), (Releasable releasable, Integer i) -> {
             boolean submitted = false;
             try {
                 Exception cancelledNow = cancellationFailure(cancelled);
-                if (failure.get() != null || skipRest.get() || cancelledNow != null) {
+                if (failure.get() != null || skipRest.get() || cancelledNow != null || i > earliestFailedSlot.get()) {
                     if (cancelledNow != null) {
                         recordBatchFailure(failure, cancelledNow);
                         discardFinishSlots(mergeLock, liveSlots);
@@ -1183,7 +1185,7 @@ final class PartitionPruningWalk {
                 Runnable list = () -> {
                     try {
                         Exception cancelledInSlot = cancellationFailure(cancelled);
-                        if (failure.get() != null || skipRest.get() || cancelledInSlot != null) {
+                        if (failure.get() != null || skipRest.get() || cancelledInSlot != null || i > earliestFailedSlot.get()) {
                             if (cancelledInSlot != null) {
                                 recordBatchFailure(failure, cancelledInSlot);
                                 discardFinishSlots(mergeLock, liveSlots);
@@ -1195,7 +1197,7 @@ final class PartitionPruningWalk {
                             cap = collector.remainingListedTripCap();
                         }
                         List<StorageEntry> entries = listDirUntilSkip(provider, dirs.get(i), () -> {
-                            if (skipRest.get() || failure.get() != null) {
+                            if (skipRest.get() || failure.get() != null || i > earliestFailedSlot.get()) {
                                 return true;
                             }
                             Exception cancelledMid = cancellationFailure(cancelled);
@@ -1214,7 +1216,7 @@ final class PartitionPruningWalk {
                             discardFinishSlots(mergeLock, liveSlots);
                             return;
                         }
-                        if (skipRest.get()) {
+                        if (skipRest.get() || i > earliestFailedSlot.get()) {
                             return;
                         }
                         synchronized (mergeLock) {
@@ -1230,9 +1232,10 @@ final class PartitionPruningWalk {
                         }
                     } catch (Exception e) {
                         synchronized (mergeLock) {
-                            if (collector.truncated() || skipRest.get()) {
+                            if (collector.truncated() || skipRest.get() || i > earliestFailedSlot.get()) {
                                 return;
                             }
+                            earliestFailedSlot.accumulateAndGet(i, Math::min);
                             storeSlot(liveSlots, i, FinishSlot.fail(e));
                             mergeReadyFinishSlots(collector, liveSlots, nextMerge, size, skipRest, failure);
                         }

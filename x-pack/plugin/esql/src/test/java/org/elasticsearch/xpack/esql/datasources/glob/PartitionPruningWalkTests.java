@@ -1246,7 +1246,18 @@ public class PartitionPruningWalkTests extends ESTestCase {
         int maxListed = FINISH_CAP_FILES_PER_DAY + 3;
         int laterFiles = 80;
         ListingWalkHarness provider = new ListingWalkHarness(finishCapTree(laterFiles));
-        ExecutorService executor = Executors.newFixedThreadPool(4);
+        CountDownLatch laterDone = new CountDownLatch(1);
+        provider.setOnListObjectsExit(prefix -> {
+            if (prefix.contains("aws-account-id=000000000003")) {
+                laterDone.countDown();
+            }
+        });
+        provider.setDelayListObjectsContaining("aws-account-id=000000000002");
+        provider.setListObjectsDelayNanos(() -> {
+            awaitQuietly(laterDone);
+            return 0L;
+        });
+        ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
             expectThrows(
                 ListedObjectsLimitException.class,
@@ -1267,12 +1278,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
                     )
                 )
             );
-            int later = 0;
-            for (String path : provider.enumeratedFiles) {
-                if (path.contains("aws-account-id=000000000003")) {
-                    later++;
-                }
-            }
+            int later = enumeratedContaining(provider, "aws-account-id=000000000003");
             assertThat("later remaining dir must stop at the remaining listed trip cap, not the whole folder", later, lessThan(laterFiles));
         } finally {
             terminate(executor);
@@ -1308,8 +1314,19 @@ public class PartitionPruningWalkTests extends ESTestCase {
         assertTrue(sequential.truncated());
 
         ListingWalkHarness parallelProvider = new ListingWalkHarness(finishCapTree());
+        CountDownLatch laterFailed = new CountDownLatch(1);
         parallelProvider.setFailListObjectsContaining("aws-account-id=000000000004");
-        ExecutorService executor = Executors.newFixedThreadPool(4);
+        parallelProvider.setOnListObjectsExit(prefix -> {
+            if (prefix.contains("aws-account-id=000000000004")) {
+                laterFailed.countDown();
+            }
+        });
+        parallelProvider.setDelayListObjectsContaining("aws-account-id=000000000002");
+        parallelProvider.setListObjectsDelayNanos(() -> {
+            awaitQuietly(laterFailed);
+            return 0L;
+        });
+        ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
             PartitionPruningWalk.WalkResult parallel = PartitionPruningWalk.withFinishMode(
                 PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
@@ -1328,6 +1345,58 @@ public class PartitionPruningWalkTests extends ESTestCase {
                 )
             );
             assertEquals(sequential, parallel);
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /**
+     * A later remaining dir that fails while an earlier slot is still listing must stop issuing
+     * listObjects past that failed slot. Sequential never opens the folder after the failure.
+     */
+    public void testParallelFinishDoesNotIssueListingsBeyondFailedSlot() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        ListingWalkHarness provider = new ListingWalkHarness(finishCapTree(80));
+        CountDownLatch failed = new CountDownLatch(1);
+        provider.setFailListObjectsContaining("aws-account-id=000000000003");
+        provider.setOnListObjectsExit(prefix -> {
+            if (prefix.contains("aws-account-id=000000000003")) {
+                failed.countDown();
+            }
+        });
+        provider.setDelayListObjectsContaining("aws-account-id=000000000002");
+        provider.setListObjectsDelayNanos(() -> {
+            awaitQuietly(failed);
+            return 0L;
+        });
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            Exception thrown = expectThrows(
+                Exception.class,
+                () -> PartitionPruningWalk.withFinishMode(
+                    PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                    () -> tryWalkAsync(
+                        provider,
+                        WIDE_HIVE_GLOB,
+                        List.of(),
+                        pred,
+                        () -> false,
+                        4,
+                        executor,
+                        Integer.MAX_VALUE,
+                        Integer.MAX_VALUE,
+                        PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS,
+                        Integer.MAX_VALUE
+                    )
+                )
+            );
+            Throwable io = thrown instanceof IOException ? thrown : ExceptionsHelper.unwrap(thrown, IOException.class);
+            assertNotNull("expected injected listing failure, got " + thrown, io);
+            assertEquals("injected listing failure", io.getMessage());
+            assertFalse(
+                "must not list remaining dirs after an earlier failed slot",
+                listedObjectsContaining(provider, "aws-account-id=000000000004")
+            );
         } finally {
             terminate(executor);
         }
@@ -1760,6 +1829,25 @@ public class PartitionPruningWalkTests extends ESTestCase {
             maxFiles,
             null
         );
+    }
+
+    private static boolean listedObjectsContaining(ListingWalkHarness provider, String fragment) {
+        for (String prefix : provider.listedPrefixes()) {
+            if (prefix.contains(fragment)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int enumeratedContaining(ListingWalkHarness provider, String fragment) {
+        int n = 0;
+        for (String path : provider.enumeratedFiles) {
+            if (path.contains(fragment)) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static void awaitQuietly(CountDownLatch latch) {

@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -214,6 +215,7 @@ public final class ListingWalkHarness implements StorageProvider {
     volatile String failListObjectsContaining;
     volatile boolean failListObjectsUnavailable;
     volatile boolean failListObjectsRuntime;
+    volatile Consumer<String> onListObjectsExit;
     volatile boolean failListChildrenUnavailable;
     volatile boolean failListChildrenRuntime;
     /** Return {@code null} from {@link #listChildren} after this many successful calls. {@code -1} disables. */
@@ -285,6 +287,11 @@ public final class ListingWalkHarness implements StorageProvider {
     /** Restricts {@link #setListObjectsDelayNanos} to {@code listObjects} prefixes containing {@code fragment}. */
     public void setDelayListObjectsContaining(String fragment) {
         this.delayListObjectsContaining = fragment;
+    }
+
+    /** Invoked when a {@link #listObjects} call returns or throws, including iterator close. */
+    public void setOnListObjectsExit(Consumer<String> observer) {
+        this.onListObjectsExit = observer;
     }
 
     /** Throws from {@link #listObjects} when the prefix contains this fragment. */
@@ -899,13 +906,17 @@ public final class ListingWalkHarness implements StorageProvider {
         listObjectsRequests.incrementAndGet();
         if (failListObjectsContaining != null && p.contains(failListObjectsContaining)) {
             delayListObjects(p, true);
-            if (failListObjectsUnavailable) {
-                throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "HTTP 503", "", false, 0L);
+            try {
+                if (failListObjectsUnavailable) {
+                    throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "HTTP 503", "", false, 0L);
+                }
+                if (failListObjectsRuntime) {
+                    throw new RuntimeException("injected listing failure");
+                }
+                throw new IOException("injected listing failure");
+            } finally {
+                notifyListObjectsExit(p);
             }
-            if (failListObjectsRuntime) {
-                throw new RuntimeException("injected listing failure");
-            }
-            throw new IOException("injected listing failure");
         }
         int inFlight = listObjectsInFlight.incrementAndGet();
         maxListObjectsInFlight.accumulateAndGet(inFlight, Math::max);
@@ -958,6 +969,7 @@ public final class ListingWalkHarness implements StorageProvider {
                     if (closed == false) {
                         closed = true;
                         listObjectsInFlight.decrementAndGet();
+                        notifyListObjectsExit(p);
                     }
                 }
             };
@@ -1069,6 +1081,13 @@ public final class ListingWalkHarness implements StorageProvider {
         long delay = listObjectsDelayNanos.getAsLong();
         if (delay > 0) {
             LockSupport.parkNanos(delay);
+        }
+    }
+
+    private void notifyListObjectsExit(String prefix) {
+        Consumer<String> observer = onListObjectsExit;
+        if (observer != null) {
+            observer.accept(prefix);
         }
     }
 

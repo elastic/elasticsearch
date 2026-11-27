@@ -27,6 +27,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -40,6 +41,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.SlowRunningQueryBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -51,6 +54,7 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -153,7 +157,7 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
     /**
      * A local and remote minimize-roundtrips search merges on this node. Only the remote index matches, so the hits the merged response
      * keeps come from the remote cluster and are charged by the merger. The merger releases the rest of its reservation after the client
-     * listener returns. Once that reservation is gone, the hits keep the query tracked until the response is released.
+     * listener returns. Once that reservation is gone, the hits keep the query's own bytes until the response is released.
      */
     public void testMinimizeRoundtripsMergerChargesTheQuery() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
@@ -163,36 +167,47 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         client(REMOTE_CLUSTER).admin().indices().prepareRefresh(remoteIndex).get();
         String coordinator = coordinatorWithRequestBreaker();
         SearchService searchService = cluster(LOCAL_CLUSTER).getInstance(SearchService.class, coordinator);
-        CircuitBreaker breaker = requestBreaker(coordinator);
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.setCcsMinimizeRoundtrips(true);
-        searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder("f", "remoteonly")).size(10));
+        // The allocating clause matches every shard and charges nothing, so the search stays in flight long enough to read its task id.
+        // The term keeps the merged hits on the remote cluster.
+        searchRequest.source(
+            new SearchSourceBuilder().query(
+                new BoolQueryBuilder().must(new TermQueryBuilder("f", "remoteonly")).must(new AllocatingQueryBuilder(0))
+            ).size(10)
+        );
         // The task is unregistered before this listener runs, and the merger releases its temporary reservation only after the listener
         // returns. Hold the listener so that reservation is still charged, then let the listener return.
         CountDownLatch responseHeld = new CountDownLatch(1);
         CountDownLatch releaseListener = new CountDownLatch(1);
+        AtomicBoolean abandoned = new AtomicBoolean();
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         AtomicReference<Exception> searchFailure = new AtomicReference<>();
-        cluster(LOCAL_CLUSTER).client(coordinator).execute(TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(response -> {
-            response.incRef();
-            responseRef.set(response);
-            responseHeld.countDown();
-            try {
-                releaseListener.await(30, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }, e -> {
-            searchFailure.set(e);
-            responseHeld.countDown();
-        }));
-        safeAwait(responseHeld);
-        if (searchFailure.get() != null) {
-            throw searchFailure.get();
-        }
-        SearchResponse response = responseRef.get();
+        final TaskId queryId;
         try {
+            try (var pause = AllocatingQueryPlugin.pause()) {
+                cluster(LOCAL_CLUSTER).client(coordinator)
+                    .execute(TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(response -> {
+                        response.incRef();
+                        responseRef.set(response);
+                        responseHeld.countDown();
+                        // A timed-out wait has already given up this response. Release it here too: that path never reaches the cleanup.
+                        if (abandoned.get() || awaitListenerRelease(releaseListener) == false || abandoned.get()) {
+                            releaseResponse(responseRef);
+                        }
+                    }, e -> {
+                        searchFailure.set(e);
+                        responseHeld.countDown();
+                    }));
+                pause.awaitReached();
+                queryId = coordinatorSearchTask(coordinator);
+            }
+            safeAwait(responseHeld);
+            if (searchFailure.get() != null) {
+                throw searchFailure.get();
+            }
+            SearchResponse response = responseRef.get();
             assertThat(response.getClusters().getClusterStateCount(Cluster.Status.SUCCESSFUL), equalTo(2));
             SearchHit[] hits = response.getHits().getHits();
             assertThat(hits.length, greaterThan(0));
@@ -200,24 +215,44 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
                 assertThat(hit.getClusterAlias(), equalTo(REMOTE_CLUSTER));
             }
             assertThat(searchTasks(coordinator), equalTo(0));
-            assertThat(searchService.queryScheduler().queries(), equalTo(1));
-            long reserved = breaker.getUsed();
+            long reserved = searchService.queryScheduler().memoryBytes(queryId);
             assertThat(reserved, greaterThan(0L));
             releaseListener.countDown();
             assertBusy(() -> {
-                // The reservation has been released. The hits the response keeps are still charged, so the query stays tracked.
-                assertThat(breaker.getUsed(), lessThan(reserved));
-                assertThat(breaker.getUsed(), greaterThan(0L));
+                // The reservation has left the query. The hits the response keeps are still its bytes, so the query stays tracked.
+                long held = searchService.queryScheduler().memoryBytes(queryId);
+                assertThat(held, lessThan(reserved));
+                assertThat(held, greaterThan(0L));
                 assertThat(searchService.queryScheduler().queries(), equalTo(1));
             });
         } finally {
+            abandoned.set(true);
             releaseListener.countDown();
-            response.decRef();
+            releaseResponse(responseRef);
         }
         assertBusy(() -> {
-            assertThat(breaker.getUsed(), equalTo(0L));
+            assertThat(searchService.queryScheduler().memoryBytes(queryId), equalTo(0L));
             assertThat(searchService.queryScheduler().queries(), equalTo(0));
         });
+    }
+
+    /**
+     * @return whether the listener was released before the wait timed out
+     */
+    private static boolean awaitListenerRelease(CountDownLatch releaseListener) {
+        try {
+            return releaseListener.await(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private static void releaseResponse(AtomicReference<SearchResponse> responseRef) {
+        SearchResponse response = responseRef.getAndSet(null);
+        if (response != null) {
+            response.decRef();
+        }
     }
 
     /**
@@ -274,6 +309,19 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             .toList();
         assumeFalse("every local node has a no-op request breaker", coordinators.isEmpty());
         return randomFrom(coordinators);
+    }
+
+    private TaskId coordinatorSearchTask(String coordinator) {
+        List<TaskInfo> tasks = cluster(LOCAL_CLUSTER).client(coordinator)
+            .admin()
+            .cluster()
+            .prepareListTasks()
+            .setNodesIds(coordinator)
+            .setActions(TransportSearchAction.NAME)
+            .get()
+            .getTasks();
+        assertThat(tasks.size(), equalTo(1));
+        return tasks.get(0).taskId();
     }
 
     private int searchTasks(String coordinator) {

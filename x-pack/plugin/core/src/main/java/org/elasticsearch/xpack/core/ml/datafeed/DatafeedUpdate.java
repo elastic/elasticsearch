@@ -534,16 +534,21 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     }
 
     private boolean changesEsqlQueryShape(DatafeedConfig current) {
-        // An unchanged esql_query resent by a client that echoes the full config is a no-op, not a shape change.
-        return (esqlQuery != null && Objects.equals(esqlQuery, current.getEsqlQuery()) == false)
-            || sourceTimeField != null
-            || groupingInterval != null
-            || indices != null
-            || queryProvider != null
-            || aggProvider != null
-            || scrollSize != null
-            || indicesOptions != null
-            || runtimeMappings != null;
+        // A shape field resent with its stored value is a no-op, as in isNoop and in PUT, which accepts the defaults.
+        // Only a changed value needs the datafeed to be recreated.
+        return changes(esqlQuery, current.getEsqlQuery())
+            || changes(sourceTimeField, current.getSourceTimeField())
+            || changes(groupingInterval, current.getGroupingInterval())
+            || changes(indices, current.getIndices())
+            || changes(queryProvider == null ? null : queryProvider.getQuery(), current.getQuery())
+            || changes(aggProvider == null ? null : aggProvider.getAggs(), current.getAggregations())
+            || changes(scrollSize, current.getScrollSize())
+            || changes(indicesOptions, current.getIndicesOptions())
+            || changes(runtimeMappings, current.getRuntimeMappings());
+    }
+
+    private static boolean changes(Object updated, Object current) {
+        return updated != null && Objects.equals(updated, current) == false;
     }
 
     /**

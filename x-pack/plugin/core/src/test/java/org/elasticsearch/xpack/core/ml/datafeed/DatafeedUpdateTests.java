@@ -62,6 +62,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
@@ -414,12 +415,12 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
             new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("event.ingested").build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueMinutes(30)).build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setIndices(Collections.emptyList()).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setIndices(List.of("different-index")).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setQuery(QueryProvider.defaultQuery()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setAggregations(AggProvider.fromParsedAggs(new AggregatorFactories.Builder()))
                 .build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setRuntimeMappings(Collections.emptyMap()).build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE).build(),
+            new DatafeedUpdate.Builder(datafeed.getId()).setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE + 1).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED).build()
         );
 
@@ -474,7 +475,58 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(updated.getQueryDelay(), equalTo(TimeValue.timeValueMinutes(3)));
     }
 
-    public void testApplyIdenticalEsqlQueryWithIndicesShouldReject() {
+    public void testApplyStoredShapeValuesOnEsqlDatafeedShouldBeNoop() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = storedShapeValuesUpdate(datafeed).build();
+
+        assertThat(update.isNoop(datafeed), is(true));
+        assertThat(update.apply(datafeed, Collections.emptyMap(), clusterState), equalTo(datafeed));
+    }
+
+    public void testApplyStoredShapeValuesWithOperationalSettingShouldChangeOnlyOperationalSetting() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate update = storedShapeValuesUpdate(datafeed).setQueryDelay(TimeValue.timeValueMinutes(3)).build();
+
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+
+        assertThat(updated.getQueryDelay(), equalTo(TimeValue.timeValueMinutes(3)));
+        assertThat(new DatafeedConfig.Builder(updated).setQueryDelay(datafeed.getQueryDelay()).build(), equalTo(datafeed));
+    }
+
+    public void testApplyChangedShapeFieldOnEsqlDatafeedShouldReject() {
+        DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
+        DatafeedUpdate.Builder builder = storedShapeValuesUpdate(datafeed);
+        randomFrom(
+            (Consumer<DatafeedUpdate.Builder>) b -> b.setEsqlQuery("FROM other-index"),
+            b -> b.setSourceTimeField("other_time"),
+            b -> b.setGroupingInterval(TimeValue.timeValueHours(2)),
+            b -> b.setIndices(List.of("other-index")),
+            b -> b.setScrollSize(DatafeedConfig.DEFAULT_SCROLL_SIZE + 1),
+            b -> b.setQuery(createTestQueryProvider("field", "value")),
+            b -> b.setAggregations(createRandomValidAggProvider()),
+            b -> b.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED),
+            b -> b.setRuntimeMappings(Map.of("runtime_field", Map.of("type", "keyword")))
+        ).accept(builder);
+        DatafeedUpdate update = builder.build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+        );
+
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString("Recreate ES|QL datafeed [esql-datafeed]"));
+    }
+
+    private static DatafeedUpdate.Builder storedShapeValuesUpdate(DatafeedConfig datafeed) {
+        return new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery(datafeed.getEsqlQuery())
+            .setSourceTimeField(datafeed.getSourceTimeField())
+            .setGroupingInterval(datafeed.getGroupingInterval())
+            .setIndices(datafeed.getIndices())
+            .setScrollSize(datafeed.getScrollSize());
+    }
+
+    public void testApplyIdenticalEsqlQueryWithDifferentIndicesShouldReject() {
         DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
         DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery(datafeed.getEsqlQuery())
             .setIndices(List.of("other-index"))

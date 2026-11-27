@@ -219,4 +219,42 @@ public class ErrorExcerptsTests extends ESTestCase {
             assertThat(kept.length(), lessThanOrEqualTo(ErrorExcerpts.MAX_EXCERPT_CHARS));
         }
     }
+
+    /**
+     * A token that overlaps itself covers every position of a run of it, so a cut moved once lands inside the next
+     * occurrence; both ends give the run up entirely rather than show a fragment.
+     */
+    public void testASelfOverlappingTokenIsNotCutByTheMovedCut() {
+        String value = "ab".repeat(300);
+        String marker = "… (truncated, " + value.length() + " chars total) …";
+        int window = ErrorExcerpts.MAX_EXCERPT_CHARS;
+        assertEquals(
+            marker,
+            ErrorExcerpts.summarizeEscaped(value.substring(0, window), value.substring(value.length() - window), value.length(), "abab")
+        );
+    }
+
+    /** A token as wide as the bound allows is still seen whole on both sides of each cut, and given up whole. */
+    public void testATokenAtTheWidthBoundIsSeenWhole() {
+        int window = ErrorExcerpts.MAX_EXCERPT_CHARS;
+        String token = "<" + "t".repeat(window / 2 - 2) + ">";
+        String value = token.repeat(10);
+        String marker = "… (truncated, " + value.length() + " chars total) …";
+        assertEquals(
+            marker,
+            ErrorExcerpts.summarizeEscaped(value.substring(0, window), value.substring(value.length() - window), value.length(), token)
+        );
+    }
+
+    /** A token wider than half the cap could run past a window unseen, so it is refused rather than cut. */
+    public void testATokenWiderThanTheBoundIsRefused() {
+        int window = ErrorExcerpts.MAX_EXCERPT_CHARS;
+        String value = "x".repeat(window * 4);
+        String head = value.substring(0, window);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ErrorExcerpts.summarizeEscaped(head, head, value.length(), "x".repeat(window / 2 + 1))
+        );
+        expectThrows(IllegalArgumentException.class, () -> ErrorExcerpts.summarizeEscaped(head, head, value.length(), ""));
+    }
 }

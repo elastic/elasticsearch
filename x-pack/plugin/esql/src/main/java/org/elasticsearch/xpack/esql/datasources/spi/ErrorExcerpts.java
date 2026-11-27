@@ -99,8 +99,15 @@ public final class ErrorExcerpts {
      * the duplicate-name list's quote escape: neither cut lands inside an occurrence of {@code unsplittable}, which
      * would leave a stump that spells nothing. A cut that would gives the whole occurrence up, so the kept windows only
      * get narrower and still fit the cap. {@code null} cuts anywhere.
+     * <p>
+     * The token is at most half the cap wide. Each cut sits within half the cap of its window's outer end and each
+     * window is at least the cap wide, so a token that short is always whole inside the window on both sides of a
+     * cut it crosses, and can be seen there; a wider one could run past the window and be cut unseen.
      */
     public static String summarizeEscaped(String head, String tail, int totalLength, String unsplittable) {
+        if (unsplittable != null && (unsplittable.isEmpty() || unsplittable.length() > MAX_EXCERPT_CHARS / 2)) {
+            throw new IllegalArgumentException("an unsplittable token must be 1 to " + MAX_EXCERPT_CHARS / 2 + " characters");
+        }
         assert head.length() >= Math.min(totalLength, MAX_EXCERPT_CHARS) : "head window narrower than the cap can draw";
         assert tail.length() >= Math.min(totalLength, MAX_EXCERPT_CHARS) : "tail window narrower than the cap can draw";
         if (totalLength <= MAX_EXCERPT_CHARS) {
@@ -113,12 +120,12 @@ public final class ErrorExcerpts {
         int headChars = charsEscapingWithin(head, headBudget, true);
         int tailStart = tail.length() - charsEscapingWithin(tail, remaining - headBudget, false);
         if (unsplittable != null) {
-            int straddled = straddledAt(head, headChars, unsplittable);
-            if (straddled >= 0) {
+            // Repeated, because a token that overlaps itself can put the moved cut inside another occurrence. Each move
+            // is strict -- the head cut only falls and the tail cut only rises -- so both loops end.
+            for (int straddled; (straddled = straddledAt(head, headChars, unsplittable)) >= 0;) {
                 headChars = straddled;
             }
-            straddled = straddledAt(tail, tailStart, unsplittable);
-            if (straddled >= 0) {
+            for (int straddled; (straddled = straddledAt(tail, tailStart, unsplittable)) >= 0;) {
                 tailStart = straddled + unsplittable.length();
             }
         }

@@ -176,6 +176,29 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertDiscardRowUndoes(() -> randomRowWriter(4), EscfColumnBuilderTests::randomUtf8StringRow);
     }
 
+    /**
+     * A double column without spellings gets its spellings sidecar from the first spelled value; discarding that row leaves no
+     * sidecar behind, whether or not a later row creates one again.
+     */
+    public void testDiscardRowUndoesSpelledDoubleThatCreatesSpellings() {
+        for (boolean laterSpelling : new boolean[] { false, true }) {
+            try (EscfColumnBuilder expected = builder(); EscfColumnBuilder actual = builder()) {
+                int rows = between(1, 20);
+                for (int r = 0; r < rows; r++) {
+                    double value = randomDouble();
+                    expected.addDouble(value);
+                    actual.addDouble(value);
+                }
+                actual.addDouble(1.5, utf8("1.50"));
+                actual.discardRow(rows);
+                XContentString.UTF8Bytes spelling = laterSpelling ? utf8("2.50") : null;
+                expected.addDouble(2.5, spelling);
+                actual.addDouble(2.5, spelling);
+                assertSameColumnData("later spelling " + laterSpelling, expected.finish(rows + 1), actual.finish(rows + 1));
+            }
+        }
+    }
+
     /** Before its first value a column only counts its absent rows. */
     public void testDiscardRowUndoesAbsentRowOfColumnWithoutValues() {
         try (EscfColumnBuilder expected = builder(); EscfColumnBuilder actual = builder()) {
@@ -1464,6 +1487,11 @@ public class EscfColumnBuilderTests extends ESTestCase {
             assertEquals(description + ": child", expected.child(), actual.child());
         } else {
             assertSameColumnData(description + ": child", expected.child(), actual.child());
+        }
+        if (expected.lexicalForms() == null || actual.lexicalForms() == null) {
+            assertEquals(description + ": spellings", expected.lexicalForms(), actual.lexicalForms());
+        } else {
+            assertSameColumnData(description + ": spellings", expected.lexicalForms(), actual.lexicalForms());
         }
     }
 

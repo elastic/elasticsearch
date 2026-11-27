@@ -564,6 +564,26 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
         }
     }
 
+    /**
+     * A string promotes a double column to a union, which loses the spellings of the rows before it. A malformed string is
+     * rejected before that happens, so the committed row keeps its spelling.
+     */
+    public void testMalformedStringDoesNotPromoteTheColumn() throws IOException {
+        assumeTrue("strings are staged unread only on the simdjson path", EscfEncoder.isSimdEnabled());
+        String malformed = randomFrom("""
+            {"d":"bad\\qescape"}""", """
+            {"d":["ok","bad\\qescape"]}""");
+        try (EscfEncoder encoder = new EscfEncoder(newRecycler(), true)) {
+            encoder.addDocument(new BytesArray("{\"d\":1.50}"), XContentType.JSON, 0);
+            encoder.parseToScratch(new BytesArray(malformed), XContentType.JSON, LeafSink.NO_OP);
+            expectThrows(JsonParsingException.class, () -> encoder.commitScratchTo(0));
+            encoder.addDocument(new BytesArray("{\"d\":2.25}"), XContentType.JSON, 0);
+            try (EscfBatch batch = encoder.buildPartition(0)) {
+                assertEquals("1.50", spelling(batch, "d"));
+            }
+        }
+    }
+
     /** A partition that only a malformed document would have created does not exist afterwards. */
     public void testMalformedStringFoundOnCommitLeavesNoPartition() throws IOException {
         assumeTrue("strings are staged unread only on the simdjson path", EscfEncoder.isSimdEnabled());

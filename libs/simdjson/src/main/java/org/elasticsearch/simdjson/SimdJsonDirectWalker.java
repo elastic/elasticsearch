@@ -96,6 +96,10 @@ public final class SimdJsonDirectWalker {
      * which are absolute offsets into {@code buffer}. The document does not need to start at
      * offset 0.
      *
+     * <p>String values and array elements are handed to the handler unread
+     * ({@link JsonDocumentHandler#rawStringField}, {@link JsonDocumentHandler#rawArrayElemString}): a malformed escape
+     * in one is reported by {@link Utf8Value#copyTo}, so during the walk only if the handler copies the value then.
+     *
      * @param buffer the contiguous byte buffer containing the JSON data
      * @param parser the batch parser with a prepared document window
      * @param handler receives parsed JSON events

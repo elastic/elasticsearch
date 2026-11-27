@@ -210,8 +210,9 @@ public final class EscfColumnBuilder implements Releasable {
 
     /**
      * Adds a {@code STRING} value for the next row. The {@code STRING} case of {@link #newRowScalar}, with the value written by
-     * {@link Utf8Value#copyTo} so that its bytes are copied once, into the column's buffer. If {@link Utf8Value#copyTo} throws,
-     * the column must be repaired with {@link #discardRow} before it is written again.
+     * {@link Utf8Value#copyTo} so that its bytes are copied once, into the column's buffer. A column of another kind is promoted
+     * only once the value has been copied out, so that a value {@link Utf8Value#copyTo} rejects leaves the column's kind as it
+     * was. If {@link Utf8Value#copyTo} throws, the column must be repaired with {@link #discardRow} before it is written again.
      */
     void addUtf8String(Utf8Value value) {
         final int row = nextAppendRow();
@@ -228,44 +229,68 @@ public final class EscfColumnBuilder implements Releasable {
                 ab.startRow();
                 ab.appendString(value);
             } else {
+                Utf8Value copied = copyOut(value);
                 promoteToUnion();
-                current.addString(value);
+                current.addString(copied);
             }
         } else if (current.kind() == EscfColumnKind.STRING || current.kind() == EscfColumnKind.UNION) {
             current.addString(value);
         } else {
+            Utf8Value copied = copyOut(value);
             promoteToUnion();
-            current.addString(value);
+            current.addString(copied);
         }
         assert setStringWriteFailed(false);
         lastWrittenRow = row;
     }
 
+    /** Copies {@code value} into a new array; promotions do this first, as they cannot be undone (see {@link #discardRow}). */
+    private static Utf8Value copyOut(Utf8Value value) {
+        byte[] bytes = new byte[value.maxLength() + StringPadding.BYTES];
+        return Utf8Value.of(bytes, 0, value.copyTo(bytes, 0));
+    }
+
     /**
      * Adds a string array row of {@code values}, each written by {@link Utf8Value#copyTo}. A columnar {@code STRING} array
-     * column receives the elements straight into its buffer; a union column takes them packed as a {@code FIXED_ARRAY}.
-     * If {@link Utf8Value#copyTo} throws, the column must be repaired with {@link #discardRow} before it is written again.
+     * column receives the elements straight into its buffer; any other column takes them packed as a {@code FIXED_ARRAY}, packed
+     * before the column is promoted, as {@link #addUtf8String} does. If {@link Utf8Value#copyTo} throws, the column must be
+     * repaired with {@link #discardRow} before it is written again.
      */
     void addUtf8StringArray(Utf8Value[] values) {
         final int row = nextAppendRow();
         assert row > lastWrittenRow : nonDecreasing(row);
         assert setStringWriteFailed(true);
         fillGapTo(row);
-        ArrayBuilder ab = prepareColumnarArrayRow(EscfColumnKind.STRING);
-        if (ab != null) {
-            ab.startRow();
-            for (Utf8Value value : values) {
-                ab.appendString(value);
-            }
+        if (current == null
+            || current instanceof ArrayBuilder columnar
+                && (columnar.childKind() == EscfColumnKind.STRING || columnar.childKind() == UNSET_ARRAY_KIND)) {
+            appendStringRow(prepareColumnarArrayRow(EscfColumnKind.STRING), values);
         } else {
-            ((UnionBuilder) current).addInlineArray(SourceValueType.FIXED_ARRAY, packStringArray(values));
+            PackedStringArray packed = packStringArray(values);
+            ArrayBuilder ab = prepareColumnarArrayRow(EscfColumnKind.STRING);
+            if (ab != null) {
+                // MERGE promotes a string column to an array rather than a union
+                appendStringRow(ab, values);
+            } else {
+                ((UnionBuilder) current).addInlineArray(SourceValueType.FIXED_ARRAY, packed.bytes(), packed.length());
+            }
         }
         assert setStringWriteFailed(false);
         lastWrittenRow = row;
     }
 
+    private static void appendStringRow(ArrayBuilder ab, Utf8Value[] values) {
+        ab.startRow();
+        for (Utf8Value value : values) {
+            ab.appendString(value);
+        }
+    }
+
+    /** {@code bytes[0, length)} hold a string array in the {@code FIXED_ARRAY} layout; see {@link #packStringArray}. */
+    private record PackedStringArray(byte[] bytes, int length) {}
+
     /** Packs {@code values} in the {@code FIXED_ARRAY} layout of {@code STRING} elements: the type, then each length and bytes. */
-    private static byte[] packStringArray(Utf8Value[] values) {
+    private static PackedStringArray packStringArray(Utf8Value[] values) {
         int maxLength = 1;
         for (Utf8Value value : values) {
             maxLength += Integer.BYTES + value.maxLength();
@@ -278,13 +303,14 @@ public final class EscfColumnBuilder implements Releasable {
             ByteUtils.writeIntLE(length, packed, pos);
             pos += Integer.BYTES + length;
         }
-        return Arrays.copyOf(packed, pos);
+        return new PackedStringArray(packed, pos);
     }
 
     /**
      * Restores the column to {@code row} rows after the write for {@code row}, of any value or an absent row, either completed
      * or threw (only {@link #addUtf8String} and {@link #addUtf8StringArray} can). Absent rows that write filled in before
-     * {@code row} stay, as do the kind changes it made, such as a promotion to a union; the rows they hold are unchanged.
+     * {@code row} stay, as does a builder it created for a column that had none. A write that throws does so before it would
+     * promote the column, so the rows before {@code row} are unchanged.
      */
     void discardRow(int row) {
         assert policy == CollisionPolicy.SPLIT : "absent rows are only told apart from present ones by validity under SPLIT";
@@ -1974,9 +2000,14 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         void addInlineArray(byte arrayType, byte[] packed) {
+            addInlineArray(arrayType, packed, packed.length);
+        }
+
+        /** Adds the inline array {@code packed[0, length)}. */
+        void addInlineArray(byte arrayType, byte[] packed, int length) {
             prep(arrayType);
-            writeBytes(data, packed, 0, packed.length);
-            dataLen += packed.length;
+            writeBytes(data, packed, 0, length);
+            dataLen += length;
             advancePresent();
         }
 

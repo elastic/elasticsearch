@@ -66,6 +66,10 @@ public final class JsonDocumentParser {
      * of the document, or for the whole object when it was followed by other content. Callers must
      * be able to discard whatever the handler accumulated; there is no rollback.
      *
+     * <p>String values are handed to the handler unread: a malformed escape in one is reported by
+     * {@link Utf8Value#copyTo}, so here only if the handler copies the value during the walk; see
+     * {@link SimdJsonDirectWalker#walkDocument(byte[], SimdJsonParser, JsonDocumentHandler)}.
+     *
      * @param buffer  document bytes (need not start at index 0, needs no trailing padding)
      * @param offset  start of the document within {@code buffer}
      * @param len     document length in bytes, at most {@link #maxDocumentBytes()}

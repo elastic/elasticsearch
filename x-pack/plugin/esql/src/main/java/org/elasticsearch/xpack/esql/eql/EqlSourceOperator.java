@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlClientException;
 
@@ -354,6 +355,8 @@ public class EqlSourceOperator extends SourceOperator {
                         counts.failed(),
                         true
                     );
+                    // This response has non-zero shard counts (the all-zero case was skipped above).
+                    ComputeService.applyClusterStatusAfterBranch(builder, current, counts.failed() > 0, true);
                 }
                 if (current.getTook() != null && executionInfo.clusterReportsSearchTook(alias)) {
                     builder.setTook(TimeValue.timeValueNanos(current.getTook().nanos() + took.nanos()));

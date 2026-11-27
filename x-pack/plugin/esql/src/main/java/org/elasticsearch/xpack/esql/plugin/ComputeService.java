@@ -2006,7 +2006,7 @@ public class ComputeService {
      * gates are independent: CCS with {@code skip_unavailable=true} still records {@code PARTIAL} when {@code allow_partial_results} is
      * false.
      */
-    static void applyClusterStatusAfterBranch(
+    public static void applyClusterStatusAfterBranch(
         EsqlExecutionInfo.Cluster.Builder builder,
         EsqlExecutionInfo.Cluster existing,
         boolean failed,

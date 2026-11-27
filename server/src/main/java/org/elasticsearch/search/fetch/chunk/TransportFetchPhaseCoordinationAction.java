@@ -16,8 +16,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.SearchResponseBreakerLabels;
 import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.search.ShardResponseReservation;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,6 +42,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.ResponseReservation;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -267,9 +268,9 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 responseStream.setChunkBytesConsumer(request.resultBytesConsumer);
             }
             // The data node's result carries the last chunk, or all hits if it fell back to a classic fetch
-            final ShardResponseReservation reservation = new ShardResponseReservation(
+            final ResponseReservation reservation = new ResponseReservation(
                 circuitBreaker,
-                ShardResponseReservation.FETCH_BREAKER_LABEL,
+                SearchResponseBreakerLabels.FETCH_BREAKER_LABEL,
                 request.onCoordinatorTrip
             );
             transportService.sendRequest(

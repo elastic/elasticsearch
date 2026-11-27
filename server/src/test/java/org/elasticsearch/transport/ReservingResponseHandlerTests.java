@@ -7,18 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.search;
+package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportException;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -56,13 +55,16 @@ public class ReservingResponseHandlerTests extends ESTestCase {
         assertSame(failure, otherFailure.get());
     }
 
-    private static ReservingResponseHandler<SearchResponse> handler(ActionListener<SearchResponse> listener, CircuitBreaker breaker) {
+    private static ReservingResponseHandler<ActionResponse.Empty> handler(
+        ActionListener<ActionResponse.Empty> listener,
+        CircuitBreaker breaker
+    ) {
         return new ReservingResponseHandler<>(
             listener,
-            SearchResponse::new,
+            in -> ActionResponse.Empty.INSTANCE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             breaker,
-            ShardResponseReservation.BREAKER_LABEL
+            "<test_response>"
         );
     }
 }

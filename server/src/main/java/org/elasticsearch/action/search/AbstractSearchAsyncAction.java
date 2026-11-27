@@ -49,6 +49,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.ShardRestoringException;
+import org.elasticsearch.transport.ResponseReservation;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -928,8 +929,8 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
      * Creates the reservation for one shard response of {@code phase}, which fails this search if this node has no room for the
      * response while it arrives.
      */
-    ShardResponseReservation newShardResponseReservation(String phase, String label) {
-        return new ShardResponseReservation(circuitBreaker, label, e -> failOnCoordinatorTrip(phase, e));
+    ResponseReservation newShardResponseReservation(String phase, String label) {
+        return new ResponseReservation(circuitBreaker, label, e -> failOnCoordinatorTrip(phase, e));
     }
 
     /**

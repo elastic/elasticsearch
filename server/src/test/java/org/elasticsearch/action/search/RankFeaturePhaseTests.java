@@ -46,6 +46,8 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.transport.ResponseReservation;
+import org.elasticsearch.transport.ResponseReservationTests;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -116,7 +118,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        ShardResponseReservation reservation,
+                        ResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -226,7 +228,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        ShardResponseReservation reservation,
+                        ResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -348,7 +350,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        ShardResponseReservation reservation,
+                        ResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -422,7 +424,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
 
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(
             2,
-            newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT)
+            newLimitedBreaker(ResponseReservationTests.TRIPPING_LIMIT)
         );
         mockSearchPhaseContext.getRequest().source(searchSourceBuilder);
         AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
@@ -445,13 +447,13 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        ShardResponseReservation reservation,
+                        ResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
                     ) {
                         if (request.contextId().getId() == 123) {
-                            trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener));
+                            trip.set(ResponseReservationTests.tripWhileArriving(reservation, listener));
                         } else {
                             assertThat("the tripped shard is asked first", trip.get(), notNullValue());
                             listener.onFailure(new IllegalArgumentException("simulated failure"));
@@ -510,7 +512,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        ShardResponseReservation reservation,
+                        ResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -608,7 +610,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        ShardResponseReservation reservation,
+                        ResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer resultBytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -743,7 +745,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        ShardResponseReservation reservation,
+                        ResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -888,7 +890,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
-                        ShardResponseReservation reservation,
+                        ResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer

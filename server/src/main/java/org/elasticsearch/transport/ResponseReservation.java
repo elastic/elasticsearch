@@ -7,33 +7,25 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.search;
+package org.elasticsearch.transport;
 
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
  * Charges a response from another node to this node's request breaker from when it starts arriving until it is read, see
- * {@link TransportResponseHandler#reserveResponseBytes}. For a shard response, a trip means this node has no room for the response, not
- * that the shard failed, so it is reported to the search, which fails as a whole instead of retrying the shard on another copy. A remote
- * cluster's response in a CCS search and a relayed get async search response work the same way.
+ * {@link TransportResponseHandler#reserveResponseBytes}. A trip means this node has no room for the response, not that the other node
+ * failed, so it is reported to the request through the {@code onTrip} callback, which should fail the request as a whole instead of
+ * retrying it on another node.
  * <p>
  * Holds the state of one response, so each request needs its own.
  */
-public final class ShardResponseReservation {
-
-    /** Label for a fetch response, which carries hits. */
-    public static final String FETCH_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[shard_response]";
-
-    /** Label for the responses of the other phases. */
-    public static final String BREAKER_LABEL = "<shard_response>";
+public final class ResponseReservation {
 
     private final CircuitBreaker circuitBreaker;
     private final String label;
@@ -44,7 +36,7 @@ public final class ShardResponseReservation {
     /**
      * @param onTrip fails the request, called on the response handler's executor
      */
-    public ShardResponseReservation(CircuitBreaker circuitBreaker, String label, Consumer<Exception> onTrip) {
+    public ResponseReservation(CircuitBreaker circuitBreaker, String label, Consumer<Exception> onTrip) {
         this.circuitBreaker = circuitBreaker;
         this.label = label;
         this.onTrip = onTrip;
@@ -72,10 +64,10 @@ public final class ShardResponseReservation {
     }
 
     /**
-     * Reports a trip in {@link #reserve} to the search. To be called first thing in
+     * Reports a trip in {@link #reserve} to the request. To be called first thing in
      * {@link TransportResponseHandler#handleException}, which gets the trip wrapped in a {@code RemoteTransportException}.
      *
-     * @return whether the response was rejected here, in which case the caller must not count it as a shard failure
+     * @return whether the response was rejected here, in which case the caller must not count it as a failure of the other node
      */
     public boolean reportTrip() {
         CircuitBreakingException e = trip;

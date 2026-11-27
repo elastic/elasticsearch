@@ -101,7 +101,7 @@ class DfsQueryPhase extends SearchPhase {
                     connection,
                     querySearchRequest,
                     context.getTask(),
-                    context.newShardResponseReservation(NAME, ShardResponseReservation.BREAKER_LABEL),
+                    context.newShardResponseReservation(NAME, SearchResponseBreakerLabels.BREAKER_LABEL),
                     new SearchActionListener<>(shardTarget, shardIndex) {
 
                         @Override

@@ -66,6 +66,7 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.ResponseReservation;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -226,7 +227,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
-        ShardResponseReservation reservation,
+        ResponseReservation reservation,
         final ActionListener<DfsSearchResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -249,7 +250,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
-        ShardResponseReservation reservation,
+        ResponseReservation reservation,
         final ActionListener<SearchPhaseResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -288,7 +289,7 @@ public class SearchTransportService {
      * gateway that parent is the gateway's proxy task, so the context would wait for the reaper.
      */
     @Nullable
-    static ShardResponseReservation unlessProxied(Transport.Connection connection, ShardResponseReservation reservation) {
+    static ResponseReservation unlessProxied(Transport.Connection connection, ResponseReservation reservation) {
         return TransportService.unwrapConnection(connection) == connection ? reservation : null;
     }
 
@@ -303,7 +304,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final QuerySearchRequest request,
         SearchTask task,
-        ShardResponseReservation reservation,
+        ResponseReservation reservation,
         final ActionListener<SearchPhaseResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -339,7 +340,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final RankFeatureShardRequest request,
         SearchTask task,
-        ShardResponseReservation reservation,
+        ResponseReservation reservation,
         final ActionListener<RankFeatureResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -467,7 +468,7 @@ public class SearchTransportService {
                 FETCH_ID_ACTION_NAME,
                 countingRequestForConnection(shardFetchRequest, connection, requestBytesConsumer),
                 task,
-                context.newShardResponseReservation(FetchSearchPhase.NAME, ShardResponseReservation.FETCH_BREAKER_LABEL),
+                context.newShardResponseReservation(FetchSearchPhase.NAME, SearchResponseBreakerLabels.FETCH_BREAKER_LABEL),
                 listener,
                 countingReader(FetchSearchResult::new, resultBytesConsumer)
             );
@@ -489,7 +490,7 @@ public class SearchTransportService {
         String action,
         final TransportRequest request,
         SearchTask task,
-        @Nullable ShardResponseReservation reservation,
+        @Nullable ResponseReservation reservation,
         final ActionListener<FetchSearchResult> listener,
         Writeable.Reader<FetchSearchResult> reader
     ) {
@@ -1075,7 +1076,7 @@ public class SearchTransportService {
     private final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final String nodeId;
         @Nullable
-        private final ShardResponseReservation reservation;
+        private final ResponseReservation reservation;
 
         ConnectionCountingHandler(
             final ActionListener<? super Response> listener,
@@ -1089,7 +1090,7 @@ public class SearchTransportService {
             final ActionListener<? super Response> listener,
             final Writeable.Reader<Response> responseReader,
             final Transport.Connection connection,
-            @Nullable final ShardResponseReservation reservation
+            @Nullable final ResponseReservation reservation
         ) {
             super(listener, responseReader, TransportResponseHandler.TRANSPORT_WORKER);
             this.nodeId = connection.getNode().getId();

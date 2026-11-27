@@ -182,7 +182,7 @@ public class RankFeaturePhase extends SearchPhase {
                     entry
                 ),
                 context.getTask(),
-                context.newShardResponseReservation(NAME, ShardResponseReservation.BREAKER_LABEL),
+                context.newShardResponseReservation(NAME, SearchResponseBreakerLabels.BREAKER_LABEL),
                 listener,
                 context::trackPhaseResultBytesRead,
                 context::trackPhaseRequestBytesWritten

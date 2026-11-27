@@ -64,6 +64,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.LeakTracker;
+import org.elasticsearch.transport.ResponseReservation;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -189,7 +190,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             connection,
             request,
             getTask(),
-            newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL),
+            newShardResponseReservation(getName(), SearchResponseBreakerLabels.BREAKER_LABEL),
             listener,
             this::trackPhaseResultBytesRead,
             this::trackPhaseRequestBytesWritten
@@ -603,9 +604,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 connection,
                 this::trackPhaseRequestBytesWritten
             );
-            final ShardResponseReservation reservation = SearchTransportService.unlessProxied(
+            final ResponseReservation reservation = SearchTransportService.unlessProxied(
                 connection,
-                newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL)
+                newShardResponseReservation(getName(), SearchResponseBreakerLabels.BREAKER_LABEL)
             );
             searchTransportService.transportService()
                 .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, wrapper, task, new TransportResponseHandler<NodeQueryResponse>() {

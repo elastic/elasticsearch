@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.search;
+package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -16,8 +16,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,12 +25,14 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ShardResponseReservationTests extends ESTestCase {
+public class ResponseReservationTests extends ESTestCase {
 
     /** Limit of the breaker that a response trips in the tests of the routes that reserve for it. */
-    static final ByteSizeValue TRIPPING_LIMIT = ByteSizeValue.ofBytes(100);
+    public static final ByteSizeValue TRIPPING_LIMIT = ByteSizeValue.ofBytes(100);
 
     private static final int OVER_LIMIT_BYTES = 1000;
+
+    private static final String TEST_LABEL = "<test_response>";
 
     /**
      * Does what the transport does when a piece of the response trips a breaker of {@link #TRIPPING_LIMIT}. The reservation records the
@@ -40,7 +40,7 @@ public class ShardResponseReservationTests extends ESTestCase {
      *
      * @return the trip
      */
-    static CircuitBreakingException tripWhileArriving(ShardResponseReservation reservation, ActionListener<?> listener) {
+    public static CircuitBreakingException tripWhileArriving(ResponseReservation reservation, ActionListener<?> listener) {
         CircuitBreakingException trip = expectThrows(CircuitBreakingException.class, () -> reservation.reserve(OVER_LIMIT_BYTES));
         assertTrue(reservation.reportTrip());
         listener.onFailure(new RemoteTransportException("rejected", trip));
@@ -48,9 +48,9 @@ public class ShardResponseReservationTests extends ESTestCase {
     }
 
     /**
-     * Same as {@link #tripWhileArriving(ShardResponseReservation, ActionListener)}, through the handler the response is for.
+     * Same as {@link #tripWhileArriving(ResponseReservation, ActionListener)}, through the handler the response is for.
      */
-    static CircuitBreakingException tripWhileArriving(TransportResponseHandler<?> handler) {
+    public static CircuitBreakingException tripWhileArriving(TransportResponseHandler<?> handler) {
         CircuitBreakingException trip = expectThrows(CircuitBreakingException.class, () -> handler.reserveResponseBytes(OVER_LIMIT_BYTES));
         handler.handleException(new RemoteTransportException("rejected", trip));
         return trip;
@@ -59,7 +59,7 @@ public class ShardResponseReservationTests extends ESTestCase {
     public void testReservesEachPieceUntilReleased() {
         CircuitBreaker breaker = newLimitedBreaker(TRIPPING_LIMIT);
         List<Exception> trips = new ArrayList<>();
-        ShardResponseReservation reservation = new ShardResponseReservation(breaker, ShardResponseReservation.BREAKER_LABEL, trips::add);
+        ResponseReservation reservation = new ResponseReservation(breaker, TEST_LABEL, trips::add);
 
         Releasable first = reservation.reserve(40);
         Releasable second = reservation.reserve(60);
@@ -71,10 +71,10 @@ public class ShardResponseReservationTests extends ESTestCase {
         assertThat(trips, empty());
     }
 
-    public void testReportsTripToTheSearch() {
+    public void testReportsTripToTheRequest() {
         CircuitBreaker breaker = newLimitedBreaker(TRIPPING_LIMIT);
         List<Exception> trips = new ArrayList<>();
-        ShardResponseReservation reservation = new ShardResponseReservation(breaker, ShardResponseReservation.BREAKER_LABEL, trips::add);
+        ResponseReservation reservation = new ResponseReservation(breaker, TEST_LABEL, trips::add);
 
         Releasable first = reservation.reserve(60);
         CircuitBreakingException trip = expectThrows(CircuitBreakingException.class, () -> reservation.reserve(60));
@@ -91,7 +91,7 @@ public class ShardResponseReservationTests extends ESTestCase {
 
     public void testReservedTotalCountsOnlyWhatWasReserved() {
         CircuitBreaker breaker = newLimitedBreaker(TRIPPING_LIMIT);
-        ShardResponseReservation reservation = new ShardResponseReservation(breaker, ShardResponseReservation.BREAKER_LABEL, e -> {});
+        ResponseReservation reservation = new ResponseReservation(breaker, TEST_LABEL, e -> {});
 
         Releasable first = reservation.reserve(60);
         expectThrows(CircuitBreakingException.class, () -> reservation.reserve(60));

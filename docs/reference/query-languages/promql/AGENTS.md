@@ -7,7 +7,6 @@ sections is a snippet in `_snippets/compatibility/`, so other pages include the 
 copies:
 
 - The `PROMQL` command page includes every section except `http-api.md`.
-- `promql-http-api.md` includes `http-api.md`.
 
 The sections and headings mirror the Prometheus querying docs, so readers find a difference under the same heading
 that documents the feature in Prometheus:

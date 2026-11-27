@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167523
+summary: Skip leftover peeks once survivors typed the key
+type: enhancement

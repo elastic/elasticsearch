@@ -848,6 +848,17 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         }
     }
 
+    public void testDefaultConnectionPoolSettings() {
+        var indexNode = startMasterAndIndexNode();
+        var searchNode = startSearchNode();
+
+        var indexNodeSettings = internalCluster().getInstance(ClusterService.class, indexNode).getSettings();
+        assertTrue(Integer.parseInt(indexNodeSettings.get("s3.client.test.max_connections")) > 0);
+
+        var searchNodeSettings = internalCluster().getInstance(ClusterService.class, searchNode).getSettings();
+        assertTrue(Integer.parseInt(searchNodeSettings.get("s3.client.test.max_connections")) > 0);
+    }
+
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     public static class InterceptableS3HttpHandler extends S3HttpHandler {
         private volatile Interceptor interceptor;

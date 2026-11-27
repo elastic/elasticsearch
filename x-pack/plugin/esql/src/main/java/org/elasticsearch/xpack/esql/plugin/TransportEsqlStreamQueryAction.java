@@ -32,6 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -236,7 +237,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicReference<Result> resultRef,
         ActionListener<ActionResponse.Empty> streamListener
     ) {
-        ActionListener<ActionResponse.Empty> listener = computeService.coordinate(task, streamListener);
+        // The coordination part lives until the query completes, so planning charges the query's breaker too.
+        QueryScheduler.QueryPart coordination = computeService.coordinate(task);
+        ActionListener<ActionResponse.Empty> listener = ActionListener.releaseAfter(streamListener, coordination);
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
         AtomicBoolean streamStarted = new AtomicBoolean(false);
@@ -396,6 +399,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             externalBlobStoreExecutor(),
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
+            coordination.breaker(),
             ActionListener.wrap(versionedResult -> {
                 Result result = versionedResult.inner();
                 try {

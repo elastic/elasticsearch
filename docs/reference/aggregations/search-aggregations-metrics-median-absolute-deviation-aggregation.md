@@ -2,6 +2,9 @@
 navigation_title: "Median absolute deviation"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-median-absolute-deviation-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Median absolute deviation aggregation [search-aggregations-metrics-median-absolute-deviation-aggregation]

@@ -1029,7 +1029,8 @@ public class SnapshotResiliencyTestHelper {
                     false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
                     featureService,
-                    RestoreProjectCustomUpdater.NOOP
+                    RestoreProjectCustomUpdater.NOOP,
+                    RestoreMetrics.NOOP
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

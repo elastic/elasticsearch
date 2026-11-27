@@ -4552,11 +4552,12 @@ public class EsqlCapabilities {
         FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
 
         /**
-         * {@code FILLNULL ... ON *} leaves a column with a metadata name, such as {@code _index}, alone after a union of subqueries, where
-         * it filled it once the union had turned the metadata column into a plain one.
+         * {@code FILLNULL ... ON *} leaves alone every column whose name starts with an underscore, such as {@code _index} or
+         * {@code _score}, also after a union of subqueries or a {@code FORK} has turned a metadata column into a plain one. A column
+         * that is named is still filled.
          * See <a href="https://github.com/elastic/elasticsearch/issues/165855">#165855</a>.
          */
-        FILLNULL_ALL_COLUMNS_SKIPS_METADATA_AFTER_UNION(FILLNULL.isEnabled()),
+        FILLNULL_ALL_COLUMNS_SKIPS_UNDERSCORE_COLUMNS(FILLNULL.isEnabled()),
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the

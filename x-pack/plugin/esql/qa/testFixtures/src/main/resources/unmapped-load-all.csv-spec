@@ -7770,10 +7770,12 @@ warning:The query has a column named [_unmapped_fields], so the unmapped fields 
 2024-10-23T13:33:34.937Z | filled
 ;
 
-fillNullOnRenamedColumnNamedUnmappedFields
+fillNullAllColumnsLeavesARenamedColumnNamedUnmappedFieldsAlone
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_fillnull
+required_capability: fillnull_all_columns_skips_underscore_columns
 
+// A * leaves alone every column whose name starts with an underscore, also a user column that takes the name of the unmapped fields.
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | EVAL m = CASE(message == "42", null, message)
@@ -7784,6 +7786,29 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 warning:Line 6:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [@timestamp]
+warning:The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them
+
+@timestamp:datetime      | _unmapped_fields:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+2024-10-23T13:33:34.937Z | null
+;
+
+fillNullNamedRenamedColumnNamedUnmappedFieldsIsFilled
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+required_capability: fillnull_all_columns_skips_underscore_columns
+
+// Naming it fills it, as for any other column.
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL m = CASE(message == "42", null, message)
+| RENAME m AS _unmapped_fields
+| KEEP @timestamp, _unmapped_fields
+| FILLNULL "filled" ON _unmapped_fields
+| SORT @timestamp
+| LIMIT 3
+;
 warning:The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them
 
 @timestamp:datetime      | _unmapped_fields:keyword

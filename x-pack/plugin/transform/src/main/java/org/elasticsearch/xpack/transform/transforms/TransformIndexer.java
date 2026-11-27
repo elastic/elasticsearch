@@ -994,6 +994,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 return false;
             }
 
+            // set shouldStopAtCheckpoint before registering the listener: doSaveState takes the listeners before it reads
+            // shouldStopAtCheckpoint, so the state it saves for our listener includes the new value
+            boolean previousShouldStopAtCheckpoint = context.shouldStopAtCheckpoint();
+            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+
             if (saveStateListeners.updateAndGet(currentListeners -> {
                 // check the state again (optimistic locking), while we checked the last time, the indexing thread could have
                 // saved the state and is finishing. As it first set the state and _than_ gets saveStateListeners, it's safe
@@ -1004,7 +1009,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 if (currentListeners == null) {
                     // in case shouldStopAtCheckpoint has already the desired value _and_ we know its _persisted_, respond immediately
-                    if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
+                    if (previousShouldStopAtCheckpoint == shouldStopAtCheckpoint) {
                         return null;
                     }
 
@@ -1014,8 +1019,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }) == null) {
                 return false;
             }
-
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
         }
         // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
         runSearchImmediately();

@@ -8,8 +8,6 @@
  */
 package org.elasticsearch.gradle.internal.info;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.OS;
@@ -22,7 +20,6 @@ import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.util.HttpUtils;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -77,8 +74,6 @@ import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkT
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
-    private static final String DEFAULT_BRANCHES_FILE_URL = "https://raw.githubusercontent.com/elastic/elasticsearch/main/branches.json";
-    private static final String BRANCHES_FILE_LOCATION_PROPERTY = "org.elasticsearch.build.branches-file-location";
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
     );
@@ -129,9 +124,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Version elasticsearchVersionProperty = Version.fromString(versionProperties.getProperty("elasticsearch"));
 
         RuntimeJava runtimeJavaHome = findRuntimeJavaHome();
+        AtomicReference<List<Version>> versionsCache = new AtomicReference<>();
+        Provider<List<Version>> versionsProvider = providers.provider(
+            () -> versionsCache.updateAndGet(val -> val == null ? resolveVersions() : val)
+        );
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
-            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(elasticsearchVersionProperty) : val)
+            () -> cache.updateAndGet(
+                val -> val == null ? new BwcVersions(elasticsearchVersionProperty, versionsProvider.get(), getDevelopmentBranches()) : val
+            )
         );
 
         BuildParameterExtension buildParams = project.getExtensions()
@@ -152,6 +153,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
                 ParallelDetector.findDefaultParallel(project),
                 Util.getBooleanProperty("build.snapshot", true),
+                versionsProvider,
                 bwcVersionsProvider
             );
 
@@ -191,14 +193,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     /* Introspect all versions of ES that may be tested against for backwards
      * compatibility. It is *super* important that this logic is the same as the
      * logic in VersionUtils.java. */
-    private BwcVersions resolveBwcVersions(Version currentElasticsearchVersion) {
+    private List<Version> resolveVersions() {
         String versionsFilePath = elvis(
             System.getProperty("BWC_VERSION_SOURCE"),
             new File(Util.locateElasticsearchWorkspace(project.getGradle()), DEFAULT_VERSION_JAVA_FILE_PATH).getPath()
         );
         try (var is = new FileInputStream(versionsFilePath)) {
-            List<String> versionLines = IOUtils.readLines(is, "UTF-8");
-            return new BwcVersions(currentElasticsearchVersion, parseVersionLines(versionLines), getDevelopmentBranches());
+            return parseVersionLines(IOUtils.readLines(is, "UTF-8"));
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
         }
@@ -214,53 +215,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private List<DevelopmentBranch> getDevelopmentBranches() {
-        String configuredBranchesFileLocation = project.getProviders()
-            .gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
-            .getOrElse(DEFAULT_BRANCHES_FILE_URL);
-        String branchesFileLocation = configuredBranchesFileLocation;
-        if (project.getGradle().getStartParameter().isOffline() && isHttpLocation(configuredBranchesFileLocation)) {
-            File localBranchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
-            if (localBranchesFile.exists()) {
-                LOGGER.warn(
-                    "Gradle is running in offline mode; using local branches.json at [{}] instead of downloading from [{}].",
-                    localBranchesFile,
-                    configuredBranchesFileLocation
-                );
-                branchesFileLocation = localBranchesFile.getAbsolutePath();
-            } else {
-                throw new GradleException(
-                    "Gradle is running in offline mode, but branches.json location ["
-                        + configuredBranchesFileLocation
-                        + "] is an http(s) URL and no local branches.json was found at ["
-                        + localBranchesFile
-                        + "]. Either disable offline mode, set -P"
-                        + BRANCHES_FILE_LOCATION_PROPERTY
-                        + "=<local file path>, or create branches.json at the workspace root."
-                );
-            }
-        }
-        LOGGER.info("Reading branches.json from {}", branchesFileLocation);
-        byte[] branchesBytes;
-        if (isHttpLocation(branchesFileLocation)) {
-            try {
-                branchesBytes = HttpUtils.readHttpBytesWithRetry(branchesFileLocation);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to download branches.json from: " + branchesFileLocation, e);
-            }
-        } else {
-            try {
-                branchesBytes = Files.readAllBytes(new File(branchesFileLocation).toPath());
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to read branches.json from: " + branchesFileLocation, e);
-            }
-        }
-
-        var branchesFileParser = new BranchesFileParser(new ObjectMapper());
-        return branchesFileParser.parse(branchesBytes);
-    }
-
-    private static boolean isHttpLocation(String branchesFileLocation) {
-        return branchesFileLocation.startsWith("http://") || branchesFileLocation.startsWith("https://");
+        // Read eagerly here: the BWC versions are part of the build configuration. Tasks that must validate against the latest
+        // branches.json should use DevelopmentBranchesValueSource#developmentBranches at execution time instead.
+        return DevelopmentBranchesValueSource.load(
+            project.getProviders()
+                .gradleProperty(DevelopmentBranchesValueSource.BRANCHES_FILE_LOCATION_PROPERTY)
+                .getOrElse(DevelopmentBranchesValueSource.DEFAULT_BRANCHES_FILE_URL),
+            new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json"),
+            project.getGradle().getStartParameter().isOffline()
+        );
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {
@@ -296,7 +259,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         if (buildFeatures.getConfigurationCache().getActive().get() == false) {
             // if configuration cache is enabled, resolving the test seed early breaks configuration cache reuse
-            LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
+            LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeedProvider().get());
         }
         LOGGER.quiet("  In FIPS 140 mode      : " + buildParams.getInFipsJvm());
         LOGGER.quiet("=======================================");

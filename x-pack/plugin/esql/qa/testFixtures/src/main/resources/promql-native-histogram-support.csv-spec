@@ -361,3 +361,15 @@ PROMQL index=exp_histo_sample time="2025-09-25T00:02:00.000Z" result=(sort(respo
 
 result:double | step:datetime | _timeseries:keyword
 ;
+
+///////////////////////////////////////////////////////////////////////////////
+// absent on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+// A histogram without any values is still an element.
+absent_exp_histo_empty
+required_capability: promql_absent
+PROMQL index=exp_histo_sample time="2025-09-24T00:00:00.000Z" result=(absent(responseTime{instance="dummy-empty"}));
+
+result:double | step:datetime | instance:keyword
+;

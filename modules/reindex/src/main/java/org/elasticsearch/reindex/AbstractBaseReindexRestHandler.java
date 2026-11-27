@@ -9,11 +9,14 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -68,7 +71,16 @@ public abstract class AbstractBaseReindexRestHandler<
             throw validationException;
         }
         final var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
-        final var task = client.executeAndReturnTask(action, internal, responseListener);
+        // The response only carries the task id, and the task keeps the parsed request until it ends, so it holds the request's charge.
+        final Releasable hold = ParsedContentReservation.hold(client.threadPool().getThreadContext());
+        final Task task;
+        try {
+            task = client.executeAndReturnTask(action, internal, ActionListener.releaseAfter(responseListener, hold));
+        } catch (Exception e) {
+            // The task could not be registered, so the listener is never completed.
+            hold.close();
+            throw e;
+        }
         responseListener.addListener(new LoggingReindexTaskListener(task));
         return sendTask(client.getLocalNodeId(), task);
     }

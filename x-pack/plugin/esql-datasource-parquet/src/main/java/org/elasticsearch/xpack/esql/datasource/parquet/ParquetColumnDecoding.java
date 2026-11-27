@@ -54,6 +54,26 @@ import java.util.function.IntConsumer;
  * and {@link OptimizedParquetColumnIterator}. Centralises list-column decoding,
  * timestamp conversion, UUID formatting, {@code unsigned_long} sign-flip encoding, and other utilities so that bug
  * fixes in one decode path are automatically reflected in the other.
+ *
+ * <p><b>Values of the wrong length.</b> A value whose byte length cannot represent its type reads as that type's
+ * empty value: 0 for a {@code FLOAT16} ({@link #float16ToDouble}) and empty text for a {@code UUID}
+ * ({@link #uuidText}). The read neither fails nor decodes bytes the value does not have. Only a corrupt file holds
+ * such a value, and only through an encoding that does not cut values at the declared width: parquet-java's own V2
+ * writer stores a wrong-width {@code FIXED_LEN_BYTE_ARRAY} value as {@code DELTA_BYTE_ARRAY} without checking it.
+ * PLAIN, {@code BYTE_STREAM_SPLIT} and dictionary pages are cut at the declared width, and the footer parser rejects
+ * a {@code FLOAT16} or {@code UUID} annotation on any other physical shape. The empty value follows the lenient rules
+ * already in place: a negative PLAIN BINARY length reads as an empty value (see {@link PlainValueDecoder}) and an
+ * empty unscaled DECIMAL as 0 (see {@link #unscaledToBigInteger}). It is a value rather than a null because a
+ * required column builds a vector, which has no null, and a second, null-capable decode path only for corrupt files
+ * is not worth its cost. The optimized and baseline scans and the LIST arm all decode through these helpers, so they
+ * agree.
+ * <p>
+ * Two types have no such length. Any number of big-endian bytes is a two's complement integer, so a
+ * {@code FIXED_LEN_BYTE_ARRAY} DECIMAL of the wrong width reads as the value its bytes hold, as a BINARY one does.
+ * An INT96 value is always 12 bytes: parquet-java has no variable-width encoding for INT96 and its writer rejects any
+ * other width, so {@link #int96ToEpochMillis} treats another length as a broken invariant. Footer statistics are
+ * stricter than the scan: a bound of the wrong width is withheld (see {@link #isUsableStatBound}), since a default
+ * there would be a bound that says nothing about the row group.
  */
 final class ParquetColumnDecoding {
 
@@ -72,21 +92,34 @@ final class ParquetColumnDecoding {
 
     // ---- Temporal helpers ----
 
-    static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
-        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            // Only the MILLIS arm is reachable today: a TIMESTAMP(MICROS|NANOS) column renders date_nanos, and a
-            // declared `date` over it is not a fused pair, so it narrows through castBlock rather than arriving
-            // here. The sub-millisecond arms are kept, and floor rather than truncate with `/`, so that they agree
-            // with that narrowing -- which floors -- if a route ever does reach them. Java's `/` rounds toward
-            // zero, so the two would disagree by a millisecond below the epoch, which is the range that route
-            // would exist to open.
-            return switch (ts.getUnit()) {
-                case MILLIS -> raw;
-                case MICROS -> Math.floorDiv(raw, 1_000L);
-                case NANOS -> Math.floorDiv(raw, 1_000_000L);
-            };
+    static long convertTemporalToMillis(long raw, LogicalTypeAnnotation logicalType) {
+        LogicalTypeAnnotation.TimeUnit unit = temporalUnit(logicalType);
+        if (unit == null) {
+            return raw;
         }
-        return raw;
+        // floorDiv, not `/`: the two disagree by a millisecond below the epoch, and castBlock's narrowing and
+        // the pruning relation both floor.
+        return switch (unit) {
+            case MILLIS -> raw;
+            case MICROS -> Math.floorDiv(raw, 1_000L);
+            case NANOS -> Math.floorDiv(raw, 1_000_000L);
+        };
+    }
+
+    /**
+     * The unit of a {@code TIMESTAMP} or {@code TIME} annotation, or {@code null} for any other annotation and for
+     * none. A TIMESTAMP counts from the epoch and a TIME from midnight, but the scale is the unit's either way, so
+     * the two share one conversion.
+     */
+    @Nullable
+    private static LogicalTypeAnnotation.TimeUnit temporalUnit(@Nullable LogicalTypeAnnotation logicalType) {
+        if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return ts.getUnit();
+        }
+        if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            return time.getUnit();
+        }
+        return null;
     }
 
     // ---- date_nanos (epoch-nanoseconds) helpers ----
@@ -156,23 +189,19 @@ final class ParquetColumnDecoding {
             && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
         boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
             && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
-        // A TIME value is a time of day, so a well-formed one is at most 86_400_000_000 microseconds -- which is
-        // MAX_MICROS_AS_NANOS divided by about 107_000 -- and neither its scale nor its narrowing can null. But
-        // nothing enforces that a file obeys its own annotation, and a MICROS value past that bound is nulled by
-        // microsOverflowsNanos like any other, so only the units with no guard on their path relax here. Trusting
-        // the annotation instead would push IS NULL over a column whose decode can null, which drops rows.
+        // Keyed on the unit, not on TIME's own bound: nothing enforces that a file obeys its annotation, and an
+        // out-of-bound MICROS value is still nulled on the inferred read. Trusting it would push IS NULL over a
+        // column whose decode can null.
         boolean timeAnnotated = logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time2
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
             // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
-            // domain. MICROS declines because its decode genuinely nulls: a column rendering date_nanos read as
-            // `date` is NOT a fusedInDecode pair, so it decodes to nanoseconds first, where microsOverflowsNanos
-            // nulls anything outside the nanosecond domain, and only then narrows. The decline is necessary, not
-            // conservative, and must not be relaxed while that two-step route stands -- this predicate gates
-            // row-group pruning, so a wrong `false` here drops rows. The MICROS arm of the TIME units is the same
-            // case. Relaxing it also needs the arm decided by FILE type rather than declared: a uint64 column
-            // reaches `date` through Numbers.toLong, which throws at or above 2^63, and a scale-0 DECIMAL through
-            // safeDoubleToLong.
+            // domain. The DECLARED read is fused and total, so it does not force the MICROS decline. It is
+            // not known to be safe to relax either: this arm is keyed on the declared type, and the same DATETIME
+            // target is reachable over the same file without a declaration, where the read still nulls -- see
+            // ParquetFormatReaderTests.testInferredDatetimeOverADateNanosFileNullsOnEveryRoute. Relaxing it means
+            // keying the arm on the FILE type and re-deriving that cell. A wrong `false` here drops matching rows,
+            // so it stays as it is.
             case DATETIME -> (logical == null || millisAnnotated || nanosAnnotated || timeAnnotated) == false;
             // A bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the
             // identity; MICROS/MILLIS scale and can overflow.
@@ -246,10 +275,10 @@ final class ParquetColumnDecoding {
             // the TIMESTAMP arm above applies for the same two units -- what the value counts from does not enter the
             // bound arithmetic. Sound against the footer because a TIME column's raw values compare chronologically
             // under signed comparison, the precondition decodeTemporalStat states for publishing their min/max.
-            // Only a DATE_NANOS target gets a relation. A declared `date` over a TIME column composes to
-            // floorDiv(raw x 1000, 1e6) == floorDiv(raw, 1000), i.e. the ScaleDown(1000) the TIMESTAMP(MICROS) arm
-            // above already uses, so an arm for it is expressible -- it is simply not written, and declining costs
-            // pruning rather than rows.
+            // Only a DATE_NANOS target gets a relation. A declared `date` over a TIME column is a fused pair, so it
+            // decodes in one step through convertTemporalToMillis' TIME arm: floorDiv(raw, 1000) for MICROS, which
+            // is the ScaleDown(1000) the TIMESTAMP(MICROS) arm above already uses. An arm for it is expressible --
+            // it is simply not written, and declining costs pruning rather than rows.
             //
             // MILLIS declines rather than publishing a relation. The Parquet spec puts TIME(MILLIS) on an INT32 and
             // parquet-mr enforces it -- Types rejects the pair with "TIME(MILLIS,true) can only annotate INT32" -- so
@@ -561,9 +590,9 @@ final class ParquetColumnDecoding {
      * whose millisecond-of-day needs no scaling. A text column is {@code BINARY} or
      * {@code FIXED_LEN_BYTE_ARRAY}, both of which render ESQL {@code keyword}.
      *
-     * <p>Both decode engines classify here, so neither can key the choice on a different thing, and the resulting
-     * value equals what {@link DeclaredTypeCoercions#castBlock} produces over the column's inferred decode — the
-     * invariant the deferred late-materialization route relies on.
+     * <p>Both decode engines classify here, so neither can key the choice on a different thing. The arms agree with
+     * {@link DeclaredTypeCoercions#castBlock} over the inferred decode wherever that decode has a value; for a
+     * {@code TIMESTAMP(MICROS)} column read as {@code date} it has none, and the fused arm answers instead.
      */
     enum DatetimeDecode {
         /** 12-byte {@code INT96}: Julian day plus nanos-of-day. */
@@ -630,13 +659,12 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * The value the inferred read of an {@code INT64} column produces: a {@code TIMESTAMP} annotation's unit narrowed
-     * to millis, and a bare {@code INT64} unchanged. As with {@link #int32AsInferredLong}, reinterpreting the result
-     * as an epoch is the caller's step. No {@code TIME} case: an INT64 {@code TIME} column renders
-     * {@code DATE_NANOS}, so it never reaches a fused {@code long -> datetime} decode.
+     * The millisecond value a {@code DATETIME} decode arm reads out of an {@code INT64} column: a {@code TIMESTAMP}
+     * or {@code TIME} annotation's unit narrowed to millis, and a bare {@code INT64} unchanged. As with
+     * {@link #int32AsInferredLong}, reinterpreting the result as an epoch is the caller's step.
      */
-    static long int64AsInferredLong(long raw, @Nullable LogicalTypeAnnotation logical) {
-        return convertTimestampToMillis(raw, logical);
+    static long int64AsMillis(long raw, @Nullable LogicalTypeAnnotation logical) {
+        return convertTemporalToMillis(raw, logical);
     }
 
     // ---- Unsigned integer logical-type checks ----
@@ -673,25 +701,30 @@ final class ParquetColumnDecoding {
      * {@code FIXED_LEN_BYTE_ARRAY(2)}), so its footer stat is a Parquet {@link Binary}. DECIMAL can
      * be backed by INT32, INT64, BINARY, or FIXED_LEN_BYTE_ARRAY — its stat arrives as an
      * {@link Integer}/{@link Long} unscaled value for the former two, and as {@link Binary} bytes
-     * (big-endian two's complement) for the latter two.
+     * (big-endian two's complement) for the latter two. An empty BINARY DECIMAL stat decodes as 0, as the
+     * scan reads an empty value (see {@link #unscaledToBigInteger}): parquet-java orders an empty unscaled
+     * value as 0 when it computes the min/max, so the bound agrees with the values the scan returns.
+     * A FIXED_LEN_BYTE_ARRAY DECIMAL or FLOAT16 stat that is not the declared width is corrupt instead;
+     * callers must reject it with {@link #isUsableStatBound} before decoding.
      *
      * <p>Returns {@code null} when the type is not FLOAT16/DECIMAL, or the value's runtime type
      * doesn't match what the physical type implies (caller falls through to other normalization).
      */
     static Double decodeBinaryNumericStat(Object value, PrimitiveType type) {
+        assert isUsableStatBound(value, type)
+            : "a FIXED_LEN_BYTE_ARRAY DECIMAL/FLOAT16 stat that is not the declared width must be rejected before decoding";
         LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
         if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
             if (value instanceof Binary binary) {
                 byte[] bytes = binary.getBytes();
-                short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
-                return (double) Float.float16ToFloat(float16Bits);
+                return float16ToDouble(bytes, 0, bytes.length);
             }
             return null;
         }
         if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
             BigInteger unscaled;
             if (value instanceof Binary binary) {
-                unscaled = new BigInteger(binary.getBytes());
+                unscaled = unscaledToBigInteger(binary.getBytes());
             } else if (value instanceof Number number) {
                 unscaled = BigInteger.valueOf(number.longValue());
             } else {
@@ -700,6 +733,64 @@ final class ParquetColumnDecoding {
             return new BigDecimal(unscaled, decimal.getScale()).doubleValue();
         }
         return null;
+    }
+
+    /**
+     * Whether a footer min/max value may be published as a bound at all. A FIXED_LEN_BYTE_ARRAY DECIMAL, FLOAT16 or
+     * UUID value has the declared width, and parquet-java never truncates such bounds, so a statistic of any other
+     * length for such a column is corrupt. Decoding it anyway would publish a bound no scanned value backs: a short
+     * DECIMAL reads as an unrelated value (an empty one as 0, as for variable-length BINARY, where parquet-java really
+     * does order an empty value as 0) that could prune a split holding matching rows or answer a pushed MIN/MAX
+     * wrongly, a short FLOAT16 would read past its bytes, and a UUID has no text for any other width. Such a bound is
+     * reachable: parquet-java's V2 writer accepts a wrong-width UUID value (see the {@link ParquetColumnDecoding class
+     * Javadoc}) and folds it into the statistics, and its footer parser accepts the result. Callers withhold the
+     * column's min and max for that row group instead, which is always safe: nothing is pruned and MIN/MAX fall back
+     * to a scan. Every other value is usable here; type-specific checks (such as temporal range) stay with the
+     * normalization that follows. INT96 needs no check, as parquet-java drops INT96 min/max when it reads the footer.
+     */
+    static boolean isUsableStatBound(Object value, PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        if (type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY
+            && (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation
+                || logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation
+                || logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation)
+            && value instanceof Binary binary) {
+            return binary.length() == type.getTypeLength();
+        }
+        return true;
+    }
+
+    /** Byte width of a Parquet {@code FLOAT16} value, an IEEE half stored little-endian. */
+    static final int FLOAT16_BYTES = 2;
+
+    /**
+     * Decodes a little-endian IEEE half ({@code FLOAT16}) into the {@code double} ESQL stores. A value that is not
+     * {@link #FLOAT16_BYTES} long reads as 0; see the {@link ParquetColumnDecoding class Javadoc}.
+     */
+    static double float16ToDouble(byte[] bytes, int offset, int length) {
+        if (length != FLOAT16_BYTES) {
+            return 0.0;
+        }
+        short float16Bits = (short) ((bytes[offset + 1] & 0xFF) << 8 | (bytes[offset] & 0xFF));
+        return Float.float16ToFloat(float16Bits);
+    }
+
+    /**
+     * Decodes the unscaled value of a BINARY- or FIXED_LEN_BYTE_ARRAY-backed DECIMAL (big-endian two's complement).
+     * An empty value reads as 0 instead of failing, as {@link BigInteger} rejects zero bytes: no valid writer emits
+     * one, but parquet-java orders an empty unscaled value as 0 when it computes DECIMAL statistics, and a corrupt
+     * negative PLAIN length decodes as an empty value (see {@link PlainValueDecoder}). Shared so the baseline and
+     * optimized scans and the BINARY footer statistics agree on that value. A fixed-width scan never reads an empty
+     * value, so a FIXED_LEN_BYTE_ARRAY statistic that is not the declared width is withheld rather than decoded (see
+     * {@link #isUsableStatBound}).
+     */
+    static BigInteger unscaledToBigInteger(byte[] bytes, int offset, int length) {
+        return length == 0 ? BigInteger.ZERO : new BigInteger(bytes, offset, length);
+    }
+
+    /** {@link #unscaledToBigInteger(byte[], int, int)} over the whole array. */
+    static BigInteger unscaledToBigInteger(byte[] bytes) {
+        return unscaledToBigInteger(bytes, 0, bytes.length);
     }
 
     // ---- Unsigned long encoding ----
@@ -728,10 +819,23 @@ final class ParquetColumnDecoding {
 
     // ---- UUID formatting ----
 
+    /** Byte width of a Parquet {@code UUID} value. */
+    static final int UUID_BYTES = 16;
+
+    /**
+     * The KEYWORD text of a Parquet {@code UUID} value: the 8-4-4-4-12 hex string of {@link #formatUuid}, or empty
+     * text for a value that is not {@link #UUID_BYTES} long (see the {@link ParquetColumnDecoding class Javadoc}).
+     * Every read of a file's UUID values goes through here rather than through {@link #formatUuid}, which rejects
+     * such a value.
+     */
+    static String uuidText(byte[] bytes, int offset, int length) {
+        return length == UUID_BYTES ? formatUuid(bytes, offset, length) : "";
+    }
+
     /**
      * Formats a 16-byte UUID in big-endian layout as the standard 8-4-4-4-12 hex string.
-     * Requires exactly 16 bytes; shorter or longer arrays indicate an upstream bug since
-     * Parquet {@code FIXED_LEN_BYTE_ARRAY(16)} is always exactly 16 bytes.
+     * Requires exactly 16 bytes and throws otherwise. A file value can have another length (see the
+     * {@link ParquetColumnDecoding class Javadoc}), so decode paths call {@link #uuidText} instead.
      */
     static String formatUuid(byte[] bytes) {
         return formatUuid(bytes, 0, bytes == null ? 0 : bytes.length);
@@ -769,9 +873,11 @@ final class ParquetColumnDecoding {
      * list agree with both.
      */
     static String declaredTextOf(Binary binary, @Nullable LogicalTypeAnnotation logical) {
-        return logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation
-            ? formatUuid(binary.getBytes())
-            : binary.toStringUsingUTF8();
+        if (logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation) {
+            byte[] bytes = binary.getBytes();
+            return uuidText(bytes, 0, bytes.length);
+        }
+        return binary.toStringUsingUTF8();
     }
 
     // ---- Skip helpers ----
@@ -1246,10 +1352,7 @@ final class ParquetColumnDecoding {
     ) {
         DataType declared = info.esqlType();
         DataType fileElementType = info.fileEsqlType();
-        if (fileElementType != null
-            && declared != fileElementType
-            && DeclaredTypeCoercions.fusedInDecode(fileElementType, declared, info.dateFormatter() != null) == false
-            && DeclaredTypeCoercions.supports(fileElementType, declared)) {
+        if (DeclaredTypeCoercions.needsBlockCast(fileElementType, declared, info.dateFormatter() != null)) {
             // The recursion decodes at the file's own element type and owns the drop notice for this read; this
             // frame deliberately keeps no tally of its own, since it never reaches the row loops below.
             Block physical = readListColumn(
@@ -1490,9 +1593,10 @@ final class ParquetColumnDecoding {
         // rather than sanitizing, which would mangle valid UUID bytes into replacement characters.
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-            Runnable appender = isUuid
-                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(input.reader().getBinary().getBytes())))
-                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(input.reader().getBinary().getBytes())));
+            Runnable appender = isUuid ? () -> {
+                byte[] bytes = input.reader().getBinary().getBytes();
+                builder.appendBytesRef(new BytesRef(uuidText(bytes, 0, bytes.length)));
+            } : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(input.reader().getBinary().getBytes())));
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }
@@ -1528,7 +1632,7 @@ final class ParquetColumnDecoding {
             Runnable appender = switch (decode) {
                 case DATE_DAYS -> () -> builder.appendLong(dateDaysToMillis(input.reader().getInteger()));
                 case INT32_EPOCH_MILLIS -> () -> builder.appendLong(int32AsInferredLong(input.reader().getInteger(), logical));
-                case INT64_EPOCH_MILLIS -> () -> builder.appendLong(int64AsInferredLong(input.reader().getLong(), logical));
+                case INT64_EPOCH_MILLIS -> () -> builder.appendLong(int64AsMillis(input.reader().getLong(), logical));
                 case INT96 -> () -> {
                     byte[] bytes = input.reader().getBinary().getBytes();
                     builder.appendLong(int96ToEpochMillis(bytes, 0, bytes.length));
@@ -1580,9 +1684,9 @@ final class ParquetColumnDecoding {
                         input.consumeUndefined();
                     } else {
                         // Always read the value so the data cursor advances, also past a row skip_row drops. The
-                        // text render stays inside the try: formatUuid rejects a UUID annotation over anything but
-                        // 16 bytes, and that is a per-value failure for the error policy to handle, not a reason to
-                        // abandon the read with the cursor un-consumed.
+                        // text render stays inside the try so that any failure rendering it is a per-value failure
+                        // for the error policy to handle, not a reason to abandon the read with the cursor
+                        // un-consumed. A UUID of the wrong width renders as empty text, which fails to parse.
                         Binary raw = input.reader().getBinary();
                         if (rowDropped == false) {
                             try {

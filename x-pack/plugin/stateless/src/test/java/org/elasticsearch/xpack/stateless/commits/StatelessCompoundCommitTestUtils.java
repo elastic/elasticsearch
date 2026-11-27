@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.ArrayList;

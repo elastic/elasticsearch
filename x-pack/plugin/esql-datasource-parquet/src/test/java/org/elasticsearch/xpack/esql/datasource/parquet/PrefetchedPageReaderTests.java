@@ -31,6 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -65,12 +66,109 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         assertV1RoundTripDecompresses(CompressionCodecName.GZIP);
     }
 
+    public void testReadsMultipleGzipV1PagesOnOneReader() throws IOException {
+        int pages = between(2, 5);
+        BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.GZIP);
+        byte[][] payloads = new byte[pages][];
+        ArrayList<PrefetchedPageReader.CompressedPage> compressedPages = new ArrayList<>(pages);
+        int totalValues = 0;
+        for (int i = 0; i < pages; i++) {
+            payloads[i] = randomBytesOfLength(between(64, 4096));
+            BytesInput compressed = compressor.compress(BytesInput.from(payloads[i]));
+            DataPageV1 v1 = new DataPageV1(
+                BytesInput.from(compressed.toByteArray()),
+                10,
+                payloads[i].length,
+                intStats(),
+                Encoding.RLE,
+                Encoding.RLE,
+                Encoding.PLAIN
+            );
+            compressedPages.add(new PrefetchedPageReader.CompressedPage(v1, -1L));
+            totalValues += 10;
+        }
+        try (
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(CompressionCodecName.GZIP),
+                breaker,
+                compressedPages,
+                null,
+                totalValues
+            )
+        ) {
+            for (int i = 0; i < pages; i++) {
+                DataPageV1 out = (DataPageV1) reader.readPage();
+                assertThat(out, notNullValue());
+                assertThat(out.getBytes().toByteArray(), equalTo(payloads[i]));
+            }
+            assertThat(reader.readPage(), nullValue());
+        }
+    }
+
+    public void testGzipInflateAfterCloseThrowsClosed() throws IOException {
+        byte[] payload = randomBytesOfLength(64);
+        BytesInput compressed = codecFactory.getCompressor(CompressionCodecName.GZIP).compress(BytesInput.from(payload));
+        byte[] gz = compressed.toByteArray();
+        PrefetchedPageReader[] holder = new PrefetchedPageReader[1];
+        InputStream closingStream = new ByteArrayInputStream(gz) {
+            @Override
+            public synchronized int read(byte[] b, int off, int len) {
+                holder[0].close();
+                return super.read(b, off, len);
+            }
+        };
+        BytesInput closing = BytesInput.from(closingStream, gz.length);
+        DataPageV1 v1 = new DataPageV1(closing, 10, payload.length, intStats(), Encoding.RLE, Encoding.RLE, Encoding.PLAIN);
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.GZIP),
+            breaker,
+            List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
+            null,
+            10
+        );
+        holder[0] = reader;
+        ParquetDecodingException e = expectThrows(ParquetDecodingException.class, reader::readPage);
+        assertThat(e.getMessage(), equalTo("PrefetchedPageReader closed"));
+    }
+
+    public void testGzipDictionaryPageStillDecompresses() throws IOException {
+        byte[] payload = randomBytesOfLength(48);
+        BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.GZIP);
+        BytesInput compressed = compressor.compress(BytesInput.from(payload));
+        DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(compressed.toByteArray()), payload.length, 4, Encoding.PLAIN);
+        try (
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(CompressionCodecName.GZIP),
+                breaker,
+                List.of(),
+                compressedDict,
+                0
+            )
+        ) {
+            DictionaryPage first = reader.readDictionaryPage();
+            DictionaryPage second = reader.readDictionaryPage();
+            assertSame(first, second);
+            assertThat(first.getBytes().toByteArray(), equalTo(payload));
+        }
+    }
+
     public void testReadsV1PageZstd() throws IOException {
         assertV1RoundTripDecompresses(CompressionCodecName.ZSTD);
     }
 
     public void testReadsV1PageLz4Raw() throws IOException {
         assertV1RoundTripDecompresses(CompressionCodecName.LZ4_RAW);
+    }
+
+    public void testDecompressionFailureNamesTheCodec() throws IOException {
+        CompressionCodecName codec = randomFrom(
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW
+        );
+        assertV1DecompressFailureNamesCodec(codec);
+        assertV2DecompressFailureNamesCodec(codec);
     }
 
     public void testReadsV2PageUncompressed() throws IOException {
@@ -499,6 +597,76 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             assertThat(out.getValueCount(), equalTo(5));
             assertThat(out.getBytes().toByteArray(), equalTo(payload));
         }
+    }
+
+    private void assertV1DecompressFailureNamesCodec(CompressionCodecName codec) throws IOException {
+        byte[] payload = randomBytesOfLength(64);
+        byte[] compressed = scramble(codecFactory.getCompressor(codec).compress(BytesInput.from(payload)).toByteArray());
+        DataPageV1 v1 = new DataPageV1(
+            BytesInput.from(compressed),
+            10,
+            payload.length,
+            intStats(),
+            Encoding.RLE,
+            Encoding.RLE,
+            Encoding.PLAIN
+        );
+        try (
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(codec),
+                breaker,
+                List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
+                null,
+                10,
+                ParquetDecodeBudget.NOOP,
+                codec
+            )
+        ) {
+            ParquetDecodingException e = expectThrows(ParquetDecodingException.class, reader::readPage);
+            assertThat(e.getMessage(), equalTo("Could not decompress V1 data page (codec " + codec + ")"));
+        }
+    }
+
+    private void assertV2DecompressFailureNamesCodec(CompressionCodecName codec) throws IOException {
+        byte[] rl = new byte[] { 1, 2, 3, 4 };
+        byte[] dl = new byte[] { 5, 6 };
+        byte[] data = randomBytesOfLength(64);
+        byte[] compressedData = scramble(codecFactory.getCompressor(codec).compress(BytesInput.from(data)).toByteArray());
+        DataPageV2 v2 = new DataPageV2(
+            8,
+            1,
+            10,
+            BytesInput.from(rl),
+            BytesInput.from(dl),
+            Encoding.PLAIN,
+            BytesInput.from(compressedData),
+            rl.length + dl.length + data.length,
+            intStats(),
+            true
+        );
+        try (
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(codec),
+                breaker,
+                List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
+                null,
+                10,
+                ParquetDecodeBudget.NOOP,
+                codec
+            )
+        ) {
+            ParquetDecodingException e = expectThrows(ParquetDecodingException.class, reader::readPage);
+            assertThat(e.getMessage(), equalTo("Could not decompress V2 data page (codec " + codec + ")"));
+        }
+    }
+
+    private static byte[] scramble(byte[] compressed) {
+        assertTrue("compressed page too small to scramble", compressed.length > 0);
+        byte[] damaged = compressed.clone();
+        for (int i = 0; i < damaged.length; i++) {
+            damaged[i] ^= 0x5A;
+        }
+        return damaged;
     }
 
     private void assertV1RoundTripDecompresses(CompressionCodecName codec) throws IOException {

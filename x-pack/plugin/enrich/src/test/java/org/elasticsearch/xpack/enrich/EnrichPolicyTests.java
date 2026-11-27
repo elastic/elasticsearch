@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
@@ -43,7 +44,25 @@ public class EnrichPolicyTests extends AbstractXContentSerializingTestCase<Enric
 
     @Override
     protected EnrichPolicy mutateInstance(EnrichPolicy instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String type = instance.getType();
+        EnrichPolicy.QuerySource query = instance.getQuery();
+        List<String> indices = instance.getIndices();
+        String matchField = instance.getMatchField();
+        List<String> enrichFields = instance.getEnrichFields();
+
+        switch (between(0, 4)) {
+            case 0 -> type = randomValueOtherThan(type, () -> randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES));
+            case 1 -> query = randomValueOtherThan(
+                query,
+                () -> randomBoolean() ? null : randomQuerySource(randomFrom(XContentType.values()))
+            );
+            case 2 -> indices = randomValueOtherThan(indices, EnrichPolicyTests::randomIndices);
+            case 3 -> matchField = randomValueOtherThan(matchField, () -> randomAlphaOfLength(4));
+            case 4 -> enrichFields = randomValueOtherThan(enrichFields, EnrichPolicyTests::randomEnrichFields);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new EnrichPolicy(type, query, indices, matchField, enrichFields);
     }
 
     @Override
@@ -52,6 +71,16 @@ public class EnrichPolicyTests extends AbstractXContentSerializingTestCase<Enric
     }
 
     public static EnrichPolicy randomEnrichPolicy(XContentType xContentType) {
+        return new EnrichPolicy(
+            randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
+            randomBoolean() ? randomQuerySource(xContentType) : null,
+            randomIndices(),
+            randomAlphaOfLength(4),
+            randomEnrichFields()
+        );
+    }
+
+    private static EnrichPolicy.QuerySource randomQuerySource(XContentType xContentType) {
         final QueryBuilder queryBuilder;
         if (randomBoolean()) {
             queryBuilder = new MatchAllQueryBuilder();
@@ -63,20 +92,20 @@ public class EnrichPolicyTests extends AbstractXContentSerializingTestCase<Enric
         try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(xContentType, out)) {
             XContentBuilder content = queryBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             content.flush();
-            EnrichPolicy.QuerySource querySource = new EnrichPolicy.QuerySource(new BytesArray(out.toByteArray()), content.contentType());
-            return new EnrichPolicy(
-                randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
-                randomBoolean() ? querySource : null,
-                Arrays.stream(generateRandomStringArray(8, 4, false, false))
-                    .map(s -> s.toLowerCase(Locale.ROOT))
-                    .collect(Collectors.toList()),
-                randomAlphaOfLength(4),
-                Arrays.asList(generateRandomStringArray(8, 4, false, false))
-            );
+            return new EnrichPolicy.QuerySource(new BytesArray(out.toByteArray()), content.contentType());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
 
+    private static List<String> randomIndices() {
+        return Arrays.stream(generateRandomStringArray(8, 4, false, false))
+            .map(s -> s.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toList());
+    }
+
+    private static List<String> randomEnrichFields() {
+        return Arrays.asList(generateRandomStringArray(8, 4, false, false));
     }
 
     @Override

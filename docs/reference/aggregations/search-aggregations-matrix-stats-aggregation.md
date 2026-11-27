@@ -2,6 +2,9 @@
 navigation_title: "Matrix stats"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-matrix-stats-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Matrix stats aggregation [search-aggregations-matrix-stats-aggregation]

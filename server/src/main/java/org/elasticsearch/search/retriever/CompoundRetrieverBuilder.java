@@ -15,12 +15,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -34,6 +36,8 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
@@ -42,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -90,6 +95,25 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
      * Combines the provided {@code rankResults} to return the final top documents.
      */
     protected abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain);
+
+    /**
+     * Same as {@link #combineInnerRetrieverResults(List, boolean)}, but also receives a {@code cancellationCheck} that
+     * throws if the search was cancelled. Implementations with a long-running combine step should override this and
+     * call the check periodically so that a cancelled search stops early.
+     */
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain, Runnable cancellationCheck) {
+        return combineInnerRetrieverResults(rankResults, explain);
+    }
+
+    /**
+     * Returns the executor on which the inner retriever responses are processed and
+     * {@link #combineInnerRetrieverResults} is called. By default this runs on the thread that delivered the
+     * inner search responses, which may be a transport thread. Implementations with an expensive combine step must
+     * fork to a different executor so that they do not block the network threads.
+     */
+    protected Executor combineExecutor(ThreadPool threadPool) {
+        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+    }
 
     @Override
     public final boolean isCompound() {
@@ -165,6 +189,16 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             client.execute(TransportMultiSearchAction.TYPE, multiSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(MultiSearchResponse items) {
+                    // keep the response alive while it is being processed, the rank docs may reference its hits
+                    items.mustIncRef();
+                    combineExecutor(client.threadPool()).execute(
+                        ActionRunnable.wrapReleasing(listener, items::decRef, l -> processResponse(items))
+                    );
+                }
+
+                private void processResponse(MultiSearchResponse items) {
+                    ctx.getCancellationCheck().run();
+
                     List<ScoreDoc[]> topDocs = new ArrayList<>();
                     List<Exception> failures = new ArrayList<>();
                     // capture the max status code returned by any of the responses
@@ -180,6 +214,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                             }
                         } else {
                             assert item.getResponse() != null;
+                            ctx.addPhaseFailures(item.getResponse().getPhaseFailures());
                             // TODO: handle partial failures by passing them back up with the results
                             if (item.getResponse().getFailedShards() > 0 && ctx.allowPartialSearchResults() == false) {
                                 statusCode = handleShardFailures(item.getResponse(), statusCode, failures);
@@ -193,9 +228,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
                     if (failures.isEmpty()) {
                         try {
+                            // the search may have been cancelled while the inner searches ran, so skip the combine step
+                            ctx.getCancellationCheck().run();
                             boolean enrichResults = ctx.isExplain() || ctx.isProfile();
-                            results.set(combineInnerRetrieverResults(topDocs, enrichResults));
+                            results.set(combineInnerRetrieverResults(topDocs, enrichResults, ctx.getCancellationCheck()));
                             listener.onResponse(null);
+                            return;
+                        } catch (TaskCancelledException e) {
+                            listener.onFailure(e);
                             return;
                         } catch (RuntimeException rtEx) {
                             retrieversWithFailures.add(getName());
@@ -233,8 +273,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     }
 
     int handleShardFailures(SearchResponse response, int statusCode, List<Exception> failures) {
-        ShardSearchFailure[] shardFailures = response.getShardFailures();
-        for (ShardSearchFailure shardFailure : shardFailures) {
+        for (ShardSearchFailure shardFailure : response.getShardFailures()) {
             if (shardFailure != null) {
                 int shardFailureStatusCode = ExceptionsHelper.status(shardFailure.getCause()).getStatus();
                 failures.add(

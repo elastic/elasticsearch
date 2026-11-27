@@ -236,7 +236,48 @@ public class SplitFilterClassifierTests extends ESTestCase {
         int scoreCol = builder.addColumn("score", 0L, 1.5, 9.5, -1);
         builder.valueCount(scoreCol, 100); // single-valued (one value per row) — required for comparison MATCH
         SplitStats stats = builder.build();
-        assertEquals(MATCH, classify(greaterThanOf(score, of(0.5)), stats));
+        // min/max omit NaN, so a DOUBLE MATCH would over-count; MISS is still sound.
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(0.5)), stats));
+        assertEquals(MISS, classify(greaterThanOf(score, of(10.0)), stats));
+    }
+
+    /**
+     * File-format min/max omit IEEE NaN. Conservative DOUBLE/FLOAT classification: ordered/eq/IN
+     * MATCH is forbidden (NaN fails those comparisons), {@code !=} MISS is forbidden (NaN != lit
+     * is true). INTEGER fixtures above are unchanged.
+     */
+    public void testFloatingStatsMayHideNaN() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats constFive = colStats("score", 5.0, 5.0, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(score, of(5.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(4.0)), constFive));
+        assertEquals(MISS, classify(lessThanOf(score, of(4.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(not(greaterThanOf(score, of(4.0))), constFive));
+        // != MATCH stays valid: a hidden NaN also satisfies != 4.
+        assertEquals(MATCH, classify(notEqualsOf(score, of(4.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(equalsOf(score, of(5.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(in(score, of(5.0)), constFive));
+
+        ReferenceAttribute f = referenceAttribute("f", DataType.FLOAT);
+        SplitStats floatFive = colStats("f", 5.0f, 5.0f, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(f, of(4.0f)), floatFive));
+        assertEquals(MISS, classify(lessThanOf(f, of(4.0f)), floatFive));
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(f, of(5.0f)), floatFive));
+        assertEquals(MATCH, classify(notEqualsOf(f, of(4.0f)), floatFive));
+
+        // In.process uses Double.compare, so a hidden NaN matches IN (NaN). Cannot MISS.
+        assertEquals(AMBIGUOUS, classify(in(score, of(Double.NaN), of(9.0)), constFive));
+        assertEquals(MISS, classify(in(score, of(9.0)), constFive));
+
+        // Finite extrema contained in the range would MATCH without NaN; DOUBLE MATCH is withheld.
+        assertEquals(AMBIGUOUS, classify(new MvInRange(Source.EMPTY, score, of(4.0), of(6.0)), constFive));
+        assertEquals(MISS, classify(new MvInRange(Source.EMPTY, score, of(6.0), of(9.0)), constFive));
+
+        // Extrema that are themselves NaN cannot MATCH or MISS (Double.compare orders NaN largest).
+        SplitStats nanBounds = colStats("score", Double.NaN, Double.NaN, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(score, of(5.0)), nanBounds));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(score, of(10.0)), nanBounds));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(0.0)), nanBounds));
     }
 
     public void testStringStats() {
@@ -247,6 +288,47 @@ public class SplitFilterClassifierTests extends ESTestCase {
         builder.valueCount(nameCol, 100); // single-valued (one value per row) — required for comparison MATCH
         SplitStats stats = builder.build();
         assertEquals(MATCH, classify(greaterThanOf(name, of("aaron")), stats));
+    }
+
+    /**
+     * A withheld text extremum leaves the column with one end, which
+     * {@code esql.external.cache.stats.max_extremum_size} makes routine. The classifier stays AMBIGUOUS on
+     * every predicate that reads the extrema, for two different reasons. In the first group the end present
+     * would decide each literal soundly, so AMBIGUOUS is a deliberate conservatism rather than a safety
+     * requirement, and what those cases pin is the behaviour the docs promise -- a withheld end costs the
+     * short-circuit -- so an optimisation that started deciding from a single end would have to change them
+     * and say why. In the last two the end present settles nothing, so AMBIGUOUS is the only sound answer
+     * and any such optimisation still has to return it.
+     */
+    public void testAOneSidedTextExtremumStaysAmbiguous() {
+        ReferenceAttribute note = referenceAttribute("note", DataType.KEYWORD);
+        SplitStats withMin = oneSidedNote("alice", null);
+        SplitStats withMax = oneSidedNote(null, "charlie");
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(greaterThanOrEqualOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(equalsOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(note, of("aaron")), withMin));
+        assertEquals(AMBIGUOUS, classify(in(note, of("aaron")), withMin));
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(lessThanOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(lessThanOrEqualOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(equalsOf(note, of("delta")), withMax));
+        assertEquals(AMBIGUOUS, classify(in(note, of("delta")), withMax));
+
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("zulu")), withMin));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(note, of("aaron")), withMax));
+    }
+
+    /** A 100-row {@code note} column with no nulls, publishing only the end that is not {@code null}. */
+    private static SplitStats oneSidedNote(Object min, Object max) {
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int col = builder.addColumn("note", 0L, min, max, -1);
+        builder.valueCount(col, 100);
+        return builder.build();
     }
 
     // --- Or ---
@@ -485,8 +567,9 @@ public class SplitFilterClassifierTests extends ESTestCase {
     public void testEqualsKeepsOppositeSignZero() {
         ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
         SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
-        assertEquals(MATCH, classify(equalsOf(score, of(0.0)), negZero));
-        assertEquals(MATCH, classify(greaterThanOrEqualOf(score, of(0.0)), negZero));
+        // DOUBLE MATCH is withheld (NaN may hide); opposite-sign zeros still MISS for > 0.0.
+        assertEquals(AMBIGUOUS, classify(equalsOf(score, of(0.0)), negZero));
+        assertEquals(AMBIGUOUS, classify(greaterThanOrEqualOf(score, of(0.0)), negZero));
         assertEquals(MISS, classify(greaterThanOf(score, of(0.0)), negZero));
     }
 
@@ -494,7 +577,8 @@ public class SplitFilterClassifierTests extends ESTestCase {
         ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
         SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
         assertEquals(AMBIGUOUS, classify(in(score, of(0.0)), negZero));
-        assertEquals(MATCH, classify(in(score, of(-0.0)), negZero));
+        // Same-sign IN would MATCH without NaN; DOUBLE MATCH is withheld.
+        assertEquals(AMBIGUOUS, classify(in(score, of(-0.0)), negZero));
     }
 
     public void testCompareValuesNull() {

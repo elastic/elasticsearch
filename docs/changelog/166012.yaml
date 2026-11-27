@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166012
+summary: Close `FormatReader` copies at owner scopes
+type: bug

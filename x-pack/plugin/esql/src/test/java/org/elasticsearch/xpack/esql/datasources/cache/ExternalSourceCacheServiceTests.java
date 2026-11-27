@@ -459,6 +459,64 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
+     * A complete listing offered under a second address is served there without a second compute.
+     * Discriminators {@code bound} / {@code unbounded} are synthetic: this test is the cache primitive,
+     * not {@code GlobExpander.listingCacheDiscriminator}.
+     */
+    public void testPublishListingIfAbsentFillsOnlyAnEmptyAddress() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey bounded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "bound");
+            ListingCacheKey unbounded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "unbounded");
+            FileList first = testCompactFileList();
+            FileList second = testCompactFileList();
+            assertNotSame(first, second);
+
+            service.getOrComputeListing(bounded, k -> first);
+            service.publishListingIfAbsent(unbounded, first);
+            assertSame(first, service.getOrComputeListing(unbounded, k -> {
+                fail("the unbounded address must be served from the alias");
+                return second;
+            }));
+
+            service.publishListingIfAbsent(unbounded, second);
+            assertSame("a resident entry is not replaced", first, service.listingCache().get(unbounded));
+        }
+    }
+
+    public void testPublishListingIfAbsentIsNoopWhenTheCacheIsDisabled() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            service.setEnabled(false);
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "unbounded");
+            service.publishListingIfAbsent(key, testCompactFileList());
+            assertNull("disabled cache must not retain the alias", service.listingCache().get(key));
+            assertEquals(0, service.usageStats().get("listing_cache.count"));
+        }
+    }
+
+    /**
+     * An in-flight unbounded compute keeps its waiters; the alias fills the cache for a later arrival
+     * without completing the leader's future.
+     */
+    public void testPublishListingIfAbsentDoesNotCompleteInFlightWaiters() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            ListingCacheKey unbounded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "unbounded");
+            AtomicReference<ActionListener<FileList>> leaderCompletion = new AtomicReference<>();
+            PlainActionFuture<FileList> waiter = new PlainActionFuture<>();
+            service.getOrComputeListingAsync(unbounded, leaderCompletion::set, waiter);
+
+            FileList alias = testCompactFileList();
+            service.publishListingIfAbsent(unbounded, alias);
+            assertFalse("the waiter belongs to the in-flight leader", waiter.isDone());
+            assertSame(alias, service.listingCache().get(unbounded));
+
+            FileList fromLeader = testCompactFileList();
+            assertNotSame(alias, fromLeader);
+            leaderCompletion.get().onResponse(fromLeader);
+            assertSame("waiters receive the leader's listing", fromLeader, waiter.actionGet());
+        }
+    }
+
+    /**
      * A caller that becomes leader just after the previous leader finished takes the cache from the re-check, and must still
      * complete the in-flight entry it registered: a caller that subscribed to it in the meantime would otherwise wait forever.
      * The window is a few instructions wide, so this is a probabilistic stress test: it has not been seen to fail without
@@ -1828,7 +1886,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             licensed.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             licensed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
             licensed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
-            licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
             licensed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             licensed.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
@@ -4172,7 +4230,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
             harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "read-anchor");
-            harvest.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, true);
+            harvest.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
             harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
             harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 7L);
             service.reconcileSourceStats(Map.of(path, harvest));

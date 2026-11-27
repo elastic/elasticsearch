@@ -40,7 +40,7 @@ $$$esql-federation-enabled$$$
 
     {applies_to}`stack: preview 9.6+` During a rolling upgrade from 9.5, upgraded nodes have this setting on by default and older nodes have it off. Refer to [errors for a dataset that exists](esql-data-federation-querying.md#unknown-index-dataset).
 
-    {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If you explicitly set this setting to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
+    {applies_to}`self:` {{esql}} Data Federation isn't available on Windows. If you explicitly set this setting to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits
 
@@ -108,16 +108,16 @@ $$$esql-external-max-listed-objects$$$
 `esql.external.max_listed_objects` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on objects visited while listing a glob, including keys that don't match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings, and a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list.
 
-    - **Default:** `1000000`
-    - **Valid values:** `1` to `10000000`
+    - **Default:** `10000000`
+    - **Valid values:** `1` to `100000000`
 
 $$$esql-external-max-discovered-files$$$
 
 `esql.external.max_discovered_files`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on files kept after listing filters (`_file.*`) during glob expansion before the query aborts. Protects against degenerate globs.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on files kept after listing filters (`_file.*`) during glob expansion before the query aborts. Protects against degenerate globs. An explicit value overrides the formula and is not clipped by heap. Planning memory for kept files is charged to the request circuit breaker, which remains the backstop if the cap is raised beyond what the node can hold.
 
-    - **Default:** `25000`
-    - **Valid values:** `1` to `1000000`
+    - **Default:** 15% of the node's max heap at startup divided by about 1180 bytes per kept file, minimum `25000` and maximum `10000000`
+    - **Valid values:** `1` to `10000000`
 
 $$$esql-external-max-glob-expansion$$$
 
@@ -126,6 +126,14 @@ $$$esql-external-max-glob-expansion$$$
 
     - **Default:** `100`
     - **Valid values:** `1` to `10000`
+
+$$$esql-external-max-directory-listings$$$
+
+`esql.external.max_directory_listings` {applies_to}`stack: preview 9.7+`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Ceiling on directory listings (`listChildren`) issued during one partition-pruning walk. When the walk would exceed this, it stops descending and either finishes surviving folders or falls back to a flat listing of the prefix. Finish `listObjects` pages are not counted. Raise this so a wide Hive tree (many unfiltered prefixes above a time partition) can complete the walk instead of flattening the whole prefix.
+
+    - **Default:** `3000`
+    - **Valid values:** `1` to `1000000`
 
 ## Read safety
 
@@ -181,7 +189,7 @@ $$$esql-external-allowed-endpoint-hosts$$$
 
 ## Caching
 
-These settings control the external-source cache, which stores inferred schemas, file listings, and the footers of columnar files.
+These settings control the external-source cache, which stores inferred schemas, column statistics, file listings, and the footers of columnar files.
 
 $$$esql-external-cache-enabled$$$
 
@@ -228,6 +236,16 @@ $$$esql-external-cache-schema-ttl$$$
 
     - **Default:** `20m`
     - **Valid values:** A time value. `0` removes the limit on schemas, and the memoized dataset total stays on `esql.external.cache.listing.ttl`.
+
+$$$esql-external-cache-stats-max-extremum-size$$$
+
+`esql.external.cache.stats.max_extremum_size` {applies_to}`stack: preview 9.6+`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Maximum byte width of a cached minimum or maximum value collected from CSV, TSV, or NDJSON reads for `keyword`, `text`, and `ip` columns. Values wider than this limit aren't stored; queries that need a withheld bound (such as `MIN`, `MAX`, or range filters on that column) read the file instead, while counts and other columns remain usable. Columnar formats such as Parquet read statistics from the file footer and aren't affected. Refer to [column statistics for text files](esql-data-federation-querying.md#column-statistics-for-text-files) for how cached statistics affect query reads.
+
+    - **Default:** `1kb`
+    - **Valid values:** A byte size from `0b` to `1mb`. `0b` withholds all non-empty bounds. Values below `16b` also withhold bounds for `ip` columns.
+
+    Configure the same value on every node; changes apply only to subsequent reads, not existing cache entries. Lower this setting to keep long values out of the statistics cache. Raise it to avoid re-reading files with long text values, bearing in mind that the cache weighs a file's whole statistics entry: an entry over the per-entry memory limit is dropped whole, row counts included, so a file with many columns can exceed it even when every single bound is within this limit.
 
 $$$esql-external-cache-footer-size$$$
 

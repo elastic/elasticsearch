@@ -2,6 +2,9 @@
 navigation_title: "Date range"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-daterange-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Date range aggregation [search-aggregations-bucket-daterange-aggregation]

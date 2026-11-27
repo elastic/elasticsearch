@@ -49,8 +49,9 @@ final class EscfArrayColumn extends EscfColumn {
         return EscfColumnKind.ARRAY;
     }
 
+    /** Ignores {@code countNulls}; over-reporting only sends the batch to the row path. */
     @Override
-    public boolean hasMultiValueDoc() {
+    public boolean hasMultiValueDoc(boolean countNulls) {
         final int[] offs = rowOffsets.ints;
         final int base = rowOffsets.offset;
         for (int d = 0; d < docCount; d++) {
@@ -80,6 +81,17 @@ final class EscfArrayColumn extends EscfColumn {
         int elemFrom = intAt(rowOffsets, row);
         int elemTo = intAt(rowOffsets, row + 1);
         return new ColumnarArrayReader(child, elemFrom, elemTo);
+    }
+
+    @Override
+    public float[] numericArrayAsFloats(int row, int length) {
+        int elemFrom = intAt(rowOffsets, row);
+        if (child instanceof AbstractFixed64Column numbers && intAt(rowOffsets, row + 1) - elemFrom == length) {
+            float[] values = new float[length];
+            numbers.readFloats(elemFrom, values);
+            return values;
+        }
+        return null;
     }
 
     @Override

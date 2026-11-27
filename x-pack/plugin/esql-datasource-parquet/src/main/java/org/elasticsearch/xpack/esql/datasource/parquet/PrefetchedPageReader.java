@@ -14,6 +14,7 @@ import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
@@ -26,6 +27,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.Inflater;
 
 /**
  * {@link PageReader} backed by an in-memory queue of compressed {@link DataPage}s plus an
@@ -42,10 +44,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@link PlainCompressionCodecFactory.HeapDestDecompressor#decompressInto} when the codec
  * supports it. The dest's live capacity is charged to {@code breaker} until {@link #close()};
  * same-size pages do not re-charge. A grow charges the new size before dropping the old
- * charge so peak heap and breaker match while both arrays are live. Dictionary pages still
- * allocate via {@link BytesInputDecompressor#decompress(BytesInput, int)} and keep that
- * charge until close. The compressed dictionary input is defensively copied into a separately
- * breaker-accounted array at construction so it can outlive the prefetched I/O buffer safely.
+ * charge so peak heap and breaker match while both arrays are live. Dictionary pages allocate
+ * a dedicated dest (not {@code reusableDecompBuf}) and keep that charge until close. GZIP
+ * dictionaries inflate through the same reader-owned {@link Inflater}; other codecs use
+ * {@link BytesInputDecompressor#decompress(BytesInput, int)}. The compressed dictionary input
+ * is defensively copied into a separately breaker-accounted array at construction so it can
+ * outlive the prefetched I/O buffer safely.
  * Uncompressed data pages alias the prefetched I/O bytes and are not charged — those bytes are
  * already accounted by the prefetch circuit breaker. Failed decompress after a successful grow
  * keeps the charge (the array is still referenced). A trip in
@@ -57,6 +61,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * that race cannot silently skew the breaker. {@link #reusableDecompBuf} is {@code volatile}
  * so a close that nulls the dest is visible to a concurrent read; the read path snapshots
  * the array into a local and does not re-read the field after {@code decompressInto}.
+ * GZIP data and dictionary pages reuse one {@code Inflater(true)} for the life of the reader;
+ * {@link Inflater#end()} runs after the {@link #closed} CAS. {@code end()} during a racing
+ * {@code inflate()} is unsafe — the inflate path must not use the inflater after close,
+ * the same race class as the dest-buffer close.
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
 
@@ -95,6 +103,12 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     // on a single compareAndSet and only one thread actually releases the breaker charge.
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ParquetDecodeBudget decodeBudget;
+    private final CompressionCodecName codecName;
+    /**
+     * Reused raw inflater for GZIP data pages. Null for every other codec. Ended in {@link #close()}
+     * after the {@code closed} CAS; not used after close (same race as {@link #reusableDecompBuf}).
+     */
+    private final Inflater gzipInflater;
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
@@ -114,11 +128,24 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         long valueCount,
         ParquetDecodeBudget decodeBudget
     ) {
+        this(decompressor, breaker, compressedPages, compressedDictionaryPage, valueCount, decodeBudget, null);
+    }
+
+    PrefetchedPageReader(
+        BytesInputDecompressor decompressor,
+        CircuitBreaker breaker,
+        List<CompressedPage> compressedPages,
+        DictionaryPage compressedDictionaryPage,
+        long valueCount,
+        ParquetDecodeBudget decodeBudget,
+        CompressionCodecName codecName
+    ) {
         this.decompressor = decompressor;
         this.heapDest = decompressor instanceof PlainCompressionCodecFactory.HeapDestDecompressor h ? h : null;
         this.breaker = breaker;
         this.valueCount = valueCount;
         this.decodeBudget = decodeBudget == null ? ParquetDecodeBudget.NOOP : decodeBudget;
+        this.codecName = codecName;
         DictionaryPage dictionaryCopy = copyDictionaryPage(compressedDictionaryPage);
         try {
             this.compressedPages = new ArrayDeque<>(compressedPages);
@@ -127,6 +154,12 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             throw t;
         }
         this.compressedDictionaryPage = dictionaryCopy;
+        try {
+            this.gzipInflater = decompressor instanceof PlainCompressionCodecFactory.GzipBytesDecompressor ? new Inflater(true) : null;
+        } catch (Throwable t) {
+            releaseCharge(dictionaryCopyCharge);
+            throw t;
+        }
     }
 
     private DictionaryPage copyDictionaryPage(DictionaryPage dictionaryPage) {
@@ -245,7 +278,15 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             // aliased a prefetch buffer they would outlive this reader's close at row-group
             // rollover. The compressed input is the constructor's breaker-accounted defensive
             // copy. Uncompressed dictionaries skip the decompression charge and alias that copy.
-            BytesInput decompressed = decompressor.decompress(dictionaryPage.getBytes(), uncompressedSize);
+            // Dedicated dest: reusableDecompBuf is overwritten by later data pages.
+            BytesInput decompressed;
+            if (gzipInflater != null) {
+                byte[] dest = UninitializedArrays.newByteArray(uncompressedSize);
+                inflateGzip(dictionaryPage.getBytes(), dest, uncompressedSize);
+                decompressed = BytesInput.from(dest);
+            } else {
+                decompressed = decompressor.decompress(dictionaryPage.getBytes(), uncompressedSize);
+            }
             decodedDictionaryPage = new DictionaryPage(
                 decompressed,
                 uncompressedSize,
@@ -265,7 +306,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 throw new ParquetDecodingException("PrefetchedPageReader closed");
             }
         } catch (IOException e) {
-            throw new ParquetDecodingException("Could not decompress dictionary page", e);
+            throw new ParquetDecodingException(couldNotDecompress("dictionary page"), e);
         } finally {
             if (success == false && charge) {
                 breaker.addWithoutBreaking(-uncompressedSize);
@@ -305,7 +346,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 v1.getValueEncoding()
             );
         } catch (IOException e) {
-            throw new ParquetDecodingException("Could not decompress V1 data page", e);
+            throw new ParquetDecodingException(couldNotDecompress("V1 data page"), e);
         }
     }
 
@@ -359,7 +400,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 v2.getStatistics()
             );
         } catch (IOException e) {
-            throw new ParquetDecodingException("Could not decompress V2 data page", e);
+            throw new ParquetDecodingException(couldNotDecompress("V2 data page"), e);
         }
     }
 
@@ -377,9 +418,18 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             }
             return compressed;
         }
-        if (heapDest != null) {
+        if (gzipInflater != null || heapDest != null) {
             byte[] dest = ensureDecompCapacity(decompressedSize);
-            heapDest.decompressInto(compressed, dest, decompressedSize);
+            if (gzipInflater != null) {
+                try {
+                    inflateGzip(compressed, dest, decompressedSize);
+                } catch (ParquetDecodingException e) {
+                    dropReusableDest();
+                    throw e;
+                }
+            } else {
+                heapDest.decompressInto(compressed, dest, decompressedSize);
+            }
             BytesInput decompressed = BytesInput.from(dest, 0, decompressedSize);
             if (closed.get()) {
                 dropReusableDest();
@@ -410,6 +460,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     private byte[] ensureDecompCapacity(int needed) {
         byte[] buf = reusableDecompBuf;
         if (buf != null && buf.length >= needed) {
+            if (closed.get()) {
+                throw new ParquetDecodingException("PrefetchedPageReader closed");
+            }
             return buf;
         }
         // Charge the new size on top of any live old charge so breaker tracks peak heap while
@@ -437,6 +490,17 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         return next;
     }
 
+    private void inflateGzip(BytesInput compressed, byte[] dest, int destLen) throws IOException {
+        try {
+            GzipPageInflater.inflate(gzipInflater, compressed, dest, destLen);
+        } catch (RuntimeException e) {
+            if (closed.get()) {
+                throw new ParquetDecodingException("PrefetchedPageReader closed", e);
+            }
+            throw e;
+        }
+    }
+
     private void dropReusableDest() {
         reusableDecompBuf = null;
         releaseCharge(dataPageCharge);
@@ -444,6 +508,13 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     private boolean isNoopDecompressor() {
         return decompressor instanceof PlainCompressionCodecFactory.NoopDecompressor;
+    }
+
+    private String couldNotDecompress(String pageKind) {
+        if (codecName == null) {
+            return "Could not decompress " + pageKind;
+        }
+        return "Could not decompress " + pageKind + " (codec " + codecName + ")";
     }
 
     private void releaseCharge(AtomicLong charge) {
@@ -458,12 +529,18 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         if (closed.compareAndSet(false, true) == false) {
             return;
         }
-        // Drop the cached dictionary page reference. It is heap-backed (see readDictionaryPage),
-        // so this is reference hygiene plus breaker release, not a native-buffer lifetime.
-        cachedDictionaryPage = null;
-        compressedDictionaryPage = null;
-        releaseCharge(dictionaryCopyCharge);
-        dropReusableDest();
-        releaseCharge(dictCharge);
+        try {
+            if (gzipInflater != null) {
+                gzipInflater.end();
+            }
+        } finally {
+            // Drop the cached dictionary page reference. It is heap-backed (see readDictionaryPage),
+            // so this is reference hygiene plus breaker release, not a native-buffer lifetime.
+            cachedDictionaryPage = null;
+            compressedDictionaryPage = null;
+            releaseCharge(dictionaryCopyCharge);
+            dropReusableDest();
+            releaseCharge(dictCharge);
+        }
     }
 }

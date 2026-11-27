@@ -31,7 +31,8 @@ public enum RecoveryPriority implements Writeable {
     UNASSIGNED_UNEXPECTED(false, true),
 
     /// A shard which is unassigned for an expected condition, i.e. because of a user operation such as opening an index.
-    /// Note that this excludes [#UNASSIGNED_NEW_PRIMARY], [#UNASSIGNED_RESTORING] and [#UNASSIGNED_PERFORMANCE_SCALING].
+    /// Note that this excludes [#UNASSIGNED_NEW_PRIMARY], [#UNASSIGNED_RESTORING], [#UNASSIGNED_PERFORMANCE_SCALING] and
+    /// [#UNASSIGNED_RESHARD_SPLIT_TARGET].
     UNASSIGNED_EXPECTED(false, true),
 
     /// A shard which is assigned, and is being relocated because
@@ -47,13 +48,8 @@ public enum RecoveryPriority implements Writeable {
     /// vacated (e.g. because it is shutting down) may cause a shard which is currently available to become unavailable.
     UNASSIGNED_RESTORING(false, true),
 
-    /// A shard which is unassigned because it adds capacity to an index which is already fully available without it, e.g.:
-    ///
-    /// - a replica that was added to a shard which already has an active replica, or
-    /// - a primary which is the target of a reshard split. Until the source hands off to the target, the index is fully
-    ///   available from the source shard. Replicas of split targets are [#UNASSIGNED_EXPECTED] instead: they can only start
-    ///   once the target primary has taken over its share of the writes, and the split only waits a bounded time for them
-    ///   before routing searches to the target.
+    /// A shard which is unassigned because it adds capacity to an index which is already fully available without it, e.g. a
+    /// replica that was added to a shard which already has an active replica. This excludes [#UNASSIGNED_RESHARD_SPLIT_TARGET].
     ///
     /// This is lower priority than [#RELOCATION_CAN_REMAIN_NO] for the same reason as [#UNASSIGNED_RESTORING]: delaying it
     /// does not make anything less available than it already is. It is also lower priority than [#UNASSIGNED_RESTORING]
@@ -69,6 +65,18 @@ public enum RecoveryPriority implements Writeable {
     /// A shard which is assigned, and is being relocated for rebalancing.
     RELOCATE_REBALANCING(true, false),
 
+    /// A primary shard which is unassigned because it is the target of a reshard split. Until the source hands off to the
+    /// target, the index is fully available from the source shard. Replicas of split targets are [#UNASSIGNED_EXPECTED]
+    /// instead: they can only start once the target primary has taken over its share of the writes, and the split only
+    /// waits a bounded time for them before routing searches to the target. Note that once the target primary has reached
+    /// the handoff, it serves its share of the writes, so if it then fails it will recover with [#UNASSIGNED_UNEXPECTED]
+    /// instead (see [RoutingNodes]).
+    ///
+    /// This is lower priority than [#RELOCATE_REBALANCING]. Until the handoff, the source shard keeps serving the whole
+    /// index, so the target does not cost its node any indexing or search load yet. Rebalancing moves, by contrast, are
+    /// meant to relieve current resource pressure.
+    UNASSIGNED_RESHARD_SPLIT_TARGET(false, true),
+
     /// Placeholder value for unknown priorities. This can be used in a short-lived `ShardRouting` (for example, for use in a balancing
     /// calculation) but it must _not_ be used in a `ShardRouting` which will be added to the `ClusterState`. It can also appear in a
     /// [org.elasticsearch.indices.recovery.RecoveryState] received from an older node.
@@ -81,8 +89,15 @@ public enum RecoveryPriority implements Writeable {
     );
 
     /// Introduced along with [#UNASSIGNED_RESTORING] and [#UNASSIGNED_PERFORMANCE_SCALING]
-    private static final TransportVersion RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION = TransportVersion.fromName(
+    // visible for testing
+    static final TransportVersion RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION = TransportVersion.fromName(
         "recovery_priority_unassigned_non_critical"
+    );
+
+    /// Introduced along with [#UNASSIGNED_RESHARD_SPLIT_TARGET]
+    // visible for testing
+    static final TransportVersion RECOVERY_PRIORITY_UNASSIGNED_RESHARD_SPLIT_TARGET_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_priority_unassigned_reshard_split_target"
     );
 
     private final boolean isValidForRelocation;
@@ -100,13 +115,28 @@ public enum RecoveryPriority implements Writeable {
     }
 
     public static RecoveryPriority readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION)) {
+        if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_RESHARD_SPLIT_TARGET_TRANSPORT_VERSION)) {
             return in.readEnum(RecoveryPriority.class);
+        } else if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION)) {
+            // Deserialize using the ordinals from the enum prior to the introduction of UNASSIGNED_RESHARD_SPLIT_TARGET
+            int legacyOrdinal = in.readVInt();
+            return switch (legacyOrdinal) {
+                case 0 -> UNASSIGNED_NEW_PRIMARY;
+                case 1 -> UNASSIGNED_UNEXPECTED;
+                case 2 -> UNASSIGNED_EXPECTED;
+                case 3 -> RELOCATION_CAN_REMAIN_NO;
+                case 4 -> UNASSIGNED_RESTORING;
+                case 5 -> UNASSIGNED_PERFORMANCE_SCALING;
+                case 6 -> RELOCATION_CAN_REMAIN_NOT_PREFERRED;
+                case 7 -> RELOCATE_REBALANCING;
+                case 8 -> UNKNOWN;
+                default -> throw new IllegalArgumentException("Unexpected value for legacy RecoveryPriority ordinal: " + legacyOrdinal);
+            };
         } else if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
             // Deserialize using the ordinals from the enum prior to the introduction of the UNASSIGNED_RESTORING and
             // UNASSIGNED_PERFORMANCE_SCALING values
-            int ordinal = in.readVInt();
-            return switch (ordinal) {
+            int legacyOrdinal = in.readVInt();
+            return switch (legacyOrdinal) {
                 case 0 -> UNASSIGNED_NEW_PRIMARY;
                 case 1 -> UNASSIGNED_UNEXPECTED;
                 case 2 -> UNASSIGNED_EXPECTED;
@@ -114,7 +144,7 @@ public enum RecoveryPriority implements Writeable {
                 case 4 -> RELOCATION_CAN_REMAIN_NOT_PREFERRED;
                 case 5 -> RELOCATE_REBALANCING;
                 case 6 -> UNKNOWN;
-                default -> throw new IllegalArgumentException("Unexpected value for legacy RecoveryPriority ordinal: " + ordinal);
+                default -> throw new IllegalArgumentException("Unexpected value for legacy RecoveryPriority ordinal: " + legacyOrdinal);
             };
         } else {
             // Deserialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values:
@@ -147,8 +177,9 @@ public enum RecoveryPriority implements Writeable {
 
     /// Returns whether a recovery with this priority is critical, i.e. one for a shard copy that the client expects
     /// to be available but currently isn't. Relocations (whose source stays active until they complete), recoveries
-    /// of unassigned shards added for performance reasons, and snapshot restores (whose index is expected to be
-    /// unavailable until they complete, which may take a long time) are non-critical. Note that non-critical recoveries
+    /// of unassigned shards added for performance reasons, reshard split target primaries (whose source keeps serving
+    /// the whole index until the handoff), and snapshot restores (whose index is expected to be unavailable until they
+    /// complete, which may take a long time) are non-critical. Note that non-critical recoveries
     /// are subject to additional throttling (see [org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings]).
     ///
     /// All the critical priorities must rank above all the non-critical ones, which
@@ -157,7 +188,7 @@ public enum RecoveryPriority implements Writeable {
         return switch (this) {
             case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> true;
             case RELOCATION_CAN_REMAIN_NO, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, RELOCATION_CAN_REMAIN_NOT_PREFERRED,
-                RELOCATE_REBALANCING -> false;
+                RELOCATE_REBALANCING, UNASSIGNED_RESHARD_SPLIT_TARGET -> false;
             // UNKNOWN should never be seen in cluster state. We treat it here as the lowest priority.
             case UNKNOWN -> false;
         };
@@ -165,15 +196,30 @@ public enum RecoveryPriority implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_RESHARD_SPLIT_TARGET_TRANSPORT_VERSION)) {
             out.writeEnum(this);
+        } else if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION)) {
+            // Serialize using the ordinals from the enum prior to the introduction of UNASSIGNED_RESHARD_SPLIT_TARGET,
+            // or the nearest fallback
+            int ordinal = switch (this) {
+                case UNASSIGNED_NEW_PRIMARY -> 0;
+                case UNASSIGNED_UNEXPECTED -> 1;
+                case UNASSIGNED_EXPECTED -> 2;
+                case RELOCATION_CAN_REMAIN_NO -> 3;
+                case UNASSIGNED_RESTORING -> 4;
+                case UNASSIGNED_PERFORMANCE_SCALING, UNASSIGNED_RESHARD_SPLIT_TARGET -> 5;
+                case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 6;
+                case RELOCATE_REBALANCING -> 7;
+                case UNKNOWN -> 8;
+            };
+            out.writeVInt(ordinal);
         } else if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
             // Serialize using the ordinals from the enum prior to the introduction of the UNASSIGNED_RESTORING and
             // UNASSIGNED_PERFORMANCE_SCALING values, or the nearest fallbacks
             int ordinal = switch (this) {
                 case UNASSIGNED_NEW_PRIMARY -> 0;
                 case UNASSIGNED_UNEXPECTED -> 1;
-                case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING -> 2;
+                case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, UNASSIGNED_RESHARD_SPLIT_TARGET -> 2;
                 case RELOCATION_CAN_REMAIN_NO -> 3;
                 case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 4;
                 case RELOCATE_REBALANCING -> 5;
@@ -185,7 +231,7 @@ public enum RecoveryPriority implements Writeable {
             // or the nearest fallbacks:
             int legacyOrdinal = switch (this) {
                 case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> 0;
-                case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING -> 1;
+                case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, UNASSIGNED_RESHARD_SPLIT_TARGET -> 1;
                 case RELOCATION_CAN_REMAIN_NO -> 2;
                 case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 3;
                 case RELOCATE_REBALANCING, UNKNOWN -> 4;

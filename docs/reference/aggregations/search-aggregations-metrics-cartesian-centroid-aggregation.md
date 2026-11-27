@@ -2,6 +2,9 @@
 navigation_title: "Cartesian-centroid"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cartesian-centroid-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Cartesian-centroid aggregation [search-aggregations-metrics-cartesian-centroid-aggregation]
@@ -146,6 +149,8 @@ The response for the above aggregation:
 % TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 ## Cartesian Centroid Aggregation on `shape` fields [cartesian-centroid-aggregation-geo-shape]
+
+In {{stack}}, you can aggregate `shape` fields with a Gold, Platinum, or Enterprise license.
 
 The centroid metric for shapes is more nuanced than for points. The centroid of a specific aggregation bucket containing shapes is the centroid of the highest-dimensionality shape type in the bucket. For example, if a bucket contains shapes consisting of polygons and lines, then the lines do not contribute to the centroid metric. Each type of shape’s centroid is calculated differently. Envelopes and circles ingested through the [Circle](/reference/ingest-processor/ingest-circle-processor.md) are treated as polygons.
 

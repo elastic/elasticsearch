@@ -23,11 +23,13 @@ import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.ColumnOrder;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -797,6 +799,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             dynamicThreshold,
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns),
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            heapBufferPool,
+            maxFooterReadBytes,
+            schemaMaxFields,
+            externalIoThreads
+        );
+    }
+
+    @Override
+    public ParquetFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        // Footer caches, I/O watermark, and the heap buffer pool stay the node instances.
+        return new ParquetFormatReader(
+            factory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
             footerBytes,
             parsedFooters,
             ioWatermark,
@@ -1819,14 +1846,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Validates footer-level invariants that, if violated, indicate a corrupt file. Currently
-     * checks that required columns (maxDefinitionLevel == 0) do not report non-zero null counts
-     * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
-     * garbage or exceptions during data-page decoding.
+     * Validates footer-level invariants that, if violated, indicate a corrupt or unreadable file.
+     * Checks that every column chunk uses a compression codec this reader implements, and that
+     * required columns (maxDefinitionLevel == 0) do not report non-zero null counts in their
+     * row-group statistics. Both refusals are {@link IllegalArgumentException} so they map to
+     * HTTP 400. Unsupported codecs are readable from the footer, so they are refused here before
+     * any page is fetched; {@link PrefetchedRowGroupBuilder} keeps a backstop on the read path.
      */
     static void validateFooterIntegrity(MessageType schema, List<BlockMetaData> rowGroups) {
-        for (BlockMetaData rowGroup : rowGroups) {
+        Set<CompressionCodecName> supported = PlainCompressionCodecFactory.supportedDecompressionCodecs();
+        for (int rowGroupOrdinal = 0; rowGroupOrdinal < rowGroups.size(); rowGroupOrdinal++) {
+            BlockMetaData rowGroup = rowGroups.get(rowGroupOrdinal);
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                CompressionCodecName codec = col.getCodec();
+                if (supported.contains(codec) == false) {
+                    throw invalidParquet(
+                        PlainCompressionCodecFactory.unsupportedDecompressionDetail(col.getPath().toDotString(), codec, rowGroupOrdinal)
+                    );
+                }
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = schema.getColumnDescription(path);
                 if (desc != null && desc.getMaxDefinitionLevel() == 0) {
@@ -1884,6 +1921,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // min and max are unservable. The null count, however, is tracked independently and stays valid
         // wherever every row group recorded it — COUNT is unaffected by this poison.
         Set<String> poisonedBounds = new HashSet<>();
+        Set<String> poisonedMinBounds = new HashSet<>();
+        Set<String> poisonedMaxBounds = new HashSet<>();
 
         for (BlockMetaData rowGroup : rowGroups) {
             totalRows += rowGroup.getRowCount();
@@ -1943,19 +1982,42 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 if (stats.hasNonNullValue()) {
                     PrimitiveType pt = col.getPrimitiveType();
+                    if (hasUsableBounds(stats, pt) == false) {
+                        // A corrupt bound (a FIXED_LEN_BYTE_ARRAY DECIMAL/FLOAT16/UUID of the wrong width) says nothing about
+                        // this row group's values, exactly like a missing one: the file-level min/max are unservable, the
+                        // null count is not.
+                        poisonedBounds.add(colName);
+                        continue;
+                    }
                     Object minVal = normalizeStatValue(stats.genericGetMin(), pt);
                     Object maxVal = normalizeStatValue(stats.genericGetMax(), pt);
                     if (minVal == null || maxVal == null) {
                         poisonedTemporalStats.add(colName);
                     } else {
-                        mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
-                            if (compareStatExtremum(a[0], b[0]) > 0) a[0] = b[0];
-                            return a;
-                        });
-                        maxs.merge(colName, new Comparable[] { (Comparable) maxVal }, (a, b) -> {
-                            if (compareStatExtremum(a[0], b[0]) < 0) a[0] = b[0];
-                            return a;
-                        });
+                        if (isUnservableMinBound(minVal, maxVal, pt)) {
+                            poisonedMinBounds.add(colName);
+                        } else {
+                            mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
+                                if (isNaNBound(a[0])) {
+                                    a[0] = b[0];
+                                } else if (isNaNBound(b[0]) == false && compareStatExtremum(a[0], b[0]) > 0) {
+                                    a[0] = b[0];
+                                }
+                                return a;
+                            });
+                        }
+                        if (isUnservableMaxBound(minVal, maxVal, pt)) {
+                            poisonedMaxBounds.add(colName);
+                        } else {
+                            maxs.merge(colName, new Comparable[] { (Comparable) maxVal }, (a, b) -> {
+                                if (isNaNBound(a[0])) {
+                                    a[0] = b[0];
+                                } else if (isNaNBound(b[0]) == false && compareStatExtremum(a[0], b[0]) < 0) {
+                                    a[0] = b[0];
+                                }
+                                return a;
+                            });
+                        }
                     }
                 } else {
                     // Null count is set but no min/max recorded (e.g. a writer that omits bounds for
@@ -2009,8 +2071,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 final OptionalLong nullCount = nc != null && unknownNullCounts.contains(name) == false && poisoned == false
                     ? OptionalLong.of(nc[0])
                     : OptionalLong.empty();
-                final Object minVal = mn != null && poisoned == false && boundsUnknown == false ? mn[0] : null;
-                final Object maxVal = mx != null && poisoned == false && boundsUnknown == false ? mx[0] : null;
+                final boolean minServable = poisoned == false && boundsUnknown == false && poisonedMinBounds.contains(name) == false;
+                final boolean maxServable = poisoned == false && boundsUnknown == false && poisonedMaxBounds.contains(name) == false;
+                final Object minVal = mn != null && minServable && isNaNBound(mn[0]) == false ? mn[0] : null;
+                final Object maxVal = mx != null && maxServable && isNaNBound(mx[0]) == false ? mx[0] : null;
                 final long colSize = cs != null ? cs[0] : -1;
                 columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                     @Override
@@ -2313,7 +2377,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (colStats.isEmpty()) {
                 continue;
             }
-            if (colStats.hasNonNullValue()) {
+            // A corrupt bound (a FIXED_LEN_BYTE_ARRAY DECIMAL/FLOAT16/UUID of the wrong width) is withheld with its pair, so
+            // split pruning and MIN/MAX never see it; the null count above is unaffected.
+            if (colStats.hasNonNullValue() && hasUsableBounds(colStats, col.getPrimitiveType())) {
                 PrimitiveType pt = col.getPrimitiveType();
                 Object minVal = normalizeStatValue(colStats.genericGetMin(), pt);
                 Object maxVal = normalizeStatValue(colStats.genericGetMax(), pt);
@@ -2324,12 +2390,87 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // null anyway (Map.copyOf below rejects nulls).
                     stats.remove(SourceStatisticsSerializer.columnNullCountKey(colName));
                 } else {
-                    stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
-                    stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
+                    if (isUnservableFloatingBound(minVal, pt) == false) {
+                        stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
+                    }
+                    if (isUnservableFloatingBound(maxVal, pt) == false) {
+                        stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
+                    }
                 }
             }
         }
         return Map.copyOf(stats);
+    }
+
+    /**
+     * True when a floating-point footer bound cannot stand for the scan's {@code MIN}/{@code MAX}, which skip NaN and
+     * order {@code -0.0} below {@code 0.0}. A NaN bound says nothing about the finite values. Outside
+     * {@code IEEE_754_TOTAL_ORDER} a writer may record a zero with either sign regardless of the data, and parquet-java
+     * rewrites a zero minimum to {@code -0.0} and a zero maximum to {@code 0.0} on read, so a zero bound is not exact.
+     * Covers {@code Double} (double, float16) and {@code Float} bounds.
+     */
+    static boolean isUnservableFloatingBound(Object bound, PrimitiveType primitiveType) {
+        if (isFloatingPointColumn(primitiveType) == false) {
+            return false;
+        }
+        double value;
+        if (bound instanceof Double d) {
+            value = d;
+        } else if (bound instanceof Float f) {
+            value = f;
+        } else {
+            return false;
+        }
+        if (Double.isNaN(value)) {
+            return true;
+        }
+        return value == 0.0 && isTotalOrder(primitiveType) == false;
+    }
+
+    /**
+     * True when a row group's footer minimum cannot stand for the scan's {@code MIN}. As
+     * {@link #isUnservableFloatingBound} for the minimum alone, except that under {@code IEEE_754_TOTAL_ORDER} a minimum
+     * and a maximum that are both NaN of the same sign describe a row group holding only NaN, which {@code MIN} skips.
+     * That row group stays servable so that the fold across row groups can pass over it. A NaN on one side only, or NaN
+     * bounds of opposite signs, may hide finite values and are not servable.
+     */
+    static boolean isUnservableMinBound(Object minBound, Object maxBound, PrimitiveType primitiveType) {
+        return isOnlyNaNRowGroup(minBound, maxBound, primitiveType) == false && isUnservableFloatingBound(minBound, primitiveType);
+    }
+
+    /** The {@code MAX} counterpart of {@link #isUnservableMinBound}; the two bounds are judged independently. */
+    static boolean isUnservableMaxBound(Object minBound, Object maxBound, PrimitiveType primitiveType) {
+        return isOnlyNaNRowGroup(minBound, maxBound, primitiveType) == false && isUnservableFloatingBound(maxBound, primitiveType);
+    }
+
+    private static boolean isOnlyNaNRowGroup(Object minBound, Object maxBound, PrimitiveType primitiveType) {
+        return isFloatingPointColumn(primitiveType)
+            && isTotalOrder(primitiveType)
+            && isNaNBound(minBound)
+            && isNaNBound(maxBound)
+            && isNegativeNaN(minBound) == isNegativeNaN(maxBound);
+    }
+
+    private static boolean isFloatingPointColumn(PrimitiveType primitiveType) {
+        return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT
+            || primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE
+            || primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation;
+    }
+
+    private static boolean isNaNBound(Object bound) {
+        return (bound instanceof Double d && d.isNaN()) || (bound instanceof Float f && f.isNaN());
+    }
+
+    private static boolean isNegativeNaN(Object nanBound) {
+        if (nanBound instanceof Float f) {
+            return Float.floatToRawIntBits(f) < 0;
+        }
+        return Double.doubleToRawLongBits((Double) nanBound) < 0;
+    }
+
+    private static boolean isTotalOrder(PrimitiveType primitiveType) {
+        ColumnOrder order = primitiveType.columnOrder();
+        return order != null && order.getColumnOrderName() == ColumnOrder.ColumnOrderName.IEEE_754_TOTAL_ORDER;
     }
 
     /**
@@ -2365,6 +2506,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * Whether a row group's min and max may be published at all (see {@link ParquetColumnDecoding#isUsableStatBound}).
+     * Checked before {@link #normalizeStatValue}, whose {@code null} means something stronger (the null count is
+     * unusable too) and whose fallback would otherwise turn a rejected {@link Binary} into a String.
+     */
+    private static boolean hasUsableBounds(Statistics<?> stats, PrimitiveType primitiveType) {
+        return ParquetColumnDecoding.isUsableStatBound(stats.genericGetMin(), primitiveType)
+            && ParquetColumnDecoding.isUsableStatBound(stats.genericGetMax(), primitiveType);
+    }
+
+    /**
      * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize, in the same unit
      * the scan path emits: date32 and {@code timestamp[ms]} to epoch-millis (DATETIME), {@code timestamp[us|ns]}
      * to epoch-nanos (DATE_NANOS), and TIME to its scan unit. Parquet {@link Binary} (BYTE_ARRAY / string) is
@@ -2395,6 +2546,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * produces (see {@link ParquetColumnDecoding#decodeBinaryNumericStat}) — otherwise the stat
      * would fall through to the generic {@link Binary}-to-String conversion below, and the
      * DOUBLE-typed aggregate would fail trying to read it as a {@code Double}.
+     * <p>
+     * A {@code UUID} column renders KEYWORD as hex text, so its stat is formatted the same way rather than decoded
+     * from its raw bytes as UTF-8, which no scanned value matches. The order survives: parquet-java orders UUID
+     * bounds as unsigned bytes, and lowercase hex with the dashes at fixed positions sorts the same as UTF-8.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         if (ParquetColumnDecoding.hasTemporalStatEncoding(primitiveType)) {
@@ -2409,6 +2564,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         Double binaryNumeric = ParquetColumnDecoding.decodeBinaryNumericStat(value, primitiveType);
         if (binaryNumeric != null) {
             return binaryNumeric;
+        }
+        if (value instanceof Binary binary
+            && primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation) {
+            // hasUsableBounds has withheld any other width, so this is the hex text the scan renders.
+            return ParquetColumnDecoding.formatUuid(binary.getBytes());
         }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();
@@ -4068,8 +4228,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     /**
      * Whether values from a column whose Parquet schema maps to {@code fileDerived} can be read using
      * the planner's {@code planner} type (same widening notion as globbed external sources). Package-private so the
-     * deferred-extraction path ({@link ParquetColumnExtractor#coerceToTarget}) makes the identical widening decision as
-     * the eager gate — the two must agree or a column reads differently depending on whether extraction was deferred.
+     * deferred-extraction path ({@link ParquetColumnExtractor#coercionAdmissible}) makes the identical widening
+     * decision as the eager gate — the two must agree or a column reads differently depending on whether extraction
+     * was deferred.
      */
     static boolean plannerTypeCompatibleWithFileDerivedType(DataType planner, DataType fileDerived) {
         DataType unified = EsqlDataTypeConverter.commonType(planner, fileDerived);
@@ -4592,10 +4753,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // response Warning, fail_fast fails the read (null sink from coercionWarnings()).
             DataType declared = info.esqlType();
             DataType fileType = info.fileEsqlType();
-            if (fileType != null
-                && declared != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
-                && DeclaredTypeCoercions.supports(fileType, declared)) {
+            if (DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null)) {
                 Block physical = readColumnBlock(cr, listReader, info.fileTyped(), rowsToRead, colIndex, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(
@@ -4781,7 +4939,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     BigInteger unscaled = switch (info.parquetType()) {
                         case INT32 -> BigInteger.valueOf(cr.getInteger());
                         case INT64 -> BigInteger.valueOf(cr.getLong());
-                        case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
+                        case BINARY, FIXED_LEN_BYTE_ARRAY -> ParquetColumnDecoding.unscaledToBigInteger(cr.getBinary().getBytes());
                         default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
                     };
                     values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
@@ -4801,8 +4959,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     noNulls = false;
                 } else {
                     byte[] bytes = cr.getBinary().getBytes();
-                    short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
-                    values[i] = Float.float16ToFloat(float16Bits);
+                    values[i] = ParquetColumnDecoding.float16ToDouble(bytes, 0, bytes.length);
                 }
                 cr.consume();
             }
@@ -4820,7 +4977,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                         builder.appendNull();
                     } else if (isUuid) {
-                        builder.appendBytesRef(new BytesRef(ParquetColumnDecoding.formatUuid(cr.getBinary().getBytes())));
+                        byte[] bytes = cr.getBinary().getBytes();
+                        builder.appendBytesRef(new BytesRef(ParquetColumnDecoding.uuidText(bytes, 0, bytes.length)));
                     } else {
                         builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
                     }
@@ -4870,7 +5028,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     values[i] = switch (decode) {
                         case DATE_DAYS -> ParquetColumnDecoding.dateDaysToMillis(cr.getInteger());
                         case INT32_EPOCH_MILLIS -> ParquetColumnDecoding.int32AsInferredLong(cr.getInteger(), info.logicalType());
-                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsInferredLong(cr.getLong(), info.logicalType());
+                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsMillis(cr.getLong(), info.logicalType());
                         case INT96, STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
                     };
                 }

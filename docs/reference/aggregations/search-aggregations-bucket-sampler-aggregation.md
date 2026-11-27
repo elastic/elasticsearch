@@ -2,6 +2,9 @@
 navigation_title: "Sampler"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-sampler-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Sampler aggregation [search-aggregations-bucket-sampler-aggregation]

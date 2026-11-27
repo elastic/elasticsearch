@@ -141,7 +141,8 @@ public class RestSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
-                Optional.of(crossProjectEnabled)
+                Optional.of(crossProjectEnabled),
+                true
             )
         );
 
@@ -225,6 +226,36 @@ public class RestSearchAction extends BaseRestHandler {
         @Nullable SearchUsageHolder searchUsageHolder,
         Optional<Boolean> crossProjectEnabled
     ) throws IOException {
+        parseSearchRequest(
+            searchRequest,
+            request,
+            requestContentParser,
+            clusterSupportsFeature,
+            setSize,
+            searchUsageHolder,
+            crossProjectEnabled,
+            false
+        );
+    }
+
+    /**
+     * As {@link #parseSearchRequest(SearchRequest, RestRequest, XContentParser, Predicate, IntConsumer, SearchUsageHolder, Optional)},
+     * additionally declaring whether the calling endpoint supports slices.
+     *
+     * @param sliceSupported whether the endpoint supports slices, i.e. registers {@code /{index}/{_slice}/...} routes; the slice is
+     *                       then read from the {@code _slice} path segment or parameter. When {@code false} the request is never
+     *                       treated as a slice search and {@code _slice} is left unconsumed.
+     */
+    public static void parseSearchRequest(
+        SearchRequest searchRequest,
+        RestRequest request,
+        @Nullable XContentParser requestContentParser,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        IntConsumer setSize,
+        @Nullable SearchUsageHolder searchUsageHolder,
+        Optional<Boolean> crossProjectEnabled,
+        boolean sliceSupported
+    ) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
@@ -276,7 +307,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (scroll != null) {
             searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
         }
-        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, sliceSupported);
         searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         // A point-in-time search targets no index and therefore cannot carry the slice as a {_slice} path segment the way an
         // index-scoped search does; instead the slice is supplied inside the "pit" object and applied to the search request here.

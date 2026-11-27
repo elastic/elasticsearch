@@ -205,10 +205,11 @@ public class ExternalSourceResolver {
      * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
      * Not a measured deep size. A shared schema keeps one {@code ExternalSchema} and one {@code ColumnMapping};
      * each file adds a map node, a {@code FileSchemaInfo}, and a path key. 320 bytes covers that shape and
-     * leaves a few megabytes of slack at the default discovered-files cap. A file with its own attribute list
-     * can exceed it.
+     * leaves a few megabytes of slack at the discovered-files floor. A file with its own attribute list
+     * can exceed it. Package-visible so {@link ExternalSourceSettings} can size the discovered-files
+     * default from the same billed bytes.
      */
-    private static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
+    static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
 
     private final Executor executor;
     /**
@@ -497,6 +498,11 @@ public class ExternalSourceResolver {
         return listingService.maxListedObjects();
     }
 
+    /** Live {@link ExternalSourceSettings#MAX_DIRECTORY_LISTINGS} cap. Visible for wiring tests. */
+    public int maxDirectoryListings() {
+        return listingService.maxDirectoryListings();
+    }
+
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
         this(executor, dataSourceModule, Settings.EMPTY, null);
     }
@@ -622,6 +628,34 @@ public class ExternalSourceResolver {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(
+            executor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            isCancelled,
+            metadataReadConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable BooleanSupplier isCancelled,
+        int metadataReadConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         if (metadataReadConcurrency < 1) {
             throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
         }
@@ -632,7 +666,14 @@ public class ExternalSourceResolver {
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
         this.cacheService = cacheService;
-        this.listingService = new DatasetListingService(settings, cacheService, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects);
+        this.listingService = new DatasetListingService(
+            settings,
+            cacheService,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            maxDirectoryListings
+        );
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
         this.metadataReadConcurrency = metadataReadConcurrency;
@@ -704,8 +745,8 @@ public class ExternalSourceResolver {
      * If the originating query has been cancelled, reports a clean {@link TaskCancelledException} to {@code listener}
      * and returns {@code true}; otherwise returns {@code false}. Used in the resolution failure path so that a footer
      * read which failed <em>because</em> the query was cancelled mid-flight surfaces as cancellation rather than as a
-     * generic resolution error. Such a failure can arrive wrapped — {@code resolveSingleSource} wraps reader failures
-     * in {@link IllegalArgumentException} and cache loaders (file-metadata {@code computeIfAbsent}, or callers that
+     * generic resolution error. Such a failure can arrive wrapped — checked I/O from a factory is typed as
+     * {@link IllegalArgumentException} and cache loaders (file-metadata {@code computeIfAbsent}, or callers that
      * wrap schema loads) may wrap failures in {@code ExecutionException} —
      * so the cancellation state is consulted directly rather than matched on the exception type.
      */
@@ -998,8 +1039,13 @@ public class ExternalSourceResolver {
      */
     String formatConfigIdentity(String objectName, Map<String, Object> config) {
         try {
-            FormatReader reader = FormatNameResolver.resolveReader(config, objectName, dataSourceModule.formatReaderRegistry());
-            return reader.withConfigTrackingConsumedKeys(config).identity();
+            FormatReader prototype = FormatNameResolver.resolveReader(config, objectName, dataSourceModule.formatReaderRegistry());
+            Configured<FormatReader> configured = prototype.withConfigTrackingConsumedKeys(config);
+            try {
+                return configured.identity();
+            } finally {
+                FormatReaders.closeDistinctFrom(configured.value(), prototype);
+            }
         } catch (IllegalArgumentException e) {
             LOGGER.trace(() -> "no format claims [" + objectName + "]; no format-config identity to derive", e);
             return "";
@@ -1023,10 +1069,15 @@ public class ExternalSourceResolver {
             return 0;
         }
         try {
-            FormatReader reader = dataSourceModule.formatReaderRegistry()
-                .readerForListedObject(filePath.toString(), filePath.objectName(), config);
+            FormatReaderRegistry registry = dataSourceModule.formatReaderRegistry();
+            FormatReader prototype = registry.byName(FormatNameResolver.datasetFormat(config, filePath.toString(), registry));
+            FormatReader reader = registry.readerForListedObject(filePath.toString(), filePath.objectName(), config);
             FormatReader shared = reader.withSchemaSampleShare(files);
-            return shared == reader ? 0 : shared.schemaSampleSize();
+            try {
+                return shared == reader ? 0 : shared.schemaSampleSize();
+            } finally {
+                FormatReaders.closeAll(prototype, reader, shared);
+            }
         } catch (IllegalArgumentException e) {
             LOGGER.trace(() -> "no format claims [" + filePath + "] or its reader rejects the config; no schema sample to share", e);
             return 0;
@@ -1049,12 +1100,17 @@ public class ExternalSourceResolver {
         List<String> segments = GlobExpander.commaSegments(path);
         String anchor = segments.isEmpty() ? path : segments.get(0);
         try {
-            FormatReader reader = FormatNameResolver.resolveReader(
+            FormatReader prototype = FormatNameResolver.resolveReader(
                 config,
                 StoragePath.of(anchor).objectName(),
                 dataSourceModule.formatReaderRegistry()
             );
-            currentPathConfigWarnings = reader.withConfig(config).configWarnings();
+            FormatReader configured = prototype.withConfig(config);
+            try {
+                currentPathConfigWarnings = configured.configWarnings();
+            } finally {
+                FormatReaders.closeDistinctFrom(configured, prototype);
+            }
         } catch (IllegalArgumentException e) {
             LOGGER.trace(() -> "no configure-time notices for [" + anchor + "]: no format claims it or the reader rejects the config", e);
             return;
@@ -1078,12 +1134,14 @@ public class ExternalSourceResolver {
      * cache wraps loader failures), so the cancellation state is consulted directly rather than matched on the exception type.
      * <p>
      * A retryable back-pressure failure (permit exhaustion / remote-store unavailability) reaches here as an
-     * {@link ExternalUnavailableException} (503), but the factory loop always re-wraps a factory failure in an
-     * {@link IllegalArgumentException} (400). So the 503 is recovered from the cause chain <em>before</em> the
-     * {@link IllegalArgumentException} branch and surfaced as a 503, otherwise a transient capacity condition would be
-     * masked as a non-retryable client error and the client's retry path would never engage. An interrupt during permit
-     * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
-     * node-level rejection is not masked as a 400.
+     * {@link ExternalUnavailableException} (503). The schema cache still wraps loader failures in an
+     * {@code ExecutionException}, and {@link FileSourceFactory} still types checked I/O as an
+     * {@link IllegalArgumentException}, so a 503 can sit behind either wrapper. It is recovered from the cause
+     * chain <em>before</em> the {@link IllegalArgumentException} branch and surfaced as a 503, otherwise a
+     * transient capacity condition would be masked as a non-retryable client error and the client's retry path
+     * would never engage. An interrupt during permit acquisition arrives the same way as an
+     * {@link EsRejectedExecutionException} (429) and is recovered identically so a node-level rejection is not
+     * masked as a 400.
      * <p>
      * As a side effect, a failure that is not a cancellation is recorded as a discovery failure in the external-source
      * telemetry, once per failed discovery, classified from the exception returned here.
@@ -1114,8 +1172,9 @@ public class ExternalSourceResolver {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE);
         }
-        // A buried 503 (retryable back-pressure) must not be masked as a 400 by the factory loop's IllegalArgumentException
-        // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped.
+        // A buried 503 (retryable back-pressure) must not be masked as a 400 by a cache ExecutionException or an
+        // I/O IllegalArgumentException wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches
+        // the 503 raw or wrapped.
         ExternalUnavailableException unavailable = (ExternalUnavailableException) ExceptionsHelper.unwrap(
             e,
             ExternalUnavailableException.class
@@ -1125,7 +1184,7 @@ public class ExternalSourceResolver {
             return unavailable.withoutCause();
         }
         // The object was rewritten under a listing or probe that still named its old version. Retryable, so it keeps its 503
-        // rather than the 400 the factory loop's IllegalArgumentException wrapper would give it.
+        // rather than a 400 a cache or I/O wrapper would give it.
         ExternalObjectChangedException changed = (ExternalObjectChangedException) ExceptionsHelper.unwrap(
             e,
             ExternalObjectChangedException.class
@@ -1148,9 +1207,10 @@ public class ExternalSourceResolver {
             logClientResolveFailure(path, expired.getMessage(), e);
             return expired.withoutCause();
         }
-        // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
-        // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
-        // branch: a node-level rejection must keep its 429 status instead of being masked as a client error.
+        // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). A cache ExecutionException
+        // or an I/O IllegalArgumentException can bury it, so recover it from the cause chain before the
+        // IllegalArgumentException branch: a node-level rejection must keep its 429 status instead of being masked
+        // as a client error.
         EsRejectedExecutionException rejected = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
             e,
             EsRejectedExecutionException.class
@@ -1173,8 +1233,8 @@ public class ExternalSourceResolver {
         // reintroduce the same masking.
         // Storage connectors throw ExternalClientException (400) directly for access-denied and object-not-found
         // cases — it is an ElasticsearchException, not an IOException, so the IOException arm below would not catch
-        // it. It is checked before the IllegalArgumentException arm: the factory loop wraps every factory failure in
-        // an IllegalArgumentException, which would otherwise shadow the typed condition.
+        // it. It is checked before the IllegalArgumentException arm: a cache {@code ExecutionException} or a
+        // FileSourceFactory I/O wrapper can still bury the typed condition under an IllegalArgumentException.
         ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
         if (clientException != null) {
             if (objectChangeRetryAhead && ExternalException.isStaleCachedObject(clientException)) {
@@ -3134,7 +3194,7 @@ public class ExternalSourceResolver {
      * would re-key - and re-read - every file each time it does. Rounded, the keys move only when the count crosses a
      * power of two, and stop moving once the per-file floor is reached.
      * <p>
-     * Deliberately not clamped: listings are capped at 1,000,000 files by
+     * Deliberately not clamped: listings are capped at 10,000,000 files by
      * {@link ExternalSourceSettings#MAX_DISCOVERED_FILES}, far below the first {@code int} overflow at {@code 2^30}.
      */
     static int schemaSampleShare(int fileCount) {
@@ -3822,6 +3882,8 @@ public class ExternalSourceResolver {
                 }
                 encodeColumns.add(entry.getKey());
             } else if (unsignedExtremaUnderNonUnsignedPlanner(plannerType, fileType)) {
+                // Out of scope for declared-epoch rescale: unsigned extrema under a signed planner are a
+                // representation mismatch, not a linear epoch map. Do not apply the INTEGER/LONG epoch rule here.
                 if (poisonColumns == null) {
                     poisonColumns = new ArrayList<>();
                 }
@@ -4222,7 +4284,7 @@ public class ExternalSourceResolver {
     /**
      * Cancellation and a circuit-breaker trip abort the FIRST_FILE_WINS stats gather instead of degrading to
      * partial stats. Other per-file failures still respond {@code null} so the caller marks stats partial.
-     * Unwraps a breaker trip because the factory loop (and the schema cache) wrap loader failures;
+     * Unwraps a breaker trip because the schema cache wraps loader failures;
      * {@link #mapResolveFailure} unwraps the same way.
      */
     private void failOrDegradeStatsGather(Exception e, ActionListener<Map<String, Object>> listener) {
@@ -4348,18 +4410,21 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Surfaces the last factory failure after every claiming factory has been tried. The
-     * {@link IllegalArgumentException} wrapper is what types a factory failure as client-caused, so it stays; only
-     * its message changes. It used to be the constant "Failed to resolve metadata for [path]", which reported a
-     * missing object, a wrong format, a truncated footer and an empty file with one identical sentence — and the
-     * factories already build that same sentence one level down, so the wrapper also duplicated it. It now carries
-     * the diagnosis instead.
+     * Surfaces the last factory failure after every claiming factory has been tried. A factory
+     * {@link RuntimeException} already carries its own status — an {@link IllegalArgumentException} is 400, an
+     * {@link ExternalUnavailableException} is 503, an {@link IllegalStateException} is 500 through
+     * {@link #mapResolveFailure}'s terminal arm — so it is returned as-is. Wrapping every factory failure in an
+     * {@link IllegalArgumentException} made those statuses indistinguishable from a bad request. A checked
+     * failure (typically {@link IOException}) is typed as client-caused with the cause chain kept so
+     * {@link #mapResolveFailure} can still recover a buried 503/429 from a cache {@code ExecutionException}.
      */
     private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
-        String detail = ExternalFailures.rootDetail(lastFailure);
+        if (lastFailure instanceof RuntimeException re) {
+            return re;
+        }
         // Preserve the full cause chain so mapResolveFailure's unwrap arms can still find any
         // status carrier (503, 429, etc.) buried inside it.
-        return new IllegalArgumentException(detail, lastFailure);
+        return new IllegalArgumentException(ExternalFailures.rootDetail(lastFailure), lastFailure);
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
@@ -5234,30 +5299,7 @@ public class ExternalSourceResolver {
             ),
             listener::onFailure
         );
-        if (path.indexOf(',') >= 0) {
-            // Comma-separated paths expand synchronously — GlobExpander.expand handles the union
-            // without any fan-out, so no pool-thread blocking occurs.
-            FileList listing;
-            try {
-                listing = GlobExpander.expand(
-                    path,
-                    provider,
-                    hints,
-                    config,
-                    listingService.maxDiscoveredFiles(),
-                    listingService.maxGlobExpansion(),
-                    listingService.maxListedObjects(),
-                    extents,
-                    planningMemory(),
-                    listingCancellation(),
-                    folderRange
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            listingListener.onResponse(listing);
-        } else if (isCacheable(provider)) {
+        if (isCacheable(provider)) {
             cachedListingAsync(
                 path,
                 storagePath,
@@ -5715,6 +5757,44 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Footer epoch scales that are safe to unpoison: parquet/orc raw ticks whose inferred type is
+     * INTEGER/LONG on every file that has a snapshot. Text harvests, a first_file_wins sibling without
+     * native types, and non-integral physical types stay out (those columns remain poisoned). Per column:
+     * a string {@code epoch_second} sibling does not block a LONG one.
+     */
+    static Map<String, SourceStatisticsSerializer.EpochScale> rescaleableEpochScales(
+        boolean fileTyped,
+        boolean firstFileWinsMultiFile,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        DeclaredReadSpec declaredReadSpec,
+        Map<String, SourceStatisticsSerializer.EpochScale> epochScales
+    ) {
+        if (fileTyped == false || epochScales == null || epochScales.isEmpty() || schemaMap == null || schemaMap.isEmpty()) {
+            return Map.of();
+        }
+        for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            if (info.inferredTypes() == null && firstFileWinsMultiFile) {
+                return Map.of();
+            }
+        }
+        Map<String, SourceStatisticsSerializer.EpochScale> eligible = new HashMap<>(epochScales);
+        for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+            Map<String, DataType> fileTypes = info.inferredTypes();
+            if (fileTypes == null) {
+                continue;
+            }
+            for (String logical : epochScales.keySet()) {
+                String physical = declaredReadSpec.renames().getOrDefault(logical, logical);
+                DataType inferred = fileTypes.get(physical);
+                if (inferred != null && inferred != DataType.LONG && inferred != DataType.INTEGER) {
+                    eligible.remove(logical);
+                }
+            }
+        }
+        return eligible.isEmpty() ? Map.of() : Map.copyOf(eligible);
+    }
+
+    /**
      * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
      * columns in the user-facing schema and in each per-file schema (lenient — a column may be absent from one
      * file under union-by-name), preserving the inferred stats/sourceMetadata and the per-file column mappings.
@@ -5780,7 +5860,9 @@ public class ExternalSourceResolver {
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
         // the rekeyed stats stay exactly correct — warm serving survives the rename) and poison extrema + drop counts for
         // retyped / declared-date-format columns (the read-time coercion nulls failing cells and re-represents values, so
-        // no pre-coercion stat matches a scan). row_count/file_count/size_bytes stay: COUNT(*) stays warm.
+        // no pre-coercion stat matches a scan). Exact epoch_second/epoch_millis on INTEGER/LONG are the exception: extrema
+        // are rescaled into the declared unit before overlay and those names are removed from poison. row_count/file_count/
+        // size_bytes stay: COUNT(*) stays warm.
         Map<String, DataType> inferredTypes = attributesToTypeMap(inferred.schema());   // physical names, inferred types
         Map<String, DataType> overlaidTypes = attributesToTypeMap(unified.output());    // logical names, declared types
         Map<String, String> physicalToLogical = new HashMap<>();
@@ -5940,8 +6022,33 @@ public class ExternalSourceResolver {
         // physical column a partition shadows, which every reader does parse — and took the per-column statistics of
         // every mapped partitioned dataset permanently cold.
         Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadConfig(inferred.sourceMetadata(), expectedReadConfig);
+        Map<String, SourceStatisticsSerializer.EpochScale> epochScales = SourceStatisticsSerializer.epochScales(
+            declaredReadSpec.dateFormats(),
+            overlaidTypes
+        );
+        Map<String, Object> statsForOverlay = servableStats;
+        // Footer ticks only: text-reader harvests already hold declared-unit values (and stamp a matching
+        // read-config), so rescale would multiply twice. Skip also when a first_file_wins sibling has no
+        // native-type snapshot. Non-integral physical types are dropped per column, not for the dataset.
+        Map<String, SourceStatisticsSerializer.EpochScale> rescaleable = rescaleableEpochScales(
+            fileTyped,
+            anchorPinnedFirstFileWins && overlaidSchemaMap.size() > 1,
+            overlaidSchemaMap,
+            declaredReadSpec,
+            epochScales
+        );
+        if (rescaleable.isEmpty() == false) {
+            SourceStatisticsSerializer.EpochRescale rescale = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                servableStats,
+                physicalToLogical,
+                rescaleable,
+                inferredTypes
+            );
+            poisonColumns.removeAll(rescale.unpoisoned());
+            statsForOverlay = rescale.stats();
+        }
         Map<String, Object> overlaidSourceMetadata = Map.copyOf(
-            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(servableStats, physicalToLogical, poisonColumns)
+            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(statsForOverlay, physicalToLogical, poisonColumns)
         );
         ExternalSourceMetadata overlaidMetadata = new ExternalSourceMetadata() {
             @Override

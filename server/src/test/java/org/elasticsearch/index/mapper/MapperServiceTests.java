@@ -1902,6 +1902,39 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertTrue(mapper.mappers().getMapper("parent.child1") == null ^ mapper.mappers().getMapper("parent.child2") == null);
     }
 
+    public void testMergeUntilLimitInColumnarMode() throws IOException {
+        CompressedXContent mapping = new CompressedXContent("""
+            {
+              "properties": {
+                "field1": { "type": "keyword" },
+                "field2": { "type": "keyword" },
+                "field3": { "type": "keyword" }
+              }
+            }""");
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2)
+            .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+            .build();
+
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        DocumentMapper mapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_AUTO_UPDATE);
+        assertEquals(0, mapper.mappers().remainingFieldsUntilLimit(2));
+        int mapped = 0;
+        for (String field : List.of("field1", "field2", "field3")) {
+            mapped += mapper.mappers().getMapper(field) == null ? 0 : 1;
+        }
+        assertEquals("only the fields within the limit must be mapped", 2, mapped);
+
+        MapperService explicitMapperService = createMapperService(settings, mapping(b -> {}));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> explicitMapperService.merge("_doc", mapping, MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("Limit of total fields [2] has been exceeded"));
+    }
+
     public void testUpdateMappingWhenAtLimit() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {

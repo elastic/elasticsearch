@@ -56,6 +56,18 @@ public class TaskResultsService {
 
     public static final String TASK_INDEX = ".tasks";
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
+
+    /**
+     * The object in a stored result that holds the {@link TaskInfo}, and the name of its start time field within that object. Together
+     * they give the path of the field that the age of a stored result is judged by, see {@link #TASK_START_TIME_IN_MILLIS_PATH}.
+     */
+    public static final String TASK_FIELD = "task";
+    public static final String START_TIME_IN_MILLIS_FIELD = "start_time_in_millis";
+
+    /**
+     * The full path of the task start time in a stored result, as defined by the index mappings.
+     */
+    public static final String TASK_START_TIME_IN_MILLIS_PATH = TASK_FIELD + "." + START_TIME_IN_MILLIS_FIELD;
     private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     public static final SystemIndexDescriptor TASKS_DESCRIPTOR = SystemIndexDescriptor.builder()
@@ -179,7 +191,7 @@ public class TaskResultsService {
                     builder.field("type", "boolean");
                     builder.endObject();
 
-                    builder.startObject("task");
+                    builder.startObject(TASK_FIELD);
                     {
                         builder.startObject("properties");
                         {
@@ -207,7 +219,7 @@ public class TaskResultsService {
                             builder.field("type", "long");
                             builder.endObject();
 
-                            builder.startObject("start_time_in_millis");
+                            builder.startObject(START_TIME_IN_MILLIS_FIELD);
                             builder.field("type", "long");
                             builder.endObject();
 

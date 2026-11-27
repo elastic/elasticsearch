@@ -12,6 +12,7 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -20,6 +21,8 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.simdjson.SimdJsonSupport;
+import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -50,6 +53,21 @@ public final class EscfColumnBuilder implements Releasable {
         MERGE,
         /** Format: split scalar and array into a {@link EscfColumnKind#UNION}, preserving per-row shape. */
         SPLIT
+    }
+
+    /**
+     * Holds the padding reserved past each string written with {@link Utf8Value#copyTo}.
+     * It is a separate class so that its value is computed on the first string write, not when {@link EscfColumnBuilder}
+     * is loaded. Computing it can load the simdjson native library.
+     */
+    static final class StringPadding {
+        /**
+         * Only values copied by simdjson need padding ({@link SimdJsonSupport#DESTINATION_PADDING}),
+         * and those only exist when {@link EscfEncoder#isSimdEnabled()}.
+         */
+        static final int BYTES = EscfEncoder.isSimdEnabled() ? SimdJsonSupport.DESTINATION_PADDING : 0;
+
+        private StringPadding() {}
     }
 
     /** Sentinel for an array column whose child kind has not yet been resolved (only empty arrays / no element seen). */
@@ -129,6 +147,13 @@ public final class EscfColumnBuilder implements Releasable {
         }
     }
 
+    /**
+     * The memory this column holds until it is finished or closed: heap and recycled pages.
+     */
+    public long ramBytesUsed() {
+        return finished || current == null ? 0 : current.ramBytesUsed();
+    }
+
     private boolean canHint() {
         return current == null && arrayOpen == false;
     }
@@ -175,6 +200,36 @@ public final class EscfColumnBuilder implements Releasable {
 
     public void addString(XContentString.UTF8Bytes utf8) {
         setString(nextAppendRow(), utf8);
+    }
+
+    /**
+     * Adds a {@code STRING} value for the next row. The {@code STRING} case of {@link #newRowScalar}, with the value written by
+     * {@link Utf8Value#copyTo} so that its bytes are copied once, into the column's buffer.
+     */
+    void addUtf8String(Utf8Value value) {
+        final int row = nextAppendRow();
+        assert lockedKind == -1 || lockedKind == EscfColumnKind.STRING
+            : "column locked to " + EscfColumnKind.name(lockedKind) + " but received STRING";
+        assert row > lastWrittenRow : nonDecreasing(row);
+        fillGapTo(row);
+        if (current == null) {
+            current = newScalarWithBackfill(EscfColumnKind.STRING);
+            current.addString(value);
+        } else if (current instanceof ArrayBuilder ab) {
+            if (policy == CollisionPolicy.MERGE && ab.childKind() == EscfColumnKind.STRING) {
+                ab.startRow();
+                ab.appendString(value);
+            } else {
+                promoteToUnion();
+                current.addString(value);
+            }
+        } else if (current.kind() == EscfColumnKind.STRING || current.kind() == EscfColumnKind.UNION) {
+            current.addString(value);
+        } else {
+            promoteToUnion();
+            current.addString(value);
+        }
+        lastWrittenRow = row;
     }
 
     public void addBinary(BytesRef value) {
@@ -411,6 +466,11 @@ public final class EscfColumnBuilder implements Releasable {
             return;
         }
         newRowScalar(row, kind, 0L, 0.0, bytes, off, len);
+    }
+
+    /** Returns {@code true} between {@link #beginArray} and {@link #endArray}. */
+    public boolean isArrayOpen() {
+        return arrayOpen;
     }
 
     /** Opens an array cell for {@code row}; elements are supplied via {@code appendX} until {@link #endArray}. */
@@ -908,6 +968,8 @@ public final class EscfColumnBuilder implements Releasable {
 
         void addBytes(byte kind, byte[] bytes, int offset, int length);
 
+        void addString(Utf8Value value);
+
         void addNull();
 
         void addAbsent();
@@ -936,12 +998,23 @@ public final class EscfColumnBuilder implements Releasable {
         EscfColumnData finish(int docCount);
 
         void discard();
+
+        /** The memory held, recycled pages included. */
+        long ramBytesUsed();
     }
 
     private abstract static class BaseBuilder implements TypedBuilder {
 
         int count;
         FixedBitSet validity;
+
+        final long validityBytes() {
+            return validity == null ? 0 : validity.ramBytesUsed();
+        }
+
+        final long stringScratchBytes() {
+            return stringScratch == null ? 0 : RamUsageEstimator.sizeOf(stringScratch);
+        }
 
         @Override
         public int rowsConsumed() {
@@ -970,6 +1043,38 @@ public final class EscfColumnBuilder implements Releasable {
             }
             // bits [count, count+n) remain 0 (absent)
             count += n;
+        }
+
+        /** Holds a string that does not fit in the stream's current page; see {@link #writeString}. */
+        private byte[] stringScratch;
+
+        /**
+         * Writes {@code value} to {@code out} and returns its length. The value goes straight into the stream's current page
+         * when {@link Utf8Value#maxLength()} plus {@link StringPadding#BYTES} fits there, and through a scratch buffer otherwise.
+         */
+        final int writeString(RecyclerBytesStreamOutput out, Utf8Value value) {
+            final int reserve = value.maxLength() + StringPadding.BYTES;
+            final BytesRef page = out.tryGetPageForWrite(reserve);
+            if (page != null) {
+                final int length = value.copyTo(page.bytes, page.offset);
+                out.unreserve(reserve - length);
+                return length;
+            }
+            return writeStringAcrossPages(out, value, reserve);
+        }
+
+        /**
+         * Write to a temp buffer and use the existing writeBytes route (which handles cross-page correctly)
+         *
+         * <p>Kept out of {@link #writeString} so that its common path stays small enough for C2 to inline.
+         */
+        private int writeStringAcrossPages(RecyclerBytesStreamOutput out, Utf8Value value, int reserve) {
+            if (stringScratch == null || stringScratch.length < reserve) {
+                stringScratch = new byte[ArrayUtil.oversize(reserve, Byte.BYTES)];
+            }
+            final int length = value.copyTo(stringScratch, 0);
+            writeBytes(out, stringScratch, 0, length);
+            return length;
         }
 
         /** Marks the current document present and advances {@code count}. */
@@ -1015,6 +1120,11 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
+        public void addString(Utf8Value value) {
+            throw unsupported("string");
+        }
+
+        @Override
         public void addNull() {
             throw unsupported("null");
         }
@@ -1033,6 +1143,11 @@ public final class EscfColumnBuilder implements Releasable {
      * kept in lockstep (one row per document, zero-length where there is none) from then on.
      */
     private static final class FixedNumericBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed() {
+            return allocatedBytes(data) + (lexicalForms == null ? 0 : lexicalForms.ramBytesUsed()) + validityBytes();
+        }
+
         private final byte kind;
         private final Recycler<BytesRef> recycler;
         private RecyclerBytesStreamOutput data;
@@ -1194,6 +1309,10 @@ public final class EscfColumnBuilder implements Releasable {
 
     /** BOOL: a value bitset (bit set = true). */
     private static final class BoolBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed() {
+            return (values == null ? 0 : values.ramBytesUsed()) + validityBytes();
+        }
 
         private FixedBitSet values;
 
@@ -1254,6 +1373,11 @@ public final class EscfColumnBuilder implements Releasable {
 
     /** STRING / BINARY: raw bytes plus an offset vector. */
     private static final class VarBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed() {
+            return allocatedBytes(data) + arrayBytes(offsets) + validityBytes() + stringScratchBytes();
+        }
+
         private final byte kind;
         private RecyclerBytesStreamOutput data;
         private int[] offsets = new int[16];
@@ -1275,6 +1399,14 @@ public final class EscfColumnBuilder implements Releasable {
             recordOffset();
             writeBytes(data, bytes, offset, length);
             dataLen += length;
+            advancePresent();
+        }
+
+        @Override
+        public void addString(Utf8Value value) {
+            assert kind == EscfColumnKind.STRING : "VarBuilder of " + EscfColumnKind.name(kind) + " given STRING";
+            recordOffset();
+            dataLen += writeString(data, value);
             advancePresent();
         }
 
@@ -1392,6 +1524,12 @@ public final class EscfColumnBuilder implements Releasable {
      * bitset distinguishes a present empty array from absent; under MERGE an absent row is an empty range.
      */
     private static final class ArrayBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed() {
+            return (consumed ? 0 : allocatedBytes(childData)) + arrayBytes(childOffsets) + arrayBytes(rowOffsets) + validityBytes()
+                + stringScratchBytes();
+        }
+
         private byte childKind;
         /** Whether to emit the validity bitset (SPLIT: distinguishes {@code []} from absent). */
         private final boolean splitValidity;
@@ -1513,6 +1651,13 @@ public final class EscfColumnBuilder implements Releasable {
             elemCount++;
         }
 
+        void appendString(Utf8Value value) {
+            resolveKind(EscfColumnKind.STRING);
+            recordElemOffset();
+            childDataLen += writeString(childData, value);
+            elemCount++;
+        }
+
         /** Appends an 8-byte element from its raw bit pattern; avoids a bits→double→bits round trip. */
         void appendFixedBits(byte elemKind, long bits) {
             resolveKind(elemKind);
@@ -1596,6 +1741,12 @@ public final class EscfColumnBuilder implements Releasable {
 
     /** UNION: a per-document {@link SourceValueType} vector, an offset vector, and a dense value buffer. */
     private static final class UnionBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed() {
+            return allocatedBytes(data) + arrayBytes(offsets) + (typeVec == null ? 0 : RamUsageEstimator.sizeOf(typeVec)) + validityBytes()
+                + stringScratchBytes();
+        }
+
         private final RecyclerBytesStreamOutput data;
         private int[] offsets;
         private byte[] typeVec;
@@ -1649,6 +1800,13 @@ public final class EscfColumnBuilder implements Releasable {
             prep(kind == EscfColumnKind.BINARY ? SourceValueType.BINARY : SourceValueType.STRING);
             writeBytes(data, bytes, offset, length);
             dataLen += length;
+            advancePresent();
+        }
+
+        @Override
+        public void addString(Utf8Value value) {
+            prep(SourceValueType.STRING);
+            dataLen += writeString(data, value);
             advancePresent();
         }
 
@@ -1762,6 +1920,14 @@ public final class EscfColumnBuilder implements Releasable {
         public void discard() {
             data.close();
         }
+    }
+
+    private static long allocatedBytes(RecyclerBytesStreamOutput out) {
+        return out == null ? 0 : out.allocatedBytes();
+    }
+
+    private static long arrayBytes(int[] array) {
+        return array == null ? 0 : RamUsageEstimator.sizeOf(array);
     }
 
     private static RecyclerBytesStreamOutput newStream(Recycler<BytesRef> recycler) {

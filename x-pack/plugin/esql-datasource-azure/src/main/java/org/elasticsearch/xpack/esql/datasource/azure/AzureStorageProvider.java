@@ -508,7 +508,9 @@ public final class AzureStorageProvider implements StorageProvider {
     static TokenCredential buildClientAssertionCredential(AzureConfiguration config, ExecutorService executor) {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException(
+            // Operator misconfiguration, not a broken invariant: the data source asked for federated
+            // identity on a node where the feature is off.
+            throw new IllegalArgumentException(
                 "Azure federated authentication requires the workload-identity feature to be enabled on this node"
             );
         }

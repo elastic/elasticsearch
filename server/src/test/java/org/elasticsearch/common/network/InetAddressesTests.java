@@ -106,6 +106,21 @@ public class InetAddressesTests extends ESTestCase {
                 // expected behavior
             }
             assertFalse(InetAddresses.isInetAddress(bogusInputs[i]));
+            byte[] utf8 = bogusInputs[i].getBytes(StandardCharsets.UTF_8);
+            assertNull(bogusInputs[i], InetAddresses.tryEncodeAsIpv6(utf8, 0, utf8.length));
+        }
+    }
+
+    public void testTryEncodeAsIpv6MatchesEncodeAsIpv6() {
+        for (int i = 0; i < 100; i++) {
+            String ip = NetworkAddress.format(randomIp(randomBoolean()));
+            byte[] utf8 = ip.getBytes(StandardCharsets.UTF_8);
+            assertArrayEquals(ip, InetAddresses.encodeAsIpv6(utf8, 0, utf8.length), InetAddresses.tryEncodeAsIpv6(utf8, 0, utf8.length));
+
+            // The address is read from a slice of a larger buffer.
+            byte[] padded = new byte[utf8.length + 5];
+            System.arraycopy(utf8, 0, padded, 2, utf8.length);
+            assertArrayEquals(ip, InetAddresses.encodeAsIpv6(utf8, 0, utf8.length), InetAddresses.tryEncodeAsIpv6(padded, 2, utf8.length));
         }
     }
 

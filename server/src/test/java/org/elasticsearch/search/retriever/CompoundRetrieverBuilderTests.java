@@ -25,14 +25,15 @@ import static org.mockito.Mockito.when;
 public class CompoundRetrieverBuilderTests extends ESTestCase {
     public void testShardFailureHandling() {
         SearchResponse response = Mockito.mock(SearchResponse.class);
-        ShardSearchFailure[] shardFailures = new ShardSearchFailure[2];
-        shardFailures[0] = new ShardSearchFailure(
-            new IOException("some shard failed"), // 500
-            new SearchShardTarget("1", new ShardId("1", "1", 1), "foo")
-        );
-        shardFailures[1] = new ShardSearchFailure(
-            new IOException("some second shard failed"), // 500
-            new SearchShardTarget("2", new ShardId("2", "2", 2), "bar")
+        List<ShardSearchFailure> shardFailures = List.of(
+            new ShardSearchFailure(
+                new IOException("some shard failed"), // 500
+                new SearchShardTarget("1", new ShardId("1", "1", 1), "foo")
+            ),
+            new ShardSearchFailure(
+                new IOException("some second shard failed"), // 500
+                new SearchShardTarget("2", new ShardId("2", "2", 2), "bar")
+            )
         );
         when(response.getShardFailures()).thenReturn(shardFailures);
 

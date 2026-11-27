@@ -365,6 +365,181 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Declared {@code @timestamp <- start, epoch_second} rescales footer extrema into millis on the
+     * logical name and keeps counts. Assert the stats map — a cold scan can mask a dead overlay.
+     */
+    public void testDeclaredEpochSecondOverlayRescalesStatsMap() throws Exception {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        Map<String, Object> meta = resolveDeclaredEpochStats(
+            DataType.LONG,
+            DatasetFieldMapping.withFormat("date", "start", "epoch_second"),
+            rawMin,
+            rawMax,
+            Map.of()
+        );
+        assertEquals(rawMin * 1_000L, meta.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertEquals(rawMax * 1_000L, meta.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(12L, meta.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp")));
+        assertEquals(0L, meta.get(SourceStatisticsSerializer.columnNullCountKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnMinKey("start")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+    }
+
+    /** Calendar formats stay poisoned: no served min/max, counts dropped. */
+    public void testDeclaredYyyyMMddOverlayStillPoisonsStatsMap() throws Exception {
+        Map<String, Object> meta = resolveDeclaredEpochStats(
+            DataType.LONG,
+            DatasetFieldMapping.withFormat("date", "start", "yyyyMMdd"),
+            20251120L,
+            20251120L,
+            Map.of()
+        );
+        assertNull(meta.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp")));
+    }
+
+    /**
+     * Footer rescale is parquet/orc only. Text harvests, first_file_wins files without a native-type
+     * snapshot, and non-integral inferred types stay poisoned. A string epoch sibling does not block
+     * a LONG epoch column.
+     */
+    public void testRescaleableEpochScalesGates() {
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start"),
+            Map.of("@timestamp", "epoch_second"),
+            Set.of("@timestamp")
+        );
+        SourceStatisticsSerializer.EpochScale millis = new SourceStatisticsSerializer.EpochScale(DataType.DATETIME, 1_000L);
+        Map<String, SourceStatisticsSerializer.EpochScale> scales = Map.of("@timestamp", millis);
+        StoragePath a = StoragePath.of("s3://b/a.parquet");
+        StoragePath b = StoragePath.of("s3://b/b.parquet");
+        ExternalSchema schema = new ExternalSchema(List.of(attr("start", DataType.LONG)));
+        SchemaReconciliation.FileSchemaInfo longInfo = new SchemaReconciliation.FileSchemaInfo(
+            schema,
+            null,
+            null,
+            Map.of("start", DataType.LONG)
+        );
+        SchemaReconciliation.FileSchemaInfo boolInfo = new SchemaReconciliation.FileSchemaInfo(
+            schema,
+            null,
+            null,
+            Map.of("start", DataType.BOOLEAN)
+        );
+        SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(schema, null, null, null);
+        assertEquals(
+            Set.of("@timestamp"),
+            ExternalSourceResolver.rescaleableEpochScales(true, false, Map.of(a, longInfo), spec, scales).keySet()
+        );
+        assertTrue(
+            "csv harvest is already in the declared unit",
+            ExternalSourceResolver.rescaleableEpochScales(false, false, Map.of(a, longInfo), spec, scales).isEmpty()
+        );
+        assertTrue(
+            "first_file_wins sibling without a native-type snapshot",
+            ExternalSourceResolver.rescaleableEpochScales(true, true, Map.of(a, longInfo, b, unknown), spec, scales).isEmpty()
+        );
+        assertTrue(
+            "BOOLEAN sibling is not a linear epoch map",
+            ExternalSourceResolver.rescaleableEpochScales(true, false, Map.of(a, longInfo, b, boolInfo), spec, scales).isEmpty()
+        );
+
+        DeclaredReadSpec mixedSpec = DeclaredReadSpec.of(
+            Map.of("@timestamp", "start", "event", "day"),
+            Map.of("@timestamp", "epoch_second", "event", "epoch_second"),
+            Set.of("@timestamp", "event")
+        );
+        Map<String, SourceStatisticsSerializer.EpochScale> mixedScales = Map.of("@timestamp", millis, "event", millis);
+        SchemaReconciliation.FileSchemaInfo mixedInfo = new SchemaReconciliation.FileSchemaInfo(
+            schema,
+            null,
+            null,
+            Map.of("start", DataType.LONG, "day", DataType.KEYWORD)
+        );
+        assertEquals(
+            Set.of("@timestamp"),
+            ExternalSourceResolver.rescaleableEpochScales(true, false, Map.of(a, mixedInfo), mixedSpec, mixedScales).keySet()
+        );
+    }
+
+    /**
+     * Out-of-range extrema stay poisoned even under {@code error_mode: null_field} — a valid superset of
+     * the scan, but one rule is cheaper than two. The stats map must not serve a truncated min.
+     */
+    public void testDeclaredEpochOutOfRangeStaysPoisonedUnderNullField() throws Exception {
+        Map<String, Object> meta = resolveDeclaredEpochStats(
+            DataType.LONG,
+            DatasetFieldMapping.withFormat("date", "start", "epoch_second"),
+            Long.MAX_VALUE / 1_000L + 1,
+            Long.MAX_VALUE / 1_000L + 1,
+            Map.of("error_mode", "null_field")
+        );
+        assertNull(meta.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp")));
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp")));
+        assertNull(meta.get(SourceStatisticsSerializer.columnValueCountKey("@timestamp")));
+    }
+
+    private Map<String, Object> resolveDeclaredEpochStats(
+        DataType physicalType,
+        DatasetFieldMapping mapping,
+        long min,
+        long max,
+        Map<String, Object> extraConfig
+    ) throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("start", physicalType)));
+        Map<String, List<StorageEntry>> listingsByPrefix = Map.of(
+            StoragePath.of(DECLARED_GLOB).patternPrefix().toString(),
+            List.of(entry(file, 100))
+        );
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(schemasByPath, Map.of(file, 12L)) {
+            @Override
+            Optional<Map<String, SourceStatistics.ColumnStatistics>> columnsFor(String path) {
+                return Optional.of(Map.of("start", new SourceStatistics.ColumnStatistics() {
+                    @Override
+                    public OptionalLong nullCount() {
+                        return OptionalLong.of(0L);
+                    }
+
+                    @Override
+                    public OptionalLong valueCount() {
+                        return OptionalLong.of(12L);
+                    }
+
+                    @Override
+                    public OptionalLong distinctCount() {
+                        return OptionalLong.empty();
+                    }
+
+                    @Override
+                    public Optional<Object> minValue() {
+                        return Optional.of(min);
+                    }
+
+                    @Override
+                    public Optional<Object> maxValue() {
+                        return Optional.of(max);
+                    }
+                }));
+            }
+        };
+        ExternalSourceResolver resolver = createResolverWithReader(new StubStorageProvider(listingsByPrefix, schemasByPath), reader, null);
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("@timestamp", mapping);
+        DatasetMapping declared = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
+        Map<String, Object> config = new HashMap<>(extraConfig);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolvePaths(resolver, List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, config), null, Map.of(DECLARED_GLOB, declared), null, future);
+        return soleResolvedSource(future.actionGet(), DECLARED_GLOB).metadata().sourceMetadata();
+    }
+
+    /**
      * Under {@code dynamic: true} a declared column a complete (columnar) schema lacks is kept at its declared type
      * instead of rejecting the dataset, and resolution warns with the physical name, as the readers do, so a query
      * that never reads the column still carries the warning.
@@ -3734,6 +3909,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * {@code formatConfigIdentity} mints a configured reader only to read {@code identity()}.
+     * That remint must close; the registry prototype must not.
+     */
+    public void testFormatConfigIdentityClosesConfiguredRemint() {
+        AtomicInteger prototypeCloses = new AtomicInteger();
+        AtomicInteger remintCloses = new AtomicInteger();
+        ExternalSourceResolver resolver = createResolverWithReader(
+            new CountingStorageProvider(Map.of(), Map.of()),
+            new RemintingStubFormatReader(Map.of(), prototypeCloses, remintCloses, false),
+            null
+        );
+        String identity = resolver.formatConfigIdentity("file.parquet", Map.of("schema_max_fields", "10"));
+        assertFalse("configured identity should fold the consumed key", identity.isEmpty());
+        assertEquals(1, remintCloses.get());
+        assertEquals(0, prototypeCloses.get());
+    }
+
+    /**
      * A cut-short gather forwards read configs only for the files it reached, and the promise is registered on
      * that partial map. The map is why: a cacheable text dataset whose schema budget refuses every entry has no
      * per-file warm rail, so the memoized dataset aggregate is its only metadata-served COUNT(*). An unrecorded
@@ -5104,10 +5297,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A terminal permit-exhaustion / unavailability failure during metadata resolution reaches the resolver as an
-     * {@link ExternalUnavailableException} (503). The factory loop re-wraps every factory failure in an
-     * {@link IllegalArgumentException} (400), so the resolver must recover the buried 503 from the cause chain and
-     * surface it as 503, not a masked 400: otherwise the client's retry / back-pressure path is skipped. Verified
-     * for every format because the fix is format-independent (it sits at the storage layer, below the reader).
+     * {@link ExternalUnavailableException} (503). The factory loop preserves that status carrier, and the resolver
+     * must still recover a 503 buried by the schema cache's {@code ExecutionException} so a transient capacity
+     * condition is not masked as a 400. Verified for every format because the recovery is format-independent.
      */
     public void testMetadataResolutionUnavailabilitySurfacesAs503() {
         for (String[] format : BACK_PRESSURE_FORMATS) {
@@ -5160,10 +5352,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * An interrupt during permit acquisition reaches the resolver as an {@link EsRejectedExecutionException} (429). Like
-     * the 503 case, the factory loop re-wraps it in an {@link IllegalArgumentException} (400), so the resolver must
-     * recover the buried 429 from the cause chain and surface a node-level rejection as 429 rather than a masked 400.
-     * Verified for every format because the recovery is format-independent.
+     * An interrupt during permit acquisition reaches the resolver as an {@link EsRejectedExecutionException} (429).
+     * Like the 503 case, a cache wrapper can bury it, so the resolver must recover the 429 from the cause chain
+     * and surface a node-level rejection as 429 rather than a masked 400. Verified for every format because the
+     * recovery is format-independent.
      */
     public void testMetadataResolutionInterruptSurfacesAs429() {
         for (String[] format : BACK_PRESSURE_FORMATS) {
@@ -5223,7 +5415,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * change, and this one is about making the message inside it worth reading. The two compose — with the wrapper
      * gone, what the client sees is exactly what is asserted here.
      * <p>
-     * Status is deliberately not asserted: this change is scoped to messages.
+     * Status is deliberately not asserted: this change is scoped to messages. Status of the same I/O
+     * path is pinned by {@link #testAnIoFailureFromAFactoryStaysAClientError}.
      */
     public void testMetadataResolutionUnreadableObjectCarriesTheReaderDetail() {
         String detail = "Object not found: the reader's own words";
@@ -5248,6 +5441,96 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertThat(where + " must not expose the storage path", msg, not(containsString(path)));
             assertThat(where + " must not leak a java type name", msg, not(containsString("java.")));
         }
+    }
+
+    /**
+     * An unchecked invariant break from a format reader must stay a 500. {@code FileSourceFactory} only
+     * catches {@link IOException}, so the {@link IllegalStateException} is the factory's last failure —
+     * and must not be retyped as a client error by {@code lastFactoryFailure}.
+     */
+    public void testAnInvariantBreakFromAFactoryStaysAServerError() {
+        String path = "s3://bucket/data/file.parquet";
+        String detail = "column count is negative";
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "parquet",
+            ".parquet",
+            Map.of(path, List.of(attr("x", DataType.INTEGER))),
+            () -> new IllegalStateException(detail),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolvePaths(resolver, List.of(path), Map.of(), future);
+
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString(detail));
+    }
+
+    /**
+     * A checked I/O failure from a factory must stay a 400 so the factory-status change is not a
+     * blanket promotion of every resolve failure to 500.
+     */
+    public void testAnIoFailureFromAFactoryStaysAClientError() {
+        String path = "s3://bucket/data/file.parquet";
+        String detail = "Could not read footer";
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "parquet",
+            ".parquet",
+            Map.of(path, List.of(attr("x", DataType.INTEGER))),
+            () -> new IOException(detail),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolvePaths(resolver, List.of(path), Map.of(), future);
+
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString(detail));
+    }
+
+    /**
+     * The asynchronous factory rail ({@code resolveWithFactory}, used for glob fan-out) must classify
+     * an invariant break the same way as the synchronous {@code resolveSingleSource} rail.
+     */
+    public void testAnInvariantBreakFromAnAsyncFactoryStaysAServerError() {
+        String glob = "s3://bucket/data/*.parquet";
+        String file = "s3://bucket/data/file.parquet";
+        String detail = "column count is negative";
+        Map<String, List<Attribute>> schemas = Map.of(file, List.of(attr("x", DataType.INTEGER)));
+        Map<String, List<StorageEntry>> listings = Map.of(StoragePath.of(glob).patternPrefix().toString(), List.of(entry(file, 100)));
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "parquet",
+            ".parquet",
+            schemas,
+            listings,
+            () -> new IllegalStateException(detail),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolvePaths(resolver, List.of(glob), Map.of(), future);
+
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString(detail));
+    }
+
+    /**
+     * Cancellation from a factory must still win over the factory-failure classification: a cancelled
+     * resolve is the query's outcome, not a 400 or a 500.
+     */
+    public void testACancelledResolveStillReportsCancellation() {
+        String path = "s3://bucket/data/file.parquet";
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "parquet",
+            ".parquet",
+            Map.of(path, List.of(attr("x", DataType.INTEGER))),
+            () -> new TaskCancelledException("cancelled"),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolvePaths(resolver, List.of(path), Map.of(), future);
+
+        expectThrows(TaskCancelledException.class, future::actionGet);
     }
 
     /**
@@ -9274,6 +9557,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Supplier<? extends Exception> failure,
         @Nullable ExternalSourceCacheService cacheService
     ) {
+        return createResolverWithFailingMetadata(formatName, extension, schemasByPath, Map.of(), failure, cacheService);
+    }
+
+    private ExternalSourceResolver createResolverWithFailingMetadata(
+        String formatName,
+        String extension,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Supplier<? extends Exception> failure,
+        @Nullable ExternalSourceCacheService cacheService
+    ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
             @Override
             public RowPositionStrategy rowPositionStrategy() {
@@ -9309,7 +9603,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        StubStorageProvider storageProvider = new StubStorageProvider(Map.of(), schemasByPath);
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
 
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
@@ -10352,6 +10646,47 @@ public class ExternalSourceResolverTests extends ESTestCase {
         public void close() {}
     }
 
+    /**
+     * Mints a distinct configured copy so {@link ExternalSourceResolver#formatConfigIdentity} has a
+     * remint to close. Prototype and remint share the close counters.
+     */
+    private static final class RemintingStubFormatReader extends StubFormatReader {
+        private final Map<String, List<Attribute>> schemas;
+        private final AtomicInteger prototypeCloses;
+        private final AtomicInteger remintCloses;
+        private final boolean remint;
+
+        RemintingStubFormatReader(
+            Map<String, List<Attribute>> schemas,
+            AtomicInteger prototypeCloses,
+            AtomicInteger remintCloses,
+            boolean remint
+        ) {
+            super(schemas);
+            this.schemas = schemas;
+            this.prototypeCloses = prototypeCloses;
+            this.remintCloses = remintCloses;
+            this.remint = remint;
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            if (remint) {
+                return Configured.empty(this);
+            }
+            return Configured.fromKnownSubset(
+                new RemintingStubFormatReader(schemas, prototypeCloses, remintCloses, true),
+                config,
+                Set.of("schema_max_fields")
+            );
+        }
+
+        @Override
+        public void close() {
+            (remint ? remintCloses : prototypeCloses).incrementAndGet();
+        }
+    }
+
     private static class StubSourceMetadata implements SourceMetadata {
         private final String location;
         private final List<Attribute> schema;
@@ -11252,8 +11587,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4, ExternalSourceResolver.schemaSampleShare(3));
         assertEquals(4, ExternalSourceResolver.schemaSampleShare(4));
         assertEquals(8, ExternalSourceResolver.schemaSampleShare(5));
-        // No overflow clamp is needed: MAX_DISCOVERED_FILES caps a resolved listing at 1,000,000 files.
+        // No overflow clamp is needed: MAX_DISCOVERED_FILES caps a resolved listing at 10,000,000 files.
         assertEquals(1 << 20, ExternalSourceResolver.schemaSampleShare(1_000_000));
+        assertEquals(1 << 24, ExternalSourceResolver.schemaSampleShare(10_000_000));
     }
 
     /**

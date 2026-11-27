@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167462
+summary: Capture WHERE time range of ES|QL queries
+type: enhancement

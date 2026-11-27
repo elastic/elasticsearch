@@ -138,7 +138,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * find the first class and module when the class path entry is a jar
+     * find the representative class (the lexicographically smallest eligible one) and the module
+     * when the class path entry is a jar
      */
     private void extractLocationsFromJar(File file, List<Location> locations) throws IOException {
         try (JarFile jarFile = new JarFile(file)) {
@@ -152,9 +153,13 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * look through the jar to find the first unique class that isn't
+     * look through the jar to find the lexicographically smallest unique class that isn't
      * in META-INF (those may not be unique) and isn't module-info.class
-     * (which is also not unique) and avoid anonymous classes
+     * (which is also not unique) and avoid anonymous classes.
+     * The smallest name is chosen (rather than the first entry) so the output
+     * does not depend on entry order, keeping this task's output reproducible.
+     * Entry names use {@code '/'} separators, so this ordering matches the one used by
+     * {@link #extractClassNameFromDirectory(File)}; keep the two in sync.
      */
     private java.util.Optional<String> extractClassNameFromJar(JarFile jarFile) {
         return jarFile.stream()
@@ -164,8 +169,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                     && je.getName().contains("$") == false
                     && je.getName().endsWith(".class")
             )
-            .findFirst()
-            .map(ZipEntry::getName);
+            .map(ZipEntry::getName)
+            .min(Comparator.naturalOrder());
     }
 
     /**
@@ -276,7 +281,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * find the first class and module when the class path entry is a directory
+     * find the representative class (the lexicographically smallest eligible one) and the module
+     * when the class path entry is a directory
      */
     private void extractLocationsFromDirectory(File dir, List<Location> locations) throws IOException {
         String className = extractClassNameFromDirectory(dir);
@@ -288,29 +294,51 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * look through the directory to find the first unique class that isn't
-     * module-info.class (which may not be unique) and avoid anonymous classes
+     * look through the directory to find the lexicographically smallest unique class that isn't
+     * module-info.class (which may not be unique) and avoid anonymous classes.
+     * The smallest relative path is chosen (rather than the first one visited) because
+     * directory iteration order is filesystem dependent and would make the output non-reproducible.
+     * Paths are normalized to {@code '/'} separators before comparing so that the ordering is platform independent
+     * and matches the one used by {@link #extractClassNameFromJar(JarFile)}; keep the two in sync.
      */
     private String extractClassNameFromDirectory(File dir) throws IOException {
-        var visitor = new SimpleFileVisitor<Path>() {
-            String result = null;
+        var visitor = new RepresentativeClassVisitor(dir);
+        Files.walkFileTree(dir.toPath(), visitor);
+        return visitor.result();
+    }
 
-            @Override
-            public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
-                String name = candidate.getFileName().toString(); // Just the part after the last dir separator
-                if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
-                    result = candidate.toAbsolutePath()
-                        .toString()
-                        .substring(dir.getAbsolutePath().length() + 1)
-                        .replace(File.separatorChar, '/');
-                    return TERMINATE;
-                } else {
-                    return CONTINUE;
+    /**
+     * Collects the representative class of a directory class path entry while its files are visited.
+     * Visits every file rather than stopping at the first match so that the result does not depend
+     * on the (filesystem dependent) visit order. Package-private so tests can drive it with a known visit order.
+     */
+    static final class RepresentativeClassVisitor extends SimpleFileVisitor<Path> {
+        private final String rootPath;
+        private String result;
+
+        RepresentativeClassVisitor(File root) {
+            this.rootPath = root.getAbsolutePath();
+        }
+
+        @Override
+        public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
+            String name = candidate.getFileName().toString(); // Just the part after the last dir separator
+            if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
+                String relative = candidate.toAbsolutePath().toString().substring(rootPath.length() + 1).replace(File.separatorChar, '/');
+                if (result == null || relative.compareTo(result) < 0) {
+                    result = relative;
                 }
             }
-        };
-        Files.walkFileTree(dir.toPath(), visitor);
-        return visitor.result;
+            return CONTINUE;
+        }
+
+        /**
+         * @return the lexicographically smallest eligible class path, relative to the root and using {@code '/'} separators,
+         * or null if no eligible class was visited
+         */
+        String result() {
+            return result;
+        }
     }
 
     /**

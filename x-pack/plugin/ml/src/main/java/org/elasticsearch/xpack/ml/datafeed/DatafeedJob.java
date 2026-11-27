@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -57,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -68,6 +70,9 @@ class DatafeedJob {
     private static final int NEXT_TASK_DELAY_MS = 100;
     private static final long INCOMPLETE_CHUNK_AUDIT_INTERVAL_MS = TimeValue.timeValueHours(24).millis();
     private static final long NO_INCOMPLETE_CHUNK_AUDIT = -1L;
+    // Bounds the empty bucket results one advance flush writes into a single refresh window of the results index.
+    // A larger flood can exhaust the heap of the shard.
+    static final long MAX_EMPTY_BUCKETS_TO_MATERIALISE = 10_000;
 
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
@@ -90,12 +95,16 @@ class DatafeedJob {
     private final long delayedDataCheckFreq;
     private final CrossClusterSearchStats crossClusterSearchStats;
     private final DatafeedFieldConflictTracker fieldConflictTracker = new DatafeedFieldConflictTracker();
+    private final boolean skipLongEmptyGaps;
+    private final long bucketSpanMs;
+    private final long latencyMs;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
     private volatile long lastDataCheckTimeMs;
     private volatile Tuple<String, Annotation> lastDataCheckAnnotationWithId;
     private volatile Long lastEndTimeMs;
+    private final LongUnaryOperator lastEndTimeForRecord;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
@@ -105,6 +114,7 @@ class DatafeedJob {
     private volatile SearchInterval searchInterval;
     @Nullable
     private volatile DataExtractor activeDataExtractor;
+    private volatile long latestPostedRecordTimeMs;
 
     DatafeedJob(
         String datafeedId,
@@ -127,7 +137,11 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        CrossClusterSearchStats crossClusterSearchStats
+        CrossClusterSearchStats crossClusterSearchStats,
+        LongUnaryOperator lastEndTimeForRecord,
+        boolean skipLongEmptyGaps,
+        long bucketSpanMs,
+        long latencyMs
     ) {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
@@ -146,13 +160,22 @@ class DatafeedJob {
         this.maxEmptySearches = maxEmptySearches;
         this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
         this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
-        long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
+        this.lastEndTimeForRecord = Objects.requireNonNull(lastEndTimeForRecord);
+        long lastEndTime = Math.max(
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs >= 0 ? lastEndTimeForRecord.applyAsLong(latestRecordTimeMs) : latestRecordTimeMs
+        );
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
         }
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
+        assert skipLongEmptyGaps == false || bucketSpanMs > 0 : "bucket span must be positive, got " + bucketSpanMs;
+        this.skipLongEmptyGaps = skipLongEmptyGaps;
+        this.bucketSpanMs = bucketSpanMs;
+        this.latencyMs = latencyMs;
+        this.latestPostedRecordTimeMs = latestRecordTimeMs;
     }
 
     void isolate() {
@@ -263,6 +286,7 @@ class DatafeedJob {
             request.setSkipTime(String.valueOf(startTime));
             request.setRefreshRequired(false);
             FlushJobAction.Response flushResponse = flushJob(request);
+            recordFinalizedBucketEnd(flushResponse);
             LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
             return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         }
@@ -278,9 +302,97 @@ class DatafeedJob {
         request.setRefreshRequired(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
+        // A record posted after a long gap makes autodetect write the gap's empty buckets too, so skip before extracting.
+        skipLongEmptyGapBefore(start);
         run(start, end, request);
         checkForMissingDataIfNecessary();
         return nextRealtimeTimestamp();
+    }
+
+    /**
+     * For ES|QL datafeeds, moves the model clock over the empty gap between the last posted record and {@code timeMs} when the gap
+     * holds more than {@link #MAX_EMPTY_BUCKETS_TO_MATERIALISE} buckets, so autodetect does not write one empty bucket result per span.
+     * Known limitation: only the gap before a chunk is checked. A gap between two records of the same posted batch is not skipped.
+     */
+    private void skipLongEmptyGapBefore(long timeMs) {
+        long lastRecordMs = latestPostedRecordTimeMs;
+        // Autodetect starts its clock at the first record, so a job without records has no gap to fill.
+        if (skipLongEmptyGaps == false || lastRecordMs < 0 || isRunning() == false || isIsolated) {
+            return;
+        }
+        long lastRecordBucketEndMs = Intervals.alignToCeil(lastRecordMs + 1, bucketSpanMs);
+        // The builder passes an inclusive end (bucket start + span - 1). Flush acknowledgements are exclusive and aligned.
+        long finalizedEndMs = Intervals.alignToCeil(Math.max(latestFinalBucketEndTimeMs, 0), bucketSpanMs);
+        // Autodetect finalizes the last record's bucket only after its end plus latency, so the gap starts there. With this start
+        // a latency longer than the gap leaves no gap, and the advance flush below can never pass the skip time.
+        long advanceTimeMs = lastRecordBucketEndMs + latencyMs;
+        long gapStartMs = Math.max(advanceTimeMs, finalizedEndMs);
+        // The limit applies to the whole gap, so a delayed data window cannot hide a flood.
+        long gapBuckets = (Intervals.alignToFloor(timeMs, bucketSpanMs) - gapStartMs) / bucketSpanMs;
+        if (gapBuckets <= MAX_EMPTY_BUCKETS_TO_MATERIALISE) {
+            return;
+        }
+        // Keep the delayed data check window written: that check compares source counts with finalized bucket results.
+        // Autodetect rounds a skip time up to the next bucket, so floor it to keep the bucket that holds the target.
+        long skipEndMs = Intervals.alignToFloor(timeMs - delayedDataDetector.getWindow(), bucketSpanMs);
+        if (skipEndMs <= gapStartMs) {
+            return;
+        }
+        long skippedBuckets = (skipEndMs - gapStartMs) / bucketSpanMs;
+        String gapStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(gapStartMs);
+        String gapEnd = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(skipEndMs);
+        String bucketSpan = TimeValue.timeValueMillis(bucketSpanMs).toString();
+        try {
+            if (lastRecordBucketEndMs > finalizedEndMs) {
+                // Skipping alone would drop the still open bucket that holds the last record.
+                FlushJobAction.Request advanceRequest = new FlushJobAction.Request(jobId);
+                advanceRequest.setAdvanceTime(String.valueOf(advanceTimeMs));
+                advanceRequest.setWaitForNormalization(false);
+                advanceRequest.setRefreshRequired(false);
+                recordFinalizedBucketEnd(flushJob(advanceRequest));
+            }
+            if (isRunning() == false || isIsolated) {
+                return;
+            }
+            FlushJobAction.Request skipRequest = new FlushJobAction.Request(jobId);
+            skipRequest.setSkipTime(String.valueOf(skipEndMs));
+            skipRequest.setRefreshRequired(false);
+            recordFinalizedBucketEnd(flushJob(skipRequest));
+        } catch (AnalysisProblemException e) {
+            throw new AnalysisProblemException(
+                e.nextDelayInMsSinceEpoch,
+                e.shouldStop,
+                new ElasticsearchException(
+                    Messages.getMessage(
+                        Messages.DATAFEED_SKIP_EMPTY_GAP_FAILED,
+                        datafeedId,
+                        jobId,
+                        String.valueOf(skippedBuckets),
+                        bucketSpan,
+                        gapStart,
+                        gapEnd,
+                        e.getCause().getMessage()
+                    ),
+                    e.getCause()
+                )
+            );
+        }
+        String msg = Messages.getMessage(
+            Messages.JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_GAP,
+            String.valueOf(skippedBuckets),
+            bucketSpan,
+            gapStart,
+            gapEnd
+        );
+        auditor.info(jobId, msg);
+        LOGGER.info("[{}] {}", jobId, msg);
+    }
+
+    private void recordFinalizedBucketEnd(FlushJobAction.Response flushResponse) {
+        Instant lastFinalizedBucketEnd = flushResponse.getLastFinalizedBucketEnd();
+        if (lastFinalizedBucketEnd != null) {
+            latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
+        }
     }
 
     private void checkForMissingDataIfNecessary() {
@@ -503,6 +615,12 @@ class DatafeedJob {
                     return;
                 }
                 if (extractedData.isPresent()) {
+                    // A chunk after a long empty stretch makes autodetect write the stretch's empty buckets, so skip before posting.
+                    skipLongEmptyGapBefore(searchInterval.startMs());
+                    // The skip flushes block, so the datafeed may have been isolated meanwhile.
+                    if (isIsolated) {
+                        return;
+                    }
                     DataCounts counts;
                     try (InputStream in = extractedData.get()) {
                         counts = postData(in, XContentType.JSON);
@@ -538,7 +656,9 @@ class DatafeedJob {
                     recordCount += counts.getProcessedRecordCount();
                     haveEverSeenData |= (recordCount > 0);
                     if (counts.getLatestRecordTimeStamp() != null) {
-                        lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
+                        long latestRecordMs = counts.getLatestRecordTimeStamp().getTime();
+                        lastEndTimeMs = lastEndTimeForRecord.applyAsLong(latestRecordMs);
+                        latestPostedRecordTimeMs = Math.max(latestPostedRecordTimeMs, latestRecordMs);
                     }
                 }
             }
@@ -569,10 +689,15 @@ class DatafeedJob {
             // we call flush the job is closed. Thus, we don't flush unless the
             // datafeed is still running.
             if (isRunning() && isIsolated == false) {
-                Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
-                if (lastFinalizedBucketEnd != null) {
-                    this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
+                if (flushRequest.getAdvanceTime() != null) {
+                    // A catch-up window can end long after its last record, for example after an extraction failure.
+                    skipLongEmptyGapBefore(end);
                 }
+                // The gap flushes block, so the datafeed may have stopped or been isolated meanwhile.
+                if (isRunning() == false || isIsolated) {
+                    return;
+                }
+                recordFinalizedBucketEnd(flushJob(flushRequest));
 
                 if (scopeChange != null) {
                     handleFieldConflictsAfterScopeChange(scopeChange);

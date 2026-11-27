@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166060
+summary: Charge the hits `top_hits` builds to the request breaker
+type: enhancement

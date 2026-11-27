@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.info;
 
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
@@ -44,6 +45,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final Integer defaultParallel;
     private final Boolean snapshotBuild;
 
+    private final Provider<List<Version>> allVersions;
     // not final for testing
     private Provider<BwcVersions> bwcVersions;
     private Provider<String> gitOrigin;
@@ -63,6 +65,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         boolean isCi,
         int defaultParallel,
         final boolean isSnapshotBuild,
+        Provider<List<Version>> allVersions,
         Provider<BwcVersions> bwcVersions
     ) {
         this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(DefaultBuildParameterExtension::parseBoolean);
@@ -81,6 +84,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         this.isCi = isCi;
         this.defaultParallel = defaultParallel;
         this.snapshotBuild = isSnapshotBuild;
+        this.allVersions = cache(providers, allVersions);
         this.bwcVersions = cache(providers, bwcVersions);
         this.gitOrigin = gitOrigin;
     }
@@ -187,11 +191,6 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public String getTestSeed() {
-        return testSeed.get();
-    }
-
-    @Override
     public Provider<String> getTestSeedProvider() {
         return testSeed;
     }
@@ -241,6 +240,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         public T get() {
             return instance;
         }
+    }
+
+    @Override
+    public Provider<List<Version>> getAllVersionsProvider() {
+        return allVersions;
     }
 
     public Provider<BwcVersions> getBwcVersionsProvider() {

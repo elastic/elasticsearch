@@ -181,6 +181,11 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
         return true;
     }
 
+    boolean assertNotClosed() {
+        assert closed.get() == false : "Local breaker is already closed";
+        return true;
+    }
+
     /**
      * Marks the beginning of a run loop for assertion purposes.
      * Sets the current thread as the only thread allowed to access this breaker.

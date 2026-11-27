@@ -324,6 +324,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     0,
                     0,
                     List.of(),
+                    List.of(),
                     Clusters.EMPTY,
                     searchRequest.pointInTimeBuilder().getEncodedId(),
                     null,

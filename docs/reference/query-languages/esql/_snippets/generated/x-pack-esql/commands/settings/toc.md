@@ -6,6 +6,9 @@
 :::{include} column_metadata.md
 :::
 
+:::{include} exemplars.md
+:::
+
 :::{include} project_routing.md
 :::
 

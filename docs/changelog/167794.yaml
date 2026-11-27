@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167794
+summary: Prune files on epoch-format date stats
+type: enhancement

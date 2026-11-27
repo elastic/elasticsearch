@@ -628,6 +628,29 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Stores {@code listing} at {@code key} only when that address is empty. A bounded listing that drained
+     * untruncated is the whole glob, and {@link org.elasticsearch.xpack.esql.datasources.DatasetListingService}
+     * offers it here so a later query that asked for the whole glob does not list again.
+     * <p>
+     * Does not start a compute and does not complete async in-flight waiters: those belong to a leader
+     * already listing this key. Uses {@link Cache#computeIfAbsent} so a concurrent unbounded listing that
+     * already occupies this key, or is mid-{@link #getOrComputeListing}, is not replaced with an older
+     * snapshot. A failed in-flight compute is treated as absent; that wait must not fail the listing being
+     * aliased, which is why this method swallows {@link ExecutionException} and {@link RuntimeException}.
+     * No-op when the cache is disabled.
+     */
+    public void publishListingIfAbsent(ListingCacheKey key, FileList listing) {
+        if (enabled == false) {
+            return;
+        }
+        try {
+            listingStore.cache().computeIfAbsent(key, ignored -> listing);
+        } catch (ExecutionException | RuntimeException e) {
+            logger.debug("skipping listing-cache alias for [{}]", key, e);
+        }
+    }
+
+    /**
      * Coordinator-side entry point. Takes the {@code DriverCompletionInfo.capturedSourceMetadata}
      * payload — raw per-file contribution lists shipped back from every data node — merges each
      * list via {@code SourceStatisticsSerializer.mergeStatistics} (Parquet's existing multi-row-
@@ -860,7 +883,7 @@ public class ExternalSourceCacheService implements Closeable {
             // fold branch. Losing it would leave a chunked FAIL_FAST read unable to license the crossing an
             // unchunked one can — a safe-miss, but one with no reason behind it.
             if (rowCountReadConfigIndependent) {
-                whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+                whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
             }
         }
         return whole;
@@ -898,7 +921,7 @@ public class ExternalSourceCacheService implements Closeable {
             String expectedReadConfig = pending.pathToReadConfig().get(expected.getKey());
             if (expectedReadConfig != null) {
                 Object contributionReadConfig = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
-                boolean licensed = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+                boolean licensed = ExternalStats.rowCountCrossesReadConfigs(stats);
                 if (Objects.equals(contributionReadConfig, expectedReadConfig) == false && licensed == false) {
                     return null;
                 }
@@ -1033,6 +1056,8 @@ public class ExternalSourceCacheService implements Closeable {
      * {@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}) because a committed count there is the same number for
      * every way of reading the file. That licence is what keeps the strict warm {@code COUNT(*)} rail alive across
      * differently-declared datasets, and for a file every declaration can read to completion it is exactly right.
+     * It is honoured only where the licence was granted under the decode semantics this node reads by, since what a
+     * reader makes of the same bytes is code rather than configuration.
      * <p>
      * It carries one known exception, pre-existing and deliberately preserved: "the same number for every way of
      * reading the file" assumes every way of reading it SUCCEEDS. Both bindings carry a row-width tripwire, but they
@@ -1059,7 +1084,7 @@ public class ExternalSourceCacheService implements Closeable {
         if (Objects.equals(entryReadConfig, contributionReadConfig)) {
             return contribution;
         }
-        if (Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY))
+        if (ExternalStats.rowCountCrossesReadConfigs(contribution)
             && contribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number rowCount) {
             return Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
         }
@@ -1120,7 +1145,7 @@ public class ExternalSourceCacheService implements Closeable {
             base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         }
         if (rowCountReadConfigIndependent) {
-            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         }
         return stats == null ? base : SourceStatisticsSerializer.embedStatistics(base, stats);
     }

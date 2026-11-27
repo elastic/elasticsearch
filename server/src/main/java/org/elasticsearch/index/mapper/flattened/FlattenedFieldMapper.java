@@ -1501,7 +1501,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 var binary = context.reader().getBinaryDocValues(delegate.getFieldName());
                 var counts = context.reader()
                     .getNumericDocValues(delegate.getFieldName() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-                var dv = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                var dv = KeyFilteredSortingArrayOrderBinaryDocValues.forKey(binary, counts, new BytesRef(key));
                 return new LeafFieldData() {
                     @Override
                     public long ramBytesUsed() {
@@ -1781,7 +1781,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     );
                 }
             }
-            return new RootFlattenedFromKeyedFieldData.Builder(name(), name() + KEYED_FIELD_SUFFIX, usesBinaryDocValues, indexVersion);
+            return new RootFlattenedFromKeyedFieldData.Builder(
+                name(),
+                name() + KEYED_FIELD_SUFFIX,
+                usesBinaryDocValues,
+                usesArrayOrderBinaryDocValues,
+                indexVersion
+            );
         }
 
         @Override
@@ -2067,7 +2073,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * multi-fields — falls back to the row path.
      */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // hasTerms()/hasRootDocValues assert the index=false, root-doc-values-free shape that strict columnar defaults to; the terms
         // and root channels have no columnar writer. mappedSubFields must be empty because those keys are indexed by their own
         // mappers, which the driver resolves as ordinary leaves rather than as part of this group.

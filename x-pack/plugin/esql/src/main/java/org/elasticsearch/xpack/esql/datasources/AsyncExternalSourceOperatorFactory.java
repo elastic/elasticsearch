@@ -241,19 +241,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Initial concurrent producers for a filtered LIMIT. Driver count is already
      * {@code task_concurrency}; this ramps start inside {@link #startSliceQueueRead}. A
      * match on the first split must not open one reader per driver. The cap doubles when a
-     * unit finishes and the observed limiter still has remaining rows, so a filter that
-     * matches nothing early still reaches full parallelism.
+     * unit finishes or after {@link FilteredLimitReaderRamp#PROGRESS_PAGES} processed pages,
+     * while the observed limiter still has remaining rows, so a filter that matches nothing
+     * early still reaches full parallelism.
      */
     static final int FILTERED_LIMIT_READER_RAMP = 1;
-    private final Object filteredLimitRampLock = new Object();
-    private int filteredLimitRunning;
-    private int filteredLimitCap = FILTERED_LIMIT_READER_RAMP;
-    private final ArrayDeque<ParkedProducer> filteredLimitParked = new ArrayDeque<>();
+    private final FilteredLimitReaderRamp<ParkedProducer> readerRamp = new FilteredLimitReaderRamp<>(
+        this::noFurtherCandidates,
+        parked -> parked.state().buffer.noMoreInputs()
+    );
     private final int maxRecordBytes;
     /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
     private final long statsStripeSize;
     /** How much per-stripe statistics a fresh scan harvests (row count only / + projected / + all / nothing). */
     private final StripeColumnScope statsColumnScope;
+    private final int statsMaxExtremumBytes;
     /**
      * Node-level gate bounding concurrent streaming (stream-only compressed) segmentators on the shared
      * {@code esql_external_io} pool so their per-chunk parser tasks are never starved of a thread. Shared across
@@ -382,6 +384,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         StreamingSegmentatorAdmission streamingSegmentatorAdmission,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
@@ -472,6 +475,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.parsingParallelism = Math.max(1, parsingParallelism);
         this.statsStripeSize = statsStripeSize;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+        this.statsMaxExtremumBytes = statsMaxExtremumBytes;
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.maxRecordBytes = maxRecordBytes;
         this.streamingSegmentatorAdmission = streamingSegmentatorAdmission;
@@ -554,6 +558,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsStripeSize = -1L;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        private int statsMaxExtremumBytes = FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES;
         // Non-null default: test builders that never set one still get an (unbounded) controller, so the streaming
         // coordinator's admission is never null. Production (FileSourceFactory) overrides with the per-node gate.
         private StreamingSegmentatorAdmission streamingSegmentatorAdmission = StreamingSegmentatorAdmission.unbounded();
@@ -690,6 +695,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * The widest text extremum a harvest publishes, in bytes; {@link FormatReadContext} normalises it.
+         */
+        public Builder statsMaxExtremumBytes(int statsMaxExtremumBytes) {
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -798,6 +811,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 maxRecordBytes,
                 statsStripeSize,
                 statsColumnScope,
+                statsMaxExtremumBytes,
                 streamingSegmentatorAdmission,
                 pushedExpressions,
                 pushdownSupport,
@@ -961,7 +975,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 scheme,
                 formatName,
                 operatorHold,
-                datasetLabel
+                datasetLabel,
+                filteredLimitRamp() ? this::onFilteredLimitPagePolled : null
             );
             succeeded = true;
             return operator;
@@ -1741,30 +1756,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return;
         }
         ActionListener<Void> started = ActionListener.runAfter(finishBuffer, this::onFilteredLimitProducerFinished);
-        boolean startNow;
-        ParkedProducer skipped = null;
-        synchronized (filteredLimitRampLock) {
-            if (noFurtherCandidates() || state.buffer.noMoreInputs()) {
-                skipped = new ParkedProducer(state, finishBuffer);
-                startNow = false;
-            } else if (filteredLimitRunning < filteredLimitCap) {
-                filteredLimitRunning++;
-                startNow = true;
-            } else {
-                filteredLimitParked.add(new ParkedProducer(state, finishBuffer));
-                startNow = false;
+        ParkedProducer candidate = new ParkedProducer(state, finishBuffer);
+        FilteredLimitReaderRamp.Submit submit = readerRamp.submit(candidate, noFurtherCandidates() || state.buffer.noMoreInputs());
+        switch (submit) {
+            case START -> {
+                try {
+                    executeProducer(state, started, () -> runProducerLoop(state, started), false);
+                } catch (Exception e) {
+                    started.onFailure(e);
+                }
             }
-        }
-        if (startNow) {
-            try {
-                executeProducer(state, started, () -> runProducerLoop(state, started), false);
-            } catch (Exception e) {
-                started.onFailure(e);
+            case SKIP -> candidate.finishBuffer().onResponse(null);
+            case PARK -> {
+                // Cap is full. Candidate stays queued until a drain starts or skips it.
             }
-            return;
-        }
-        if (skipped != null) {
-            skipped.finishBuffer().onResponse(null);
         }
     }
 
@@ -1776,13 +1781,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (filteredLimitRamp() == false) {
             return;
         }
-        List<ParkedProducer> toStart = new ArrayList<>();
-        List<ParkedProducer> toSkip = new ArrayList<>();
-        synchronized (filteredLimitRampLock) {
-            filteredLimitRunning--;
-            drainParkedLocked(toStart, toSkip);
-        }
-        dispatchParked(toStart, toSkip);
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.onProducerFinished();
+        dispatchParked(drain.toStart(), drain.toSkip());
     }
 
     /**
@@ -1794,35 +1794,35 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (filteredLimitRamp() == false || noFurtherCandidates()) {
             return;
         }
-        List<ParkedProducer> toStart = new ArrayList<>();
-        List<ParkedProducer> toSkip = new ArrayList<>();
-        synchronized (filteredLimitRampLock) {
-            if (filteredLimitCap < Integer.MAX_VALUE / 2) {
-                filteredLimitCap *= 2;
-            } else {
-                filteredLimitCap = Integer.MAX_VALUE;
-            }
-            drainParkedLocked(toStart, toSkip);
-        }
-        dispatchParked(toStart, toSkip);
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.doubleCap();
+        dispatchParked(drain.toStart(), drain.toSkip());
     }
 
-    private void drainParkedLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
-        if (noFurtherCandidates()) {
-            while (filteredLimitParked.isEmpty() == false) {
-                toSkip.add(filteredLimitParked.poll());
-            }
+    private void onFilteredLimitPagePolled() {
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.onProcessedPage();
+        if (drain.isEmpty()) {
             return;
         }
-        while (filteredLimitRunning < filteredLimitCap && filteredLimitParked.isEmpty() == false) {
-            ParkedProducer parked = filteredLimitParked.poll();
-            if (parked.state().buffer.noMoreInputs() || noFurtherCandidates()) {
-                toSkip.add(parked);
-                continue;
-            }
-            filteredLimitRunning++;
-            toStart.add(parked);
+        try {
+            producerExecutor.execute(() -> dispatchParked(drain.toStart(), drain.toSkip()));
+        } catch (Exception e) {
+            dispatchParked(drain.toStart(), drain.toSkip());
         }
+    }
+
+    void setFilteredLimitRampProgressPages(int pages) {
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("filtered limit ramp progress pages must be set before source operators are created");
+        }
+        readerRamp.setProgressPages(pages);
+    }
+
+    int filteredLimitRampCap() {
+        return readerRamp.cap();
+    }
+
+    int filteredLimitParkedCount() {
+        return readerRamp.parkedCount();
     }
 
     private void dispatchParked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
@@ -2774,6 +2774,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         // its trailing stripe to EOF).
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
+                        .statsMaxExtremumBytes(statsMaxExtremumBytes)
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                         .breaker(producerBreaker(state.producerBlockFactory))
                         .sharedErrorBudget(splitBudget)
@@ -3025,6 +3026,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
+                    .statsMaxExtremumBytes(statsMaxExtremumBytes)
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                     .breaker(producerBreaker(state.producerBlockFactory))
                     .sharedErrorBudget(fileBudget)
@@ -3133,6 +3135,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
+            .statsMaxExtremumBytes(statsMaxExtremumBytes)
             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
             .readCounters(formatCounters)
             .build();
@@ -3223,6 +3226,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             .errorPolicy(errorPolicy)
                             .maxRecordBytes(maxRecordBytes)
                             .statsColumnScope(statsColumnScope)
+                            .statsMaxExtremumBytes(statsMaxExtremumBytes)
                             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
                             .breaker(producerBreaker(driverContext))
                             .readCounters(formatCounters)
@@ -3620,6 +3624,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     maxRecordBytes,
                     statsStripeSize,
                     statsColumnScope,
+                    statsMaxExtremumBytes,
                     splitIsFileFinal,
                     externalSourceMetrics,
                     warningSink,
@@ -3659,6 +3664,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         maxRecordBytes,
                         statsStripeSize,
                         statsColumnScope,
+                        statsMaxExtremumBytes,
                         splitIsFileFinal,
                         externalSourceMetrics,
                         warningSink,
@@ -3705,6 +3711,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     captureSink,
                     statsStripeSize,
                     statsColumnScope,
+                    statsMaxExtremumBytes,
                     new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                     streamingSegmentatorAdmission,
                     streamingBreaker(driverContext),
@@ -3755,6 +3762,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     captureSink,
                     statsStripeSize,
                     statsColumnScope,
+                    statsMaxExtremumBytes,
                     new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                     streamingSegmentatorAdmission,
                     streamingBreaker,

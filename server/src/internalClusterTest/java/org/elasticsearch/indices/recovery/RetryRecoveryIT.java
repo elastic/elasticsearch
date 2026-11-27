@@ -253,7 +253,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
-                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), () -> closed.onResponse(null));
 
             // Recovery must ABORT on CLOSED shard, without retrying
             ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -312,7 +312,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
-                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), () -> closed.onResponse(null));
 
             // Recovery must ABORT on CLOSED shard, without retrying
             ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -376,7 +376,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(targetIndexName))
-                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), () -> closed.onResponse(null));
 
             // Recovery must ABORT on CLOSED shard, without retrying
             ShardId shardId = new ShardId(resolveIndex(targetIndexName), 0);
@@ -446,7 +446,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
-                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
+                .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), () -> closed.onResponse(null));
 
             // Recovery must ABORT on CLOSED shard, without retrying
             ShardId shardId = new ShardId(resolveIndex(indexName), 0);

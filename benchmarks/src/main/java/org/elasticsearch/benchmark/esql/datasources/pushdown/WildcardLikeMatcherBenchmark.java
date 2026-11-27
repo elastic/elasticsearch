@@ -16,8 +16,8 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
-import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -73,7 +73,7 @@ public class WildcardLikeMatcherBenchmark {
     }
 
     /**
-     * Wildcard pattern shape under test. The labels match the {@link WildcardLikeShape} taxonomy
+     * Wildcard pattern shape under test. The labels match {@link WildcardPattern#shape()}
      * one-for-one; "complex" exercises the automaton fallback (the {@code ?} wildcard prevents
      * the affix-contains dispatch).
      */
@@ -99,7 +99,10 @@ public class WildcardLikeMatcherBenchmark {
     private byte[][] values;
     private BytesRef[] valueRefs;
     private ByteRunAutomaton automaton;
-    private WildcardLikeShape compiledShape;
+    private BytesRef prefix;
+    private BytesRef literal;
+    private BytesRef suffix;
+    private boolean hasAffixShape;
     private int index;
 
     @Setup
@@ -121,18 +124,13 @@ public class WildcardLikeMatcherBenchmark {
         // Compile once — same as ParquetPushedExpressions#automatonFor caches per query.
         Automaton autom = WildcardQuery.toAutomaton(new Term("f", pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         automaton = new ByteRunAutomaton(autom);
-        compiledShape = WildcardLikeShape.of(pattern);
+        mapEngineShape(pattern);
         // Self-test: every value must produce identical answers across both implementations.
         // Skip when the shape is intentionally null (the automaton-fallback row).
-        if (compiledShape != null) {
+        if (hasAffixShape) {
             for (int i = 0; i < NUM_VALUES; i++) {
                 boolean fromAutomaton = automaton.run(values[i], 0, values[i].length);
-                boolean fromShape = ByteMatchers.affixContains(
-                    valueRefs[i],
-                    compiledShape.prefix(),
-                    compiledShape.literal(),
-                    compiledShape.suffix()
-                );
+                boolean fromShape = ByteMatchers.affixContains(valueRefs[i], prefix, literal, suffix);
                 if (fromShape != fromAutomaton) {
                     throw new AssertionError(
                         "Disagreement on value [" + new String(values[i], StandardCharsets.UTF_8) + "] for shape [" + shape + "]"
@@ -152,16 +150,16 @@ public class WildcardLikeMatcherBenchmark {
     @Benchmark
     public boolean affixContains() {
         int idx = index++ % NUM_VALUES;
-        if (compiledShape == null) {
+        if (hasAffixShape == false) {
             // COMPLEX_AUTOMATON_FALLBACK row: the dispatcher in ParquetPushedExpressions delegates
-            // to the automaton when the shape parser rejects the pattern. Mirror that here so this
+            // to the automaton when the engine shape is General. Mirror that here so this
             // benchmark column shows the fallback-parity throughput (expected: matches the
             // automaton row almost exactly, no measurable overhead from the dispatch check).
             byte[] bytes = values[idx];
             return automaton.run(bytes, 0, bytes.length);
         }
         BytesRef value = valueRefs[idx];
-        return ByteMatchers.affixContains(value, compiledShape.prefix(), compiledShape.literal(), compiledShape.suffix());
+        return ByteMatchers.affixContains(value, prefix, literal, suffix);
     }
 
     /**
@@ -204,5 +202,43 @@ public class WildcardLikeMatcherBenchmark {
             case "COMPLEX_AUTOMATON_FALLBACK" -> "*go?gle*"; // '?' forces the automaton path
             default -> throw new IllegalArgumentException("Unknown shape: " + shape);
         };
+    }
+
+    /**
+     * Same mapping Parquet uses: {@link WildcardPattern#shape()} to prefix/middle/suffix
+     * {@link BytesRef}s, empty segments as {@code null}.
+     */
+    private void mapEngineShape(String pattern) {
+        switch (new WildcardPattern(pattern).shape()) {
+            case WildcardPattern.Shape.Prefix(String lit) -> {
+                prefix = emptyToNull(lit);
+                literal = null;
+                suffix = null;
+                hasAffixShape = true;
+            }
+            case WildcardPattern.Shape.Suffix(String lit) -> {
+                prefix = null;
+                literal = null;
+                suffix = emptyToNull(lit);
+                hasAffixShape = true;
+            }
+            case WildcardPattern.Shape.Contains(String lit) -> {
+                prefix = null;
+                literal = emptyToNull(lit);
+                suffix = null;
+                hasAffixShape = true;
+            }
+            case WildcardPattern.Shape.Affix(String p, String m, String s) -> {
+                prefix = emptyToNull(p);
+                literal = emptyToNull(m);
+                suffix = emptyToNull(s);
+                hasAffixShape = true;
+            }
+            case WildcardPattern.Shape.General ignored -> hasAffixShape = false;
+        }
+    }
+
+    private static BytesRef emptyToNull(String s) {
+        return s.isEmpty() ? null : new BytesRef(s);
     }
 }

@@ -84,7 +84,6 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CON
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INVALID_ID;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.getMessage;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
@@ -136,6 +135,21 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     static final TransportVersion DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_READDED = TransportVersion.fromName(
         "datafeed_max_consecutive_extraction_failures_readded"
     );
+
+    // TODO: drop the removed source_time_field slot together with grouping_interval under one transport version, in a single
+    // backportable clean-up PR (https://github.com/elastic/elasticsearch/issues/161207). Until then the wire keeps the slot.
+    /** Skips the slot of the removed {@code source_time_field}, which the wire still carries. */
+    static void readRemovedSourceTimeField(StreamInput in) throws IOException {
+        in.readOptionalString();
+    }
+
+    /**
+     * Fills the slot of the removed {@code source_time_field} with null. Nodes that still read it are behind the ES|QL datafeeds
+     * feature flag, so no released datafeed depends on the value.
+     */
+    static void writeRemovedSourceTimeField(StreamOutput out) throws IOException {
+        out.writeOptionalString(null);
+    }
 
     /**
      * Whether {@code max_consecutive_extraction_failures} is carried on the wire at the given transport version.
@@ -199,7 +213,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField INDICES = new ParseField("indices");
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField ESQL_QUERY = new ParseField("esql_query");
-    public static final ParseField SOURCE_TIME_FIELD = new ParseField("source_time_field");
     public static final ParseField GROUPING_INTERVAL = new ParseField("grouping_interval");
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
@@ -263,7 +276,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             QUERY
         );
         parser.declareString(Builder::setEsqlQuery, ESQL_QUERY);
-        parser.declareString(Builder::setSourceTimeField, SOURCE_TIME_FIELD);
         parser.declareString((builder, val) -> builder.setGroupingInterval(Builder.parseFixedGroupingInterval(val)), GROUPING_INTERVAL);
         parser.declareObject(Builder::setAggregationsSafe, (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields), AGGREGATIONS);
         parser.declareObject(Builder::setAggregationsSafe, (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields), AGGS);
@@ -328,8 +340,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     @Nullable
     private final String esqlQuery;
     @Nullable
-    private final String sourceTimeField;
-    @Nullable
     private final TimeValue groupingInterval;
     private final AggProvider aggProvider;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -354,7 +364,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         List<String> indices,
         QueryProvider queryProvider,
         String esqlQuery,
-        String sourceTimeField,
         TimeValue groupingInterval,
         AggProvider aggProvider,
         List<SearchSourceBuilder.ScriptField> scriptFields,
@@ -376,7 +385,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.indices = indices == null ? null : Collections.unmodifiableList(indices);
         this.queryProvider = queryProvider == null ? null : new QueryProvider(queryProvider);
         this.esqlQuery = esqlQuery;
-        this.sourceTimeField = sourceTimeField;
         this.groupingInterval = groupingInterval;
         this.aggProvider = aggProvider == null ? null : new AggProvider(aggProvider);
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
@@ -406,12 +414,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
             this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
             this.esqlQuery = in.readOptionalString();
-            this.sourceTimeField = in.readOptionalString();
+            readRemovedSourceTimeField(in);
             this.groupingInterval = in.readOptionalTimeValue();
         } else {
             this.queryProvider = QueryProvider.fromStream(in);
             this.esqlQuery = null;
-            this.sourceTimeField = null;
             this.groupingInterval = null;
         }
         // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
@@ -671,11 +678,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     }
 
     @Nullable
-    public String getSourceTimeField() {
-        return sourceTimeField;
-    }
-
-    @Nullable
     public TimeValue getGroupingInterval() {
         return groupingInterval;
     }
@@ -849,7 +851,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
             out.writeOptionalWriteable(queryProvider);
             out.writeOptionalString(esqlQuery);
-            out.writeOptionalString(sourceTimeField);
+            writeRemovedSourceTimeField(out);
             out.writeOptionalTimeValue(groupingInterval);
         } else {
             failIfEsqlDatafeedCannotBeSerialized();
@@ -952,7 +954,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         if (esqlQuery != null) {
             builder.field(ESQL_QUERY.getPreferredName(), esqlQuery);
-            builder.field(SOURCE_TIME_FIELD.getPreferredName(), sourceTimeField);
             builder.field(GROUPING_INTERVAL.getPreferredName(), groupingInterval.getStringRep());
         }
 
@@ -1047,7 +1048,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.indices, that.indices)
             && Objects.equals(this.queryProvider, that.queryProvider)
             && Objects.equals(this.esqlQuery, that.esqlQuery)
-            && Objects.equals(this.sourceTimeField, that.sourceTimeField)
             && Objects.equals(this.groupingInterval, that.groupingInterval)
             && Objects.equals(this.scrollSize, that.scrollSize)
             && Objects.equals(this.aggProvider, that.aggProvider)
@@ -1073,7 +1073,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             indices,
             queryProvider,
             esqlQuery,
-            sourceTimeField,
             groupingInterval,
             scrollSize,
             aggProvider,
@@ -1123,6 +1122,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return defaultFrequency;
     }
 
+    /** The configured frequency, or {@link #defaultFrequency} derived from the job's bucket span when none is configured. */
+    public TimeValue getFrequencyOrDefault(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry) {
+        return frequency != null ? frequency : defaultFrequency(bucketSpan, xContentRegistry);
+    }
+
     private static TimeValue snapDefaultFrequencyToInterval(TimeValue defaultFrequency, long intervalMillis) {
         long targetFrequencyMillis = defaultFrequency.millis();
         long snappedMillis = intervalMillis > targetFrequencyMillis
@@ -1158,7 +1162,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private List<String> indices = Collections.emptyList();
         private QueryProvider queryProvider;
         private String esqlQuery;
-        private String sourceTimeField;
         private TimeValue groupingInterval;
         private AggProvider aggProvider;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
@@ -1189,7 +1192,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.indices = new ArrayList<>(config.indices);
             this.queryProvider = config.queryProvider == null ? null : new QueryProvider(config.queryProvider);
             this.esqlQuery = config.esqlQuery;
-            this.sourceTimeField = config.sourceTimeField;
             this.groupingInterval = config.groupingInterval;
             this.aggProvider = config.aggProvider == null ? null : new AggProvider(config.aggProvider);
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
@@ -1219,12 +1221,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
                 this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
                 this.esqlQuery = in.readOptionalString();
-                this.sourceTimeField = in.readOptionalString();
+                readRemovedSourceTimeField(in);
                 this.groupingInterval = in.readOptionalTimeValue();
             } else {
                 this.queryProvider = QueryProvider.fromStream(in);
                 this.esqlQuery = null;
-                this.sourceTimeField = null;
                 this.groupingInterval = null;
             }
             // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
@@ -1272,7 +1273,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
                 out.writeOptionalWriteable(queryProvider);
                 out.writeOptionalString(esqlQuery);
-                out.writeOptionalString(sourceTimeField);
+                writeRemovedSourceTimeField(out);
                 out.writeOptionalTimeValue(groupingInterval);
             } else {
                 failIfEsqlDatafeedCannotBeSerialized();
@@ -1331,7 +1332,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(indices, builder.indices)
                 && Objects.equals(queryProvider, builder.queryProvider)
                 && Objects.equals(esqlQuery, builder.esqlQuery)
-                && Objects.equals(sourceTimeField, builder.sourceTimeField)
                 && Objects.equals(groupingInterval, builder.groupingInterval)
                 && Objects.equals(aggProvider, builder.aggProvider)
                 && Objects.equals(scriptFields, builder.scriptFields)
@@ -1357,7 +1357,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indices,
                 queryProvider,
                 esqlQuery,
-                sourceTimeField,
                 groupingInterval,
                 aggProvider,
                 scriptFields,
@@ -1421,11 +1420,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         public Builder setEsqlQuery(String esqlQuery) {
             this.esqlQuery = esqlQuery;
-            return this;
-        }
-
-        public Builder setSourceTimeField(String sourceTimeField) {
-            this.sourceTimeField = sourceTimeField;
             return this;
         }
 
@@ -1619,7 +1613,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indices,
                 queryProvider,
                 esqlQuery,
-                sourceTimeField,
                 groupingInterval,
                 aggProvider,
                 scriptFields,
@@ -1647,20 +1640,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         void validateEsqlQueryConflicts() {
             if (esqlQuery == null) {
-                if (sourceTimeField != null) {
-                    throw ExceptionsHelper.badRequestException(
-                        getMessage(DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY, SOURCE_TIME_FIELD.getPreferredName())
-                    );
-                }
                 if (groupingInterval != null) {
                     throw ExceptionsHelper.badRequestException(
                         getMessage(DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY, GROUPING_INTERVAL.getPreferredName())
                     );
                 }
                 return;
-            }
-            if (Strings.isNullOrEmpty(sourceTimeField)) {
-                throw ExceptionsHelper.badRequestException(DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD);
             }
             if (groupingInterval == null) {
                 throw ExceptionsHelper.badRequestException(DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL);

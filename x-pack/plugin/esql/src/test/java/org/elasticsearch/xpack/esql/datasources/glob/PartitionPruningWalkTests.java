@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -55,6 +56,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.N
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_END;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_START;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_GLOB;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_FILES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIXES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_END;
@@ -65,17 +67,21 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.e
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.fieldShapedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.folderRange;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.listingHints;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveJuneTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveSevenDayTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.LIST_PAGE_SIZE;
+import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.MIN_FINISH_SAMPLE;
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.cheaperToFinish;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Worked checks for the finish-vs-flat page-count rule. The first survivor is already listed, so remaining
- * cost is {@code (S - 1) * ceil(k / P) <= ceil(L * k / P)}.
+ * cost is {@code (S - 1) * ceil(k / P) <= ceil(L * k' / P)} with {@code k' = max(k, MIN_FINISH_SAMPLE)}.
+ * A quiet first folder must not shrink the prefix estimate.
  */
 public class PartitionPruningWalkTests extends ESTestCase {
 
@@ -92,10 +98,17 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testOneHundredSixtyEightHourlyLeavesFlatten() {
+        // k=5 floors to 12 on the prefix: 167 remaining pages > ceil(2880*12/1000)=35
         assertFalse(cheaperToFinish(168, 5, 2880));
     }
 
+    public void testOneHundredSixtyEightHourlyLeavesFlattenWhenSampleExceedsMinFloor() {
+        // k=50: floor is a no-op; 167 remaining pages > ceil(2880*50/1000)=144
+        assertFalse(cheaperToFinish(168, 50, 2880));
+    }
+
     public void testThreeOfTenLeavesFlatten() {
+        // k=5 floors to 12: 2 remaining pages > ceil(10*12/1000)=1
         assertFalse(cheaperToFinish(3, 5, 10));
     }
 
@@ -105,7 +118,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testFiveOfOneHundredIdsFlattenWhenEachDirIsOneObject() {
-        assertFalse("k=1: 4 remaining pages > ceil(100/1000)=1 prefix page", cheaperToFinish(5, 1, 100));
+        // k=1 floors to 12: 4 remaining pages > ceil(100*12/1000)=2
+        assertFalse(cheaperToFinish(5, 1, 100));
     }
 
     public void testSingleSurvivorAlwaysFinishes() {
@@ -141,8 +155,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
         assertTrue(cheaperToFinish(3, LIST_PAGE_SIZE + 1, 4.5));
     }
 
-    public void testTwoSparseSurvivorsFinishAtEqualRemainingCost() {
-        assertTrue("1 remaining page == ceil(100/1000)=1", cheaperToFinish(2, 1, 100));
+    public void testTwoSparseSurvivorsFinishAgainstFlooredPrefix() {
+        assertTrue("1 remaining page <= ceil(100*12/1000)=2", cheaperToFinish(2, 1, 100));
     }
 
     public void testMultiSurvivorPagesWhenObjectsExceedPageSize() {
@@ -152,7 +166,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
 
     public void testEmptyFirstListingStillCostsOnePage() {
         assertTrue(cheaperToFinish(1, 0, 10));
-        assertFalse("S=5 empty dirs vs 1 prefix page", cheaperToFinish(5, 0, 100));
+        // k=0 bills as 1 page/dir; prefix floors to 12: 4 remaining > ceil(100*12/1000)=2
+        assertFalse("S=5 empty dirs vs floored prefix pages", cheaperToFinish(5, 0, 100));
     }
 
     public void testFractionalPrefixWidth() {
@@ -161,8 +176,29 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testSparseWideHiveLeavesStillFlatten() {
-        // 154 matching day dirs, k=4: 153 remaining pages vs ~2 prefix pages of the synthetic tree.
+        // 154 matching day dirs, k=4 floors to 12: 153 remaining pages vs ceil(462*12/1000)=6.
         assertFalse(cheaperToFinish(154, 4, 462));
+    }
+
+    public void testQuietFirstFolderDoesNotFlattenNinetyDayPrefix() {
+        // 154 of 90×154 day dirs. Without the floor, k=4 sizes the prefix at ceil(13860*4/1000)=56
+        // and flattens. With k'=12, 153 remaining <= ceil(13860*12/1000)=167, so finish.
+        assertTrue(cheaperToFinish(154, 4, 154 * 90));
+        assertTrue("k=10 still floors to 12", cheaperToFinish(154, MIN_FINISH_SAMPLE - 2, 154 * 90));
+        assertTrue(cheaperToFinish(154, MIN_FINISH_SAMPLE, 154 * 90));
+        // Same 1-day S, shorter retention: need k'>=71 (14-day) / already-false at 12 (30-day).
+        // Quiet-folder flatten of those prefixes is accepted; 12 is the 90-day layout, not a min-sample.
+        assertFalse("14-day L of the same 154 prefixes still flattens", cheaperToFinish(154, 4, 154 * 14));
+        assertFalse("30-day L of the same 154 prefixes still flattens", cheaperToFinish(154, 4, 154 * 30));
+        // Uniformly sparse: no floor, 153 remaining > ceil(13860*4/1000)=56.
+        assertFalse(cheaperToFinish(154, 4, 154 * 90, LIST_PAGE_SIZE, false));
+    }
+
+    public void testFinishCostUsesMeasuredKNotThePrefixFloor() {
+        // pageSize 10 so measured k=5 is one page and the floor (12) is two. Remaining 2 pages
+        // vs ceil(2*5/10)=1 would flatten if finish used k'; measured k finishes (2 <= ceil(2*12/10)=3).
+        assertTrue(cheaperToFinish(3, 5, 2, 10));
+        assertFalse("flooring finish k would be 2*ceil(12/10)=4 > 3", cheaperToFinish(3, 12, 2, 10));
     }
 
     public void testParallelWalkMatchesSequentialOrderAndIssuedCount() throws Exception {
@@ -383,13 +419,15 @@ public class PartitionPruningWalkTests extends ESTestCase {
         String prefixListing = ListingWalkHarness.WIDE_HIVE_PREFIX + "/";
 
         ListingWalkHarness sequential = new ListingWalkHarness(wideHiveTree());
-        expectThrows(
+        DiscoveredFilesLimitException sequentialError = expectThrows(
             DiscoveredFilesLimitException.class,
             () -> PartitionPruningWalk.withFinishMode(
                 PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
                 () -> expand(sequential, WIDE_HIVE_GLOB, hints, 0, pred, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS)
             )
         );
+        assertThat(sequentialError.getMessage(), containsString("discovered too many files"));
+        assertThat(sequentialError.getMessage(), containsString("folder walk"));
         assertFalse("file cap must not prefix-list the dataset", sequential.listedPrefixes().contains(prefixListing));
 
         ListingWalkHarness parallel = new ListingWalkHarness(wideHiveTree());
@@ -609,26 +647,74 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
-    public void testParallelPeekCeilingIssuesRemainingBudgetThenFailsClosed() throws Exception {
+    public void testParallelPeekCeilingSkipsWhenSurvivorsTypedTheKey() throws Exception {
         int ceiling = WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES - 1;
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
 
         ListingWalkHarness sequential = new ListingWalkHarness(wideHiveSevenDayTree());
-        assertNull(tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false, Integer.MAX_VALUE, ceiling));
-        assertEquals(ceiling, sequential.listChildrenRequests());
-        assertEquals(WIDE_HIVE_PREFIXES - 1, julyDayPeekCount(sequential));
-        assertEquals(0, sequential.listObjectPages());
+        PartitionPruningWalk.WalkResult sequentialResult = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false, Integer.MAX_VALUE, ceiling)
+        );
+        assertNotNull(sequentialResult);
+        assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, sequential.listChildrenRequests());
+        assertEquals(0, julyDayPeekCount(sequential));
 
         ListingWalkHarness parallel = new ListingWalkHarness(wideHiveSevenDayTree());
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try {
-            assertNull(tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 8, executor, Integer.MAX_VALUE, ceiling));
-            assertEquals(ceiling, parallel.listChildrenRequests());
-            assertEquals(WIDE_HIVE_PREFIXES - 1, julyDayPeekCount(parallel));
-            assertEquals(0, parallel.listObjectPages());
+            PartitionPruningWalk.WalkResult parallelResult = PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 8, executor, Integer.MAX_VALUE, ceiling)
+            );
+            assertNotNull(parallelResult);
+            assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, parallel.listChildrenRequests());
+            assertEquals(0, julyDayPeekCount(parallel));
         } finally {
             terminate(executor);
         }
+    }
+
+    /**
+     * Truncated peeks with no survivor of the new key fail closed. Skipping would drop type-widening
+     * spellings under the pruned parent.
+     */
+    public void testParallelPeekCeilingFailsClosedWhenKeyUntyped() throws Exception {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/data/year=2024/month=06/a.parquet"),
+            ListingWalkHarness.entry("s3://bucket/data/year=2025/month=07/b.parquet")
+        );
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint("year", Operator.EQUALS, List.of(2024)),
+            new PartitionFilterHint("month", Operator.EQUALS, List.of(99))
+        );
+        String glob = "s3://bucket/data/year=*/month=*/*.parquet";
+        int ceiling = 2;
+
+        ListingWalkHarness sequential = new ListingWalkHarness(tree);
+        assertNull(tryWalk(sequential, glob, hints, null, () -> false, Integer.MAX_VALUE, ceiling));
+        assertThat(sequential.listChildrenRequests(), lessThanOrEqualTo(ceiling));
+
+        ListingWalkHarness parallel = new ListingWalkHarness(tree);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            assertNull(tryWalkAsync(parallel, glob, hints, null, () -> false, 4, executor, Integer.MAX_VALUE, ceiling));
+            assertThat(parallel.listChildrenRequests(), lessThanOrEqualTo(ceiling));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testJuneRetentionHourGrainWalkCompletesUnderCeiling() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), HOUR_SPEC);
+        ListingWalkHarness provider = new ListingWalkHarness(wideHiveJuneTree());
+        PartitionPruningWalk.WalkResult result = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalk(provider, WIDE_HIVE_GLOB, List.of(), pred, () -> false)
+        );
+        assertNotNull(result);
+        assertThat(provider.listChildrenRequests(), lessThanOrEqualTo(PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS));
+        assertEquals(WIDE_HIVE_ONE_DAY_FILES, result.matched().size());
     }
 
     public void testParallelPeeksInFlightNeverExceedsConcurrency() throws Exception {

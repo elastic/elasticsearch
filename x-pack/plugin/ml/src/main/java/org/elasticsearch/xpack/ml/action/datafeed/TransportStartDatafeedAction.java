@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -46,7 +44,6 @@ import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
@@ -68,8 +65,10 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -80,14 +79,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TRANSPORT_TOO_OLD;
+import java.util.function.Supplier;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -111,6 +107,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final boolean remoteClusterClient;
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final EsqlDatafeedQueryValidator esqlQueryValidator;
 
     @Inject
     public TransportStartDatafeedAction(
@@ -127,6 +124,40 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         AnomalyDetectionAuditor auditor,
         NamedXContentRegistry xContentRegistry,
         ProjectResolver projectResolver
+    ) {
+        this(
+            settings,
+            transportService,
+            threadPool,
+            clusterService,
+            licenseState,
+            persistentTasksService,
+            actionFilters,
+            client,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            auditor,
+            xContentRegistry,
+            projectResolver,
+            new EsqlDatafeedQueryValidator()
+        );
+    }
+
+    TransportStartDatafeedAction(
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        PersistentTasksService persistentTasksService,
+        ActionFilters actionFilters,
+        Client client,
+        JobConfigProvider jobConfigProvider,
+        DatafeedConfigProvider datafeedConfigProvider,
+        AnomalyDetectionAuditor auditor,
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver,
+        EsqlDatafeedQueryValidator esqlQueryValidator
     ) {
         super(
             StartDatafeedAction.NAME,
@@ -148,6 +179,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.projectResolver = projectResolver;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.esqlQueryValidator = esqlQueryValidator;
     }
 
     static void validate(
@@ -231,8 +263,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             };
 
         // Verify data extractor factory can be created, then start persistent task
-        Consumer<Job> createDataExtractor = job -> {
-            final List<String> remoteIndices = trueRemoteIndices(params.getDatafeedIndices());
+        BiConsumer<Job, List<String>> checkRemoteSourcesAndCreateExtractor = (job, remoteIndices) -> {
             if (remoteIndices.isEmpty() == false) {
                 if (remoteClusterClient == false) {
                     responseHeaderPreservingListener.onFailure(
@@ -240,7 +271,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             Messages.getMessage(
                                 Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
                                 datafeedConfigHolder.get().getId(),
-                                RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
+                                RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
                                 clusterService.getNodeName()
                             )
                         )
@@ -254,21 +285,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     crossProjectModeDecider,
                     datafeedConfigHolder.get().getCloudInternalCredential() != null
                 );
-                boolean isCpsMode = isCrossProjectMode(effectiveDatafeed);
+                boolean isCpsMode = skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider);
 
                 if (isCpsMode) {
                     // Skip license check for CPS - all projects share the same highest license
-                    // Still do version check
-                    final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
-                    List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                        remoteClusterService.getRegisteredRemoteClusterNames(),
-                        remoteIndices
-                    );
-                    checkRemoteConfigVersions(
-                        effectiveDatafeed,
-                        remoteAliases,
-                        (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
-                    );
                     createDataExtractor(task, job, effectiveDatafeed, params, waitForTaskListener);
                 } else {
                     // Traditional remote cluster search - check licenses
@@ -285,16 +305,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             if (response.isSuccess() == false) {
                                 responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
                             } else {
-                                final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
-                                List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                                    remoteClusterService.getRegisteredRemoteClusterNames(),
-                                    remoteIndices
-                                );
-                                checkRemoteConfigVersions(
-                                    datafeedConfigHolder.get(),
-                                    remoteAliases,
-                                    (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
-                                );
                                 createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                             }
                         },
@@ -308,6 +318,24 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
             }
         };
+
+        Consumer<Job> createDataExtractor = job -> resolveRemoteSources(
+            esqlQueryValidator,
+            () -> CloudCredentialsExtension.getInstance()
+                .credentialManager()
+                .wrapClient(
+                    new ParentTaskAssigningClient(client, clusterService.localNode(), task),
+                    datafeedConfigHolder.get().getCloudInternalCredential()
+                ),
+            datafeedConfigHolder.get(),
+            job,
+            crossProjectModeDecider,
+            params,
+            ActionListener.wrap(
+                remoteIndices -> checkRemoteSourcesAndCreateExtractor.accept(job, remoteIndices),
+                responseHeaderPreservingListener::onFailure
+            )
+        );
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
             Job job = jobBuilder.build();
@@ -329,7 +357,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 crossProjectModeDecider,
                 datafeedConfig.getCloudInternalCredential() != null
             );
-            params.setDatafeedIndices(datafeedConfig.getIndices());
             params.setJobId(datafeedConfig.getJobId());
             setIndicesOptionsIfPresent(params, effectiveDatafeed);
             datafeedConfigHolder.set(datafeedConfig);
@@ -362,39 +389,68 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         return datafeed.getIndicesOptions() != null && datafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
     }
 
+    /**
+     * Whether remote cluster checks do not apply because the datafeed searches linked projects. An ES|QL datafeed has no
+     * {@code indices_options}, so only the cross-project decision tells.
+     */
+    public static boolean skipsRemoteClusterChecks(DatafeedConfig effectiveDatafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        return effectiveDatafeed.getEsqlQuery() != null
+            ? DatafeedConfig.isCPSAllowed(crossProjectModeDecider)
+            : isCrossProjectMode(effectiveDatafeed);
+    }
+
+    /**
+     * Stores the sources of the datafeed in {@code params}, where the node that runs the datafeed reads them, and returns the remote
+     * ones for the remote cluster checks. A DSL datafeed lists its indices. An ES|QL datafeed has no index list, so a probe of its
+     * query finds the remote sources. Cross-project mode has projects, not remote clusters, so it has nothing to probe.
+     */
+    static void resolveRemoteSources(
+        EsqlDatafeedQueryValidator validator,
+        Supplier<Client> probeClient,
+        DatafeedConfig datafeed,
+        Job job,
+        CrossProjectModeDecider crossProjectModeDecider,
+        StartDatafeedAction.DatafeedParams params,
+        ActionListener<List<String>> listener
+    ) {
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+            datafeed,
+            crossProjectModeDecider,
+            datafeed.getCloudInternalCredential() != null
+        );
+        if (datafeed.getEsqlQuery() == null || skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider)) {
+            params.setDatafeedIndices(datafeed.getIndices());
+            listener.onResponse(trueRemoteIndices(params.getDatafeedIndices()));
+            return;
+        }
+        validator.validateAtStart(
+            probeClient.get(),
+            datafeed.getHeaders(),
+            datafeed.getEsqlQuery(),
+            effectiveDatafeed.getProjectRouting(),
+            job.getDataDescription().getTimeField(),
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeed, job),
+            ActionListener.wrap(remoteSources -> {
+                params.setDatafeedIndices(remoteSources);
+                listener.onResponse(trueRemoteIndices(remoteSources));
+            }, listener::onFailure),
+            datafeed.getId()
+        );
+    }
+
     static void setIndicesOptionsIfPresent(StartDatafeedAction.DatafeedParams params, DatafeedConfig datafeed) {
         if (datafeed.getIndicesOptions() != null) {
             params.setIndicesOptions(datafeed.getIndicesOptions());
         }
     }
 
-    static void checkRemoteConfigVersions(
-        DatafeedConfig config,
-        List<String> remoteClusters,
-        Function<String, TransportVersion> transportVersionSupplier
-    ) {
-        Optional<Tuple<TransportVersion, String>> minVersionAndReason = config.minRequiredTransportVersion();
-        if (minVersionAndReason.isPresent() == false) {
-            return;
-        }
-        final String reason = minVersionAndReason.get().v2();
-        final TransportVersion minVersion = minVersionAndReason.get().v1();
-
-        List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> transportVersionSupplier.apply(cn).supports(minVersion) == false)
-            .collect(Collectors.toList());
-        if (clustersTooOld.isEmpty()) {
-            return;
-        }
-
-        throw ExceptionsHelper.badRequestException(
-            Messages.getMessage(
-                REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
-                minVersion.toReleaseVersion(),
-                reason,
-                Strings.collectionToCommaDelimitedString(clustersTooOld)
-            )
-        );
+    /**
+     * An ES|QL datafeed that is not in cross-project mode already ran its {@code | DESCRIBE} in {@link #resolveRemoteSources}. Creating
+     * the factory here too would run a second one on every start. In cross-project mode that probe is skipped, so the factory
+     * creation is the only start-time validation and a failure reaches the caller instead of removing the task later.
+     */
+    static boolean skipsFactoryValidation(DatafeedConfig effectiveDatafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        return effectiveDatafeed.getEsqlQuery() != null && skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider) == false;
     }
 
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
@@ -412,6 +468,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeed.getCloudInternalCredential() != null
         );
 
+        if (skipsFactoryValidation(effectiveDatafeed, crossProjectModeDecider)) {
+            persistentTasksService.sendStartRequest(
+                MlTasks.datafeedTaskId(params.getDatafeedId()),
+                MlTasks.DATAFEED_TASK_NAME,
+                params,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                listener
+            );
+            return;
+        }
+
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
             CloudCredentialsExtension.getInstance().credentialManager(),
@@ -421,6 +488,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
+            DatafeedSearchTelemetry.NOOP,
             ActionListener.wrap(
                 unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
@@ -668,6 +736,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final String datafeedId;
         private final long startTime;
         private final Long endTime;
+        private final List<String> datafeedIndices;
         /**
          * This must always be set within a synchronized block that also checks
          * the value of the {@code stoppedOrIsolatedBeforeRunning} flag.
@@ -687,6 +756,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             this.datafeedId = params.getDatafeedId();
             this.startTime = params.getStartTime();
             this.endTime = params.getEndTime();
+            this.datafeedIndices = params.getDatafeedIndices();
         }
 
         public String getDatafeedId() {
@@ -695,6 +765,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         public long getDatafeedStartTime() {
             return startTime;
+        }
+
+        /** The indices from the start parameters. For an ES|QL datafeed these are the remote sources found when it started. */
+        public List<String> getDatafeedIndices() {
+            return datafeedIndices;
         }
 
         @Nullable

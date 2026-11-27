@@ -165,6 +165,10 @@ public abstract class SourceOperator implements Operator {
         return true;
     }
 
+    public boolean tracksDiscardedOutput() {
+        return false;
+    }
+
     // The driver calls this, possibly from another thread and after close, for each page of its own dropped before its consumer.
     public void outputDiscarded(Page page) {}
 }

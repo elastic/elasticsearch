@@ -87,6 +87,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1165,6 +1166,80 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    public void testSourceIsToldOfAPageDerivedFromItsOutputDroppedBeforeTheSinkTakesIt() {
+        DriverContext driverContext = driverContext();
+        Block block = driverContext.blockFactory().newConstantIntBlockWith(1, 1);
+        LocalExchange exchange = new LocalExchange(10);
+        ExchangeSource exchangeSource = exchange.exchangeSource();
+        DiscardTrackingSource source = new DiscardTrackingSource(List.of(new Page(block)), () -> {});
+        EvalOperator eval = new EvalOperator(driverContext, new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                exchange.finish(false);
+                return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public void close() {}
+        });
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(eval),
+            new ExchangeSinkOperator(exchange.exchangeSink(() -> {}))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            future.actionGet(30, TimeUnit.SECONDS);
+            assertThat(source.discarded, hasSize(1));
+            assertThat(source.discarded.getFirst().getBlockCount(), equalTo(2));
+            assertTrue(block.isReleased());
+            assertNull(exchangeSource.pollPage());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testSourceIsToldOfAPageItsExchangeDropsAfterTheSinkTakesIt() throws Exception {
+        DriverContext driverContext = driverContext();
+        Page first = new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 1));
+        Block secondBlock = driverContext.blockFactory().newConstantIntBlockWith(2, 1);
+        Page second = new Page(secondBlock);
+        LocalExchange exchange = new LocalExchange(10);
+        ExchangeSource exchangeSource = exchange.exchangeSource();
+        DiscardTrackingSource source = new DiscardTrackingSource(List.of(first, second), () -> exchange.finish(false));
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(),
+            new ExchangeSinkOperator(exchange.exchangeSink(() -> {}))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            assertBusy(() -> {
+                assertTrue(secondBlock.isReleased());
+                assertThat(source.discarded, contains(sameInstance(second)));
+            });
+            Page polled = exchangeSource.pollPage();
+            assertThat(polled, sameInstance(first));
+            polled.releaseBlocks();
+            assertNull(exchangeSource.pollPage());
+            future.actionGet(30, TimeUnit.SECONDS);
+            assertThat(source.discarded, contains(sameInstance(second)));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     public void testSourceIsToldOfThePagesItsExchangeDrops() {
         DriverContext driverContext = driverContext();
         Block firstBlock = driverContext.blockFactory().newConstantIntBlockWith(1, 1);
@@ -1221,6 +1296,11 @@ public class DriverTests extends ESTestCase {
                 beforeLastPage.run();
             }
             return pages.get(emitted++);
+        }
+
+        @Override
+        public boolean tracksDiscardedOutput() {
+            return true;
         }
 
         @Override

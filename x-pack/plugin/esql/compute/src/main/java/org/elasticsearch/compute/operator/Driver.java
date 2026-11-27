@@ -87,6 +87,8 @@ public class Driver implements Releasable, Describable {
     private final long startNanos;
     private final DriverContext driverContext;
     private final Supplier<String> description;
+    @Nullable
+    private final SourceOperator discardTrackingSource;
     protected List<Operator> activeOperators;
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     /**
@@ -224,6 +226,7 @@ public class Driver implements Releasable, Describable {
         this.activeOperators.add(source);
         this.activeOperators.addAll(intermediateOperators);
         this.activeOperators.add(sink);
+        this.discardTrackingSource = source.tracksDiscardedOutput() ? source : null;
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
         this.status = new AtomicReference<>(
@@ -466,8 +469,8 @@ public class Driver implements Releasable, Describable {
                     try {
                         driverContext.checkForEarlyTermination();
                     } catch (DriverEarlyTerminationException | TaskCancelledException e) {
-                        if (op instanceof SourceOperator source) {
-                            source.outputDiscarded(page);
+                        if (discardTrackingSource != null) {
+                            discardTrackingSource.outputDiscarded(page);
                         }
                         page.releaseBlocks();
                         throw e;
@@ -636,8 +639,8 @@ public class Driver implements Releasable, Describable {
         if (driver.activeOperators.isEmpty() == false) {
             if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
                 sinkOperator.addCompletionListener(ActionListener.running(driver::finishEarly));
-                if (driver.activeOperators.getFirst() instanceof SourceOperator source) {
-                    sinkOperator.setOnPageDiscarded(source::outputDiscarded);
+                if (driver.discardTrackingSource != null) {
+                    sinkOperator.setOnPageDiscarded(driver.discardTrackingSource::outputDiscarded);
                 }
             } else if (driver.activeOperators.getLast() instanceof StreamingPageOperator streamingOperator) {
                 streamingOperator.addCompletionListener(ActionListener.running(driver::finishEarly));

@@ -105,8 +105,6 @@ public class EqlSourceOperator extends SourceOperator {
     // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
-    // Rows of this operator were dropped before reaching the consumer of the driver.
-    private volatile boolean rowsDiscarded;
     private final Set<String> recordedClusters = ConcurrentHashMap.newKeySet();
 
     private EqlSourceOperator(
@@ -434,12 +432,14 @@ public class EqlSourceOperator extends SourceOperator {
     }
 
     @Override
+    public boolean tracksDiscardedOutput() {
+        return true;
+    }
+
+    @Override
     public void outputDiscarded(Page droppedPage) {
-        if (droppedPage.getPositionCount() > 0) {
-            rowsDiscarded = true;
-            if (executionInfo.isStopped()) {
-                markUndeliveredStopPartial();
-            }
+        if (droppedPage.getPositionCount() > 0 && executionInfo.isStopped()) {
+            markUndeliveredStopPartial();
         }
     }
 
@@ -459,14 +459,11 @@ public class EqlSourceOperator extends SourceOperator {
         boolean lostRows;
         synchronized (this) {
             closed = true;
-            if (page != null && page.getPositionCount() > 0) {
-                rowsDiscarded = true;
-            }
+            lostRows = page != null && page.getPositionCount() > 0 && executionInfo.isStopped();
             if (page != null) {
                 page.releaseBlocks();
                 page = null;
             }
-            lostRows = rowsDiscarded && executionInfo.isStopped();
         }
         if (lostRows) {
             markUndeliveredStopPartial();
@@ -474,19 +471,23 @@ public class EqlSourceOperator extends SourceOperator {
     }
 
     private void markUndeliveredStopPartial() {
-        for (String cluster : recordedClusters) {
-            if (executionInfo.getCluster(cluster) == null) {
-                continue;
-            }
-            executionInfo.swapCluster(cluster, (alias, current) -> {
-                boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias);
-                if (executionInfo.isMainPlan() == false && local == false) {
-                    return current;
-                }
-                EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(current);
-                ComputeService.applyClusterStatusAfterBranch(builder, current, true, true);
-                return builder.build();
-            });
+        executionInfo.markPartial();
+        // A transformed page has no cluster provenance; only a single-cluster search can attribute its lost rows.
+        if (recordedClusters.size() != 1) {
+            return;
         }
+        String cluster = recordedClusters.iterator().next();
+        if (executionInfo.getCluster(cluster) == null) {
+            return;
+        }
+        executionInfo.swapCluster(cluster, (alias, current) -> {
+            boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias);
+            if (executionInfo.isMainPlan() == false && local == false) {
+                return current;
+            }
+            EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(current);
+            ComputeService.applyClusterStatusAfterBranch(builder, current, true, true);
+            return builder.build();
+        });
     }
 }

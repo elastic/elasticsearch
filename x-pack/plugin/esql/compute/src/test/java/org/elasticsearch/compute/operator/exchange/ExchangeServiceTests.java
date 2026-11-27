@@ -584,7 +584,7 @@ public class ExchangeServiceTests extends ESTestCase {
         BlockFactory blockFactory = blockFactory();
         int sent = between(0, 5);
         int buffered = between(1, 5);
-        int late = between(0, 5);
+        int late = between(1, 5);
         for (int n = 0; n < sent + buffered; n++) {
             tracked.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
             untracked.addPage(new Page(blockFactory.newConstantIntBlockWith(-1, 1)));

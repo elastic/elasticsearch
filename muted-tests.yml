@@ -745,11 +745,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripDropsClusterWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/167022
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSourceRelocationCancelsClone
-  issue: https://github.com/elastic/elasticsearch/issues/167032
 - class: org.elasticsearch.xpack.esql.action.FetchContextsIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -784,12 +779,6 @@ tests:
   - :x-pack:qa:runtime-fields:core-with-mapped:yamlRestTest
   method: test {yaml=aggregations/terms_include_exclude_regex/a build predicted to exceed the request breaker is refused, and the reservation is released}
   issue: https://github.com/elastic/elasticsearch/issues/167319
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
-  method: test {yaml=search/640_regexp_circuit_breaker/a regexp query whose build is predicted to exceed the request breaker is refused, and the reservation is
-    released}
-  issue: https://github.com/elastic/elasticsearch/issues/167330
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
   tasks:
   - :modules:repository-gcs:test
@@ -855,16 +844,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/166620
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  tasks:
-  - :qa:rolling-upgrade:bcUpgradeTest
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/167667
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  tasks:
-  - :qa:rolling-upgrade:bcUpgradeTest
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/167674
 - class: org.elasticsearch.xpack.esql.datasources.AsyncConnectorSourceOperatorFactoryTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -875,11 +854,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testStopFetchesTheRowsSelectedSoFar
   issue: https://github.com/elastic/elasticsearch/issues/167692
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  tasks:
-  - :qa:rolling-upgrade:bcUpgradeTest
-  method: testIndexSortForNumericTypes {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/167695
 - class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactoryTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -910,3 +884,34 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testDisableThrottlingUsingTheSetting
   issue: https://github.com/elastic/elasticsearch/issues/163114
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v9.5.8#yamlRestTest
+  method: "test {yaml=mapping/90_columnar_ignore_dynamic_beyond_limit/columnar: dynamic field beyond the limit is dropped and recorded in _ignored with
+    ignore_dynamic_beyond_limit}"
+  issue: https://github.com/elastic/elasticsearch/issues/167785
+- class: org.elasticsearch.xpack.stateless.StatelessPluginTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testMergedSegmentWarmerIsOnlyConfiguredWhenMergeBlobsAreEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/167790
+- class: org.elasticsearch.xpack.stateless.StatelessPluginTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testMergedSegmentListenerDoesNothingByDefault
+  issue: https://github.com/elastic/elasticsearch/issues/167792
+- class: org.elasticsearch.xpack.security.SecurityPluginTests
+  tasks:
+  - :x-pack:plugin:security:internalClusterTest
+  method: testThatPluginIsLoaded
+  issue: https://github.com/elastic/elasticsearch/issues/167800
+- class: org.elasticsearch.xpack.esql.datasource.parquet.GzipPageInflaterTests
+  tasks:
+  - :x-pack:plugin:esql-datasource-parquet:test
+  method: testHeaderOnlySuffixAfterCompleteMemberIsEos
+  issue: https://github.com/elastic/elasticsearch/issues/167805
+- class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testANoneAtTheFirstOffsetDoesNotCollapseALimitedFile
+  issue: https://github.com/elastic/elasticsearch/issues/167807

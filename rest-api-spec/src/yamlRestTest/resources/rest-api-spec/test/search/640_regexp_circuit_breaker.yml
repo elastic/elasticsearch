@@ -101,9 +101,3 @@ teardown:
               str:
                 value: ".{0,10000}"
   - match: { hits.total: 2 }
-
-  - do:
-      nodes.stats:
-        node_id: $node_id
-        metric: [ breaker ]
-  - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }

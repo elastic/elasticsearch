@@ -287,7 +287,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     public void testReadChargesRequestBreaker() {
         String streamId = randomAlphaOfLength(12);
         int pageBytes = 64 * 1024;
-        writePages(streamId, 0, sameSizeBlobs(between(2, 4), pageBytes));
+        writePages(streamId, 0, sameSizeBlobs(between(3, 4), pageBytes));
         refreshPages();
         TransportReadStreamPagesAction.Request request = new TransportReadStreamPagesAction.Request(
             streamId,

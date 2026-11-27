@@ -222,9 +222,9 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             int toSeq = (int) Math.min((long) fromSeq + request.maxPages - 1, Integer.MAX_VALUE);
             List<PageDoc> docs = findPages(reader, runs, fromSeq, toSeq);
             Response response = readPages(searcher, reader, docs, fromSeq, request.maxBytes);
-            if (response.pages.isEmpty() && endsBefore(searcher, context, reader, runs, fromSeq)) {
+            if (response.pages.isEmpty()) {
                 response.decRef();
-                return new Response(List.of(), true, () -> {});
+                return new Response(List.of(), endsBefore(searcher, context, reader, runs, fromSeq), () -> {});
             }
             return response;
         }
@@ -558,7 +558,7 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
         private final TimeValue waitTimeout;
 
         /**
-         * Reads what is visible, without waiting and whatever its size.
+         * Reads what is visible, refreshing the shard if nothing is, without waiting for new pages and whatever its size.
          */
         public Request(String streamId, int fromSeq, int maxPages) {
             this(streamId, fromSeq, maxPages, Long.MAX_VALUE, TimeValue.ZERO);
@@ -649,7 +649,7 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
                 e = addValidationError("[maxPages] must be between 1 and [" + MAX_PAGES_PER_READ + "], got [" + maxPages + "]", e);
             }
             if (maxBytes < 0) {
-                e = addValidationError("[maxBytes] must be positive, got [" + maxBytes + "]", e);
+                e = addValidationError("[maxBytes] must be at least 0, got [" + maxBytes + "]", e);
             }
             if (waitTimeout.compareTo(MAX_WAIT_TIMEOUT) > 0) {
                 e = addValidationError("[waitTimeout] must be at most [" + MAX_WAIT_TIMEOUT + "], got [" + waitTimeout + "]", e);

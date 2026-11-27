@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.Stored
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.MAX_PAGES_PER_READ;
@@ -92,9 +94,12 @@ public class ReadStreamPagesRequestTests extends ESTestCase {
         Response copy;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
+            byte[] wire = BytesReference.toBytes(out.bytes());
+            try (StreamInput in = new BytesArray(wire).streamInput()) {
                 copy = new Response(in, breaker);
             }
+            // the pages own their bytes
+            Arrays.fill(wire, (byte) 0);
         } finally {
             response.decRef();
         }

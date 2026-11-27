@@ -112,7 +112,12 @@ public final class StoredPagesService implements IndexingOperationListener, Inde
             next.add(waiter);
             return next;
         });
-        waiter.scheduleTimeout(timeout);
+        try {
+            waiter.scheduleTimeout(timeout);
+        } catch (Exception e) {
+            waiter.fail(e);
+            return;
+        }
         refresh(shardId, ActionListener.wrap(v -> executor.execute(waiter.readAfterRefresh()), waiter::fail));
     }
 

@@ -7465,6 +7465,52 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(paths(result).stream().allMatch(p -> p.contains("/year=2022/") || p.contains("/year=2023/")));
     }
 
+    /**
+     * The fan-out's drains do not apply the folder post-filter, so they must not hold the files it drops against
+     * {@code max_discovered_files}: twenty-four files match the glob, eight are in range, and a cap of eight is
+     * enough. A cap of seven still fails, on the files the listing keeps. So does a range on a column no folder
+     * binds: it drops nothing, every match counts, and the cap fires in the drains rather than after them.
+     */
+    public void testFanOutDoesNotCountClosedRangeRejectsTowardTheDiscoveryCap() throws Exception {
+        List<StorageEntry> tree = wideHiveTree(6, 2, 2);
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2022),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2023)
+        );
+
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList result = expandSync("s3://bucket/data/*/*/*.parquet", provider, hints, HIVE_ON, 8, MAX, MAX, MAX, 4, () -> false);
+        assertThat("the fan-out must have drained more than one prefix", provider.listedPrefixes.size(), greaterThan(1));
+        assertEquals(8, result.fileCount());
+        assertTrue(paths(result).stream().allMatch(p -> p.contains("/year=2022/") || p.contains("/year=2023/")));
+
+        expectThrows(
+            DiscoveredFilesLimitException.class,
+            () -> expandSync("s3://bucket/data/*/*/*.parquet", new TreeStubProvider(tree), hints, HIVE_ON, 7, MAX, MAX, MAX, 4, () -> false)
+        );
+
+        var dataColumnHints = List.of(
+            hint("status", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 200),
+            hint("status", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 299)
+        );
+        DiscoveredFilesLimitException atTheCap = expectThrows(
+            DiscoveredFilesLimitException.class,
+            () -> expandSync(
+                "s3://bucket/data/*/*/*.parquet",
+                new TreeStubProvider(tree),
+                dataColumnHints,
+                HIVE_ON,
+                8,
+                MAX,
+                MAX,
+                MAX,
+                4,
+                () -> false
+            )
+        );
+        assertThat("fails at the first file over the cap, not once all twenty-four are held", atTheCap.getMessage(), containsString("(9,"));
+    }
+
     /** {@code _file.modified} literals are parsed once into epoch millis before any file is tested, on the fan-out too. */
     public void testFanOutResolvesFileModifiedHints() throws Exception {
         Instant old = Instant.parse("2020-01-01T00:00:00Z");
@@ -9368,8 +9414,9 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * Files a bounded drain stopped counting are still the post-filter's to decide once it reads to the end,
      * because that pass types a folder level over the files it is given: {@code day=abc} makes {@code day} a
-     * keyword, an integer range no longer decides, and every file is kept. That is the whole glob, so it is not
-     * truncated, and it answers to {@code max_discovered_files} as the unbounded listing does.
+     * keyword, an integer range no longer decides, and every file is kept. The bound still holds: the listing is
+     * the first three of them, a prefix, and a {@code max_discovered_files} the sample fits under does not fail it.
+     * Unbounded, all seven are the listing and answer to the cap.
      */
     public void testBoundedPostFilterUncountedFilesReturnWhenTheTypeWidens() throws IOException {
         List<StorageEntry> listing = new ArrayList<>();
@@ -9404,10 +9451,23 @@ public class GlobExpanderTests extends ESTestCase {
             ListingExtents.UNBOUNDED,
             PlanningMemory.NONE
         );
-        assertEquals(paths(unbounded), paths(result));
-        assertEquals(7, result.fileCount());
-        assertFalse(result.isTruncated());
+        assertEquals(7, unbounded.fileCount());
+        assertFalse(unbounded.isTruncated());
+        assertEquals(paths(unbounded).subList(0, 3), paths(result));
+        assertTrue(result.isTruncated());
 
+        FileList capped = GlobExpander.expand(
+            "s3://bucket/data/*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            5,
+            MAX,
+            MAX,
+            new ListingExtents(3),
+            PlanningMemory.NONE
+        );
+        assertEquals(paths(result), paths(capped));
         expectThrows(
             DiscoveredFilesLimitException.class,
             () -> GlobExpander.expand(
@@ -9418,10 +9478,80 @@ public class GlobExpanderTests extends ESTestCase {
                 5,
                 MAX,
                 MAX,
-                new ListingExtents(3),
+                ListingExtents.UNBOUNDED,
                 PlanningMemory.NONE
             )
         );
+    }
+
+    /**
+     * The files a wider type brings back are found only when the listing is put together, after a bounded drain
+     * has stopped on the three it counted. They must not be held against {@code max_discovered_files} there: the
+     * sample is three files and the cap is five, whatever else the drain passed over.
+     */
+    public void testBoundedPostFilterWidenedTypeStaysUnderTheDiscoveryCap() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            listing.add(entry("s3://bucket/data/day=17/f" + i + ".parquet", 100));
+        }
+        listing.add(entry("s3://bucket/data/day=abc/g.parquet", 100));
+        listing.add(entry("s3://bucket/data/day=18/h0.parquet", 100));
+        listing.add(entry("s3://bucket/data/day=18/h1.parquet", 100));
+        listing.add(entry("s3://bucket/data/day=18/h2.parquet", 100));
+        var hints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 18),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 18)
+        );
+        CountingStubProvider provider = new CountingStubProvider(listing);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*/*.parquet",
+            provider,
+            hints,
+            HIVE_ON,
+            5,
+            MAX,
+            MAX,
+            new ListingExtents(3),
+            PlanningMemory.NONE
+        );
+        assertEquals(3, result.fileCount());
+        assertTrue(result.isTruncated());
+        assertEquals("stopped at the third file counted", 9, provider.keysPulled());
+    }
+
+    /**
+     * A batch of folder values can type differently from the whole level: {@code x=-1} with a value above
+     * {@code Long.MAX_VALUE} has no common numeric type and is a keyword, which a numeric range cannot decide, so
+     * typed as a pair both files look kept. With {@code x=99.5} the three are doubles and only that one is in
+     * range. The drain counts a file only when it passes typed alone, which no sibling can change, so neither a
+     * cap of 2 nor a bound of 3 is spent on the two files the listing drops.
+     */
+    public void testPostFilterCountDoesNotDependOnWhichFilesShareABatch() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/x=-1/a.parquet", 100),
+            entry("s3://bucket/data/x=9223372036854776008/b.parquet", 100),
+            entry("s3://bucket/data/x=99.5/c.parquet", 100),
+            entry("s3://bucket/data/x=99.75/d.parquet", 100)
+        );
+        var hints = List.of(
+            hint("x", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 99),
+            hint("x", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 100)
+        );
+        for (ListingExtents extents : List.of(new ListingExtents(3), ListingExtents.UNBOUNDED)) {
+            FileList result = GlobExpander.expand(
+                "s3://bucket/data/*/*.parquet",
+                new CountingStubProvider(listing),
+                hints,
+                HIVE_ON,
+                2,
+                MAX,
+                MAX,
+                extents,
+                PlanningMemory.NONE
+            );
+            assertEquals(List.of("s3://bucket/data/x=99.5/c.parquet", "s3://bucket/data/x=99.75/d.parquet"), paths(result));
+            assertFalse(result.isTruncated());
+        }
     }
 
     /**

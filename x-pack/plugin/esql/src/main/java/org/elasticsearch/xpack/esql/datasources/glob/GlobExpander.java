@@ -1865,16 +1865,12 @@ public final class GlobExpander {
         List<StorageEntry> valueExcluded = new ArrayList<>();
         // The folder post-filter runs in finishListing, over everything the drain kept, because it types a folder
         // level across the files it is given. Until then `matched` can hold files it will drop, and those must
-        // neither fill the bound nor trip the discovery cap. So whenever the files not yet known to be dropped
-        // reach either limit, the ones added since the last look are put to the post-filter on their own and
-        // the ones it drops stop counting. A file kept on its own is kept over any superset, so this never
-        // undercounts what stops the drain; one dropped here can still come back under a wider type, and
-        // finishListing is what decides. They stay in `matched`, in listing order, and are reserved like the
-        // value-excluded files: both are held until the drain ends and are bounded by `maxListedObjects`.
-        int postFilterCheckAt = folderPostFilterHints(hints, partitionConfig, glob).isEmpty()
-            ? Integer.MAX_VALUE
-            : Math.min(extents.maxFiles(), Math.max(maxDiscoveredFiles, 1));
-        int postFilterChecked = 0;
+        // neither fill the bound nor trip the discovery cap. So the drain counts only the files that pass it
+        // when typed alone. That is a lower bound on what finishListing keeps: the pass drops a file only when
+        // it is excluded both under the level's type and under its own. The files not counted stay in `matched`,
+        // in listing order, and are reserved like the value-excluded files: both are held until the drain ends
+        // and are bounded by `maxListedObjects`.
+        FolderPostFilter postFilter = FolderPostFilter.forGlob(glob, hints, partitionConfig);
         int postFilterDropped = 0;
         StorageEntry fileHintAnchor = null;
         String prefixStr = prefix.toString();
@@ -1947,13 +1943,11 @@ public final class GlobExpander {
                         globKeptCount++;
                         if (fileHints.isEmpty() || fileHints.matches(entry)) {
                             matched.add(entry);
-                            if (matched.size() - postFilterDropped >= postFilterCheckAt) {
-                                List<StorageEntry> unchecked = matched.subList(postFilterChecked, matched.size());
-                                int kept = withoutFoldersOutsideClosedRange(unchecked, hints, partitionConfig, glob).size();
-                                postFilterDropped += unchecked.size() - kept;
-                                postFilterChecked = matched.size();
+                            if (postFilter.dropsAlone(entry)) {
+                                postFilterDropped++;
+                            } else {
+                                checkDiscoveredFilesLimit(matched.size() - postFilterDropped, maxDiscoveredFiles, walkDiagnostics);
                             }
-                            checkDiscoveredFilesLimit(matched.size() - postFilterDropped, maxDiscoveredFiles, walkDiagnostics);
                         } else if (fileHintAnchor == null) {
                             fileHintAnchor = entry;
                         }
@@ -2005,6 +1999,7 @@ public final class GlobExpander {
      * @param reserved how many of the retained entries the drain has already reserved heap for
      * @param maxFiles the file-set bound the drain ran under; {@code matched} may still hold files the folder
      *                 post-filter drops, which the drain counted against neither the bound nor {@code maxDiscoveredFiles}
+     * @param drainTruncated whether the drain stopped at the bound rather than reading to the end of the pattern
      */
     private static FileList finishListing(
         String pattern,
@@ -2018,7 +2013,7 @@ public final class GlobExpander {
         int globKeptCount,
         @Nullable String excludedExample,
         @Nullable String excludedExampleEntry,
-        boolean truncated,
+        boolean drainTruncated,
         int reserved,
         @Nullable List<PartitionFilterHint> hints,
         PartitionConfig partitionConfig,
@@ -2029,6 +2024,7 @@ public final class GlobExpander {
         @Nullable WalkDiagnostics walk,
         int maxFiles
     ) {
+        boolean truncated = drainTruncated;
         // The exclusion notice rides the listing only when this segment lists nothing, where the resolver's
         // "matched no files" error names it as the reason. A segment with files logs it and carries nothing.
         List<String> listingWarnings = new ArrayList<>();
@@ -2139,10 +2135,12 @@ public final class GlobExpander {
                 }
             }
             matched = inRange;
-            if (truncated && matched.size() > maxFiles) {
-                // The drain counted survivors a batch at a time, which can only undercount: typed together, a
-                // wider folder type keeps more. The bound is on what the listing returns.
+            if (matched.size() > maxFiles) {
+                // Typed together, a wider folder type can keep files the drain did not count, even after it
+                // read to the end. The bound is on what the listing returns, so it is a prefix again; without
+                // this a sample that fits would answer to max_discovered_files for files it was not asked for.
                 matched = new ArrayList<>(matched.subList(0, maxFiles));
+                truncated = true;
             }
         }
         // The drain held this back for the files the post-filter was going to drop; what is left is the listing.
@@ -2861,6 +2859,7 @@ public final class GlobExpander {
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
         FileMetadataFilter fileHints,
+        FolderPostFilter postFilter,
         int maxDiscoveredFiles,
         AtomicInteger sharedKeptCount
     ) {
@@ -2873,7 +2872,9 @@ public final class GlobExpander {
             String excludedBy = nameFilter.excludedBy(relativePath);
             if (excludedBy == null) {
                 if (fileHints.isEmpty() || fileHints.matches(entry)) {
-                    checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
+                    if (postFilter.dropsAlone(entry) == false) {
+                        checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
+                    }
                     return new SlotResult(new ArrayList<>(List.of(entry)), null, 0, 1, null, null);
                 } else {
                     // Filtered by _file.* hint: stash as anchor (not a kept entry).
@@ -2898,6 +2899,7 @@ public final class GlobExpander {
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
         FileMetadataFilter fileHints,
+        FolderPostFilter postFilter,
         int maxDiscoveredFiles,
         int maxListedObjects,
         boolean recursive,
@@ -2934,7 +2936,9 @@ public final class GlobExpander {
                             // Reserved as the drain grows, as the flat listing does, so a dataset too large for the node
                             // trips partway through rather than after the list exists.
                             reserved = reserveRetained(memory, localMatched.size(), reserved, false);
-                            checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
+                            if (postFilter.dropsAlone(entry) == false) {
+                                checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
+                            }
                         } else {
                             fileHintAnchor = fileHintAnchor != null ? fileHintAnchor : entry;
                         }
@@ -2991,6 +2995,10 @@ public final class GlobExpander {
         AtomicReferenceArray<SlotResult> results = new AtomicReferenceArray<>(size);
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicInteger sharedKeptCount = new AtomicInteger();
+        // The folder post-filter runs in finishListing, over the merged listing. The files it drops are not files
+        // the listing keeps, so the drains do not count them toward the cap: only a file that passes the
+        // post-filter typed alone is counted, as in the flat drain. finishListing checks the cap on what remains.
+        FolderPostFilter postFilter = FolderPostFilter.forGlob(glob, hints, partitionConfig);
 
         // This thread's measurement only commits when it closes. Once a drain is dispatched, the last one to finish runs the
         // completion and can carry planning on to finish() before that, which would drop the slot listing's CPU. Commit it now.
@@ -3018,6 +3026,7 @@ public final class GlobExpander {
                             matcher,
                             nameFilter,
                             fileHints,
+                            postFilter,
                             maxDiscoveredFiles,
                             sharedKeptCount
                         );
@@ -3043,6 +3052,7 @@ public final class GlobExpander {
                                         matcher,
                                         nameFilter,
                                         fileHints,
+                                        postFilter,
                                         maxDiscoveredFiles,
                                         maxListedObjects,
                                         recursive,
@@ -5158,6 +5168,42 @@ public final class GlobExpander {
                 }
             }
             return bindings;
+        }
+    }
+
+    /**
+     * The folder post-filter of {@link #withoutFoldersOutsideClosedRange}, asked about one file at a time. That
+     * pass types each folder level over all the files it is given and drops a file only when it is excluded both
+     * under that type and under the value's own, so a file this keeps is one the pass keeps whatever else is
+     * listed. A drain uses it to count, before the pass can run, files the listing is certain to keep.
+     */
+    private record FolderPostFilter(boolean hive, @Nullable String template, Map<String, List<PartitionFilterHint>> byColumn) {
+        static final FolderPostFilter NONE = new FolderPostFilter(true, null, Map.of());
+
+        static FolderPostFilter forGlob(@Nullable String glob, @Nullable List<PartitionFilterHint> hints, PartitionConfig config) {
+            List<PartitionFilterHint> filterHints = folderPostFilterHints(hints, config, glob);
+            if (filterHints.isEmpty()) {
+                return NONE;
+            }
+            Map<String, List<PartitionFilterHint>> grouped = Maps.newHashMapWithExpectedSize(filterHints.size());
+            for (PartitionFilterHint hint : filterHints) {
+                grouped.computeIfAbsent(hint.columnName(), k -> new ArrayList<>()).add(hint);
+            }
+            boolean hive = walkableStrategy(config);
+            return new FolderPostFilter(hive, hive ? null : config.pathTemplate(), grouped);
+        }
+
+        /** Whether the file is excluded when its folder values are typed on their own; only such a file can be dropped. */
+        boolean dropsAlone(StorageEntry entry) {
+            for (Map.Entry<String, List<PartitionFilterHint>> column : byColumn.entrySet()) {
+                FoundValue found = hive
+                    ? hivePartitionValue(entry.path(), column.getKey())
+                    : templatePartitionValue(entry.path(), column.getKey(), template);
+                if (found != null && PartitionValueMatcher.keepsIsolated(found.value(), column.getValue()) == false) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

@@ -11,9 +11,13 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * ENRICH + unmapped_fields mode tests.
@@ -73,5 +77,35 @@ public class AnalyzerUnmappedEnrichTests extends AnalyzerUnmappedTestBase {
         );
         var languageName = singleValue(plan.output().stream().filter(a -> "language_name".equals(a.name())).toList());
         assertThat(languageName.dataType(), is(DataType.KEYWORD));
+    }
+
+    private TestAnalyzer testWithMissingPolicy() {
+        return test().addEnrichError("foo", Enrich.Mode.ANY, "cannot find enrich policy [foo]");
+    }
+
+    private static final String ENRICH_MISSING_POLICY = "FROM test | EVAL lc = languages | ENRICH foo ON lc | KEEP emp_no, lc";
+
+    // #166195: the name of a policy that cannot be resolved is a placeholder for the policy error, not a field to load or nullify.
+    private void assertReportsMissingPolicy(String query) {
+        testWithMissingPolicy().statementError(
+            query,
+            allOf(containsString("cannot find enrich policy [foo]"), not(containsString("Unknown column [foo]")))
+        );
+    }
+
+    public void testDefault_missingPolicy_reportsPolicyError() {
+        assertReportsMissingPolicy(ENRICH_MISSING_POLICY);
+    }
+
+    public void testLoad_missingPolicy_reportsPolicyError() {
+        assertReportsMissingPolicy(setUnmappedLoad(ENRICH_MISSING_POLICY));
+    }
+
+    public void testLoadAll_missingPolicy_reportsPolicyError() {
+        assertReportsMissingPolicy(setUnmappedLoadAll(ENRICH_MISSING_POLICY));
+    }
+
+    public void testNullify_missingPolicy_reportsPolicyError() {
+        assertReportsMissingPolicy(setUnmappedNullify(ENRICH_MISSING_POLICY));
     }
 }

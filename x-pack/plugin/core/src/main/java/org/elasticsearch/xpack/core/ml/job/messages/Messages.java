@@ -61,10 +61,10 @@ public final class Messages {
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "
             + "project [{1}] in the final ES|QL output.";
-    public static final String DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL =
-        "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
-    public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN =
-        "grouping_interval [{0}] must equal the job bucket_span [{1}]";
+    public static final String DATAFEED_ESQL_TIME_BUCKET_NOT_DIVISOR_OF_BUCKET_SPAN =
+        "{0} time column [{1}] is bucketed by the interval [{2}]. The interval must be a divisor of the job bucket_span [{3}].";
+    public static final String DATAFEED_ESQL_FREQUENCY_NOT_MULTIPLE_OF_TIME_BUCKET =
+        "{0} frequency [{1}] must be a multiple of the interval [{2}] of the time column [{3}].";
     private static final String DATAFEED_ESQL_EMITTED_TIME_FAILED = "Job [{0}] ES|QL extraction failed for emitted time field [{1}].";
     private static final String DATAFEED_ESQL_EMITTED_TIME_WINDOW = "Source window is [{2,number,#}, {3,number,#}).";
     private static final String DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT =
@@ -122,7 +122,7 @@ public final class Messages {
             + "Make sure that the clusters are connected, that the indices in the query exist on them, "
             + "and that the query returns the required columns.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
-        "Recreate ES|QL datafeed [{0}] to change esql_query, grouping_interval, indices, query, "
+        "Recreate ES|QL datafeed [{0}] to change esql_query, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "
             + "settings: query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
     public static final String DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED =
@@ -156,8 +156,6 @@ public final class Messages {
     public static final String DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD = "Missing max aggregation for time_field [{0}]";
     public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL =
         "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
-    public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_GROUPING_INTERVAL =
-        "Datafeed frequency [{0}] must be a multiple of the grouping_interval [{1}]";
     public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_HAVE_SINGLE_DATE_SOURCE =
         "Composite aggregation [{0}] must have exactly one date_histogram source";
     public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET =

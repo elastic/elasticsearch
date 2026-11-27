@@ -378,24 +378,8 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(exception.getMessage(), containsString("unknown field [source_time_field]"));
     }
 
-    public void testApplyEsqlGroupingIntervalUpdateToClassicDatafeedShouldReject() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
-        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueHours(1)).build();
-
-        ElasticsearchStatusException exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
-        );
-
-        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString("grouping_interval can only be set when esql_query is configured"));
-    }
-
     public void testMinRequiredTransportVersionShouldCoverAllEsqlFields() {
-        List<DatafeedUpdate> esqlUpdates = List.of(
-            new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build(),
-            new DatafeedUpdate.Builder("test-datafeed").setGroupingInterval(TimeValue.timeValueHours(1)).build()
-        );
+        List<DatafeedUpdate> esqlUpdates = List.of(new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build());
         for (DatafeedUpdate update : esqlUpdates) {
             assertThat(update.minRequiredTransportVersion().orElseThrow().v1(), equalTo(DatafeedConfig.ML_DATAFEED_ESQL_QUERY));
         }
@@ -407,7 +391,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
         List<DatafeedUpdate> queryShapeUpdates = List.of(
             new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueMinutes(30)).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setIndices(Collections.emptyList()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setQuery(QueryProvider.defaultQuery()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setAggregations(AggProvider.fromParsedAggs(new AggregatorFactories.Builder()))
@@ -449,9 +432,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     private static DatafeedConfig createEsqlDatafeed(String id) {
-        return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
+        return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index").build();
     }
 
     public void testApply_GivenRandomUpdates_AssertImmutability() {

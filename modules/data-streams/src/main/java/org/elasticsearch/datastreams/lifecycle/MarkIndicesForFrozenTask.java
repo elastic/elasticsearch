@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -24,15 +25,19 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * This task takes a set of indices, and adds custom metadata to the {@link DataStreamsPlugin#LIFECYCLE_CUSTOM_INDEX_METADATA_KEY} map
  * that indicates the index is ready to be converted into a frozen index. The metadata is a key-value pair of
- * {@link DataStreamLifecycleService#FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY} and a String which is the currently configured
- * "repositories.default_repository" setting, defined in {@link RepositoriesService#DEFAULT_REPOSITORY_SETTING}.
+ * {@link DataStreamLifecycleService#FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY} and a String which is the
+ * {@link RepositoriesService#DEFAULT_REPOSITORY_SETTING} in effect when the task executes. A value in the cluster state metadata
+ * settings takes precedence. If there is none, the node-level value is used, because a repository set only in
+ * {@code elasticsearch.yml} is not present in the cluster state metadata settings.
  *
  * If the default repository is not configured, the cluster state update is a no-op.
  */
@@ -40,11 +45,19 @@ public class MarkIndicesForFrozenTask extends AckedBatchedClusterStateUpdateTask
     private static final Logger logger = LogManager.getLogger(MarkIndicesForFrozenTask.class);
     private final Set<Index> indicesToMarkForFrozen;
     private final ProjectId projectId;
+    private final String nodeDefaultRepository;
+    private List<String> markedIndexNames = List.of();
 
-    public MarkIndicesForFrozenTask(ProjectId projectId, Set<Index> indicesToMarkForFrozen, ActionListener<AcknowledgedResponse> listener) {
+    public MarkIndicesForFrozenTask(
+        ProjectId projectId,
+        Set<Index> indicesToMarkForFrozen,
+        String nodeDefaultRepository,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         super(TimeValue.THIRTY_SECONDS, listener);
         this.indicesToMarkForFrozen = indicesToMarkForFrozen;
         this.projectId = projectId;
+        this.nodeDefaultRepository = nodeDefaultRepository;
     }
 
     ClusterState execute(ClusterState currentState) {
@@ -52,14 +65,17 @@ public class MarkIndicesForFrozenTask extends AckedBatchedClusterStateUpdateTask
         if (projectMetadata == null) {
             return currentState;
         }
-        final String defaultRepository = RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(currentState.getMetadata().settings());
+        final Settings clusterStateSettings = currentState.metadata().settings();
+        final String defaultRepository = RepositoriesService.DEFAULT_REPOSITORY_SETTING.exists(clusterStateSettings)
+            ? RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(clusterStateSettings)
+            : nodeDefaultRepository;
         if (Strings.hasText(defaultRepository) == false) {
             logger.debug("DLM skipping marking indices as ready for frozen conversion, because no default repository has been configured");
             return currentState;
         }
 
         final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectMetadata);
-        boolean changed = false;
+        final List<String> newlyMarkedIndexNames = new ArrayList<>();
         for (Index index : indicesToMarkForFrozen) {
             final IndexMetadata indexMetadata = projectMetadata.index(index);
             if (indexMetadata == null) {
@@ -88,14 +104,25 @@ public class MarkIndicesForFrozenTask extends AckedBatchedClusterStateUpdateTask
                 .build();
 
             projectBuilder.put(updatedMetadata, true);
-            changed = true;
+            newlyMarkedIndexNames.add(index.getName());
         }
 
-        if (changed) {
+        if (newlyMarkedIndexNames.isEmpty() == false) {
+            markedIndexNames = newlyMarkedIndexNames;
             return ClusterState.builder(currentState).putProjectMetadata(projectBuilder.build()).build();
         } else {
             logger.debug("DLM marking {} indices as ready for frozen ended in a no-op", indicesToMarkForFrozen.size());
             return currentState;
+        }
+    }
+
+    /**
+     * Logs the indices that this task marked. Called after the cluster state update is published, so that a skipped or no-op
+     * update does not log a success.
+     */
+    void onPublicationSuccess() {
+        if (markedIndexNames.isEmpty() == false) {
+            logger.info("DLM successfully marked {} indices as ready to be frozen: {}", markedIndexNames.size(), markedIndexNames);
         }
     }
 }

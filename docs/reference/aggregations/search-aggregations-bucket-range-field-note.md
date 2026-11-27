@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-range-field-note.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Subtleties of bucketing range fields [search-aggregations-bucket-range-field-note]
@@ -12,9 +15,6 @@ Since a range represents multiple values, running a bucket aggregation over a ra
 ```console
 PUT range_index
 {
-  "settings": {
-    "number_of_shards": 2
-  },
   "mappings": {
     "properties": {
       "expected_attendees": {

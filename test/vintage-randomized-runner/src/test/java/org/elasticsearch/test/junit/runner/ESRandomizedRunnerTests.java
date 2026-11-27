@@ -21,16 +21,26 @@ import org.junit.Before;
 import org.junit.runner.Description;
 import org.junit.runner.manipulation.Filter;
 import org.junit.runner.manipulation.NoTestsRemainException;
+import org.junit.runner.notification.Failure;
+import org.junit.runner.notification.RunListener;
+import org.junit.runner.notification.RunNotifier;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests how {@link ESRandomizedRunner} applies filters, by looking at the descriptions that remain after filtering a runner for a
@@ -61,6 +71,27 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         public void testOne() {}
 
         public void testTwo() {}
+    }
+
+    @TestMethodProviders({ JUnit3MethodProvider.class })
+    public static class FailingFixture {
+
+        public FailingFixture(@Name("p") String p) {}
+
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() {
+            return List.of(new Object[] { "a" }, new Object[] { "b" });
+        }
+
+        public void testPasses() {}
+
+        public void testFails() {
+            Assert.fail("expected");
+        }
+
+        public void testAssumptionFails() {
+            Assume.assumeTrue(false);
+        }
     }
 
     @TestMethodProviders({ JUnit3MethodProvider.class })
@@ -199,6 +230,126 @@ public class ESRandomizedRunnerTests extends RandomizedTest {
         runner.filter(new OtherFilter("testTwo"));
 
         assertThat(leafNames(runner.getDescription()), containsInAnyOrder("testOne", "testThree"));
+    }
+
+    /**
+     * The Vintage engine is quadratic in the number of tests under suites that are not the root, so the tests must be its direct
+     * children.
+     */
+    public void testDescriptionIsFlat() throws Exception {
+        ESRandomizedRunner runner = parameterizedFixtureRunner();
+
+        Description description = runner.getDescription();
+
+        assertFlatChildren(description, "testOne {p=a}", "testOne {p=b}", "testTwo {p=a}", "testTwo {p=b}");
+    }
+
+    public void testDescriptionIsFlatAfterFiltering() throws Exception {
+        ESRandomizedRunner runner = parameterizedFixtureRunner();
+        runner.getDescription();
+
+        runner.filter(new VintageLikeFilter("testOne {p=b}"));
+
+        assertFlatChildren(runner.getDescription(), "testOne {p=a}", "testTwo {p=a}", "testTwo {p=b}");
+    }
+
+    public void testFlatDescriptionKeepsTheRootOfTheOriginalOne() throws Exception {
+        ESRandomizedRunner runner = parameterizedFixtureRunner();
+
+        Description original = new RandomizedRunner(ParameterizedFixture.class).getDescription();
+
+        assertThat(runner.getDescription(), equalTo(original));
+    }
+
+    public void testDescriptionIsRebuiltWhenNoTestsRemain() throws Exception {
+        ESRandomizedRunner runner = parameterizedFixtureRunner();
+        runner.getDescription();
+
+        try {
+            runner.filter(new VintageLikeFilter("testOne {p=a}", "testOne {p=b}", "testTwo {p=a}", "testTwo {p=b}"));
+            Assert.fail("expected " + NoTestsRemainException.class + " to be thrown");
+        } catch (NoTestsRemainException ignored) {}
+
+        assertThat(leafNames(runner.getDescription()), containsInAnyOrder());
+    }
+
+    public void testDescriptionOfTestsWithoutParametersIsFlat() throws Exception {
+        ESRandomizedRunner runner = new ESRandomizedRunner(PlainFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+
+        assertFlatChildren(runner.getDescription(), "testOne", "testTwo", "testThree");
+    }
+
+    /** Every event {@link RandomizedRunner} fires must be about the suite or a test of the flat description the engine discovered. */
+    public void testRunEventsOnlyUseDescriptionsOfTheFlatTree() throws Exception {
+        ESRandomizedRunner runner = new ESRandomizedRunner(FailingFixture.class, VINTAGE_LIKE_FILTER_PREFIX);
+        Description root = runner.getDescription();
+        Set<Description> known = new HashSet<>(root.getChildren());
+        known.add(root);
+        List<Description> fired = new ArrayList<>();
+        List<Failure> failures = new ArrayList<>();
+        RunNotifier notifier = new RunNotifier();
+        notifier.addListener(new RunListener() {
+            @Override
+            public void testSuiteStarted(Description description) {
+                fired.add(description);
+            }
+
+            @Override
+            public void testSuiteFinished(Description description) {
+                fired.add(description);
+            }
+
+            @Override
+            public void testStarted(Description description) {
+                fired.add(description);
+            }
+
+            @Override
+            public void testFinished(Description description) {
+                fired.add(description);
+            }
+
+            @Override
+            public void testFailure(Failure failure) {
+                fired.add(failure.getDescription());
+                failures.add(failure);
+            }
+
+            @Override
+            public void testAssumptionFailure(Failure failure) {
+                fired.add(failure.getDescription());
+            }
+        });
+
+        runner.run(notifier);
+
+        Map<String, Long> discovered = countByName(root.getChildren());
+        List<Description> failed = failures.stream().map(Failure::getDescription).toList();
+        assertThat(
+            countByName(failed),
+            equalTo(Map.of("testFails {p=a}", discovered.get("testFails {p=a}"), "testFails {p=b}", discovered.get("testFails {p=b}")))
+        );
+        for (Description description : fired) {
+            Assert.assertTrue("unknown description " + description, known.contains(description));
+        }
+    }
+
+    /**
+     * The direct children are exactly the given tests: no suites, no unnamed descriptions, and every test appears the same number of
+     * times, which is more than once only when {@code tests.iters} repeats them.
+     */
+    private static void assertFlatChildren(Description description, String... expectedNames) {
+        for (Description child : description.getChildren()) {
+            Assert.assertTrue("not a test: " + child, child.isTest() && child.getMethodName() != null);
+        }
+        Map<String, Long> counts = countByName(description.getChildren());
+        assertThat(counts.keySet(), containsInAnyOrder(expectedNames));
+        assertThat(new HashSet<>(counts.values()).size(), equalTo(1));
+    }
+
+    private static Map<String, Long> countByName(Collection<Description> descriptions) {
+        return descriptions.stream()
+            .collect(Collectors.groupingBy(d -> withoutSeed(d.getMethodName()), TreeMap::new, Collectors.counting()));
     }
 
     private static ESRandomizedRunner parameterizedFixtureRunner() throws Exception {

@@ -117,6 +117,49 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("invalid expression type \"string\" for range query, must be Scalar or instant Vector"));
     }
 
+    /**
+     * Like Prometheus, a range query returns at most 11,000 points per series: the bound is exclusive of the start point, so
+     * {@code (end - start) / step} may be exactly 11,000 but not more. Without it a small step builds an unbounded response body.
+     */
+    public void testRangeQueryRejectsMoreThanMaxPointsPerSeries() {
+        // 11,000 one-second steps: allowed
+        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735700600", "1", QueryMode.RANGE);
+        assertThat(result.resultType(), equalTo("matrix"));
+
+        // one step more: rejected
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735700601", "1", QueryMode.RANGE)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)")
+        );
+
+        // a millisecond step over a day, the shape that ran a node out of memory
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> PromqlQueryPlanBuilder.buildStatement(
+                "vector(1)",
+                "*",
+                "2026-11-23T00:00:00Z",
+                "2026-11-24T00:00:00Z",
+                "1ms",
+                QueryMode.RANGE
+            )
+        );
+
+        // a range whose point count does not fit in a long is rejected the same way, not as a server error
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PromqlQueryPlanBuilder.buildStatement("up", "*", "-1e16", "1e16", "1ms", QueryMode.RANGE)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)")
+        );
+    }
+
     public void testBuildStatementWithNumericStep() {
         PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60", QueryMode.RANGE);
         assertThat(result.resultType(), equalTo("matrix"));

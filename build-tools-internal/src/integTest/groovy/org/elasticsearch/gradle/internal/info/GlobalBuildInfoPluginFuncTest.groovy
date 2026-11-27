@@ -16,6 +16,7 @@ import org.gradle.testkit.runner.TaskOutcome
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
@@ -145,6 +146,102 @@ class GlobalBuildInfoPluginFuncTest extends AbstractGradleInternalPluginFuncTest
         then:
         assertOutputContains(result.output, "Failed to download branches.json from:")
         requests.get() == 3
+
+        cleanup:
+        server.stop(0)
+    }
+
+    def "development branches value source is re-evaluated when configuration cache is reused"() {
+        given:
+        buildFile.text = """
+            import org.elasticsearch.gradle.internal.info.DevelopmentBranchesValueSource
+
+            plugins {
+              id 'elasticsearch.global-build-info'
+            }
+
+            tasks.register("printDevelopmentBranches") {
+              def developmentBranches = DevelopmentBranchesValueSource.developmentBranches(project)
+              doLast {
+                println("BRANCHES=" + developmentBranches.get().collect { it.name() }.join(','))
+              }
+            }
+        """.stripIndent()
+
+        AtomicReference<String> body = new AtomicReference<>(branchesJsonBody())
+        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        server.createContext(
+            "/branches.json", { exchange ->
+            byte[] bytes = body.get().getBytes(StandardCharsets.UTF_8)
+            exchange.sendResponseHeaders(200, bytes.length)
+            exchange.responseBody.withCloseable { os -> os.write(bytes) }
+            exchange.close()
+        } as com.sun.net.httpserver.HttpHandler
+        )
+        server.start()
+        String url = branchesUrl(server)
+
+        when:
+        def first = gradleRunner("printDevelopmentBranches", "-Porg.elasticsearch.build.branches-file-location=${url}").build()
+        // simulate a remote change, e.g. a renamed development branch, without any local change
+        body.set(branchesJsonBody().replace('"9.0"', '"9.0-renamed"'))
+        def second = gradleRunner("printDevelopmentBranches", "-Porg.elasticsearch.build.branches-file-location=${url}").build()
+
+        then:
+        assertOutputContains(first.output, "BRANCHES=main,9.0")
+        assertOutputContains(second.output, "Configuration cache entry reused.")
+        assertOutputContains(second.output, "BRANCHES=main,9.0-renamed")
+
+        cleanup:
+        server.stop(0)
+    }
+
+    def "version list does not depend on branches.json"() {
+        given:
+        writeBwcVersionSource()
+        buildFile.text = """
+            import org.elasticsearch.gradle.internal.info.DevelopmentBranchesValueSource
+
+            plugins {
+              id 'elasticsearch.global-build-info'
+            }
+
+            tasks.register("printVersions") {
+              def allVersions = buildParams.allVersionsProvider
+              def developmentBranches = DevelopmentBranchesValueSource.developmentBranches(project)
+              doLast {
+                println("VERSIONS=" + allVersions.get().join(','))
+                println("BRANCHES=" + developmentBranches.get().collect { it.name() }.join(','))
+              }
+            }
+        """.stripIndent()
+
+        AtomicInteger requests = new AtomicInteger()
+        byte[] body = branchesJsonBody().getBytes(StandardCharsets.UTF_8)
+        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        server.createContext(
+            "/branches.json", { exchange ->
+            requests.incrementAndGet()
+            exchange.sendResponseHeaders(200, body.length)
+            exchange.responseBody.withCloseable { os -> os.write(body) }
+            exchange.close()
+        } as com.sun.net.httpserver.HttpHandler
+        )
+        server.start()
+        String url = branchesUrl(server)
+
+        when:
+        def result = gradleRunner(
+            "printVersions",
+            "-Porg.elasticsearch.build.branches-file-location=${url}",
+            "-DBWC_VERSION_SOURCE=${file("Version.java").absolutePath}"
+        ).build()
+
+        then:
+        assertOutputContains(result.output, "VERSIONS=9.0.0,9.1.0")
+        assertOutputContains(result.output, "BRANCHES=main,9.0")
+        // only the execution time value source loads branches.json, resolving the version list must not trigger another download
+        requests.get() == 1
 
         cleanup:
         server.stop(0)

@@ -112,6 +112,11 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
          * The format a value read from another node is decoded in. Values are only sent between nodes so that a script
          * returning one can be rendered as unserializable on the coordinating node. Nothing reads a received value beyond
          * its centroid, shape type and extent, which are laid out the same in both formats.
+         *
+         * <p>The bytes do not say which format they are in, so only those fields can be read from a received value. The
+         * weight of points is encoded differently in V2, and the rest of a V2 value is not a legacy triangle tree, so
+         * {@link #weight()}, {@link #labelPosition()}, {@link #relate} and {@link #visit} give wrong results or fail on a
+         * received V2 value. Reading any of them on the receiving side needs the format sent along with the bytes.
          */
         protected static final GeometryDocValueFormat RECEIVED_FORMAT = GeometryDocValueFormat.LEGACY;
 

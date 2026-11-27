@@ -109,6 +109,21 @@ public final class LuceneSliceQueue {
     public static final int MIN_DOCS_PER_SLICE = 50_000;
 
     /**
+     * The floor for the size of a slice cut from the doc range of a leaf (see {@link PrimarySortRange}) is
+     * {@code minDocsPerSlice / RANGE_SLICE_FLOOR_DIVISOR}, which is 10,000 docs for the default {@link #MIN_DOCS_PER_SLICE}.
+     *
+     * <p>The floor stops the slice setup cost from dominating the scan. A range is already narrowed to the docs that can
+     * match, so a slice of it carries much more work than a slice of the whole leaf of the same size. The full floor then
+     * leaves drivers idle: a range of 700k docs is cut into about 14 slices of 50k docs, for 37 drivers. Dividing the floor
+     * keeps it proportional to the {@code min_docs_per_slice} pragma.
+     *
+     * <p>The floor applies to the <em>target</em> slice size, not to the smallest slice. A range is cut into equal slices,
+     * and one more slice is added when the slices would be more than 25% above the target. A range of 16,384 docs with a
+     * target of 10,000 docs is cut into two slices of 8,192 docs. A slice can so be as small as about 5/8 of the floor.
+     */
+    static final int RANGE_SLICE_FLOOR_DIVISOR = 5;
+
+    /**
      * Per-leaf hint that suppresses sub-segment splitting for the
      * {@link PartitioningStrategy#DOC} partitioner.
      *
@@ -522,7 +537,10 @@ public final class LuceneSliceQueue {
          *
          * <p>If the query has a range filter on the primary index-sort field, the matching docs of a leaf are one
          * contiguous range (see {@link PrimarySortRange}). A large leaf, one the splitter would cut into slices, is then
-         * cut only over that range, with the same size rule using the range length in place of {@code totalDocs}.
+         * cut only over that range, with the same size rule using the range length in place of {@code totalDocs}. The
+         * range slices may be smaller than {@code minDocsPerSlice}: their target size has a floor of
+         * {@code minDocsPerSlice / } {@link LuceneSliceQueue#RANGE_SLICE_FLOOR_DIVISOR}, because a range holds mostly docs
+         * that can match. The floor is on the target size, so an actual slice can be somewhat smaller than it.
          * Without this a narrow range falls into a few slices of the whole leaf and most drivers have nothing to do.
          * The range is never longer than the leaf, so these slices are never larger than the ones the whole leaf would
          * get. Kept-whole leaves, small leaves, and large leaves that cannot say which range matches, are sliced as
@@ -564,7 +582,7 @@ public final class LuceneSliceQueue {
                 // A filter on the primary sort field limits a large leaf to a doc range.
                 // The range is cut like a whole leaf would be, but into slices sized for the matching docs, not for all docs.
                 long rangeDocs = ranges.values().stream().mapToLong(PrimarySortRange.DocRange::length).sum();
-                int rangeDesiredDocsPerSlice = desiredDocsPerSlice(rangeDocs, taskConcurrency, minDocsPerSlice);
+                int rangeDesiredDocsPerSlice = desiredDocsPerSlice(rangeDocs, taskConcurrency, rangeMinDocsPerSlice(minDocsPerSlice));
                 return partitioner.partition(leaves, keepWhole, ranges, rangeDesiredDocsPerSlice);
             }
         },
@@ -691,6 +709,14 @@ public final class LuceneSliceQueue {
          */
         private static int desiredDocsPerSlice(long docs, int taskConcurrency, int minDocsPerSlice) {
             return (int) Math.min(MAX_DOCS_PER_SLICE, Math.max(minDocsPerSlice, Math.ceilDiv(docs, taskConcurrency)));
+        }
+
+        /**
+         * The floor of the target slice size for slices cut from a doc range, see
+         * {@link LuceneSliceQueue#RANGE_SLICE_FLOOR_DIVISOR}.
+         */
+        static int rangeMinDocsPerSlice(int minDocsPerSlice) {
+            return Math.max(1, minDocsPerSlice / RANGE_SLICE_FLOOR_DIVISOR);
         }
 
         /**

@@ -999,6 +999,56 @@ public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
         assertQueryFails("FROM " + strict + " | NESTED_EXPAND items | KEEP id", "Unknown column [items]");
     }
 
+    /**
+     * Item 1: a legacy file repeats a group of fields inside the element directly, without the {@code LIST} annotation.
+     * Its fields would arrive as unpaired multivalues, so the whole list is refused, as an annotated inner list of more
+     * than one field is; a legacy repeated primitive is a multivalued leaf.
+     */
+    public void testLegacyRepeatedGroupInsideAnElement() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message legacy {
+              required binary id (UTF8);
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    repeated binary tags (UTF8);
+                    repeated group parts { optional binary sku (UTF8); optional int64 qty; }
+                  }
+                }
+              }
+            }
+            """);
+        String dataset = registerDataset("legacy_parts", StoragePath.fileUri(write("legacy", schema, List.of(g -> {
+            g.add("id", "a");
+            Group element = g.addGroup("items").addGroup("list").addGroup("element");
+            element.append("tags", "x").append("tags", "y");
+            element.addGroup("parts").append("sku", "s1").append("qty", 1L);
+            element.addGroup("parts").append("sku", "s2");
+        }))), Map.of());
+        assertQueryFails(
+            "FROM " + dataset + " | NESTED_EXPAND items | KEEP id, items.tags",
+            "is a collection with more than one field inside each element of [items]"
+        );
+
+        MessageType tagsOnly = MessageTypeParser.parseMessageType("""
+            message legacy {
+              required binary id (UTF8);
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    repeated binary tags (UTF8);
+                  }
+                }
+              }
+            }
+            """);
+        String tagged = registerDataset("legacy_tags", StoragePath.fileUri(write("tags", tagsOnly, List.of(g -> {
+            g.add("id", "a");
+            g.addGroup("items").addGroup("list").addGroup("element").append("tags", "x").append("tags", "y");
+        }))), Map.of());
+        assertRows("FROM " + tagged + " | NESTED_EXPAND items | KEEP id, items.tags", row("a", List.of("x", "y")));
+    }
+
     private record Result(List<List<Object>> rows, List<String> warnings) {}
 
     /** Runs {@code query} on a random node and returns its rows and the warnings that node's response carried. */

@@ -107,6 +107,9 @@ final class ParquetCollections {
     /**
      * The element's leaves. A structure's fields are further leaves of the same element. A collection inside the element with
      * one leaf is a multivalued leaf; with more, its values would arrive unpaired, so the whole collection is refused.
+     * A collection there is any repeated group, with or without the {@code LIST} annotation: a legacy file repeats a
+     * group of fields directly, and its fields would arrive unpaired just the same. A repeated primitive is a
+     * multivalued leaf as it stands.
      */
     private static void leaves(GroupType group, String prefix, String path, List<Leaf> out, String[] unsupported) {
         for (Type child : group.getFields()) {
@@ -130,7 +133,7 @@ final class ParquetCollections {
                 || logical instanceof LogicalTypeAnnotation.MapKeyValueTypeAnnotation) {
                 continue;
             }
-            if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
+            if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation || childGroup.isRepetition(Type.Repetition.REPEATED)) {
                 List<PrimitiveType> inner = new ArrayList<>();
                 primitives(childGroup, inner);
                 if (inner.size() == 1) {

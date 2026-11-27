@@ -55,6 +55,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -1269,8 +1270,27 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         validateFooterIntegrity(parquetSchema, footer.getBlocks());
         List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
         SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema, parquetSchema);
-        Map<String, Object> described = nestedColumns(parquetSchema).writeTo(null);
+        Map<String, Object> described = describedNestedColumns(parquetSchema, DESCRIBES_NESTED_COLUMNS);
+        if (described == null) {
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+        }
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null, described, null);
+    }
+
+    /**
+     * Whether this build describes lists of structures as nested columns, which only {@code NESTED_EXPAND} over a dataset
+     * reads. Where it is off, a file's metadata and footer statistics are what they were before nested columns existed:
+     * nothing extra is written, serialized or cached.
+     */
+    static final boolean DESCRIBES_NESTED_COLUMNS = EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled();
+
+    /**
+     * The nested-column description {@link #buildFooterMetadata} adds to a file's source metadata, or {@code null} when
+     * {@code enabled} is false, in which case it adds nothing.
+     */
+    @Nullable
+    static Map<String, Object> describedNestedColumns(MessageType parquetSchema, boolean enabled) {
+        return enabled ? nestedColumns(parquetSchema).writeTo(null) : null;
     }
 
     /** The file's lists of structures, as the nested columns its schema describes. */
@@ -3871,6 +3891,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * several leaves onto one name resolves {@code UNSUPPORTED} and is skipped here.
      */
     private static boolean isUnsupportedGroupDescendedLeaf(GroupType schema, String[] descriptorPath) {
+        return isUnsupportedGroupDescendedLeaf(schema, descriptorPath, DESCRIBES_NESTED_COLUMNS);
+    }
+
+    /**
+     * As {@link #isUnsupportedGroupDescendedLeaf(GroupType, String[])}. A {@code LIST} counts only when
+     * {@code describesNestedColumns}: skipping the leaves of a list of structures came with nested columns, so where
+     * they are off the statistics are folded as before.
+     */
+    static boolean isUnsupportedGroupDescendedLeaf(GroupType schema, String[] descriptorPath, boolean describesNestedColumns) {
         Type current = schema;
         for (String segment : descriptorPath) {
             // The descriptor path is always resolvable within the schema it came from, so every
@@ -3878,7 +3907,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             Type child = current.asGroupType().getType(segment);
             if (child.isPrimitive() == false) {
                 LogicalTypeAnnotation logical = child.asGroupType().getLogicalTypeAnnotation();
-                if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
+                if ((describesNestedColumns && logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation)
                     || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
                     || logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation) {
                     // Stopping at the first annotated group is the same rule logicalLeafName applies, so the

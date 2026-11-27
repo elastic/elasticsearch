@@ -1054,6 +1054,71 @@ public class ParquetExpansionTests extends ESTestCase {
      * S1: a collection is named by its dotted path, so a list of structures whose own name holds a dot is not described,
      * and stays an unsupported column; a struct {@code my} holding a list {@code items} beside it is one collection.
      */
+    public void testLegacyRepeatedGroupInsideAnElementIsACollection() {
+        MessageType legacy = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary name (UTF8);
+                    repeated group parts { optional binary sku (UTF8); optional int64 qty; }
+                  }
+                }
+              }
+            }
+            """);
+        List<ParquetCollections.Collection> described = ParquetCollections.describe(legacy);
+        assertThat(described.size(), equalTo(1));
+        assertThat(
+            "a legacy repeated group of two fields would read as two unpaired multivalues",
+            described.getFirst().unsupported(),
+            equalTo("[items.parts] is a collection with more than one field inside each element of [items], which cannot be read yet")
+        );
+    }
+
+    /** Item 1, the positive cases: a legacy repeated group of one field, and a repeated primitive, are multivalued leaves. */
+    public void testLegacyRepeatedSingleFieldInsideAnElementIsAMultivaluedLeaf() throws Exception {
+        MessageType legacy = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    repeated binary tags (UTF8);
+                    repeated group codes { optional int64 code; }
+                  }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(legacy),
+            equalTo(
+                List.of(
+                    new ParquetCollections.Collection(
+                        "items",
+                        List.of(new ParquetCollections.Leaf("codes", DataType.LONG), new ParquetCollections.Leaf("tags", DataType.KEYWORD)),
+                        null
+                    )
+                )
+            )
+        );
+        byte[] data = write(legacy, factory -> {
+            Group r0 = factory.newGroup().append("id", 0L);
+            Group items = r0.addGroup("items");
+            Group e0 = items.addGroup("list").addGroup("element").append("tags", "a").append("tags", "b");
+            e0.addGroup("codes").append("code", 1L);
+            e0.addGroup("codes").append("code", 2L);
+            items.addGroup("list").addGroup("element").append("tags", "c");
+            return List.of(r0);
+        });
+        Expanded read = read(data, context(List.of("id"), leaf("tags", DataType.KEYWORD), leaf("codes", DataType.LONG)));
+        assertThat(
+            read.rows,
+            equalTo(List.of(Arrays.asList(0L, List.of(ref("a"), ref("b")), List.of(1L, 2L)), Arrays.asList(0L, ref("c"), null)))
+        );
+    }
+
     public void testDottedCollectionNameIsNotDescribed() {
         MessageType dotted = MessageTypeParser.parseMessageType("""
             message t {

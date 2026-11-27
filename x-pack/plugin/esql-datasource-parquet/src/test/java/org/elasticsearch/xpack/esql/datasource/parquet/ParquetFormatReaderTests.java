@@ -76,6 +76,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -9438,6 +9439,34 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] flatData = createParquetFile(flat, factory -> List.of(factory.newGroup().append("id", "a")));
         SourceMetadata flatMetadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(flatData));
         assertThat(flatMetadata.sourceMetadata().containsKey(NestedColumns.KEY), equalTo(false));
+    }
+
+    /**
+     * Item 2: where {@code NESTED_EXPAND_DATASET} is off, as in a release build, the footer metadata is what it was before
+     * nested columns: no description is written, and the leaves of a list of structures are folded into the footer
+     * statistics as before, so nothing new is serialized or cached. The capability is the build's, so the two call sites
+     * are exercised through the seams they read it through.
+     */
+    public void testWithoutNestedExpandDatasetTheMetadataIsAsBefore() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group answers (LIST) {
+                repeated group list { optional group element { optional binary type (UTF8); optional int64 ttl; } }
+              }
+              optional group attrs (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+            }
+            """);
+        assertThat(ParquetFormatReader.describedNestedColumns(schema, false), equalTo(null));
+        assertThat(ParquetFormatReader.describedNestedColumns(schema, true).containsKey(NestedColumns.KEY), equalTo(true));
+        assertThat(ParquetFormatReader.DESCRIBES_NESTED_COLUMNS, equalTo(EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled()));
+
+        String[] elementLeaf = { "answers", "list", "element", "type" };
+        assertThat(ParquetFormatReader.isUnsupportedGroupDescendedLeaf(schema, elementLeaf, false), equalTo(false));
+        assertThat(ParquetFormatReader.isUnsupportedGroupDescendedLeaf(schema, elementLeaf, true), equalTo(true));
+        // A map's leaves were skipped before nested columns, and still are
+        String[] mapLeaf = { "attrs", "key_value", "key" };
+        assertThat(ParquetFormatReader.isUnsupportedGroupDescendedLeaf(schema, mapLeaf, false), equalTo(true));
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {

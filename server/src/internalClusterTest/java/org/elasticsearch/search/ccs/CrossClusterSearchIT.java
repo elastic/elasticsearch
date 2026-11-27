@@ -192,8 +192,13 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
                         response.incRef();
                         responseRef.set(response);
                         responseHeld.countDown();
-                        // A timed-out wait has already given up this response. Release it here too: that path never reaches the cleanup.
-                        if (abandoned.get() || awaitListenerRelease(releaseListener) == false || abandoned.get()) {
+                        // The test owns this response until it abandons the wait. A timeout leaves the reference for the test's cleanup.
+                        if (abandoned.get()) {
+                            releaseResponse(responseRef);
+                            return;
+                        }
+                        awaitListenerRelease(releaseListener);
+                        if (abandoned.get()) {
                             releaseResponse(responseRef);
                         }
                     }, e -> {
@@ -236,15 +241,11 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         });
     }
 
-    /**
-     * @return whether the listener was released before the wait timed out
-     */
-    private static boolean awaitListenerRelease(CountDownLatch releaseListener) {
+    private static void awaitListenerRelease(CountDownLatch releaseListener) {
         try {
-            return releaseListener.await(30, TimeUnit.SECONDS);
+            releaseListener.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return false;
         }
     }
 

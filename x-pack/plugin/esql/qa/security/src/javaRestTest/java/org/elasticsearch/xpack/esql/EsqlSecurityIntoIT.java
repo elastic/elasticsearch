@@ -184,7 +184,10 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
     private static void assertDenied(String user, String role, String options, String action) throws IOException {
         ResponseException existing = expectThrows(ResponseException.class, () -> intoDestination(user, "ROW x = 1", EXISTING, options));
-        ResponseException missing = expectThrows(ResponseException.class, () -> intoDestination(user, "ROW x = 1", "into-missing", options));
+        ResponseException missing = expectThrows(
+            ResponseException.class,
+            () -> intoDestination(user, "ROW x = 1", "into-missing", options)
+        );
         String existingBody = EntityUtils.toString(existing.getResponse().getEntity());
         String missingBody = EntityUtils.toString(missing.getResponse().getEntity());
         assertThat(existingBody, existing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));

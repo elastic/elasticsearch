@@ -414,6 +414,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final ThreadPool threadPool;
     private final ThrottledTaskRunner uploadTranslogTaskRunner;
     private final InstrumentedThrottledTaskRunner<ActionListener<Releasable>> uploadTaskRunner;
+    private final Map<ShardId, PrimaryTermAndGeneration> lastRequestedCommitUploads = Assertions.ENABLED
+        ? ConcurrentCollections.newConcurrentMap()
+        : null;
     private final ConcurrentLinkedQueue<String> translogBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<StaleCompoundCommit> commitBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final Map<ShardId, Set<StaleCompoundCommit>> commitBlobsDeletionsInProgress = ConcurrentCollections.newConcurrentMap();
@@ -920,6 +923,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         );
     }
 
+    /**
+     * Uploads a batched compound commit to the object store. The uploads run in the order they are requested, so the commits of a shard
+     * are expected to be requested in generation order.
+     */
     public void uploadBatchedCompoundCommitFile(
         long primaryTerm,
         Directory directory,
@@ -927,6 +934,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         VirtualBatchedCompoundCommit pendingCommit,
         ActionListener<BccUploadObjectStoreTiming> listener
     ) {
+        assert assertRequestedInGenerationOrder(pendingCommit);
         enqueueTask(
             listener,
             uploadTaskRunner::enqueueTask,
@@ -937,6 +945,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 l
             )
         );
+    }
+
+    private boolean assertRequestedInGenerationOrder(VirtualBatchedCompoundCommit commit) {
+        final var requested = commit.getPrimaryTermAndGeneration();
+        final var previous = lastRequestedCommitUploads.put(commit.getShardId(), requested);
+        assert previous == null || previous.primaryTerm() != requested.primaryTerm() || previous.generation() <= requested.generation()
+            : commit.getShardId() + " upload of commit " + requested + " requested after the upload of " + previous;
+        return true;
     }
 
     public void asyncDeleteTranslogFile(String fileToDelete) {

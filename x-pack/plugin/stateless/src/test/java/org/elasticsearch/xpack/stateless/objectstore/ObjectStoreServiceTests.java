@@ -1768,28 +1768,30 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final int uploads = between(4, 10);
             final var futures = new ArrayList<PlainActionFuture<Void>>();
             final var requested = new ArrayList<String>();
-            for (int i = 0; i < uploads; i++) {
-                final var future = new PlainActionFuture<Void>();
-                futures.add(future);
-                requested.add("translog-" + i);
-                objectStoreService.uploadTranslogFile(
-                    "translog-" + i,
-                    new BytesArray(new byte[] { (byte) i }),
-                    () -> false,
-                    () -> {},
-                    future
-                );
-                if (i == 0) {
-                    // the first upload holds the single slot, so the next ones wait in the task runner's queue
-                    safeAwait(firstUploadStarted);
+            try {
+                for (int i = 0; i < uploads; i++) {
+                    final var future = new PlainActionFuture<Void>();
+                    futures.add(future);
+                    requested.add("translog-" + i);
+                    objectStoreService.uploadTranslogFile(
+                        "translog-" + i,
+                        new BytesArray(new byte[] { (byte) i }),
+                        () -> false,
+                        () -> {},
+                        future
+                    );
+                    if (i == 0) {
+                        // the first upload holds the single slot, so the next ones wait in the task runner's queue
+                        safeAwait(firstUploadStarted);
+                    }
                 }
+                for (var future : futures) {
+                    assertFalse(future.isDone());
+                }
+                assertThat(written, equalTo(List.of()));
+            } finally {
+                releaseFirstUpload.countDown();
             }
-            for (var future : futures) {
-                assertFalse(future.isDone());
-            }
-            assertThat(written, equalTo(List.of()));
-
-            releaseFirstUpload.countDown();
             for (var future : futures) {
                 safeGet(future);
             }

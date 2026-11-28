@@ -41,6 +41,22 @@ public class NestedAnyOptimizedMatchesFallbackIT extends AbstractEsqlIntegTestCa
         | KEEP id, h
         | SORT id""";
 
+    private static final String WHERE_PRODUCTS = """
+        FROM products
+        | WHERE NESTED_ANY(items, items.sku == "a" AND items.qty * items.price > 100)
+        | KEEP id
+        | SORT id""";
+    private static final String WHERE_NOT_PRODUCTS = """
+        FROM products
+        | WHERE NOT NESTED_ANY(items, items.sku == "a" AND items.qty * items.price > 100)
+        | KEEP id
+        | SORT id""";
+    private static final String WHERE_MIXED = """
+        FROM plain,normalized
+        | WHERE NESTED_ANY(items, items.sku == "A" AND items.qty * items.price > 100)
+        | KEEP id
+        | SORT id""";
+
     private static final String MAPPING = """
         {
           "properties": {
@@ -109,6 +125,27 @@ public class NestedAnyOptimizedMatchesFallbackIT extends AbstractEsqlIntegTestCa
         assertThat(rows(MIXED), equalTo(mixed));
         updateClusterSettings(Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), false));
         assertThat(rows(MIXED), equalTo(mixed));
+    }
+
+    public void testAMixedWhereWithAnExactConjunctMatchesTheComputeFallback() {
+        List<List<Object>> kept = List.of(List.of("match"), List.of("page"));
+        assertThat(rows(WHERE_PRODUCTS), equalTo(kept));
+        updateClusterSettings(Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), false));
+        assertThat(rows(WHERE_PRODUCTS), equalTo(kept));
+    }
+
+    public void testANegatedMixedWhereMatchesTheComputeFallback() {
+        List<List<Object>> kept = List.of(List.of("empty"), List.of("nullprice"), List.of("split"));
+        assertThat(rows(WHERE_NOT_PRODUCTS), equalTo(kept));
+        updateClusterSettings(Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), false));
+        assertThat(rows(WHERE_NOT_PRODUCTS), equalTo(kept));
+    }
+
+    public void testAMixedWhereOnAShardThatCannotQueryTheExactConjunctMatchesTheComputeFallback() {
+        List<List<Object>> kept = List.of(List.of("plain"));
+        assertThat(rows(WHERE_MIXED), equalTo(kept));
+        updateClusterSettings(Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), false));
+        assertThat(rows(WHERE_MIXED), equalTo(kept));
     }
 
     private static Settings shards() {

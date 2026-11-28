@@ -37,6 +37,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +46,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -1235,6 +1238,120 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 )
                 .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
         );
+    }
+
+    /**
+     * {@code FILLNULL ... ON *} sweeps up the columns the user can see, not the FLS-denied ones. fls_user is granted
+     * [value, partial] on {@code index} and denied {@code org}, so the fill touches only the visible columns and the denied
+     * field is neither revealed nor filled: it never appears as a column and its values never surface. See #163217.
+     */
+    public void testFieldLevelSecurityFillNullAllFieldsDoesNotRevealDeniedField() throws Exception {
+        assumeTrue("requires FILLNULL capability", hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FILLNULL.capabilityName())));
+        // "redacted" cannot be applied to the double `value`, which FILLNULL leaves unchanged with a warning; `value` holds no nulls
+        // here anyway. The point is that `*` never reaches the denied `org`.
+        Response resp = runESQLCommand(
+            "fls_user",
+            "FROM index | FILLNULL \"redacted\" ON * | SORT value",
+            fillValueCouldNotBeAppliedTo("value")
+        );
+        assertOK(resp);
+        EsqlResult result = esqlResult(resp);
+        assertThat(result.columnNames(), containsInAnyOrder("value", "partial"));
+        assertThat(result.columnNames(), not(hasItem("org")));
+        // the visible columns hold no nulls, so the fill changes nothing, and no denied value ("sales"/"engineering") appears
+        assertThat(result.values("value"), equalTo(List.of(10.0, 20.0)));
+        // The fill must change only the nulls of `partial`: read it without FILLNULL and fill by hand. A mode that reads the granted
+        // field as null (see partialMayReadAsNull) has nulls there, and a field that holds a value must keep it.
+        EsqlResult unfilled = esqlResult(runESQLCommand("fls_user", "FROM index | SORT value"));
+        List<Object> before = unfilled.values("partial");
+        // Each value is the row's own or, where the mode reads the field as null, null. Never another field's value such as the denied org.
+        List<String> fixture = List.of("sales10.0", "engineering20.0");
+        assertThat(before, hasSize(fixture.size()));
+        for (int i = 0; i < fixture.size(); i++) {
+            Object value = before.get(i);
+            if (partialMayReadAsNull() && value == null) {
+                continue;
+            }
+            assertThat(value, equalTo(fixture.get(i)));
+        }
+        List<Object> expected = new ArrayList<>();
+        for (Object value : before) {
+            expected.add(value == null ? "redacted" : value);
+        }
+        assertThat(result.values("partial"), equalTo(expected));
+    }
+
+    /**
+     * Whether the granted text field {@code partial} may be read as null, in which case {@code FILLNULL "redacted" ON *} fills it. It
+     * holds no nulls otherwise, so the fill changes nothing.
+     */
+    protected boolean partialMayReadAsNull() {
+        return false;
+    }
+
+    /**
+     * Naming an FLS-denied field in {@code FILLNULL} does not bypass FLS. The denied {@code org} is invisible to the analyzer,
+     * so it is an unknown column, exactly as a direct reference to it would be. See #163217.
+     */
+    public void testFieldLevelSecurityFillNullOnDeniedFieldByNameIsUnknownColumn() throws Exception {
+        assumeTrue("requires FILLNULL capability", hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FILLNULL.capabilityName())));
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index | FILLNULL \"redacted\" ON org")
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+    }
+
+    /**
+     * With {@code unmapped_fields="nullify"} an FLS-denied field becomes a NULL column that carries no data. Naming it in
+     * {@code FILLNULL} must not turn that column into a channel for the hidden values: the fill value is the user's own literal,
+     * never the denied data, and the real {@code org} values never surface. See #163217.
+     */
+    public void testFieldLevelSecurityFillNullOnNullifiedDeniedFieldLeaksNothing() throws Exception {
+        assumeTrue("requires FILLNULL capability", hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FILLNULL.capabilityName())));
+        assumeTrue(
+            "Requires unmapped_fields=NULLIFY support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
+        );
+        // the denied org is a NULL column, so the fill cannot be applied to it: it is left unchanged (null) with a warning. The FILLNULL
+        // is the first reference to org, so that it is the one that resolves the denied field as a nullified column.
+        Response resp = runESQLCommand(
+            "fls_user",
+            "SET unmapped_fields=\"nullify\"; FROM index | FILLNULL \"redacted\" ON org | SORT value",
+            fillValueCouldNotBeAppliedTo("org")
+        );
+        assertOK(resp);
+        EsqlResult result = esqlResult(resp);
+        assertThat(result.columnNames(), containsInAnyOrder("value", "partial", "org"));
+        assertThat(result.values("value"), equalTo(List.of(10.0, 20.0)));
+        // the nullified column stays null, and is reported as such - the fill neither reveals nor substitutes the denied data
+        assertThat(result.values("org"), equalTo(Arrays.asList(null, null)));
+        assertThat(result.type("org"), equalTo("null"));
+    }
+
+    /**
+     * The {@code ON *} form under {@code unmapped_fields="nullify"}: a denied field kept as a NULL column is swept up by {@code *}
+     * like any other, but it still carries no denied data, so the fill cannot leak the hidden values. See #163217.
+     */
+    public void testFieldLevelSecurityFillNullAllFieldsOverNullifiedDeniedFieldLeaksNothing() throws Exception {
+        assumeTrue("requires FILLNULL capability", hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FILLNULL.capabilityName())));
+        assumeTrue(
+            "Requires unmapped_fields=NULLIFY support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
+        );
+        // `*` sweeps up the nullified org, but the fill still cannot be applied to a NULL column, so it is left unchanged (null)
+        Response resp = runESQLCommand(
+            "fls_user",
+            "SET unmapped_fields=\"nullify\"; FROM index | KEEP value, org | FILLNULL \"redacted\" ON * | SORT value",
+            fillValueCouldNotBeAppliedTo("value", "org")
+        );
+        assertOK(resp);
+        EsqlResult result = esqlResult(resp);
+        assertThat(result.columnNames(), containsInAnyOrder("value", "org"));
+        assertThat(result.values("value"), equalTo(List.of(10.0, 20.0)));
+        assertThat(result.values("org"), equalTo(Arrays.asList(null, null)));
+        assertThat(result.type("org"), equalTo("null"));
     }
 
     /**
@@ -3603,11 +3720,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
         return EsqlResult.of(entityAsMap(response));
     }
 
-    private record EsqlResult(List<String> columnNames, List<List<Object>> rows) {
+    private record EsqlResult(List<String> columnNames, List<String> columnTypes, List<List<Object>> rows) {
         @SuppressWarnings("unchecked")
         static EsqlResult of(Map<String, Object> respMap) {
             List<Map<String, Object>> columns = (List<Map<String, Object>>) respMap.get("columns");
-            return new EsqlResult(columns.stream().map(c -> (String) c.get("name")).toList(), (List<List<Object>>) respMap.get("values"));
+            return new EsqlResult(
+                columns.stream().map(c -> (String) c.get("name")).toList(),
+                columns.stream().map(c -> (String) c.get("type")).toList(),
+                (List<List<Object>>) respMap.get("values")
+            );
+        }
+
+        /** The type of one column by name. */
+        String type(String name) {
+            int idx = columnNames.indexOf(name);
+            assertThat("missing column [" + name + "] in " + columnNames, idx, greaterThanOrEqualTo(0));
+            return columnTypes.get(idx);
         }
 
         /** Values of one column by name, for the responses whose column order is not itself being asserted. */
@@ -3628,6 +3756,25 @@ public class EsqlSecurityIT extends ESRestTestCase {
             }
             return names;
         }
+    }
+
+    private static final Pattern FILL_UNCHANGED_FIELDS = Pattern.compile("unchanged: \\[(.*?)]");
+
+    /**
+     * Permits exactly one warning, the one {@code FILLNULL} emits when the fill value cannot be applied to target columns, and only
+     * when it names exactly these fields. Any other warning, none at all, or a different list of fields, which would show that
+     * the fill reached a column it should not or skipped one it should reach, still fails the request.
+     */
+    private static WarningsHandler fillValueCouldNotBeAppliedTo(String... fields) {
+        Set<String> expected = Set.of(fields);
+        return warnings -> {
+            if (warnings.size() != 1 || warnings.getFirst().contains("[FILLNULL] the fill value could not be applied") == false) {
+                return true;
+            }
+            Matcher named = FILL_UNCHANGED_FIELDS.matcher(warnings.getFirst());
+            return named.find() == false
+                || Arrays.stream(named.group(1).split(",")).map(String::trim).collect(Collectors.toSet()).equals(expected) == false;
+        };
     }
 
     protected Response runESQLCommand(String user, String command) throws IOException {

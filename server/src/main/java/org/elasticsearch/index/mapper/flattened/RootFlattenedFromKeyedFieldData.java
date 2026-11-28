@@ -9,19 +9,25 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
@@ -34,6 +40,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.TreeSet;
@@ -42,14 +49,25 @@ import java.util.TreeSet;
  * Field data implementation for the root flattened field on indices that no longer write
  * root doc values. Derives root values by reading the keyed doc values column and stripping
  * the key prefix from each entry, with deduplication.
+ * <p>
+ * When the keyed column holds {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} slots, this class holds no keyed delegate. It reads
+ * the column directly with {@link KeyFilteredSortingArrayOrderBinaryDocValues#allKeys}, because decoding that layout with the default
+ * reader returns truncated values or fails once a document holds more than one slot.
  */
 public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<LeafFieldData> {
 
-    private final IndexFieldData<?> keyedDelegate;
     private final String rootFieldName;
+    private final String keyedFieldName;
+    @Nullable
+    private final IndexFieldData<?> keyedDelegate;
 
-    RootFlattenedFromKeyedFieldData(String rootFieldName, IndexFieldData<?> keyedDelegate) {
+    /**
+     * @param keyedDelegate reads the keyed column of the layouts that the default decoders understand, or {@code null} for the array
+     *                      order layout, which this class reads directly
+     */
+    RootFlattenedFromKeyedFieldData(String rootFieldName, String keyedFieldName, @Nullable IndexFieldData<?> keyedDelegate) {
         this.rootFieldName = rootFieldName;
+        this.keyedFieldName = keyedFieldName;
         this.keyedDelegate = keyedDelegate;
     }
 
@@ -85,14 +103,59 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
 
     @Override
     public LeafFieldData load(LeafReaderContext context) {
+        if (keyedDelegate == null) {
+            return new ArrayOrderLeafFieldData(context.reader(), keyedFieldName);
+        }
         LeafFieldData keyedLeaf = keyedDelegate.load(context);
         return new RootFromKeyedLeafFieldData(keyedLeaf);
     }
 
     @Override
     public LeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+        if (keyedDelegate == null) {
+            return new ArrayOrderLeafFieldData(context.reader(), keyedFieldName);
+        }
         LeafFieldData keyedLeaf = keyedDelegate.loadDirect(context);
         return new RootFromKeyedLeafFieldData(keyedLeaf);
+    }
+
+    /**
+     * Leaf field data over a keyed column in the array order layout. Every call to {@link #getBytesValues()} opens a new reader, because
+     * doc values iterators keep their position.
+     */
+    private static final class ArrayOrderLeafFieldData implements LeafFieldData {
+
+        private final LeafReader reader;
+        private final String keyedFieldName;
+
+        ArrayOrderLeafFieldData(LeafReader reader, String keyedFieldName) {
+            this.reader = reader;
+            this.keyedFieldName = keyedFieldName;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0L;
+        }
+
+        @Override
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            ToScriptFieldFactory<SortedBinaryDocValues> factory = FlattenedDocValuesField::new;
+            return factory.getScriptFieldFactory(getBytesValues(), name);
+        }
+
+        @Override
+        public SortedBinaryDocValues getBytesValues() {
+            try {
+                BinaryDocValues binary = reader.getBinaryDocValues(keyedFieldName);
+                NumericDocValues counts = reader.getNumericDocValues(
+                    keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX
+                );
+                return KeyFilteredSortingArrayOrderBinaryDocValues.allKeys(binary, counts);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 
     /**
@@ -179,17 +242,29 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
         private final String rootFieldName;
         private final String keyedFieldName;
         private final boolean usesBinaryDocValues;
+        private final boolean usesArrayOrderBinaryDocValues;
         private final IndexVersion indexVersion;
 
-        public Builder(String rootFieldName, String keyedFieldName, boolean usesBinaryDocValues, IndexVersion indexVersion) {
+        public Builder(
+            String rootFieldName,
+            String keyedFieldName,
+            boolean usesBinaryDocValues,
+            boolean usesArrayOrderBinaryDocValues,
+            IndexVersion indexVersion
+        ) {
+            assert usesArrayOrderBinaryDocValues == false || usesBinaryDocValues : "array order doc values are binary doc values";
             this.rootFieldName = rootFieldName;
             this.keyedFieldName = keyedFieldName;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.usesArrayOrderBinaryDocValues = usesArrayOrderBinaryDocValues;
             this.indexVersion = indexVersion;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            if (usesArrayOrderBinaryDocValues) {
+                return new RootFlattenedFromKeyedFieldData(rootFieldName, keyedFieldName, null);
+            }
             IndexFieldData<?> keyedDelegate;
             if (usesBinaryDocValues) {
                 keyedDelegate = new BytesBinaryIndexFieldData(
@@ -209,7 +284,7 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
                     }
                 );
             }
-            return new RootFlattenedFromKeyedFieldData(rootFieldName, keyedDelegate);
+            return new RootFlattenedFromKeyedFieldData(rootFieldName, keyedFieldName, keyedDelegate);
         }
     }
 }

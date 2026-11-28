@@ -140,6 +140,23 @@ public class SharingKeyTests extends ESTestCase {
         assertNotSame("romanian analyzer behavior differs by index version and must not share", current, build(legacy, romanian));
     }
 
+    /** Before Lucene 10 {@code ~} is complement rather than a literal tilde, so the version fork must be part of the key. */
+    public void testSimplePatternTokenizersDoNotShareAcrossVersions() throws IOException {
+        IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        assumeTrue("no read-compatible version predates Lucene 10", legacy.onOrAfter(IndexVersionUtils.getLowestReadCompatibleVersion()));
+        for (String type : List.of("simple_pattern", "simple_pattern_split")) {
+            Settings settings = Settings.builder()
+                .put("index.analysis.analyzer.a.tokenizer", "t")
+                .put("index.analysis.tokenizer.t.type", type)
+                .put("index.analysis.tokenizer.t.pattern", "x~a")
+                .build();
+
+            Analyzer current = build(IndexVersion.current(), settings);
+            assertSame(type, current, build(IndexVersion.current(), settings));
+            assertNotSame(type + " behavior differs by index version and must not share", current, build(legacy, settings));
+        }
+    }
+
     /** The unique filter only corrects position increments on indices created after the fix, so that must be part of the key. */
     public void testUniqueFilterDoesNotShareAcrossPositionFixVersion() throws IOException {
         IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.UNIQUE_TOKEN_FILTER_POS_FIX);

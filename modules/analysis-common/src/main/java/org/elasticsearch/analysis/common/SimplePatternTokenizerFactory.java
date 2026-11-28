@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 import java.util.function.Supplier;
@@ -36,10 +37,9 @@ public class SimplePatternTokenizerFactory extends AbstractTokenizerFactory {
         super(name);
 
         pattern = settings.get("pattern", "");
-        this.sharingKey = new Key(pattern);
-        this.dfa = CachedSupplier.wrap(
-            () -> Operations.determinize(new RegExp(pattern).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
-        );
+        boolean legacyComplement = legacyComplement(indexSettings);
+        this.sharingKey = new Key(pattern, legacyComplement);
+        this.dfa = CachedSupplier.wrap(() -> compile(pattern, legacyComplement));
     }
 
     @Override
@@ -52,5 +52,18 @@ public class SimplePatternTokenizerFactory extends AbstractTokenizerFactory {
         return sharingKey;
     }
 
-    private record Key(String pattern) {}
+    /**
+     * Lucene 10 dropped {@code ~} (complement) from {@link RegExp#ALL}, so it now matches a literal tilde.
+     * Indices created before that keep the complement semantics they were indexed with.
+     */
+    static boolean legacyComplement(IndexSettings indexSettings) {
+        return indexSettings.getIndexVersionCreated().before(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+    }
+
+    static Automaton compile(String pattern, boolean legacyComplement) {
+        int flags = legacyComplement ? RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT : RegExp.ALL;
+        return Operations.determinize(new RegExp(pattern, flags).toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
+    private record Key(String pattern, boolean legacyComplement) {}
 }

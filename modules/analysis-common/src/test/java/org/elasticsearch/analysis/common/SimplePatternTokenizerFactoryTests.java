@@ -11,11 +11,15 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -42,15 +46,62 @@ public class SimplePatternTokenizerFactoryTests extends ESTokenStreamTestCase {
         expectThrows(TooComplexToDeterminizeException.class, factory::create);
     }
 
+    public void testTildeIsLiteral() throws IOException {
+        assertTokens(IndexVersion.current(), "x~a", "xyz x~a", "x~a");
+        assertTokens(IndexVersion.current(), "~a", "a ~a", "~a");
+    }
+
+    /** Indices created before Lucene 10 keep {@code ~} as complement: {@code x~a} is "x then anything but a". */
+    public void testTildeIsComplementOnLegacyIndices() throws IOException {
+        IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        assumeTrue("no read-compatible version predates Lucene 10", legacy.onOrAfter(IndexVersionUtils.getLowestReadCompatibleVersion()));
+        assertTokens(legacy, "x~a", "a b xyz", "xyz");
+        assertTokens(legacy, "x~a", "xa", "x");
+    }
+
+    public void testSplitTildeIsLiteral() throws IOException {
+        assertSplitTokens(IndexVersion.current(), "~x", "foo-x-bar~xbaz", "foo-x-bar", "baz");
+    }
+
+    /** Indices created before Lucene 10 keep {@code ~} as complement: {@code ~x} matches the whole input as a separator. */
+    public void testSplitTildeIsComplementOnLegacyIndices() throws IOException {
+        IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        assumeTrue("no read-compatible version predates Lucene 10", legacy.onOrAfter(IndexVersionUtils.getLowestReadCompatibleVersion()));
+        assertSplitTokens(legacy, "~x", "foo-x-bar~xbaz");
+    }
+
     private void assertTokens(String pattern, String text, String... expected) throws IOException {
-        Tokenizer tokenizer = newFactory(pattern).create();
+        assertTokens(IndexVersion.current(), pattern, text, expected);
+    }
+
+    private void assertTokens(IndexVersion version, String pattern, String text, String... expected) throws IOException {
+        Tokenizer tokenizer = new SimplePatternTokenizerFactory(indexSettings(version), null, "simple_pattern", patternSettings(pattern))
+            .create();
+        tokenizer.setReader(new StringReader(text));
+        assertTokenStreamContents(tokenizer, expected);
+    }
+
+    private void assertSplitTokens(IndexVersion version, String pattern, String text, String... expected) throws IOException {
+        Tokenizer tokenizer = new SimplePatternSplitTokenizerFactory(
+            indexSettings(version),
+            null,
+            "simple_pattern_split",
+            patternSettings(pattern)
+        ).create();
         tokenizer.setReader(new StringReader(text));
         assertTokenStreamContents(tokenizer, expected);
     }
 
     private SimplePatternTokenizerFactory newFactory(String pattern) {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("test", "_na_"), newAnalysisSettingsBuilder().build());
-        Settings settings = Settings.builder().put("pattern", pattern).build();
-        return new SimplePatternTokenizerFactory(indexSettings, null, "simple_pattern", settings);
+        return new SimplePatternTokenizerFactory(indexSettings(IndexVersion.current()), null, "simple_pattern", patternSettings(pattern));
+    }
+
+    private IndexSettings indexSettings(IndexVersion version) {
+        Settings settings = newAnalysisSettingsBuilder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        return IndexSettingsModule.newIndexSettings(new Index("test", "_na_"), settings);
+    }
+
+    private static Settings patternSettings(String pattern) {
+        return Settings.builder().put("pattern", pattern).build();
     }
 }

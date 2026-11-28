@@ -70,12 +70,19 @@ public final class CiPartPlanner {
      * Median executed durations in seconds ({@code .ci/test-parts/durations.json}).
      *
      * @param tests    test task path to duration
+     * @param shards   optional estimate per shard of a split test task ({@code <task path>#<shard>}); shards without
+     *                 one get an even share of the task's duration
      * @param projects project path to the summed duration of its non-test tasks
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Durations(@JsonProperty("tests") Map<String, Double> tests, @JsonProperty("projects") Map<String, Double> projects) {
+    public record Durations(
+        @JsonProperty("tests") Map<String, Double> tests,
+        @JsonProperty("shards") Map<String, Double> shards,
+        @JsonProperty("projects") Map<String, Double> projects
+    ) {
         public Durations {
             tests = tests == null ? Map.of() : tests;
+            shards = shards == null ? Map.of() : shards;
             projects = projects == null ? Map.of() : projects;
         }
     }
@@ -174,7 +181,10 @@ public final class CiPartPlanner {
             } else {
                 for (int shard = 0; shard < split.count(); shard++) {
                     String key = CiPartAssignment.shardKey(taskPath, shard);
-                    units.add(new Unit(key, taskPath, shard, projectOf(taskPath), e.getValue() / split.count()));
+                    // a shard's own estimate (from per-class or per-file durations) beats an even share, since one
+                    // long class or file can dominate a shard
+                    double seconds = durations.shards().getOrDefault(key, e.getValue() / split.count());
+                    units.add(new Unit(key, taskPath, shard, projectOf(taskPath), seconds));
                 }
             }
         }

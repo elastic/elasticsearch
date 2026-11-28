@@ -76,13 +76,24 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             super(NAME);
             this.requiredByDefault = requiredByDefault;
             this.docValuesEnabledByDefault = docValuesEnabledByDefault;
-            this.required = Parameter.boolParam("required", false, requiredByDefault);
+            // Written out whenever it is true, even where that is the default (slice-enabled indices). The mapping source alone
+            // must say that routing is required: MappingMetadata derives routingRequired from it when read back from disk, and
+            // mappings are shared across indices by the hash of their source, so an index that requires routing must not have
+            // the same source as one that does not.
+            this.required = Parameter.boolParam("required", false, requiredByDefault)
+                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
             this.docValues = Parameter.docValuesParam(docValuesEnabledByDefault, IndexVersions.ROUTING_DOC_VALUES_NO_OP_IN_COLUMNAR);
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { required, docValues };
+        }
+
+        @Override
+        protected boolean hasNonDefaultParameters() {
+            // see the serializer check of required: _routing is written whenever routing is required
+            return super.hasNonDefaultParameters() || required.getValue();
         }
 
         @Override

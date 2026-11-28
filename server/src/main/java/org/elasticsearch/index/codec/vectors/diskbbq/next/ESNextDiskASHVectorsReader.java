@@ -32,7 +32,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidIndex;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
-import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.QueryTransformCache;
@@ -112,17 +111,12 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         return size;
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
-    }
-
     @Override
     public CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
         QueryTarget queryTarget,
-        IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
         KnnVectorValues values,
@@ -153,7 +147,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 false // ASH only supports float centroids
             ).getIterator();
         };
-        return getPostingListPrefetchIterator(iterator, postingListSlice);
+        return iterator;
     }
 
     @Override

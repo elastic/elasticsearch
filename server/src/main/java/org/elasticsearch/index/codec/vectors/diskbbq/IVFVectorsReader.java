@@ -32,11 +32,13 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.elasticsearch.search.vectors.QueryTransformCache;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -200,7 +202,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int numCentroids,
         IndexInput centroids,
         QueryTarget queryTarget,
-        IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
         KnnVectorValues values,
@@ -386,7 +387,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     /**
      * Returns true if this field has an IVF structure (centroids), false if it should fall back to the raw delegate.
      */
-    private boolean hasIvfStructure(String field) {
+    public boolean hasIvfStructure(String field) {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         if (fieldInfo == null || fieldInfo.getVectorDimension() == 0) {
             return false;
@@ -400,6 +401,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (hasIvfStructure(field)) {
             doSearch(field, new QueryTarget.FloatQuery(target, QueryTransformCache.NONE), knnCollector, acceptDocs);
         } else {
+            assert sharedScan(knnCollector) == null : "only a search of posting lists can be split into parts";
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
         }
     }
@@ -409,6 +411,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (hasIvfStructure(field)) {
             doSearch(field, new QueryTarget.ByteQuery(target, QueryTransformCache.NONE), knnCollector, acceptDocs);
         } else {
+            assert sharedScan(knnCollector) == null : "only a search of posting lists can be split into parts";
             // No IVF structure — byte fields on legacy codecs (which skip byte IVF indexing) fall
             // through here. Inline brute-force matches main's behavior and is required for CheckIndex
             // compatibility (delegating to getReaderForField().search() fails CheckIndex validation).
@@ -448,19 +451,95 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             esAcceptDocs = null;
         }
 
-        final KnnVectorValues values;
-        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
-            values = getByteVectorValues(field);
-        } else {
-            values = getFloatVectorValues(field);
-        }
+        final KnnVectorValues values = vectorValues(fieldInfo);
         if (values == null) {
             return;
         }
+        // the query target, with the transformations of its vector shared across the leaves of the query, if any
+        final QueryTransformCache transformCache = knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy
+            ? ivfSearchStrategy.getQueryTransformCache()
+            : QueryTransformCache.NONE;
+        final QueryTarget queryTarget = switch (target) {
+            case QueryTarget.FloatQuery fq -> new QueryTarget.FloatQuery(fq.vector(), transformCache);
+            case QueryTarget.ByteQuery bq -> new QueryTarget.ByteQuery(bq.vector(), transformCache);
+        };
+        final IVFSegmentScan scan = sharedScan(knnCollector);
+        if (scan == null) {
+            // a search on its own starts from zero
+            IVFSegmentScan.Plan plan = planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, values, null);
+            if (plan == null) {
+                return; // no vectors in this segment / slice
+            }
+            PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, plan.acceptBits(), esAcceptDocs);
+            IVFSegmentScan.searchFrom(plan.rest(), plan, visitor, knnCollector, 0, 0);
+            return;
+        }
+        // the plan gets vector values of its own: another part than the one that built it may go on along its centroid order
+        IVFSegmentScan.Plan plan = scan.plan(
+            () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo), scan)
+        );
+        if (plan == null) {
+            return; // no vectors in this segment / slice
+        }
+        if (scan.isPreparing()) {
+            return; // the prepare step only plans the segment
+        }
+        // own live docs per part (Lucene's test readers check that the acquiring thread reads them); a filter's are shared
+        Bits visitorBits = acceptDocs instanceof ESAcceptDocs.BitsAcceptDocs ? acceptDocs.bits() : plan.acceptBits();
+        PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, visitorBits, esAcceptDocs);
+        visitor.shareQuantizedQueries(scan.quantizedQueries());
+        scan.search(visitor, entry.postingListSlice(ivfClusters), knnCollector);
+    }
+
+    private PostingVisitor postingVisitor(
+        FieldInfo fieldInfo,
+        E entry,
+        QueryTarget queryTarget,
+        KnnVectorValues values,
+        Bits acceptBits,
+        ESAcceptDocs esAcceptDocs
+    ) throws IOException {
+        return getPostingVisitor(
+            fieldInfo,
+            values,
+            entry.postingListSlice(ivfClusters),
+            queryTarget,
+            acceptBits,
+            entry.centroidSlice(ivfCentroids),
+            esAcceptDocs
+        );
+    }
+
+    private KnnVectorValues vectorValues(FieldInfo fieldInfo) throws IOException {
+        return fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)
+            ? getByteVectorValues(fieldInfo.name)
+            : getFloatVectorValues(fieldInfo.name);
+    }
+
+    /** The scan this search shares with other parts of the same segment's search, or null if it searches alone. */
+    private static IVFSegmentScan sharedScan(KnnCollector knnCollector) {
+        return knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfStrategy ? ivfStrategy.getSegmentScan() : null;
+    }
+
+    /**
+     * What a search needs before visiting postings. Null if the segment (or slice) has no vectors.
+     * @param scan the scan the search's parts share, which take their posting lists from an order listed here. Null for a
+     *             search on its own.
+     */
+    private IVFSegmentScan.Plan planScan(
+        FieldInfo fieldInfo,
+        E entry,
+        QueryTarget queryTarget,
+        KnnCollector knnCollector,
+        AcceptDocs acceptDocs,
+        ESAcceptDocs esAcceptDocs,
+        KnnVectorValues values,
+        IVFSegmentScan scan
+    ) throws IOException {
         final IndexInput centroids = entry.centroidSlice(ivfCentroids);
         final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
         if (numVectors == 0) {
-            return; // nothing more to do if there are no vectors in this segment / slice
+            return null;
         }
         final float approximateCost;
         if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
@@ -472,78 +551,55 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
-        QueryTransformCache transformCache = QueryTransformCache.NONE;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
             numCands = ivfSearchStrategy.getNumCands();
             k = ivfSearchStrategy.getK();
-            transformCache = ivfSearchStrategy.getQueryTransformCache();
         }
-        // the query target, with the transformations of its vector shared across the leaves of the query, if any
-        final QueryTarget queryTarget = switch (target) {
-            case QueryTarget.FloatQuery fq -> new QueryTarget.FloatQuery(fq.vector(), transformCache);
-            case QueryTarget.ByteQuery bq -> new QueryTarget.ByteQuery(bq.vector(), transformCache);
-        };
-
         if (visitRatio == dynamicVisitRatio) {
-            visitRatio = Math.min(
-                computeDynamicVisitRatio(numCands, k) * computeSmallSegmentBoost(k, numVectors),
-                computeSegmentSizeCap(numVectors)
-            );
+            visitRatio = segmentVisitRatio(numCands, k, numVectors);
         }
-        long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
-        IndexInput postListSlice = entry.postingListSlice(ivfClusters);
-        CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
+        CentroidIterator centroidOrder = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
             centroids,
             queryTarget,
-            postListSlice,
             acceptDocs,
             approximateCost,
             values,
             visitRatio
         );
-        Bits acceptDocsBits = acceptDocs.bits();
-        PostingVisitor scorer = getPostingVisitor(
-            fieldInfo,
-            values,
-            postListSlice,
-            queryTarget,
-            acceptDocsBits,
-            entry.centroidSlice(ivfCentroids),
-            esAcceptDocs
-        );
-        long expectedDocs = 0;
-        long actualDocs = 0;
-        // initially we visit only the "centroids to search"
-        // Note, numCollected is doing the bare minimum here.
-        // TODO do we need to handle nested doc counts similarly to how we handle
-        // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        while (centroidPrefetchingIterator.hasNext()
-            && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
-            PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-            expectedDocs += scorer.resetPostingsScorer(postingMetadata);
-            actualDocs += scorer.visit(knnCollector);
-            if (knnCollector.getSearchStrategy() != null) {
-                knnCollector.getSearchStrategy().nextVectorsBlock();
-            }
+        long budget = maxVectorsToVisit(entry, visitRatio, numVectors);
+        IndexInput postingLists = entry.postingListSlice(ivfClusters);
+        if (scan == null) {
+            // A search on its own advances the centroid order as it goes, and prefetches one posting list ahead of the one it
+            // scores. TODO we may want to prefetch more, with a limit so we don't prefetch many lists we won't end up scoring
+            CentroidIterator postings = new PrefetchingCentroidIterator(centroidOrder, postingLists);
+            return new IVFSegmentScan.Plan(new PostingMetadata[0], postings, budget, numVectors, percentFiltered, acceptDocs.bits());
         }
-        if (acceptDocsBits != null) {
-            // TODO Adjust the value here when using centroid filtering
-            float unfilteredRatioVisited = (float) expectedDocs / numVectors;
-            int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
-            float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-            while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-                scorer.resetPostingsScorer(postingMetadata);
-                actualDocs += scorer.visit(knnCollector);
-                if (knnCollector.getSearchStrategy() != null) {
-                    knnCollector.getSearchStrategy().nextVectorsBlock();
-                }
-            }
+        // Only one thread can advance the centroid order. So that no part of a scan waits for another, the lists they take are
+        // listed here, and the first of them prefetched: one per part, each part's next list being on its way while it scores.
+        PostingMetadata[] order = postingOrder(centroidOrder, budget, (double) entry.postingListLength / values.size());
+        for (int i = 0; i < Math.min(scan.parts(), order.length); i++) {
+            postingLists.prefetch(order[i].offset(), order[i].length());
         }
+        return new IVFSegmentScan.Plan(order, centroidOrder, budget, numVectors, percentFiltered, acceptDocs.bits());
+    }
+
+    /**
+     * The posting lists a budget of entries can reach, best first. How many entries a list holds is only known once it is
+     * read, so this goes by bytes: an entry takes no more of them than a vector does, every vector being in at least one list.
+     */
+    private static PostingMetadata[] postingOrder(CentroidIterator centroidOrder, long budget, double bytesPerVector) throws IOException {
+        List<PostingMetadata> order = new ArrayList<>();
+        double bytes = budget * bytesPerVector;
+        for (long listed = 0; listed < bytes && centroidOrder.hasNext();) {
+            PostingMetadata posting = centroidOrder.nextPosting();
+            order.add(posting);
+            listed += posting.length();
+        }
+        return order.toArray(PostingMetadata[]::new);
     }
 
     /**
@@ -553,6 +609,16 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * budget where the centroid iterator's own bound governs how many postings are drained).
      */
     protected long maxVectorsToVisit(E entry, float visitRatio, int numVectors) {
+        return visitBudget(visitRatio, numVectors);
+    }
+
+    /** The dynamic visit ratio of a segment. Public so that query-side work estimates agree with the search loop. */
+    public static float segmentVisitRatio(int numCands, int k, int numVectors) {
+        return Math.min(computeDynamicVisitRatio(numCands, k) * computeSmallSegmentBoost(k, numVectors), computeSegmentSizeCap(numVectors));
+    }
+
+    /** The posting list entries a search visits: twice the visit ratio, as SOAR puts a vector in up to two posting lists. */
+    public static long visitBudget(float visitRatio, int numVectors) {
         return (long) (2.0 * visitRatio * numVectors);
     }
 
@@ -795,12 +861,26 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         ESAcceptDocs acceptDocs
     ) throws IOException;
 
+    /** The query quantized against one centroid. Computed once per centroid, and shared by the parts of a segment's search. */
+    public record QuantizedQuery(OptimizedScalarQuantizer.QuantizationResult queryCorrections, ScoringQuery quantizedTarget) {}
+
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(PostingMetadata metadata) throws IOException;
 
+        /** Uses, and adds to, the other parts' query quantizations by centroid. Formats that don't quantize per centroid ignore it. */
+        default void shareQuantizedQueries(Map<Integer, QuantizedQuery> shared) {}
+
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
+
+        /**
+         * Whether docs with this best score should be offered to the collector. Ties with its worst hit are offered too: the
+         * collector breaks them by doc id, so the hits don't depend on visiting order or on how a search was split.
+         */
+        static boolean isCompetitive(KnnCollector collector, float bestScore) {
+            return collector.minCompetitiveSimilarity() <= bestScore;
+        }
     }
 
 }

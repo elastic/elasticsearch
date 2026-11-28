@@ -69,7 +69,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     // make sure each slice has at least 10% of the documents as a way to limit memory usage and
     // to keep the error margin of terms aggregation low
-    static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
+    public static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
@@ -77,6 +77,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /** Shared with the searchers derived by {@link #withQueryCache}; only the searcher that created it sets the breaker and closes it. */
     private final ExecutionAccounting executionAccounting;
     private final boolean ownsExecutionAccounting;
+    private boolean ivfParallelScanEnabled;
 
     private final MutableQueryTimeout cancellable;
 
@@ -200,6 +201,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             throw new IllegalStateException("a searcher derived with withQueryCache uses the circuit breaker of the searcher it came from");
         }
         executionAccounting.setBreaker(circuitBreaker);
+    }
+
+    public void setIvfParallelScanEnabled(boolean ivfParallelScanEnabled) {
+        this.ivfParallelScanEnabled = ivfParallelScanEnabled;
+    }
+
+    /** Whether DiskBBQ (IVF) kNN queries on {@code searcher} may split large segments into parts searched in parallel. */
+    public static boolean ivfParallelScanEnabled(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis && cis.ivfParallelScanEnabled;
+    }
+
+    /** How many tasks a search on {@code searcher} may run in parallel: its maximum number of slices, or 1 without an executor. */
+    public static int maximumParallelTasks(IndexSearcher searcher) {
+        if (searcher instanceof ContextIndexSearcher cis && cis.hasExecutor) {
+            return Math.max(1, cis.maximumNumberOfSlices);
+        }
+        return 1;
     }
 
     /**

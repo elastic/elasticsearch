@@ -284,6 +284,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
+    /** Lets a DiskBBQ (IVF) kNN query split a segment holding a large share of a shard's work into parts searched in parallel. */
+    public static final Setting<Boolean> IVF_PARALLEL_SCAN_ENABLED = Setting.boolSetting(
+        "search.vectors.ivf.parallel_scan.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
         true,
@@ -460,6 +468,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final int prewarmingMaxPoolFactorThreshold;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
+    private volatile boolean ivfParallelScanEnabled;
     private volatile boolean enableFetchPhaseChunked;
     private volatile int fetchPhaseMaxInFlightChunks;
     private volatile int fetchPhaseTargetChunkBytes;
@@ -581,6 +590,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
+        ivfParallelScanEnabled = IVF_PARALLEL_SCAN_ENABLED.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(IVF_PARALLEL_SCAN_ENABLED, this::setIvfParallelScanEnabled);
         batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
         enableFetchPhaseChunked = FETCH_PHASE_CHUNKED_ENABLED.get(settings);
         fetchPhaseMaxInFlightChunks = FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(settings);
@@ -628,6 +639,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
         this.enableQueryPhaseParallelCollection = enableQueryPhaseParallelCollection;
+    }
+
+    private void setIvfParallelScanEnabled(boolean ivfParallelScanEnabled) {
+        this.ivfParallelScanEnabled = ivfParallelScanEnabled;
     }
 
     private void setEnableFetchPhaseChunked(boolean enableFetchPhaseChunked) {
@@ -2323,6 +2338,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 breaker,
                 this::directoryMetricsDelta
             );
+            searchContext.searcher().setIvfParallelScanEnabled(ivfParallelScanEnabled);
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.

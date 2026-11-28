@@ -2761,6 +2761,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         } else {
             initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
+        // DiskBBQ's parallel scan must return the same hits as searching each segment whole
+        initialNodeSettings.put(SearchService.IVF_PARALLEL_SCAN_ENABLED.getKey(), randomBoolean());
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

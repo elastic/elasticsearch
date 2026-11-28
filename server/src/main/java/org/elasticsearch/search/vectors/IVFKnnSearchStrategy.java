@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 
 import java.util.Objects;
 
@@ -21,6 +22,7 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final SharedMinCompetitiveScore sharedScore;
     private final QueryTransformCache queryTransformCache;
+    private final IVFSegmentScan segmentScan;
 
     /**
      * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
@@ -36,11 +38,24 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         @Nullable SharedMinCompetitiveScore sharedScore,
         QueryTransformCache queryTransformCache
     ) {
+        this(visitRatio, numCands, k, sharedScore, queryTransformCache, null);
+    }
+
+    /** @param segmentScan shared by the parts of one segment's search, or null when the segment is searched whole */
+    public IVFKnnSearchStrategy(
+        float visitRatio,
+        int numCands,
+        int k,
+        @Nullable SharedMinCompetitiveScore sharedScore,
+        QueryTransformCache queryTransformCache,
+        @Nullable IVFSegmentScan segmentScan
+    ) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
         this.sharedScore = sharedScore;
         this.queryTransformCache = Objects.requireNonNull(queryTransformCache);
+        this.segmentScan = segmentScan;
     }
 
     /** Returns the transformations of the query vector shared across the leaves of the query. */
@@ -67,6 +82,11 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         return k;
     }
 
+    public IVFSegmentScan getSegmentScan() {
+        return segmentScan;
+    }
+
+    // equality is about what is searched; the shared score and scan only coordinate how a search runs
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

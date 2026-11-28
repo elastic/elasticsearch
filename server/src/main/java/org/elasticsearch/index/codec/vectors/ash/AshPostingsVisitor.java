@@ -537,7 +537,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             }
         }
 
-        if (knnCollector.minCompetitiveSimilarity() < maxScore) {
+        if (IVFVectorsReader.PostingVisitor.isCompetitive(knnCollector, maxScore)) {
             collectBulk(knnCollector, blockSize, mask, docsToScore, maxScore);
         }
         return docsToScore;

@@ -14,15 +14,19 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -30,12 +34,17 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOConsumer;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.lucene.store.ThreadConfinedArena;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -43,6 +52,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.function.LongSupplier;
 
 /**
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
@@ -73,7 +83,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     // Stashed during rewrite() so the post-filter orchestrator can read back the raw per-leaf
     // candidates without re-running: one TopDocs per leaf, doc ids already shifted to global by
-    // searchLeaf (buildPerLeafCandidates regroups them by leaf via ReaderUtil.subIndex).
+    // keepBestCopies (buildPerLeafCandidates regroups them by leaf via ReaderUtil.subIndex).
     // Only populated for a delegate - nothing reads them otherwise, and retaining
     // them would keep the pool and the reader's leaf contexts alive for the whole search context.
     private List<LeafReaderContext> leaves;
@@ -192,15 +202,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final QueryTransformCache queryTransformCache = QueryTransformCache.perQuery();
         final int maxLeafBudget = leafCollectorBudget(maxRescoreOversampleAcrossLeaves);
 
-        List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
+        List<LeafInput> leafInputs = new ArrayList<>(leafReaderContexts.size());
         for (int i = 0; i < leafReaderContexts.size(); i++) {
             LeafReaderContext context = leafReaderContexts.get(i);
             IvfSegmentConfig resolved = resolvedPerLeaf[i];
 
             if (resolved == null) {
                 // No FieldInfo for the field, so the segment has no vectors and cannot return hits.
-                // A task is still queued so perLeafResults stays aligned with leaf ordinals.
-                tasks.add(() -> NO_RESULTS);
+                // It is still listed, with no collector manager, so perLeafResults stays aligned with leaf ordinals.
+                leafInputs.add(new LeafInput(context, null, false));
                 continue;
             }
 
@@ -219,10 +229,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             // query. The shared query field is never mutated, so segments that disagree on
             // preconditioning (and the exact-rescore query) each see the correct vector.
             final boolean usePrecondition = resolved.usePrecondition();
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio, usePrecondition));
+            leafInputs.add(new LeafInput(context, knnCollectorManagerForSegment, usePrecondition));
         }
 
-        TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
+        // a query that cannot split its leaves, or has no leaf worth splitting, is searched as without a parallel scan
+        final int maxParallelTasks = ContextIndexSearcher.maximumParallelTasks(indexSearcher);
+        final boolean maySplit = maxParallelTasks > 1 && canSplitLeaves() && ContextIndexSearcher.ivfParallelScanEnabled(indexSearcher);
+        final IVFParallelScan parallelScan = maySplit
+            ? new IVFParallelScan(this, filterWeight, visitRatio, leafInputs, maxParallelTasks)
+            : null;
+        TopDocs[] perLeafResults = parallelScan != null && parallelScan.splitsALeaf()
+            ? parallelScan.search(taskExecutor)
+            : searchLeaves(taskExecutor, filterWeight, visitRatio, leafInputs);
         if (postFilterDelegate) {
             this.rawPerLeafResults = perLeafResults;
         }
@@ -286,25 +304,41 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(new TotalHits(totalHitsValue, relation), mergedScoreDocs);
     }
 
-    private TopDocs searchLeaf(
-        LeafReaderContext ctx,
-        Weight filterWeight,
-        IVFCollectorManager knnCollectorManager,
-        float visitRatio,
-        boolean usePrecondition
-    ) throws IOException {
+    /** What {@link #rewrite} prepares for one leaf. The collector manager is null if the leaf has no vectors for the field. */
+    record LeafInput(LeafReaderContext ctx, @Nullable IVFCollectorManager collectorManager, boolean usePrecondition) {}
+
+    /** One task per leaf, each searching its whole leaf. */
+    private TopDocs[] searchLeaves(TaskExecutor taskExecutor, Weight filterWeight, float visitRatio, List<LeafInput> leafInputs)
+        throws IOException {
+        List<Callable<TopDocs>> tasks = new ArrayList<>(leafInputs.size());
+        for (LeafInput leaf : leafInputs) {
+            if (leaf.collectorManager() == null) {
+                tasks.add(() -> NO_RESULTS);
+            } else {
+                tasks.add(() -> searchLeaf(leaf, filterWeight, visitRatio));
+            }
+        }
+        return taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
+    }
+
+    /** Searches one leaf whole. Returns its hits with shard-wide doc ids, each doc once. */
+    TopDocs searchLeaf(LeafInput leaf, Weight filterWeight, float visitRatio) throws IOException {
         TopDocs results = ThreadConfinedArena.withConfinedArena(
-            () -> getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition)
+            () -> getLeafResults(leaf.ctx(), filterWeight, leaf.collectorManager(), visitRatio, leaf.usePrecondition())
         );
+        return keepBestCopies(results, leaf.ctx().docBase);
+    }
+
+    /** Shifts a leaf's hits to shard-wide doc ids, in place, and keeps the best of a doc's SOAR copies. */
+    static TopDocs keepBestCopies(TopDocs results, int docBase) {
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
-            int globalDoc = scoreDoc.doc + ctx.docBase;
+            int globalDoc = scoreDoc.doc + docBase;
             ScoreDoc existing = dedupByDoc.get(globalDoc);
             if (existing == null) {
                 scoreDoc.doc = globalDoc;
                 dedupByDoc.put(globalDoc, scoreDoc);
             } else if (scoreDoc.score > existing.score) {
-                // SOAR overspill copies of a doc score differently; keep the best
                 existing.score = scoreDoc.score;
             }
         }
@@ -323,6 +357,48 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float visitRatio,
         boolean usePrecondition
     ) throws IOException;
+
+    /** Whether a leaf's search may be split into parts sharing one scan. A query type opts in if it scans a leaf once. */
+    boolean canSplitLeaves() {
+        return false;
+    }
+
+    /**
+     * How to search a leaf's parts: {@code search} runs one, into its own collector. The parts get the query's transform cache
+     * only if the leaf is searched with the query's own vector.
+     */
+    record PartSearch(boolean searchesQueryVector, IOConsumer<KnnCollector> search) {}
+
+    /**
+     * Prepares the search of a leaf's parts once. Each part builds its own accepted docs, on its own thread: Lucene's test
+     * readers check that live docs are read by the thread that acquired them. Only called when {@link #canSplitLeaves()}.
+     */
+    PartSearch partSearch(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    /** How many of a leaf's vectors the query considers: all, unless it searches a data slice. Sizes the leaf's scoring estimate. */
+    int searchedVectors(LeafReaderContext ctx, int numVectors) throws IOException {
+        return numVectors;
+    }
+
+    /** The docs a leaf's search may match: its live docs, within the filter's. Null if the filter matches nothing in the leaf. */
+    static AcceptDocs leafAcceptDocs(LeafReaderContext ctx, Weight filterWeight) throws IOException {
+        final LeafReader reader = ctx.reader();
+        final Bits liveDocs = reader.getLiveDocs();
+        final int maxDoc = reader.maxDoc();
+        if (filterWeight == null) {
+            return liveDocs == null ? new ESAcceptDocs.ESAcceptDocsAll() : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc);
+        }
+        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+        if (supplier == null) {
+            return null;
+        }
+        // the iterator is pulled once, so it needs no caching
+        IOSupplier<DocIdSetIterator> docIdIteratorSupplier = () -> supplier.get(Long.MAX_VALUE).iterator();
+        LongSupplier costSupplier = supplier::cost;
+        return new ESAcceptDocs.ScorerSupplierAcceptDocs(docIdIteratorSupplier, costSupplier, liveDocs, maxDoc);
+    }
 
     /**
      * Rebuilds this query as a new instance of the same concrete type via {@link IVFKnnQueryFactory}.
@@ -399,7 +475,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (rawPerLeafResults == null) {
             return new ScoreDoc[leaves.size()][];
         }
-        // rewrite() queues exactly one task per leaf, in leaf order, so entry i is leaf i's result
+        // rewrite() produces exactly one result per leaf, in leaf order, so entry i is leaf i's result
         assert rawPerLeafResults.length == leaves.size()
             : "expected one TopDocs per leaf, got " + rawPerLeafResults.length + " for " + leaves.size() + " leaves";
         ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];
@@ -478,6 +554,24 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 queryK,
                 sharedScore,
                 searchesQueryVector ? queryTransformCache : QueryTransformCache.NONE
+            );
+        }
+
+        /** As {@link #newSearchStrategy}, for one part of the leaf's search: with the scan its parts share. */
+        IVFKnnSearchStrategy newPartSearchStrategy(
+            float visitRatio,
+            int numCands,
+            int queryK,
+            boolean searchesQueryVector,
+            IVFSegmentScan scan
+        ) {
+            return new IVFKnnSearchStrategy(
+                visitRatio,
+                numCands,
+                queryK,
+                sharedScore,
+                searchesQueryVector ? queryTransformCache : QueryTransformCache.NONE,
+                scan
             );
         }
 

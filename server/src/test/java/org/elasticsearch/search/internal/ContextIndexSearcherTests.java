@@ -225,6 +225,37 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
     }
 
+    /** A search that splits its own work may cut it into as many tasks as the searcher's maximum number of slices. */
+    public void testMaximumParallelTasks() throws Exception {
+        int maxSlices = randomIntBetween(2, 5);
+        try (Directory directory = newDirectory()) {
+            indexDocs(directory);
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                ContextIndexSearcher withExecutor = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    randomBoolean(),
+                    Runnable::run,
+                    maxSlices,
+                    1
+                );
+                assertEquals("the searcher's maximum", maxSlices, ContextIndexSearcher.maximumParallelTasks(withExecutor));
+                ContextIndexSearcher withoutExecutor = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    randomBoolean()
+                );
+                assertEquals("no executor", 1, ContextIndexSearcher.maximumParallelTasks(withoutExecutor));
+                IndexSearcher plain = new IndexSearcher(directoryReader, Runnable::run);
+                assertEquals("not a ContextIndexSearcher", 1, ContextIndexSearcher.maximumParallelTasks(plain));
+            }
+        }
+    }
+
     /**
      * Check that knn queries rewrite parallelizes on the number of segments
      */

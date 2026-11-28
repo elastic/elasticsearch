@@ -104,6 +104,34 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
+    boolean canSplitLeaves() {
+        // several slices are several scans of a leaf, which its parts cannot share
+        return sliceKeys.isSingle() && getClass() == IVFKnnFloatSlicedVectorQuery.class; // a subclass has to opt in
+    }
+
+    @Override
+    PartSearch partSearch(LeafReaderContext ctx, Weight filterWeight, boolean usePrecondition) throws IOException {
+        final float[] leafQuery = segmentQuery(ctx, usePrecondition);
+        return new PartSearch(
+            leafQuery == query,
+            collector -> IVFSlicedSearchHelper.searchOnlySlice(
+                ctx,
+                filterWeight,
+                collector,
+                field,
+                sliceField,
+                sliceKeys,
+                (context, f, c, acceptDocs) -> context.reader().searchNearestVectors(f, leafQuery, c, acceptDocs)
+            )
+        );
+    }
+
+    @Override
+    int searchedVectors(LeafReaderContext ctx, int numVectors) throws IOException {
+        return IVFSlicedSearchHelper.approximateSliceVectors(ctx, numVectors, sliceField, sliceKeys);
+    }
+
+    @Override
     public String toString(String field) {
         StringBuilder buffer = new StringBuilder();
         buffer.append(getClass().getSimpleName())

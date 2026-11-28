@@ -1,0 +1,6 @@
+area: Engine
+issues:
+- 161402
+pr: 161404
+summary: Throttle deletes when merges fall behind
+type: enhancement

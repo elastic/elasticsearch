@@ -1,0 +1,646 @@
+// LEFT OUTER JOIN on a subquery. The subquery runs first, on its own, and the coordinator joins its result with the left side.
+
+leftOuterJoinSubqueryPreservesRepeatedMatches
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no == 10092
+| EVAL language_code = emp_no % 10
+| LEFT OUTER JOIN (
+    FROM languages_lookup_non_unique_key
+    | WHERE language_code == 2
+    | KEEP language_code, language_name
+  ) ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 2                     | German
+10092          | 2                     | German
+10092          | 2                     | German
+10092          | 2                     | German
+;
+
+leftOuterJoinStatsSubqueryWithNullRejectingFilter
+required_capability: join_on_subquery
+
+FROM employees
+| STATS cnt = COUNT(*) BY languages, gender
+| LEFT OUTER JOIN (
+    FROM employees
+    | STATS c = COUNT(*) BY languages
+    | SORT c DESC
+    | LIMIT 2
+    | KEEP c, languages
+  ) ON languages
+| WHERE c IS NOT NULL
+| SORT c DESC, cnt DESC
+| KEEP languages, gender, cnt, c
+;
+
+languages:integer | gender:keyword | cnt:long | c:long
+5                 | F              | 9        | 21
+5                 | M              | 8        | 21
+5                 | null           | 4        | 21
+2                 | M              | 11       | 19
+2                 | F              | 5        | 19
+2                 | null           | 3        | 19
+;
+
+leftOuterJoinWithSubqueriesOnBothSides
+required_capability: join_on_subquery
+required_capability: subquery_in_from_command
+
+FROM (
+    FROM employees
+    | WHERE emp_no == 10001
+    | EVAL language_code = languages
+    | KEEP emp_no, language_code
+  )
+| LEFT OUTER JOIN (
+    FROM languages_lookup
+    | WHERE language_code == 2
+    | KEEP language_code, language_name
+  ) ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+;
+
+nestedLeftOuterJoinSubqueriesPreserveRowsAcrossBushyTree
+required_capability: join_on_subquery
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (
+    FROM (
+        FROM employees
+        | WHERE emp_no >= 10001 AND emp_no <= 10008
+        | EVAL id = emp_no, t1 = "table1"
+        | KEEP id, t1
+        | LEFT OUTER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t2 = "table2"
+            | KEEP id, t2
+          ) ON id
+        | KEEP id, t1, t2
+    )
+    | LEFT OUTER JOIN (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10003
+        | EVAL id = emp_no, t3 = "table3"
+        | KEEP id, t3
+        | LEFT OUTER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t4 = "table4"
+            | KEEP id, t4
+          ) ON id
+        | KEEP id, t3, t4
+    ) ON id
+    | KEEP id, t1, t2, t3, t4
+)
+| LEFT OUTER JOIN (
+    FROM (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10005 OR emp_no == 10006 OR emp_no == 10007
+        | EVAL id = emp_no, t5 = "table5"
+        | KEEP id, t5
+        | LEFT OUTER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t6 = "table6"
+            | KEEP id, t6
+          ) ON id
+        | KEEP id, t5, t6
+    )
+    | LEFT OUTER JOIN (
+        FROM employees
+        | WHERE emp_no == 10001 OR emp_no == 10006
+        | EVAL id = emp_no, t7 = "table7"
+        | KEEP id, t7
+        | LEFT OUTER JOIN (
+            FROM employees
+            | WHERE emp_no == 10001
+            | EVAL id = emp_no, t8 = "table8"
+            | KEEP id, t8
+          ) ON id
+        | KEEP id, t7, t8
+    ) ON id
+    | KEEP id, t5, t6, t7, t8
+) ON id
+| KEEP id, t1, t2, t3, t4, t5, t6, t7, t8
+| SORT id
+;
+
+id:integer | t1:keyword | t2:keyword | t3:keyword | t4:keyword | t5:keyword | t6:keyword | t7:keyword | t8:keyword
+10001      | table1     | table2     | table3     | table4     | table5     | table6     | table7     | table8
+10002      | table1     | null       | null       | null       | null       | null       | null       | null
+10003      | table1     | null       | table3     | null       | null       | null       | null       | null
+10004      | table1     | null       | null       | null       | null       | null       | null       | null
+10005      | table1     | null       | null       | null       | table5     | null       | null       | null
+10006      | table1     | null       | null       | null       | table5     | null       | table7     | null
+10007      | table1     | null       | null       | null       | table5     | null       | null       | null
+10008      | table1     | null       | null       | null       | null       | null       | null       | null
+;
+
+leftOuterJoinSubqueryWithShadowing
+required_capability: join_on_subquery
+
+ROW left = "left", language_code = [1, 99], language_name = "unknown", right = "right"
+| MV_EXPAND language_code
+| LEFT OUTER JOIN (FROM languages_lookup | WHERE language_code < 3) ON language_code
+| SORT language_code
+;
+
+left:keyword | language_code:integer | right:keyword | language_name:keyword
+left         | 1                     | right         | English
+left         | 99                    | right         | null
+;
+
+leftOuterJoinSubqueryOnTwoKeys
+skip_flattened_rewrite: join_subquery_on_rejects_flattened
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10010
+| LEFT OUTER JOIN (
+    FROM employees
+    | STATS c = COUNT(*) BY gender, languages
+  ) ON gender, languages
+| KEEP emp_no, gender, languages, c
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | languages:integer | c:long
+10001          | M              | 2                 | 11
+10002          | F              | 5                 | 9
+10003          | M              | 4                 | 11
+10004          | M              | 5                 | 8
+10005          | M              | 1                 | 9
+10006          | F              | 3                 | 6
+10007          | F              | 4                 | 6
+10008          | M              | 2                 | 11
+10009          | F              | 1                 | 4
+10010          | null           | 4                 | null
+;
+
+leftOuterJoinMultivaluedKeyMatchesNothing
+required_capability: join_on_subquery
+// A multivalued key on the left matches nothing, as in LOOKUP JOIN, and is reported like one in the subquery.
+
+ROW key = [1, 2]
+| LEFT OUTER JOIN (ROW key = 1, v = "one") ON key
+;
+warning:Line 2:3: evaluation of [LEFT OUTER JOIN (ROW key = 1, v = \"one\") ON key] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: JOIN encountered multi-value
+
+key:integer | v:keyword
+[1, 2]      | null
+;
+
+leftOuterJoinSubqueryOnNullKeyKeepsEveryRightColumn
+required_capability: join_on_subquery
+
+FROM languages_lookup
+| EVAL language_code = null::integer
+| LEFT OUTER JOIN (FROM languages_lookup | EVAL other_name = language_name) ON language_code
+| KEEP language_code, language_name, other_name
+| LIMIT 3
+;
+
+language_code:integer | language_name:keyword | other_name:keyword
+null                  | null                  | null
+null                  | null                  | null
+null                  | null                  | null
+;
+
+leftOuterJoinSubqueryOnKeyMissingFromSomeIndices
+required_capability: join_on_subquery
+
+FROM employees, languages
+| WHERE emp_no == 10001 OR language_code == 1
+| LEFT OUTER JOIN (FROM languages_lookup | EVAL other_name = language_name) ON language_code
+| KEEP emp_no, language_code, language_name, other_name
+| SORT emp_no, language_code
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | other_name:keyword
+10001          | null                  | null                  | null
+null           | 1                     | English               | English
+;
+
+leftOuterJoinSubqueryOnTheCoordinatorLoadsOnlyUsedColumns
+required_capability: join_on_subquery
+required_capability: implicit_casting_date_and_date_nanos
+
+// The join runs on the coordinator. The left side must not load nanos, which nothing reads: a date in 1923 can't become a
+// date_nanos, so loading it would add a warning.
+FROM date_nanos, date_nanos_union_types
+| EVAL k = 1
+| LIMIT 1000
+| LEFT OUTER JOIN (ROW k = 1, x = 2) ON k
+| STATS c = COUNT(*), m = MAX(x)
+;
+
+c:long | m:integer
+22     | 2
+;
+
+leftOuterJoinSubqueryMultivaluedSubqueryKeyMatchesNothing
+required_capability: join_on_subquery
+// A multivalued key in the subquery is reported once, whether or not a left key would have matched one of its values.
+
+ROW key = 1
+| LEFT OUTER JOIN (ROW key = [1, 2], v = "one or two") ON key
+;
+warning:Line 2:3: evaluation of [LEFT OUTER JOIN (ROW key = [1, 2], v = \"one or two\") ON key] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: JOIN encountered multi-value
+
+key:integer | v:keyword
+1           | null
+;
+
+leftOuterJoinSubqueryOnNullTypedKey
+required_capability: join_on_subquery
+
+ROW key = null
+| MV_EXPAND key
+| LEFT OUTER JOIN (ROW key = 1, v = "one") ON key
+;
+
+key:null | v:keyword
+null     | null
+;
+
+leftOuterJoinSubqueryOnLongAndIntegerKeys
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = TO_LONG(languages)
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_code:long | language_name:keyword
+10001          | 2                  | French
+10002          | 5                  | null
+10003          | 4                  | German
+10004          | 5                  | null
+10005          | 1                  | English
+;
+
+leftOuterJoinSubqueryOnIntegerAndDoubleKeys
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup | EVAL language_code = TO_DOUBLE(language_code)) ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 5                     | null
+10003          | 4                     | German
+10004          | 5                     | null
+10005          | 1                     | English
+;
+
+leftOuterJoinSubqueryOnLongAndDoubleKeys
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = TO_LONG(languages)
+| LEFT OUTER JOIN (FROM languages_lookup | EVAL language_code = TO_DOUBLE(language_code)) ON language_code
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_code:long | language_name:keyword
+10001          | 2                  | French
+10002          | 5                  | null
+10003          | 4                  | German
+10004          | 5                  | null
+10005          | 1                  | English
+;
+
+leftOuterJoinSubqueryOnTwoKeysOverTheSameField
+required_capability: join_on_subquery
+// The optimizer replaces both keys with languages, which is cast once to long and once to double.
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL a = languages, b = languages
+| LEFT OUTER JOIN (
+    FROM languages_lookup
+    | EVAL a = TO_LONG(language_code), b = TO_DOUBLE(language_code)
+    | KEEP a, b, language_name
+  ) ON a, b
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+;
+
+leftOuterJoinSubqueryColumnNamedLikeLeftKeyField
+required_capability: join_on_subquery
+// The optimizer replaces the key with languages, the name of a subquery column. The join keeps the subquery's column.
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup | EVAL languages = language_name) ON language_code
+| KEEP emp_no, languages
+| SORT emp_no
+;
+
+emp_no:integer | languages:keyword
+10001          | French
+10002          | null
+;
+
+leftOuterJoinSubqueryKeepsLeftKeyAndSubqueryColumn
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup | EVAL languages = language_name) ON language_code
+| KEEP emp_no, language_code, languages
+| SORT emp_no
+;
+
+emp_no:integer | language_code:integer | languages:keyword
+10001          | 2                     | French
+10002          | 5                     | null
+;
+
+leftOuterJoinSubqueryOnRenamedKey
+required_capability: join_on_subquery
+
+ROW languages = 2
+| RENAME languages AS k
+| LEFT OUTER JOIN (ROW k = 2, languages = "label") ON k
+;
+
+k:integer | languages:keyword
+2         | label
+;
+
+leftOuterJoinSubqueryWithNoRows
+required_capability: join_on_subquery
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup | WHERE language_code > 100) ON language_code
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | null
+10002          | null
+;
+
+leftOuterJoinSubqueryThenSearchOnLeftField
+required_capability: join_on_subquery
+required_capability: match_function
+// A search on a left field is pushed below the join, to the data nodes.
+
+FROM employees
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| WHERE MATCH(first_name, "Georgi")
+| KEEP emp_no, first_name, language_name
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+10001          | Georgi             | French
+;
+
+leftOuterJoinSubqueryThenSearchOnSubqueryColumn
+required_capability: join_on_subquery
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+// A search on a subquery column runs after the join, over the values in the page.
+
+FROM employees
+| WHERE emp_no <= 10010
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| WHERE MATCH(language_name, "French")
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10008          | French
+;
+
+leftOuterJoinSubqueryThenInlineStats
+required_capability: join_on_subquery
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| INLINE STATS c = COUNT(*) BY language_name
+| KEEP emp_no, language_name, c
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword | c:long
+10001          | French                | 1
+10002          | null                  | 2
+10003          | German                | 1
+10004          | null                  | 2
+10005          | English               | 1
+;
+
+leftOuterJoinSubqueryInFromSubqueryBranch
+required_capability: join_on_subquery
+required_capability: subquery_in_from_command
+
+FROM (
+    FROM employees
+    | WHERE emp_no <= 10002
+    | EVAL language_code = languages
+    | LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+    | KEEP emp_no, language_name
+  ), (
+    FROM employees
+    | WHERE emp_no == 10003
+    | EVAL language_name = first_name
+    | KEEP emp_no, language_name
+  )
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+10003          | Parto
+;
+
+leftOuterJoinSubqueryWithInlineStatsInSubquery
+required_capability: join_on_subquery
+required_capability: inline_stats
+// The INLINE STATS inside the subquery runs before the subquery itself.
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup | INLINE STATS c = COUNT(*) BY language_code) ON language_code
+| KEEP emp_no, language_name, c
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword | c:long
+10001          | French                | 1
+10002          | null                  | null
+;
+
+leftOuterJoinSubqueryWithInSubqueryInSubquery
+required_capability: join_on_subquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no <= 10003
+| EVAL language_code = languages
+| LEFT OUTER JOIN (
+    FROM languages_lookup
+    | WHERE language_code IN (FROM employees | WHERE emp_no == 10001 | KEEP languages)
+  ) ON language_code
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+10003          | null
+;
+
+leftOuterJoinSubqueryAfterInSubquery
+required_capability: join_on_subquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE emp_no <= 10002 | KEEP emp_no)
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| KEEP emp_no, language_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10002          | null
+;
+
+leftOuterJoinSubqueryThenLookupJoin
+required_capability: join_on_subquery
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| RENAME language_name AS subquery_name
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, subquery_name, language_name
+| SORT emp_no
+;
+
+emp_no:integer | subquery_name:keyword | language_name:keyword
+10001          | French                | French
+10002          | null                  | null
+;
+
+leftOuterJoinSubqueryThenEnrich
+required_capability: join_on_subquery
+required_capability: enrich_load
+
+FROM employees
+| WHERE emp_no <= 10002
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+| EVAL a = TO_STRING(language_code)
+| ENRICH languages_policy ON a WITH enriched_name = language_name
+| KEEP emp_no, language_name, enriched_name
+| SORT emp_no
+;
+
+emp_no:integer | language_name:keyword | enriched_name:keyword
+10001          | French                | French
+10002          | null                  | null
+;
+
+leftOuterJoinSubqueryInForkBranch
+required_capability: join_on_subquery
+required_capability: fork_v9
+
+FROM employees
+| WHERE emp_no <= 10002
+| FORK (EVAL language_code = languages | LEFT OUTER JOIN (FROM languages_lookup) ON language_code | KEEP emp_no, language_name)
+       (EVAL language_name = "none" | KEEP emp_no, language_name)
+| KEEP _fork, emp_no, language_name
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer | language_name:keyword
+fork1         | 10001          | French
+fork1         | 10002          | null
+fork2         | 10001          | none
+fork2         | 10002          | none
+;
+
+leftOuterJoinSubqueriesInUnionBranches
+required_capability: join_on_subquery
+required_capability: subquery_in_from_command
+
+FROM (
+    FROM employees
+    | WHERE emp_no <= 10005
+    | EVAL language_code = languages
+    | LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+    | STATS c = COUNT(*) BY language_name
+  ), (
+    FROM employees
+    | WHERE emp_no <= 10005
+    | EVAL language_code = languages
+    | LEFT OUTER JOIN (FROM languages_lookup) ON language_code
+    | STATS c = COUNT(*) BY language_name
+  )
+| SORT language_name, c
+;
+
+c:long | language_name:keyword
+1      | English
+1      | English
+1      | French
+1      | French
+1      | German
+1      | German
+2      | null
+2      | null
+;

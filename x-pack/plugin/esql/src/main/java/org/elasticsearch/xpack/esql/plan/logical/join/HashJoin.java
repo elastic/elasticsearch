@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -26,26 +28,51 @@ import java.util.Set;
 
 import static java.util.function.Predicate.not;
 import static java.util.stream.Stream.concat;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
  * Coordinator hash join over a local build side (maps to {@code HashJoinExec}).
  * <p>
- * {@link JoinTypes#INNER} drops unmatched probe rows; {@link JoinTypes#LEFT} keeps them (PromQL {@code unless}).
- * <p>
- * The build side has each key once unless {@link #repeatedKeys()} is set, in which case a probe row comes out once for each
- * build row it matches. A null or multivalued key then matches nothing, as in {@code LOOKUP JOIN}. A multivalued build key warns
- * once, even if no probe key would have matched it (see {@code RowInTableLookupOperator}). Repeated keys can't be combined
- * with {@link #unique()}.
+ * The {@link Kind} says which command the join runs, and with it the join type and how the build side's keys match.
+ * {@link JoinTypes#INNER} drops unmatched probe rows; {@link JoinTypes#LEFT} keeps them.
  */
 public class HashJoin extends Join implements SortPreserving {
 
-    private final List<Attribute> addedFields;
-    private final boolean unique;
     /**
-     * Whether the build side may repeat a key. Without it, building the lookup table fails on a repeated key.
+     * The command a hash join runs.
      */
-    private final boolean repeatedKeys;
+    public enum Kind {
+        /**
+         * A PromQL one-to-one vector match: the build keys are unique, and a build row may match only one probe row. A repeated
+         * build key or a second match of a build row fails.
+         */
+        PROMQL_ONE_TO_ONE(JoinTypes.INNER),
+        /**
+         * A PromQL many-to-one or one-to-many vector match ({@code group_left}, {@code group_right}): the build keys are unique and
+         * the probe keys may repeat. A repeated build key fails.
+         */
+        PROMQL_MANY_TO_ONE(JoinTypes.INNER),
+        /**
+         * The ES|QL {@code LEFT OUTER JOIN} command. A probe row comes out once for each build row it matches. A null or multivalued
+         * key matches nothing, as in {@code LOOKUP JOIN}, and a multivalued build key warns once, even if no probe key would have
+         * matched it (see {@code RowInTableLookupOperator}).
+         */
+        ESQL_LEFT_OUTER_JOIN(JoinTypes.LEFT),
+        /**
+         * The ES|QL {@code INNER JOIN} command: as {@link #ESQL_LEFT_OUTER_JOIN}, but a probe row that matches nothing is dropped.
+         */
+        ESQL_INNER_JOIN(JoinTypes.INNER);
+
+        private final JoinType joinType;
+
+        Kind(JoinType joinType) {
+            this.joinType = joinType;
+        }
+    }
+
+    private final List<Attribute> addedFields;
+    private final Kind kind;
     private volatile List<Attribute> lazyOutput;
 
     public HashJoin(
@@ -55,29 +82,11 @@ public class HashJoin extends Join implements SortPreserving {
         List<Attribute> leftFields,
         List<Attribute> rightFields,
         List<Attribute> addedFields,
-        boolean unique
+        Kind kind
     ) {
-        this(source, left, right, leftFields, rightFields, addedFields, unique, JoinTypes.INNER, false);
-    }
-
-    public HashJoin(
-        Source source,
-        LogicalPlan left,
-        LogicalPlan right,
-        List<Attribute> leftFields,
-        List<Attribute> rightFields,
-        List<Attribute> addedFields,
-        boolean unique,
-        JoinType type,
-        boolean repeatedKeys
-    ) {
-        super(source, left, right, type, leftFields, rightFields, null, ExecuteLocation.COORDINATOR);
-        if (type != JoinTypes.INNER && type != JoinTypes.LEFT) {
-            throw new IllegalArgumentException("HashJoin supports INNER or LEFT, got [" + type.joinName() + "]");
-        }
+        super(source, left, right, kind.joinType, leftFields, rightFields, null, ExecuteLocation.COORDINATOR);
         this.addedFields = addedFields;
-        this.unique = unique;
-        this.repeatedKeys = repeatedKeys;
+        this.kind = kind;
     }
 
     @Override
@@ -102,12 +111,47 @@ public class HashJoin extends Join implements SortPreserving {
         return addedFields;
     }
 
-    public boolean unique() {
-        return unique;
+    public Kind kind() {
+        return kind;
     }
 
+    /**
+     * Whether a build row may match only one probe row, which fails on a second match at runtime.
+     */
+    public boolean unique() {
+        return switch (kind) {
+            case PROMQL_ONE_TO_ONE -> true;
+            case PROMQL_MANY_TO_ONE, ESQL_LEFT_OUTER_JOIN, ESQL_INNER_JOIN -> false;
+        };
+    }
+
+    /**
+     * Whether the build side may repeat a key. Without it, building the lookup table fails on a repeated key.
+     */
     public boolean repeatedKeys() {
-        return repeatedKeys;
+        return switch (kind) {
+            case PROMQL_ONE_TO_ONE, PROMQL_MANY_TO_ONE -> false;
+            case ESQL_LEFT_OUTER_JOIN, ESQL_INNER_JOIN -> true;
+        };
+    }
+
+    /**
+     * The ES|QL command this join runs, which names it in the errors of its checks, or {@code null} for a PromQL vector match,
+     * whose command checks it.
+     */
+    private String esqlCommand() {
+        return switch (kind) {
+            case PROMQL_ONE_TO_ONE, PROMQL_MANY_TO_ONE -> null;
+            case ESQL_LEFT_OUTER_JOIN -> "LEFT OUTER JOIN";
+            case ESQL_INNER_JOIN -> "INNER JOIN";
+        };
+    }
+
+    /**
+     * Whether {@code plan} is a hash join that runs an ES|QL command.
+     */
+    public static boolean isEsqlJoin(LogicalPlan plan) {
+        return plan instanceof HashJoin hashJoin && hashJoin.esqlCommand() != null;
     }
 
     @Override
@@ -169,23 +213,12 @@ public class HashJoin extends Join implements SortPreserving {
 
     @Override
     public HashJoin replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new HashJoin(source(), left, right, leftFields(), rightFields(), addedFields, unique, config().type(), repeatedKeys);
+        return new HashJoin(source(), left, right, leftFields(), rightFields(), addedFields, kind);
     }
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(
-            this,
-            HashJoin::new,
-            left(),
-            right(),
-            leftFields(),
-            rightFields(),
-            addedFields,
-            unique,
-            config().type(),
-            repeatedKeys
-        );
+        return NodeInfo.create(this, HashJoin::new, left(), right(), leftFields(), rightFields(), addedFields, kind);
     }
 
     @Override
@@ -200,12 +233,53 @@ public class HashJoin extends Join implements SortPreserving {
             return false;
         }
         HashJoin hashJoin = (HashJoin) o;
-        return unique == hashJoin.unique && repeatedKeys == hashJoin.repeatedKeys && addedFields.equals(hashJoin.addedFields);
+        return kind == hashJoin.kind && addedFields.equals(hashJoin.addedFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), addedFields, unique, repeatedKeys);
+        return Objects.hash(super.hashCode(), addedFields, kind);
+    }
+
+    /**
+     * Checks the right side's columns of an ES|QL join: the hash join copies a matched row's columns with {@code Block#lookup},
+     * which some block types do not implement. The optimizer has pruned the columns that nothing reads, except in a branch of a
+     * {@code UNION ALL} or {@code FORK}, whose columns line up by position. A column dropped in the subquery is never returned.
+     */
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        super.postOptimizationVerification(failures);
+        String command = esqlCommand();
+        if (command == null) {
+            return;
+        }
+        for (Attribute field : addedFields) {
+            if (supportsPayloadType(field.dataType()) == false) {
+                failures.add(
+                    fail(
+                        field,
+                        "{} cannot return column [{}] of type [{}]; remove it from the subquery with KEEP or DROP",
+                        command,
+                        field.name(),
+                        field.dataType()
+                    )
+                );
+            }
+        }
+    }
+
+    /**
+     * Whether the join can copy a right-side column of this type into its output.
+     */
+    static boolean supportsPayloadType(DataType dataType) {
+        return switch (dataType) {
+            // Block#lookup is not implemented for these block types.
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, DATE_RANGE, DOUBLE_RANGE, DOC_DATA_TYPE, PARTIAL_AGG -> false;
+            case UNSUPPORTED, NULL, BOOLEAN, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, LONG, INTEGER, UNSIGNED_LONG, DOUBLE, SHORT,
+                BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, DATETIME, DATE_NANOS, IP, VERSION, OBJECT, SOURCE, DATE_PERIOD,
+                TIME_DURATION, GEO_POINT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX, TSID_DATA_TYPE,
+                TIME_SERIES_METADATA_DATA_TYPE, HISTOGRAM, DENSE_VECTOR, FLATTENED -> true;
+        };
     }
 
     /**

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -383,6 +384,17 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                     lookupJoin,
                     "lookup join [{}] in the time-series before the first aggregation [{}] is not allowed",
                     lookupJoin.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
+        // reject `TS metrics | LEFT OUTER JOIN (...) ON ... | STATS ...`: the join runs on the coordinator, away from the time series
+        if (p instanceof SubqueryJoin subqueryJoin) {
+            failures.add(
+                fail(
+                    subqueryJoin,
+                    "JOIN on a subquery [{}] in the time-series before the first aggregation [{}] is not allowed",
+                    subqueryJoin.sourceText(),
                     this.sourceText()
                 )
             );

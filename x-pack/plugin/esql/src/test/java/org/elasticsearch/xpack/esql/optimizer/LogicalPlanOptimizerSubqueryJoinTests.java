@@ -18,8 +18,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Logical optimization of {@code LEFT OUTER JOIN} on a subquery that is rejected. The session rejects the join before optimization
- * until it can run, so these tests optimize the analyzed plan directly. The plans of queries that optimize are captured in
+ * Logical optimization of {@code LEFT OUTER JOIN} on a subquery that is rejected. The plans of queries that optimize are captured in
  * {@link LogicalPlanOptimizerSubqueryJoinGoldenTests}.
  */
 public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOptimizerTests {
@@ -29,6 +28,9 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
         | EVAL language_code = languages
         | LEFT OUTER JOIN (FROM languages) ON language_code
         """;
+
+    private static final String PAYLOAD_TYPE_ERROR =
+        "LEFT OUTER JOIN cannot return column [m] of type [AGGREGATE_METRIC_DOUBLE]; remove it from the subquery with KEEP or DROP";
 
     public LogicalPlanOptimizerSubqueryJoinTests(VersionMode versionMode) {
         super(versionMode);
@@ -51,16 +53,40 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
             | LEFT OUTER JOIN (ROW language_code = 1, m = TO_AGGREGATE_METRIC_DOUBLE(1)) ON language_code
             """;
         VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan(query));
-        assertThat(
-            e.getMessage(),
-            containsString("JOIN subquery cannot return column [m] of type [AGGREGATE_METRIC_DOUBLE]; remove it with KEEP or DROP")
-        );
+        assertThat(e.getMessage(), containsString(PAYLOAD_TYPE_ERROR));
     }
 
-    public void testMapperRejectsJoin() {
-        LogicalPlan plan = optimizedJoinPlan(JOIN_LANGUAGES);
-        VerificationException e = expectThrows(VerificationException.class, () -> new Mapper().map(new Versioned<>(plan, minimumVersion)));
-        assertThat(e.getMessage(), containsString("line 3:3: JOIN on a subquery is not supported yet"));
+    /**
+     * A branch of a {@code UNION ALL} keeps its columns, since branches line up by position, so dropping the column after the union
+     * doesn't reach the join. The error points at the subquery, where dropping it always works.
+     */
+    public void testPayloadTypeWithoutLookupInUnionBranch() {
+        VerificationException e = expectThrows(VerificationException.class, () -> optimizedJoinPlan("""
+            FROM (
+                FROM test
+                | EVAL language_code = languages
+                | LEFT OUTER JOIN (ROW language_code = 1, m = TO_AGGREGATE_METRIC_DOUBLE(1)) ON language_code
+              ), (FROM test | EVAL language_code = languages)
+            | DROP m
+            """));
+        assertThat(e.getMessage(), containsString(PAYLOAD_TYPE_ERROR));
+
+        optimizedJoinPlan("""
+            FROM (
+                FROM test
+                | EVAL language_code = languages
+                | LEFT OUTER JOIN (ROW language_code = 1, m = TO_AGGREGATE_METRIC_DOUBLE(1) | DROP m) ON language_code
+              ), (FROM test | EVAL language_code = languages)
+            """);
+    }
+
+    /**
+     * The optimizer replaces the join with a hash join, which is the only join on a subquery the mapper can plan.
+     */
+    public void testMapperRejectsJoinThatWasNotReplaced() {
+        LogicalPlan plan = analyzer().addEmployees("test").addLanguages().query(JOIN_LANGUAGES);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new Mapper().map(new Versioned<>(plan, minimumVersion)));
+        assertThat(e.getMessage(), containsString("JOIN on a subquery must be replaced with a hash join before mapping"));
     }
 
     private LogicalPlan optimizedJoinPlan(String query) {

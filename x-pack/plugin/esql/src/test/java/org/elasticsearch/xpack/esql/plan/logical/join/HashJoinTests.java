@@ -44,7 +44,7 @@ public class HashJoinTests extends ESTestCase {
         FieldAttribute leftKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute value = getFieldAttribute("v", DataType.LONG);
-        HashJoin hashJoin = hashJoin(leftKey, rightKey, value, true);
+        HashJoin hashJoin = hashJoin(leftKey, rightKey, value, HashJoin.Kind.PROMQL_ONE_TO_ONE);
 
         assertThat(hashJoin, instanceOf(Join.class));
         assertThat(hashJoin.config().type(), sameInstance(JoinTypes.INNER));
@@ -67,20 +67,18 @@ public class HashJoinTests extends ESTestCase {
             List.of(leftKey),
             List.of(rightKey),
             List.of(value),
-            false,
-            JoinTypes.LEFT,
-            false
+            HashJoin.Kind.ESQL_LEFT_OUTER_JOIN
         );
         assertThat(hashJoin.config().type(), sameInstance(JoinTypes.LEFT));
     }
 
     /**
-     * Repeated keys are off unless asked for, and survive replacing the right side with its materialized result.
+     * Only the ES|QL join repeats keys, and its kind survives replacing the right side with its materialized result.
      */
     public void testRepeatedKeys() {
         FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute value = getFieldAttribute("v", DataType.LONG);
-        HashJoin plain = hashJoin(getFieldAttribute("k", DataType.LONG), rightKey, value, false);
+        HashJoin plain = hashJoin(getFieldAttribute("k", DataType.LONG), rightKey, value, HashJoin.Kind.PROMQL_MANY_TO_ONE);
         assertThat(plain.repeatedKeys(), is(false));
 
         HashJoin repeated = new HashJoin(
@@ -90,25 +88,34 @@ public class HashJoinTests extends ESTestCase {
             plain.leftFields(),
             plain.rightFields(),
             plain.addedFields(),
-            false,
-            plain.config().type(),
-            true
+            HashJoin.Kind.ESQL_LEFT_OUTER_JOIN
         );
         assertThat(repeated, not(equalTo(plain)));
 
         HashJoin.LogicalPlanTuple tuple = HashJoin.firstSubPlan(repeated, new HashSet<>());
         HashJoin rebuilt = as(HashJoin.newMainPlan(repeated, tuple, localRelation(List.of(rightKey, value))), HashJoin.class);
+        assertThat(rebuilt.kind(), is(HashJoin.Kind.ESQL_LEFT_OUTER_JOIN));
         assertThat(rebuilt.repeatedKeys(), is(true));
     }
 
     public void testNotSerialized() {
-        HashJoin hashJoin = hashJoin(getFieldAttribute("k", DataType.LONG), getFieldAttribute("k", DataType.LONG), null, false);
+        HashJoin hashJoin = hashJoin(
+            getFieldAttribute("k", DataType.LONG),
+            getFieldAttribute("k", DataType.LONG),
+            null,
+            HashJoin.Kind.PROMQL_MANY_TO_ONE
+        );
         expectThrows(UnsupportedOperationException.class, () -> hashJoin.writeTo((StreamOutput) null));
         expectThrows(UnsupportedOperationException.class, hashJoin::getWriteableName);
     }
 
     public void testFirstSubPlanFindsHashJoinRight() {
-        HashJoin hashJoin = hashJoin(getFieldAttribute("k", DataType.LONG), getFieldAttribute("k", DataType.LONG), null, true);
+        HashJoin hashJoin = hashJoin(
+            getFieldAttribute("k", DataType.LONG),
+            getFieldAttribute("k", DataType.LONG),
+            null,
+            HashJoin.Kind.PROMQL_ONE_TO_ONE
+        );
 
         HashJoin.LogicalPlanTuple tuple = HashJoin.firstSubPlan(hashJoin, new HashSet<>());
         assertThat(tuple, notNullValue());
@@ -128,7 +135,7 @@ public class HashJoinTests extends ESTestCase {
             List.of(leftKey),
             List.of(rightKey),
             List.of(),
-            false
+            HashJoin.Kind.PROMQL_MANY_TO_ONE
         );
 
         Set<LocalRelation> processed = new HashSet<>();
@@ -140,7 +147,7 @@ public class HashJoinTests extends ESTestCase {
         FieldAttribute leftKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute value = getFieldAttribute("v", DataType.LONG);
-        HashJoin hashJoin = hashJoin(leftKey, rightKey, value, true);
+        HashJoin hashJoin = hashJoin(leftKey, rightKey, value, HashJoin.Kind.PROMQL_ONE_TO_ONE);
 
         HashJoin.LogicalPlanTuple tuple = HashJoin.firstSubPlan(hashJoin, new HashSet<>());
         assertThat(tuple, notNullValue());
@@ -156,10 +163,10 @@ public class HashJoinTests extends ESTestCase {
         assertThat(rebuilt.leftFields(), equalTo(hashJoin.leftFields()));
         assertThat(rebuilt.rightFields(), equalTo(hashJoin.rightFields()));
         assertThat(rebuilt.addedFields(), equalTo(hashJoin.addedFields()));
-        assertThat(rebuilt.unique(), is(hashJoin.unique()));
+        assertThat(rebuilt.kind(), is(hashJoin.kind()));
     }
 
-    private static HashJoin hashJoin(FieldAttribute leftKey, FieldAttribute rightKey, FieldAttribute addedValue, boolean unique) {
+    private static HashJoin hashJoin(FieldAttribute leftKey, FieldAttribute rightKey, FieldAttribute addedValue, HashJoin.Kind kind) {
         List<Attribute> rightOutput = addedValue == null ? List.of(rightKey) : List.of(rightKey, addedValue);
         List<Attribute> added = addedValue == null ? List.of() : List.of(addedValue);
         return new HashJoin(
@@ -169,7 +176,7 @@ public class HashJoinTests extends ESTestCase {
             List.of(leftKey),
             List.of(rightKey),
             added,
-            unique
+            kind
         );
     }
 

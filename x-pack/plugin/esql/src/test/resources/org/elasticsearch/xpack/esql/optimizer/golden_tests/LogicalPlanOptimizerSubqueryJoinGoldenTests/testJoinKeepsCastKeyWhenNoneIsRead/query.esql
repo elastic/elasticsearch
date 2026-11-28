@@ -1,0 +1,4 @@
+FROM employees
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages | EVAL language_code = TO_LONG(language_code)) ON language_code
+| STATS c = COUNT(*)

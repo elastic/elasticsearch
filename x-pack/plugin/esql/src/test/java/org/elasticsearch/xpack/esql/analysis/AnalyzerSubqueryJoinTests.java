@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -34,9 +33,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Analysis and verification of {@code LEFT OUTER JOIN} on a subquery. The join cannot run yet, so these tests stop at the analyzed
- * plan; {@link SubqueryJoin#rejectUntilSupported} rejects it before optimization in the session. The plans of queries that analyze
- * are captured in {@code LogicalPlanOptimizerSubqueryJoinGoldenTests}.
+ * Analysis and verification of {@code LEFT OUTER JOIN} on a subquery. The plans of queries that analyze are captured in
+ * {@code LogicalPlanOptimizerSubqueryJoinGoldenTests}.
  */
 public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
 
@@ -234,6 +232,25 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
     }
 
     /**
+     * The first aggregation of a {@code TS} groups the rows of each time series where they are read, and the join runs on the
+     * coordinator, so the join can't come before it, as for {@code LOOKUP JOIN}.
+     */
+    public void testJoinBeforeTimeSeriesAggregation() {
+        analyzer().addK8s()
+            .error(
+                """
+                    TS k8s
+                    | LEFT OUTER JOIN (ROW cluster = "prod", team = "a") ON cluster
+                    | STATS max(rate(network.total_bytes_in)) BY team
+                    """,
+                allOf(
+                    containsString("line 2:3: JOIN on a subquery [LEFT OUTER JOIN (ROW cluster = \"prod\", team = \"a\") ON cluster]"),
+                    containsString("in the time-series before the first aggregation")
+                )
+            );
+    }
+
+    /**
      * An {@code IN} subquery runs on its own, so a remote index it reads says nothing about the {@code JOIN}.
      */
     public void testRemoteIndexInInSubqueryIsNotTheJoins() {
@@ -244,15 +261,6 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
             | LEFT OUTER JOIN (FROM languages) ON language_code
             """));
         assertTrue(join.resolved());
-    }
-
-    public void testRejectUntilSupported() {
-        LogicalPlan plan = analyzer().query(JOIN_LANGUAGES);
-        VerificationException e = expectThrows(VerificationException.class, () -> SubqueryJoin.rejectUntilSupported(plan));
-        assertThat(e.getMessage(), containsString("line 3:3: JOIN on a subquery is not supported yet"));
-
-        LogicalPlan withoutJoin = analyzer().query("FROM test | EVAL language_code = languages");
-        SubqueryJoin.rejectUntilSupported(withoutJoin);
     }
 
     /**

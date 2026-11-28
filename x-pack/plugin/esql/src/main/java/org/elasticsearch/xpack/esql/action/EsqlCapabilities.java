@@ -1232,6 +1232,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP_V12,
 
         /**
+         * {@code LEFT OUTER JOIN} on a subquery, as in {@code FROM a | LEFT OUTER JOIN (FROM b | ...) ON key}.
+         */
+        JOIN_ON_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
          */
         LOOKUP_JOIN_TEXT(JOIN_LOOKUP_V12.isEnabled()),

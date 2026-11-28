@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -152,7 +153,8 @@ public class UnionAll extends MergePlan {
     }
 
     /**
-     * Checks max_branch_count and max_branch_level for the main query and every {@code IN} subquery independently.
+     * Checks max_branch_count and max_branch_level for the main query and every subquery that runs on its own, of an {@code IN} or
+     * of a {@code JOIN}, independently.
      */
     public static void checkNestedSubqueryLimits(
         LogicalPlan optimizedPlan,
@@ -176,9 +178,10 @@ public class UnionAll extends MergePlan {
         String branchLevelSource,
         Failures failures
     ) {
-        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
-            checkNestedSubqueryLimits(subqueryJoin.right(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
-            checkInSubqueryLimits(subqueryJoin.left(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
+        // The optimizer replaces a JOIN on a subquery with a hash join, whose right side still runs on its own.
+        if (plan instanceof BinaryPlan join && (join instanceof IndependentSubqueryJoin || HashJoin.isEsqlJoin(join))) {
+            checkNestedSubqueryLimits(join.right(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
+            checkInSubqueryLimits(join.left(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
             return;
         }
         for (LogicalPlan child : plan.children()) {
@@ -195,9 +198,9 @@ public class UnionAll extends MergePlan {
      * <p>
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
-     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
-     * compute service. It counts leaves under {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs
-     * exactly the same at execution time as one the user wrote.
+     * every node. The main query and each subquery that runs on its own, of an {@code IN} or of a {@code JOIN}, are checked separately
+     * because each is executed independently by the compute service. It counts leaves under {@link BranchPlan}s too: a union produced by
+     * expanding a {@code FROM} pattern or view costs exactly the same at execution time as one the user wrote.
      */
     private static void checkTotalBranchCount(UnionStats stats, int maxBranches, String branchCountSource, Failures failures) {
         if (stats.first() == null || stats.leaves() <= maxBranches) {
@@ -216,9 +219,9 @@ public class UnionAll extends MergePlan {
      * <p>
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
-     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the compute
-     * service. It counts {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
-     * execution time as one the user wrote.
+     * every node. The main query and each subquery that runs on its own, of an {@code IN} or of a {@code JOIN}, are checked separately
+     * because each is executed independently by the compute service. It counts {@link BranchPlan}s too: a union produced by expanding a
+     * {@code FROM} pattern or view costs exactly the same at execution time as one the user wrote.
      */
     private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, String branchLevelSource, Failures failures) {
         if (stats.depth() <= maxLevels) {
@@ -241,8 +244,9 @@ public class UnionAll extends MergePlan {
      * Summarizes the merge plans under {@code plan}. A subtree with no merge plan is one producer leaf. Otherwise its leaf count is the
      * sum of its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a merge plan. The right
      * side of a {@link Join} is excluded: a {@code LOOKUP JOIN} (and {@code INLINE STATS}) lookup/stub is not a union producer leaf, and
-     * the right side of an {@link IndependentSubqueryJoin} is an independently executed query counted via
-     * {@link #checkInSubqueryLimits}. The first and deepest unions provide distinct failure locations when both limits are exceeded.
+     * the right side of an {@link IndependentSubqueryJoin}, or of the hash join that replaces a {@code JOIN} on a subquery, is an
+     * independently executed query counted via {@link #checkInSubqueryLimits}. The first and deepest unions provide distinct failure
+     * locations when both limits are exceeded.
      * <p>
      * The stats of every node reached are kept in {@code cache} by identity, so a plan whose FORK branches still share their input,
      * as they do before analysis, is walked once rather than once per path.

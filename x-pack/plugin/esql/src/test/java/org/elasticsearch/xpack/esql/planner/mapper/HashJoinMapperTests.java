@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -21,8 +20,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
@@ -49,7 +46,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class HashJoinMapperTests extends ESTestCase {
 
     public void testMapsHashJoinToLeftHashJoinFilterOnLookupOrdinal() {
-        HashJoin hashJoin = hashJoin(false);
+        HashJoin hashJoin = hashJoin(HashJoin.Kind.PROMQL_MANY_TO_ONE);
         PhysicalPlan physical = new Mapper().map(new Versioned<>(hashJoin, TransportVersion.current()));
 
         ProjectExec project = as(physical, ProjectExec.class);
@@ -70,7 +67,7 @@ public class HashJoinMapperTests extends ESTestCase {
     }
 
     public void testMapsUniqueHashJoinGuardsOutputWithDistinctBy() {
-        HashJoin hashJoin = hashJoin(true, JoinTypes.INNER, new long[] { 10, 10 }, new long[] { 100, 200 });
+        HashJoin hashJoin = hashJoin(HashJoin.Kind.PROMQL_ONE_TO_ONE, new long[] { 10, 10 }, new long[] { 100, 200 });
         PhysicalPlan physical = new Mapper().map(new Versioned<>(hashJoin, TransportVersion.current()));
 
         ProjectExec project = as(physical, ProjectExec.class);
@@ -88,7 +85,7 @@ public class HashJoinMapperTests extends ESTestCase {
     }
 
     public void testLeftJoinSkipsMarkerFilter() {
-        HashJoin hashJoin = hashJoin(false, JoinTypes.LEFT, new long[] { 10, 20 }, new long[] { 100, 200 });
+        HashJoin hashJoin = hashJoin(HashJoin.Kind.ESQL_LEFT_OUTER_JOIN, new long[] { 10, 20 }, new long[] { 100, 200 });
         PhysicalPlan physical = new Mapper().map(new Versioned<>(hashJoin, TransportVersion.current()));
 
         ProjectExec project = as(physical, ProjectExec.class);
@@ -98,8 +95,10 @@ public class HashJoinMapperTests extends ESTestCase {
     }
 
     public void testMapsRepeatedKeysToHashJoinExec() {
-        HashJoin template = hashJoin(false, JoinTypes.LEFT, new long[] { 10, 10 }, new long[] { 100, 200 });
-        assertThat(as(as(map(template), ProjectExec.class).child(), HashJoinExec.class).repeatedKeys(), equalTo(false));
+        HashJoin template = hashJoin(HashJoin.Kind.PROMQL_MANY_TO_ONE, new long[] { 10, 10 }, new long[] { 100, 200 });
+        // An INNER PromQL join filters out the probe rows that matched nothing.
+        FilterExec matched = as(as(map(template), ProjectExec.class).child(), FilterExec.class);
+        assertThat(as(matched.child(), HashJoinExec.class).repeatedKeys(), equalTo(false));
 
         HashJoin hashJoin = withLeft(template, template.left(), template.leftFields());
         HashJoinExec join = as(as(map(hashJoin), ProjectExec.class).child(), HashJoinExec.class);
@@ -109,21 +108,11 @@ public class HashJoinMapperTests extends ESTestCase {
     }
 
     /**
-     * A unique join matches a probe row to at most one build row, which repeated build keys would break.
-     */
-    public void testUniqueWithRepeatedKeysNotSupported() {
-        HashJoin template = hashJoin(true, JoinTypes.LEFT, new long[] { 10, 20 }, new long[] { 100, 200 });
-        HashJoin hashJoin = withLeft(template, template.left(), template.leftFields());
-        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> map(hashJoin));
-        assertThat(e.getMessage(), equalTo("a unique hash join cannot allow repeated keys"));
-    }
-
-    /**
      * The join runs on the coordinator, so a left side that reads an index comes through an exchange, as for a coordinator
      * {@code LOOKUP JOIN}. PromQL never needs one: its left side is always an aggregation.
      */
     public void testHashJoinOverIndexExchangesTheLeftSide() {
-        HashJoin template = hashJoin(false, JoinTypes.LEFT, new long[] { 10, 10 }, new long[] { 100, 200 });
+        HashJoin template = hashJoin(HashJoin.Kind.PROMQL_MANY_TO_ONE, new long[] { 10, 10 }, new long[] { 100, 200 });
         FieldAttribute indexKey = getFieldAttribute("k", DataType.LONG);
         EsRelation index = relation().withAttributes(List.of(indexKey));
         HashJoin hashJoin = withLeft(template, index, List.of(indexKey));
@@ -140,7 +129,7 @@ public class HashJoinMapperTests extends ESTestCase {
     }
 
     /**
-     * {@code template} with repeated keys and the given left side.
+     * {@code template} as an ES|QL {@code LEFT OUTER JOIN}, which repeats keys, with the given left side.
      */
     private static HashJoin withLeft(HashJoin template, LogicalPlan left, List<Attribute> leftFields) {
         return new HashJoin(
@@ -150,17 +139,15 @@ public class HashJoinMapperTests extends ESTestCase {
             leftFields,
             template.rightFields(),
             template.addedFields(),
-            template.unique(),
-            template.config().type(),
-            true
+            HashJoin.Kind.ESQL_LEFT_OUTER_JOIN
         );
     }
 
-    private static HashJoin hashJoin(boolean unique) {
-        return hashJoin(unique, JoinTypes.INNER, new long[] { 10, 20 }, new long[] { 100, 200 });
+    private static HashJoin hashJoin(HashJoin.Kind kind) {
+        return hashJoin(kind, new long[] { 10, 20 }, new long[] { 100, 200 });
     }
 
-    private static HashJoin hashJoin(boolean unique, JoinType type, long[] buildKeys, long[] buildValues) {
+    private static HashJoin hashJoin(HashJoin.Kind kind, long[] buildKeys, long[] buildValues) {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
         ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k", DataType.LONG);
         LocalRelation probe = new LocalRelation(
@@ -180,6 +167,6 @@ public class HashJoinMapperTests extends ESTestCase {
                 )
             )
         );
-        return new HashJoin(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue), unique, type, false);
+        return new HashJoin(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue), kind);
     }
 }

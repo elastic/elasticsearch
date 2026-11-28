@@ -122,6 +122,7 @@ public enum FeatureMetric {
     RENAME(Rename.class::isInstance),
     LOOKUP_JOIN(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() == null),
     LOOKUP_JOIN_ON_EXPRESSION(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() != null),
+    JOIN_SUBQUERY(SubqueryJoin.class::isInstance),
     LOOKUP(Lookup.class::isInstance),
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINE_STATS(InlineStats.class::isInstance),
@@ -182,7 +183,6 @@ public enum FeatureMetric {
         // records the telemetry; STATS itself is counted via the Aggregate exclusion above.
         MarkJoin.class,
         HashJoin.class, // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
-        SubqueryJoin.class, // JOIN on a subquery is rejected after analysis, so it has no counter of its own yet
         UnionAll.class // synthesized FROM/subquery/view union; SUBQUERY and VIEW metrics cover the user-facing constructs
     );
 

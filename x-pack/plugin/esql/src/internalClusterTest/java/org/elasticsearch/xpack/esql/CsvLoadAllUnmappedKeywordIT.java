@@ -80,6 +80,10 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         "line \\d+:\\d+(?: \\(in view \\[[^\\]]*]\\))?: unmapped_fields=\"LOAD_ALL\" only supports the FROM, .* and subquery commands; "
             + "\\[([^\\]]+)] is not supported yet"
     );
+    /** The verifier rejects a JOIN on a subquery under any non-default unmapped_fields with a message of its own. */
+    private static final Pattern UNSUPPORTED_SUBQUERY_JOIN_PROBLEM_PATTERN = Pattern.compile(
+        "line \\d+:\\d+(?: \\(in view \\[[^\\]]*]\\))?: JOIN on a subquery is not supported with unmapped_fields=\"(?i:load_all)\""
+    );
     private static final Pattern FULL_TEXT_FUNCTION_PATTERN = Pattern.compile(
         "(?i)\\b(KQL|QSTR|MATCH_PHRASE|MATCH)\\s*\\(|\\bMATCH\\b|\\w+\\s*:\\s*\""
     );
@@ -289,10 +293,15 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         String command = null;
         for (String problem : lines.subList(1, lines.size())) {
             Matcher unsupported = UNSUPPORTED_COMMAND_PROBLEM_PATTERN.matcher(problem);
-            if (unsupported.matches() == false) {
+            final String problemCommand;
+            if (unsupported.matches()) {
+                problemCommand = unsupported.group(1);
+            } else if (UNSUPPORTED_SUBQUERY_JOIN_PROBLEM_PATTERN.matcher(problem).matches()) {
+                problemCommand = "JOIN on a subquery";
+            } else {
                 return null;
             }
-            command = command == null ? unsupported.group(1) : command;
+            command = command == null ? problemCommand : command;
         }
         return command;
     }

@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRel
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSubqueryJoinWithHashJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTsInfoWithMetricsInfo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
@@ -156,6 +157,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         new Batch<>("Single Pass Time Series", Limiter.ONCE, new UseSinglePassTimeSeriesAggregate()),
         cleanup(),
         warnings(),
+        // After every other rule, which treat the subquery of a JOIN as a query of its own.
+        new Batch<>("Replace Subquery Joins", Limiter.ONCE, new ReplaceSubqueryJoinWithHashJoin()),
         // Last, so no other rule meets a Fetch, and the plan already has the cut and the commands the mapper splits it at.
         new Batch<>("Plan Fetch", Limiter.ONCE, new PlanFetch()),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())

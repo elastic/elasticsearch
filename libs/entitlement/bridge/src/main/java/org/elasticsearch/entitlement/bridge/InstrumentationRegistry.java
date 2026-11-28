@@ -18,4 +18,10 @@ public interface InstrumentationRegistry {
      * Called from bytecode catch handlers when a reference-type default is needed on denial.
      */
     Object defaultValue$(String instrumentationId);
+
+    /**
+     * Checks a write to a system property that does not go through an instrumented method.
+     * The caller is found from the stack. Throws {@link NotEntitledException} if the write is not allowed.
+     */
+    void checkWriteProperty$(String property);
 }

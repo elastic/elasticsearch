@@ -83,5 +83,12 @@ public interface PolicyChecker {
 
     void checkWriteProperty(Class<?> callerClass, String property);
 
+    /**
+     * Like {@link #checkWriteProperty}, but finds the caller itself. It checks the nearest class
+     * on the stack that is not trusted, and allows the write if there is none.
+     * Use this when trusted code may sit between the caller and the write.
+     */
+    void checkWritePropertyFromStack(String property);
+
     void checkWriteStoreAttributes(Class<?> callerClass);
 }

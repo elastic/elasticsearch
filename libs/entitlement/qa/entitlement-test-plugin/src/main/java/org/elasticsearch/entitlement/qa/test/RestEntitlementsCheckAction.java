@@ -70,6 +70,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         PathActions.class,
         SpiActions.class,
         SystemActions.class,
+        SystemPropertiesActions.class,
         URLConnectionFileActions.class,
         URLConnectionNetworkActions.class
     );

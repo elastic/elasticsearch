@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.bridge.SystemPropertiesWrapper;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
@@ -34,6 +35,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
+        Properties systemPropertiesWrapper = new SystemPropertiesWrapper(System::getProperties, registry);
 
         builder.on(Runtime.class, rule -> {
             rule.callingVoid(Runtime::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
@@ -49,6 +51,8 @@ public class SystemInstrumentation implements InstrumentationConfig {
         builder.on(System.class, rule -> {
             rule.callingVoidStatic(System::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
             rule.callingStatic(System::setProperty, String.class, String.class).enforce(Policies::writeProperty).elseReturn(null);
+            // the returned object is live, so callers that may not change global state get a wrapper that checks each write
+            rule.callingStatic(System::getProperties).enforce(Policies::changeJvmGlobalState).elseReturn(systemPropertiesWrapper);
             rule.callingVoidStatic(System::setProperties, Properties.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
             rule.callingStatic(System::clearProperty, String.class).enforce(Policies::writeProperty).elseReturn(null);
             rule.callingVoidStatic(System::setIn, InputStream.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();

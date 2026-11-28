@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
@@ -318,7 +319,7 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
     }
 
     public void testCollectionOfALookupIndexIsRejected() {
-        nestedAnalyzer().error(
+        nestedAnalyzer(TransportVersionUtils.getPreviousVersion(NestedContainerField.VERSION)).error(
             "FROM ne_orders | LOOKUP JOIN ne_lookup ON id | WHERE NESTED_ANY(items.qty > 1)",
             containsString("NESTED_ANY cannot read [items.qty] from a LOOKUP JOIN index")
         );
@@ -349,7 +350,7 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
     }
 
     public void testNamedCollectionOfALookupIndexIsRejected() {
-        nestedAnalyzer().error(
+        nestedAnalyzer(TransportVersionUtils.getPreviousVersion(NestedContainerField.VERSION)).error(
             "FROM ne_orders | LOOKUP JOIN ne_lookup ON id | WHERE NESTED_ANY(items, true)",
             containsString("NESTED_ANY cannot read [items] from a LOOKUP JOIN index")
         );

@@ -103,7 +103,7 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
      * shard here. {@link Translation#exact} says the query matches exactly the parents the predicate does.
      */
     static Translation translate(NestedPredicate predicate, LucenePushdownPredicates children, SearchStats stats) {
-        if (stats.nestedQueriesAllowed() == false) {
+        if (stats.nestedQueriesAllowed() == false || predicate.container() != null) {
             return null;
         }
         Expression childPredicate = childPredicate(predicate, stats);

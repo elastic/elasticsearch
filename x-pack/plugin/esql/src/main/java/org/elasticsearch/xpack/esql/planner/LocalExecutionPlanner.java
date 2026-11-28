@@ -188,6 +188,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandFromContainerOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -3032,6 +3033,13 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(expand.child(), context);
+        if (expand.container() != null) {
+            int containerChannel = source.layout.get(expand.container().id()).channel();
+            Layout.Builder layout = source.layout.builder();
+            layout.append(expand.expanded());
+            List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
+            return source.with(new NestedExpandFromContainerOperator.Factory(containerChannel, types), layout.build());
+        }
         int docChannel = -1;
         for (Attribute attribute : expand.child().output()) {
             if (EsQueryExec.isDocAttribute(attribute)) {

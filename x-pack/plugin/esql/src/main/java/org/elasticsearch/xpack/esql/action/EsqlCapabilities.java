@@ -5061,6 +5061,12 @@ public class EsqlCapabilities {
         NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
+         * {@code NESTED_EXPAND} and {@code NESTED_ANY} read the nested objects of the document a {@code LOOKUP JOIN} matched, which
+         * the lookup node sends as a column. Snapshot-only until {@link #NESTED_EXPAND} is advertised.
+         */
+        NESTED_EXPAND_LOOKUP_JOIN(Build.current().isSnapshot()),
+
+        /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.

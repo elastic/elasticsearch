@@ -117,8 +117,6 @@ public class FieldNameUtils {
         Set<String> collections = new HashSet<>();
         parsed.forEachDown(NestedExpand.class, expand -> {
             if (expand.bound() == false && expand.target() != null) {
-                // TODO: When collection aliases/references are supported, resolve their owning
-                // source and mapped path here; the target name may be an alias in the query.
                 collections.add(expand.target().name());
             }
         });
@@ -136,6 +134,17 @@ public class FieldNameUtils {
         if (collections.isEmpty()) {
             return result;
         }
+        // The target of NESTED_EXPAND, or the first argument of NESTED_ANY, can be a column that an EVAL or a RENAME made of a collection.
+        parsed.forEachDown(Eval.class, eval -> eval.fields().forEach(field -> {
+            if (field.child() instanceof UnresolvedAttribute source) {
+                collections.add(source.name());
+            }
+        }));
+        parsed.forEachDown(Rename.class, rename -> rename.renamings().forEach(field -> {
+            if (field.child() instanceof UnresolvedAttribute source) {
+                collections.add(source.name());
+            }
+        }));
         if (result.fieldNames().contains(WILDCARD)) {
             return new PreAnalysisResult(result.fieldNames(), result.parentPaths(), true, result.wildcardJoinIndices());
         }

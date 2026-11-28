@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.NestedContainerField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -48,6 +49,8 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
     private final String path;
     private final List<Attribute> expanded;
     private final List<String> paths;
+    @Nullable
+    private final Attribute container;
 
     private volatile List<Attribute> output;
 
@@ -64,11 +67,28 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
         List<Attribute> expanded,
         List<String> paths
     ) {
+        this(source, child, target, path, expanded, paths, null);
+    }
+
+    /**
+     * {@code container} is the column that carries the child documents when they do not belong to the rows of the index the
+     * plan reads, such as those of a lookup index; otherwise they are read through the {@code _doc} of the row.
+     */
+    public NestedExpand(
+        Source source,
+        LogicalPlan child,
+        @Nullable NamedExpression target,
+        @Nullable String path,
+        List<Attribute> expanded,
+        List<String> paths,
+        @Nullable Attribute container
+    ) {
         super(source, child);
         this.target = target;
         this.path = path;
         this.expanded = List.copyOf(expanded);
         this.paths = List.copyOf(paths);
+        this.container = container;
     }
 
     private NestedExpand(StreamInput in) throws IOException {
@@ -78,7 +98,8 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
             null,
             in.readString(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readStringCollectionAsList()
+            in.readStringCollectionAsList(),
+            in.getTransportVersion().supports(NestedContainerField.VERSION) ? in.readOptionalNamedWriteable(Attribute.class) : null
         );
     }
 
@@ -100,6 +121,11 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
         out.writeString(path);
         out.writeNamedWriteableCollection(expanded);
         out.writeStringCollection(paths);
+        if (out.getTransportVersion().supports(NestedContainerField.VERSION)) {
+            out.writeOptionalNamedWriteable(container);
+        } else if (container != null) {
+            throw new IOException("NESTED_EXPAND over a lookup index requires nested container transport support");
+        }
     }
 
     @Override
@@ -131,6 +157,12 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
         return paths;
     }
 
+    /** The column that carries the child documents, or {@code null} when they are read through the row's {@code _doc}. */
+    @Nullable
+    public Attribute container() {
+        return container;
+    }
+
     @Override
     public boolean expressionsResolved() {
         return bound();
@@ -138,7 +170,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
 
     @Override
     protected AttributeSet computeReferences() {
-        return docAttributes(child().output());
+        return container != null ? AttributeSet.of(container) : docAttributes(child().output());
     }
 
     public static AttributeSet docAttributes(List<Attribute> attributes) {
@@ -158,7 +190,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
             for (Attribute attribute : child().output()) {
                 // The expanded collection's child fields leave the private nested schema as ordinary columns. Other
                 // collections keep theirs, so a later NESTED_EXPAND can expand them.
-                if (expandedScope(attribute) == false) {
+                if (expandedScope(attribute) == false && (container == null || attribute.id().equals(container.id()) == false)) {
                     result.add(attribute);
                 }
             }
@@ -175,12 +207,12 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
 
     @Override
     public NestedExpand replaceChild(LogicalPlan newChild) {
-        return new NestedExpand(source(), newChild, target, path, expanded, paths);
+        return new NestedExpand(source(), newChild, target, path, expanded, paths, container);
     }
 
     @Override
     protected NodeInfo<NestedExpand> info() {
-        return NodeInfo.create(this, NestedExpand::new, child(), target, path, expanded, paths);
+        return NodeInfo.create(this, NestedExpand::new, child(), target, path, expanded, paths, container);
     }
 
     @Override
@@ -191,7 +223,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), target, path, expanded, paths);
+        return Objects.hash(super.hashCode(), target, path, expanded, paths, container);
     }
 
     @Override
@@ -203,6 +235,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
         return Objects.equals(target, other.target)
             && Objects.equals(path, other.path)
             && expanded.equals(other.expanded)
-            && paths.equals(other.paths);
+            && paths.equals(other.paths)
+            && Objects.equals(container, other.container);
     }
 }

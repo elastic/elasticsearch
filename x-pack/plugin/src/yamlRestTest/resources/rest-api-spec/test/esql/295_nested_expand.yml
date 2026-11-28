@@ -241,12 +241,49 @@ setup:
           query: 'FROM nested_expand | LIMIT 1 | NESTED_EXPAND items'
 
 ---
-"NESTED_EXPAND cannot read a collection owned by a LOOKUP JOIN index":
+"NESTED_EXPAND reads the nested objects of the lookup document":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [nested_expand_lookup_join]
+      reason: "NESTED_EXPAND over a LOOKUP JOIN is snapshot-only"
   - do:
-      catch: /Unknown column \[items\]/
       esql.query:
         body:
-          query: 'FROM ne_orders | LOOKUP JOIN ne_lookup_items ON id | NESTED_EXPAND items | WHERE items.qty > 0 | KEEP id, items.qty'
+          query: 'FROM ne_orders | LOOKUP JOIN ne_lookup_items ON id | NESTED_EXPAND items | WHERE items.qty > 0 | KEEP id, items.qty | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["a", 1] }
+  - match: { values.1: ["a", 2] }
+
+---
+"NESTED_ANY reads the nested objects of the lookup document":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fn_nested_any, nested_expand_lookup_join]
+      reason: "NESTED_ANY over a LOOKUP JOIN is snapshot-only"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM ne_orders | LOOKUP JOIN ne_lookup_items ON id | WHERE NESTED_ANY(items.qty > 1) | KEEP id'
+  - length: { values: 1 }
+  - match: { values.0: ["a"] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM ne_orders | LOOKUP JOIN ne_lookup_items ON id | EVAL big = NESTED_ANY(items.qty > 5), small = NESTED_ANY(items.qty > 1) | KEEP id, big, small'
+  - length: { values: 1 }
+  - match: { values.0: ["a", false, true] }
 
 ---
 "NESTED_EXPAND of the driving index still runs after a LOOKUP JOIN":
@@ -1518,3 +1555,133 @@ setup:
           query: 'FROM ne_code_leaf, ne_code_object | NESTED_EXPAND items | WHERE items.code == "x" | KEEP items.code, items.code.label | LIMIT 10'
   - length: { values: 1 }
   - match: { values.0: ["x", null] }
+
+---
+"A nested collection is a column that EVAL can name and NESTED_EXPAND can read":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL o = items | NESTED_EXPAND o | KEEP id, o.sku, o.qty | SORT id, o.sku'
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "o.sku" }
+  - match: { columns.2.name: "o.qty" }
+  - length: { values: 3 }
+  - match: { values.0: ["1", "a", 1] }
+  - match: { values.1: ["1", "b", 2] }
+  - match: { values.2: ["2", null, null] }
+
+---
+"A column that names a nested collection is not a value":
+  - do:
+      catch: /is a nested collection \[items\]/
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL o = items | NESTED_EXPAND o | WHERE o IS NOT NULL'
+
+---
+"NESTED_EXPAND keeps the types of the lookup document's nested objects":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [nested_expand_lookup_join]
+      reason: "NESTED_EXPAND over a LOOKUP JOIN is snapshot-only"
+  - do:
+      indices.create:
+        index: ne_lookup_typed
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  when:
+                    type: date
+                  ok:
+                    type: boolean
+                  score:
+                    type: double
+                  loc:
+                    type: geo_point
+                  big:
+                    type: unsigned_long
+                  tags:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_lookup_typed", "_id": "a" } }
+          - { "id": "a", "items": [ { "when": "2024-01-02T03:04:05Z", "ok": true, "score": 1.5, "loc": "POINT (1 2)", "big": 18446744073709551615, "tags": [ "x", "y" ] }, { "ok": false } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_orders | LOOKUP JOIN ne_lookup_typed ON id | NESTED_EXPAND items | KEEP id, items.when, items.ok, items.score, items.loc, items.big, items.tags | SORT items.ok DESC | LIMIT 10'
+  - match: { columns.1.type: date }
+  - match: { columns.2.type: boolean }
+  - match: { columns.3.type: double }
+  - match: { columns.4.type: geo_point }
+  - match: { columns.5.type: unsigned_long }
+  - match: { columns.6.type: keyword }
+  - length: { values: 2 }
+  - match: { values.0: ["a", "2024-01-02T03:04:05.000Z", true, 1.5, "POINT (1.0 2.0)", 18446744073709551615, ["x", "y"]] }
+  - match: { values.1: ["a", null, false, null, null, null, null] }
+
+---
+"NESTED_EXPAND reads the lookup document's nested objects for rows of several shards":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [nested_expand_lookup_join]
+      reason: "NESTED_EXPAND over a LOOKUP JOIN is snapshot-only"
+  - do:
+      indices.create:
+        index: ne_orders_sharded
+        body:
+          settings:
+            number_of_shards: 3
+          mappings:
+            properties:
+              id:
+                type: keyword
+              n:
+                type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 1 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 2 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 3 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 4 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "a", "n": 5 }
+          - { "index": { "_index": "ne_orders_sharded" } }
+          - { "id": "zzz", "n": 6 }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM ne_orders_sharded | LOOKUP JOIN ne_lookup_items ON id | NESTED_EXPAND items | KEEP n, items.qty | SORT n, items.qty'
+  - length: { values: 11 }
+  - match: { values.0: [1, 1] }
+  - match: { values.1: [1, 2] }
+  - match: { values.9: [5, 2] }
+  - match: { values.10: [6, null] }

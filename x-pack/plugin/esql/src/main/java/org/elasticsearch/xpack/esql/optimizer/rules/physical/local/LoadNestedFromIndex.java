@@ -35,12 +35,15 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
 
     @Override
     protected PhysicalPlan rule(PhysicalPlan plan) {
-        if (plan instanceof NestedExpandExec) {
-            UnaryExec unary = (UnaryExec) plan;
+        if (plan instanceof NestedExpandExec expand) {
+            if (expand.container() != null) {
+                return plan;
+            }
+            UnaryExec unary = expand;
             PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
             return child == unary.child() ? plan : unary.replaceChild(child);
         }
-        if (plan instanceof UnaryExec unary && NestedPredicate.usedBy(unary)) {
+        if (plan instanceof UnaryExec unary && NestedPredicate.readsDocs(unary)) {
             PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
             if (child == unary.child()) {
                 return plan;

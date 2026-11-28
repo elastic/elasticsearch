@@ -18,7 +18,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -26,8 +31,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
@@ -183,6 +190,75 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         // hosted = 10 + 100 = 110; total = 50 + (10 - 5) + 100 + 5 = 160
         assertThat(result.maxPostingsHeapUsage(), equalTo(5L));
         assertThat(result.nodeHeapEstimates().get("node"), equalTo(new NodeHeapEstimates(160L, 110L, nonShardHeapUsage)));
+    }
+
+    public void testIncrementalCalculationMatchesRecomputationAcrossRelocations() {
+        final Map<String, DiscoveryNodeRole> nodeRoles = new HashMap<>();
+        IntStream.range(0, between(1, 3)).forEach(i -> nodeRoles.put("index-" + i, DiscoveryNodeRole.INDEX_ROLE));
+        IntStream.range(0, between(1, 3)).forEach(i -> nodeRoles.put("search-" + i, DiscoveryNodeRole.SEARCH_ROLE));
+        final List<String> nodeIds = List.copyOf(nodeRoles.keySet());
+
+        final Map<ShardId, String> currentNodeByShard = new HashMap<>();
+        final Map<ShardId, ShardAndIndexHeapUsage> estimates = new HashMap<>();
+        final int indexCount = between(1, 5);
+        for (int i = 0; i < indexCount; i++) {
+            final Index index = new Index("index-" + i, "uuid-" + i);
+            final long indexHeapUsage = randomLongBetween(0, 1_000);
+            // Every shard of an index is expected to carry the same index heap, which the shards without estimates get from the default
+            final boolean hasEstimates = randomBoolean();
+            final int shardCount = between(1, 6);
+            for (int s = 0; s < shardCount; s++) {
+                final ShardId shardId = new ShardId(index, s);
+                currentNodeByShard.put(shardId, randomFrom(nodeIds));
+                if (hasEstimates) {
+                    final long postings = randomLongBetween(0, 100);
+                    estimates.put(shardId, new ShardAndIndexHeapUsage(postings + randomLongBetween(0, 1_000), indexHeapUsage, postings));
+                }
+            }
+        }
+        final long nonShardHeapUsage = randomLongBetween(0, 1_000);
+        final var shardEstimates = new ShardHeapUsageEstimates(estimates, new ShardAndIndexHeapUsage(10L, 20L, 5L));
+
+        final RoutingNodes routingNodes = clusterStateWithStartedShards(nodeRoles, currentNodeByShard).mutableRoutingNodes();
+        final var incremental = new NodeHeapUsageCalculator.IncrementalRoutingNodeHeapCalculation(
+            routingNodes,
+            nonShardHeapUsage,
+            shardEstimates
+        );
+        assertThat(
+            incremental.calculation(),
+            equalTo(NodeHeapUsageCalculator.calculateForRoutingNodes(routingNodes, nonShardHeapUsage, shardEstimates))
+        );
+
+        final List<ShardId> shardIds = List.copyOf(currentNodeByShard.keySet());
+        for (int i = 0; i < 20; i++) {
+            final ShardId shardId = randomFrom(shardIds);
+            final String sourceNodeId = currentNodeByShard.get(shardId);
+            final ShardRouting target = routingNodes.relocateShard(
+                routingNodes.node(sourceNodeId).getByShardId(shardId),
+                randomValueOtherThan(sourceNodeId, () -> randomFrom(nodeIds)),
+                0L,
+                MoveReason.CANNOT_REMAIN,
+                RoutingChangesObserver.NOOP,
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            ).v2();
+            // The target is still initializing, so nothing has changed yet
+            assertThat(incremental.calculation(), equalTo(recompute(routingNodes, nonShardHeapUsage, shardEstimates)));
+
+            incremental.shardDeactivated(target.relocatingNodeId(), shardId);
+            incremental.shardActivated(target.currentNodeId(), shardId);
+            routingNodes.startShard(target, RoutingChangesObserver.NOOP, 0L);
+            currentNodeByShard.put(shardId, target.currentNodeId());
+            assertThat(incremental.calculation(), equalTo(recompute(routingNodes, nonShardHeapUsage, shardEstimates)));
+        }
+    }
+
+    private static NodeHeapUsageCalculator.RoutingNodeHeapCalculation recompute(
+        RoutingNodes routingNodes,
+        long nonShardHeapUsage,
+        ShardHeapUsageEstimates shardEstimates
+    ) {
+        return NodeHeapUsageCalculator.calculateForRoutingNodes(routingNodes, nonShardHeapUsage, shardEstimates);
     }
 
     private static ClusterState clusterStateWithStartedShards(

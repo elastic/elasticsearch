@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167968
+summary: Share one Parquet dict vector per chunk
+type: enhancement

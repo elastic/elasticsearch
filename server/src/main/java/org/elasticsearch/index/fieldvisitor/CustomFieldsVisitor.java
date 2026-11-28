@@ -21,6 +21,7 @@ import java.util.Set;
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
     private final Set<String> fields;
+    private final boolean ignoredRequested;
 
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
         super(loadSource);
@@ -29,13 +30,18 @@ public class CustomFieldsVisitor extends FieldsVisitor {
         // them here means that if the only fields requested are those metadata fields then we can shortcut loading
         FieldsVisitor.BASE_REQUIRED_FIELDS.forEach(this.fields::remove);
         this.fields.remove(this.sourceFieldName);
-        this.fields.remove(IgnoredFieldMapper.NAME);
+        this.ignoredRequested = this.fields.remove(IgnoredFieldMapper.NAME);
     }
 
     @Override
     public Set<String> getFieldNames() {
         Set<String> fields = new HashSet<>(super.getFieldNames());
         fields.addAll(this.fields);
+        // readers that serve only some stored fields, such as a realtime get from the translog, need to know that the
+        // stored _ignored field was requested
+        if (ignoredRequested) {
+            fields.add(IgnoredFieldMapper.NAME);
+        }
         return fields;
     }
 

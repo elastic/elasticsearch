@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 107750
+pr: 164904
+summary: Return `_ignored` by default from the `GET` and `_mget` APIs
+type: bug

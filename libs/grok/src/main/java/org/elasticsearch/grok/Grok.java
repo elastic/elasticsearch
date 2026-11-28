@@ -255,15 +255,24 @@ public final class Grok {
         return captureConfig;
     }
 
-    public Regex getCompiledExpression() {
-        return compiledExpression;
+    /**
+     * Creates a matcher over the given text that is subject to this grok's watchdog. For callers that need their own search loop
+     * rather than {@link #match}. Must be closed once finished with.
+     * @param utf8Bytes array containing the text to match against encoded in utf-8
+     * @param offset offset in {@code utf8Bytes} of the start of the text
+     * @param length length of the text to match
+     */
+    public WatchedMatcher watchedMatcher(byte[] utf8Bytes, int offset, int length) {
+        return new WatchedMatcher(compiledExpression.matcher(utf8Bytes, offset, offset + length), matcherWatchdog);
     }
 
     private void handleInterrupted(int result) {
+        handleInterrupted(result, matcherWatchdog);
+    }
+
+    static void handleInterrupted(int result, MatcherWatchdog watchdog) {
         if (result == Matcher.INTERRUPTED) {
-            throw new RuntimeException(
-                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
-            );
+            throw new RuntimeException("grok pattern matching was interrupted after [" + watchdog.maxExecutionTimeInMillis() + "] ms");
         }
     }
 

@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubj
  */
 public final class CrossClusterAccessHeaders {
 
-    public static final String CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY = "_cross_cluster_access_credentials";
+    public static final String CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY = ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER;
     private final String credentialsHeader;
     private final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo;
 

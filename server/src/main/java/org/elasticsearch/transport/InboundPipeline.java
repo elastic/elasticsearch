@@ -32,6 +32,7 @@ public class InboundPipeline implements Releasable {
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
+    private TcpChannel channel;
 
     public InboundPipeline(
         StatsTracker statsTracker,
@@ -65,7 +66,27 @@ public class InboundPipeline implements Releasable {
                 reference.close();
                 return;
             }
+            this.channel = channel;
             pending.add(reference);
+            doHandleBytes(channel);
+        } catch (Exception e) {
+            uncaughtException = e;
+            throw e;
+        }
+    }
+
+    /**
+     * Decodes the bytes that are already pending, after decoding paused while an oversized header was being authorized. Must be called
+     * on the same thread as {@link #handleBytes}.
+     */
+    public void resumeDecoding() throws IOException {
+        if (uncaughtException != null) {
+            throw new IllegalStateException("Pipeline state corrupted by uncaught exception", uncaughtException);
+        }
+        if (isClosed || pending.isEmpty()) {
+            return;
+        }
+        try {
             doHandleBytes(channel);
         } catch (Exception e) {
             uncaughtException = e;
@@ -104,6 +125,9 @@ public class InboundPipeline implements Releasable {
     private void forwardFragment(TcpChannel channel, Object fragment) throws IOException {
         if (fragment instanceof Header) {
             headerReceived((Header) fragment);
+        } else if (fragment instanceof InboundDecoder.OversizedHeaderCredentials credentials) {
+            assert aggregator.isAggregating() == false;
+            oversizedHeaderCredentialsReceived(credentials.value());
         } else if (fragment instanceof Compression.Scheme) {
             assert aggregator.isAggregating();
             aggregator.updateCompressionScheme((Compression.Scheme) fragment);
@@ -124,6 +148,14 @@ public class InboundPipeline implements Releasable {
     protected void headerReceived(Header header) {
         assert aggregator.isAggregating() == false;
         aggregator.headerReceived(header);
+    }
+
+    /**
+     * Called when the decoder pauses on an oversized header to have the credentials at its start authorized. Implementations must
+     * eventually either call {@link InboundDecoder#authorizeOversizedHeader()} followed by {@link #resumeDecoding()}, or close the channel.
+     */
+    protected void oversizedHeaderCredentialsReceived(String credentials) {
+        throw new IllegalStateException("this pipeline does not authorize oversized headers");
     }
 
     private void releasePendingBytes(int bytesConsumed) {

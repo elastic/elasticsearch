@@ -18,9 +18,11 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.StreamCorruptedException;
 
@@ -29,13 +31,29 @@ public class InboundDecoder implements Releasable {
     static final Object PING = new Object();
     static final Object END_CONTENT = new Object();
 
+    /**
+     * Emitted when a header exceeds {@code maxHeaderSize} but not {@code maxAuthorizedHeaderSize} and its first request header is the
+     * leading request header. The decoder consumes nothing more until {@link #authorizeOversizedHeader()} is called.
+     */
+    public record OversizedHeaderCredentials(String value) {}
+
+    private enum OversizedHeaderState {
+        NONE,
+        AWAITING_AUTHORIZATION,
+        AUTHORIZED
+    }
+
     private final Recycler<BytesRef> recycler;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
     private boolean isCompressed = false;
     private boolean isClosed = false;
+    private OversizedHeaderState oversizedHeaderState = OversizedHeaderState.NONE;
     private final ByteSizeValue maxHeaderSize;
+    private final ByteSizeValue maxAuthorizedHeaderSize;
+    @Nullable
+    private final String leadingRequestHeader;
     private final ChannelType channelType;
 
     public InboundDecoder(Recycler<BytesRef> recycler) {
@@ -47,9 +65,33 @@ public class InboundDecoder implements Releasable {
     }
 
     public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize, ChannelType channelType) {
+        this(recycler, maxHeaderSize, maxHeaderSize, null, channelType);
+    }
+
+    /**
+     * @param maxAuthorizedHeaderSize the largest header accepted once the value of {@code leadingRequestHeader}, which must be the
+     *                                first request header of an oversized header, has been authorized
+     */
+    public InboundDecoder(
+        Recycler<BytesRef> recycler,
+        ByteSizeValue maxHeaderSize,
+        ByteSizeValue maxAuthorizedHeaderSize,
+        @Nullable String leadingRequestHeader,
+        ChannelType channelType
+    ) {
         this.recycler = recycler;
         this.maxHeaderSize = maxHeaderSize;
+        this.maxAuthorizedHeaderSize = maxAuthorizedHeaderSize;
+        this.leadingRequestHeader = leadingRequestHeader;
         this.channelType = channelType;
+    }
+
+    /**
+     * Lets decoding continue past the oversized header announced by the last {@link OversizedHeaderCredentials} fragment.
+     */
+    public void authorizeOversizedHeader() {
+        assert oversizedHeaderState == OversizedHeaderState.AWAITING_AUTHORIZATION : oversizedHeaderState;
+        oversizedHeaderState = OversizedHeaderState.AUTHORIZED;
     }
 
     public int decode(ReleasableBytesReference reference, CheckedConsumer<Object, IOException> fragmentConsumer) throws IOException {
@@ -72,11 +114,12 @@ public class InboundDecoder implements Releasable {
                 fragmentConsumer.accept(PING);
                 return 6;
             } else {
-                int headerBytesToRead = headerBytesToRead(reference, maxHeaderSize);
+                int headerBytesToRead = headerBytesToRead(reference, fragmentConsumer);
                 if (headerBytesToRead == 0) {
                     return 0;
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
+                    oversizedHeaderState = OversizedHeaderState.NONE;
 
                     Header header = readHeader(messageLength, reference, channelType);
                     bytesConsumed += headerBytesToRead;
@@ -152,6 +195,7 @@ public class InboundDecoder implements Releasable {
             decompressor = null;
             totalNetworkSize = -1;
             bytesConsumed = 0;
+            oversizedHeaderState = OversizedHeaderState.NONE;
         }
     }
 
@@ -159,7 +203,7 @@ public class InboundDecoder implements Releasable {
         return bytesConsumed == totalNetworkSize;
     }
 
-    private static int headerBytesToRead(BytesReference reference, ByteSizeValue maxHeaderSize) throws StreamCorruptedException {
+    private int headerBytesToRead(BytesReference reference, CheckedConsumer<Object, IOException> fragmentConsumer) throws IOException {
         if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
             return 0;
         }
@@ -172,8 +216,9 @@ public class InboundDecoder implements Releasable {
                 throw new StreamCorruptedException("invalid negative variable header size: " + variableHeaderSize);
             }
             int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;
-            if (totalHeaderSize > maxHeaderSize.getBytes()) {
-                throw new StreamCorruptedException("header size [" + totalHeaderSize + "] exceeds limit of [" + maxHeaderSize + "]");
+            if (totalHeaderSize > maxHeaderSize.getBytes()
+                && oversizedHeaderMayProceed(reference, totalHeaderSize, fragmentConsumer) == false) {
+                return 0;
             }
             if (totalHeaderSize > reference.length()) {
                 return 0;
@@ -181,6 +226,57 @@ public class InboundDecoder implements Releasable {
                 return totalHeaderSize;
             }
         }
+    }
+
+    private boolean oversizedHeaderMayProceed(
+        BytesReference reference,
+        int totalHeaderSize,
+        CheckedConsumer<Object, IOException> fragmentConsumer
+    ) throws IOException {
+        return switch (oversizedHeaderState) {
+            case AUTHORIZED -> true;
+            case AWAITING_AUTHORIZATION -> false;
+            case NONE -> {
+                if (leadingRequestHeader == null) {
+                    throw headerTooLarge(totalHeaderSize, maxHeaderSize);
+                }
+                if (totalHeaderSize > maxAuthorizedHeaderSize.getBytes()) {
+                    throw headerTooLarge(totalHeaderSize, maxAuthorizedHeaderSize);
+                }
+                final String credentials = readLeadingRequestHeader(reference, totalHeaderSize);
+                if (credentials == null) {
+                    // the credentials must be found within the limit that applies before authentication
+                    if (reference.length() >= maxHeaderSize.getBytes()) {
+                        throw headerTooLarge(totalHeaderSize, maxHeaderSize);
+                    }
+                    yield false;
+                }
+                oversizedHeaderState = OversizedHeaderState.AWAITING_AUTHORIZATION;
+                fragmentConsumer.accept(new OversizedHeaderCredentials(credentials));
+                yield false;
+            }
+        };
+    }
+
+    /**
+     * Reads the value of the leading request header from the start of the variable header, which begins with the request headers map.
+     * Returns {@code null} if more bytes are needed, and fails if the first request header is any other header.
+     */
+    @Nullable
+    private String readLeadingRequestHeader(BytesReference reference, int totalHeaderSize) throws IOException {
+        final int available = Math.min(reference.length(), totalHeaderSize) - TcpHeader.HEADER_SIZE;
+        try (StreamInput in = reference.slice(TcpHeader.HEADER_SIZE, available).streamInput()) {
+            if (in.readVInt() == 0 || leadingRequestHeader.equals(in.readString()) == false) {
+                throw headerTooLarge(totalHeaderSize, maxHeaderSize);
+            }
+            return in.readString();
+        } catch (EOFException e) {
+            return null;
+        }
+    }
+
+    private static StreamCorruptedException headerTooLarge(int totalHeaderSize, ByteSizeValue limit) {
+        return new StreamCorruptedException("header size [" + totalHeaderSize + "] exceeds limit of [" + limit + "]");
     }
 
     private static Header readHeader(int networkMessageSize, BytesReference bytesReference, ChannelType channelType) throws IOException {

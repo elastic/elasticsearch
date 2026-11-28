@@ -1,0 +1,3 @@
+FROM flattened_paths_mapped
+| RENAME attributes AS attrs, meta.labels AS attrs.sub
+| KEEP id, attrs, attrs.sub

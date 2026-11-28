@@ -263,7 +263,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
             assertInSubqueryJoinKey(semiJoin, "emp_no");
             assertUnresolvedRelation(semiJoin.left(), "employees");
             Keep keep = as(semiJoin.right(), Keep.class);
-            ViewSubquery namedSubquery = as(keep.child(), ViewSubquery.class);
+            ViewSubquery namedSubquery = as(withoutNestedViewBranch(keep.child()), ViewSubquery.class);
             assertEquals(layer, namedSubquery.name());
             Keep viewBody = as(namedSubquery.child(), Keep.class);
             semiJoin = as(viewBody.child(), SemiJoin.class);
@@ -763,7 +763,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertInSubqueryJoinKey(markJoin, "dept_id");
         assertUnresolvedRelation(markJoin.left(), "employees");
         Keep keep = as(markJoin.right(), Keep.class);
-        ViewSubquery deptView = as(keep.child(), ViewSubquery.class);
+        ViewSubquery deptView = as(withoutNestedViewBranch(keep.child()), ViewSubquery.class);
         assertEquals("dept_view", deptView.name());
         keep = as(deptView.child(), Keep.class);
         assertUnresolvedRelation(keep.child(), "departments");
@@ -872,5 +872,13 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
         viewService.putView(projectId, request, future);
         future.actionGet();
+    }
+
+    /**
+     * With the flattened keys feature on, a view nested in the definition of another view keeps its branch, so that the analyzer
+     * can answer the keys of its flattened columns at its boundary. The tests of the plan below it look through that wrapper.
+     */
+    private static LogicalPlan withoutNestedViewBranch(LogicalPlan plan) {
+        return plan instanceof BranchPlan branch && branch.children().size() == 1 ? branch.children().get(0) : plan;
     }
 }

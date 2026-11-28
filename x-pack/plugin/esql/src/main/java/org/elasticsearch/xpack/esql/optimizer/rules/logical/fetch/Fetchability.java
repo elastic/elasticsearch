@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FlattenedKeyEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -60,6 +61,8 @@ public final class Fetchability {
     private static final Set<Class<? extends EsField>> FETCHABLE_FIELDS = Set.of(
         EsField.class,
         KeywordEsField.class,
+        // the key of a flattened field: a keyword that the shard loads from its mapping like any other
+        FlattenedKeyEsField.class,
         TextEsField.class,
         DateEsField.class
     );

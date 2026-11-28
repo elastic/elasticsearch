@@ -9,16 +9,25 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -27,16 +36,22 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -44,11 +59,14 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -88,6 +106,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -964,6 +983,160 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null
                 );
                 assertEquals(3, DefaultSearchContext.getFieldCardinality(low, reader));
+            }
+        }
+    }
+
+    /** The distinct terms of segments that name all their values in a dictionary are counted, a term of two segments once. */
+    public void testGetFieldCardinalityColumnarCountsDistinctTerms() throws IOException {
+        String[] first = new String[2000];
+        String[] second = new String[2000];
+        for (int i = 0; i < first.length; i++) {
+            first[i] = "term-" + (i % 5);
+            second[i] = "term-" + (3 + i % 5);
+        }
+        withColumnarSegments(reader -> {
+            assertEquals(2, reader.leaves().size());
+            assertEquals(2, fullDictionaries(reader));
+            assertEquals(8, DefaultSearchContext.getFieldCardinality(columnarFieldData(), reader));
+        }, first, second);
+    }
+
+    /** A segment with no document holding the field adds nothing, and does not hide the cardinality of the others. */
+    public void testGetFieldCardinalityColumnarSkipsSegmentsWithoutTheField() throws IOException {
+        String[] valued = new String[2000];
+        for (int i = 0; i < valued.length; i++) {
+            valued[i] = i % 7 == 0 ? null : "term-" + (i % 4);
+        }
+        withColumnarSegments(reader -> {
+            assertEquals(2, reader.leaves().size());
+            assertEquals(4, DefaultSearchContext.getFieldCardinality(columnarFieldData(), reader));
+        }, valued, new String[100]);
+    }
+
+    /** A segment that stores its values has no dictionary to count, so the cardinality is unknown. */
+    public void testGetFieldCardinalityColumnarWithoutADictionary() throws IOException {
+        String[] repeating = new String[2000];
+        String[] unique = new String[2000];
+        for (int i = 0; i < repeating.length; i++) {
+            repeating[i] = "term-" + (i % 5);
+            unique[i] = "unique-" + i;
+        }
+        withColumnarSegments(reader -> {
+            assertEquals(1, fullDictionaries(reader));
+            assertEquals(-1, DefaultSearchContext.getFieldCardinality(columnarFieldData(), reader));
+        }, repeating, unique);
+    }
+
+    /** A dictionary that does not name every value of its segment says nothing about how many there are. */
+    public void testGetFieldCardinalityColumnarWithEscapedValues() throws IOException {
+        String[] docs = new String[5000];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = i % 12 == 1 ? "unique-" + i + "-" + "x".repeat(120) : "term-" + (i % 5);
+        }
+        withColumnarSegments(reader -> {
+            StringColumnReader column = ColumnarPayloadSortableBinaryDocValues.from(reader.leaves().get(0).reader(), "columnar")
+                .columnSource()
+                .reader();
+            assertTrue("the column has a dictionary, or this does not test escapes", column.hasDictionary());
+            assertTrue("some values escaped, or this does not test them", column.escapeCount() > 0);
+            assertEquals(-1, DefaultSearchContext.getFieldCardinality(columnarFieldData(), reader));
+        }, new String[][] { docs });
+    }
+
+    /** Past the terms worth reading, the sizes of the dictionaries are added up: an upper bound, as the segments share terms. */
+    public void testGetFieldCardinalityColumnarAddsUpLargeDictionaries() throws IOException {
+        String[][] segments = new String[3][];
+        for (int segment = 0; segment < segments.length; segment++) {
+            segments[segment] = new String[8000];
+            for (int i = 0; i < segments[segment].length; i++) {
+                segments[segment][i] = "term-" + (segment * 100 + i % 400);
+            }
+        }
+        withColumnarSegments(reader -> {
+            assertEquals(3, fullDictionaries(reader));
+            // 600 distinct terms, 400 in each segment
+            assertEquals(1200, DefaultSearchContext.getFieldCardinality(columnarFieldData(), reader));
+        }, segments);
+    }
+
+    /** Values that are not read from a column, as those of a segment that is not written by the columnar codec. */
+    public void testGetFieldCardinalityColumnarFieldOutsideAColumn() throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+                Document doc = new Document();
+                doc.add(new BinaryDocValuesField("columnar", new StringBinaryPayload.Builder().encode(List.of(new BytesRef("a")))));
+                writer.addDocument(doc);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(-1, DefaultSearchContext.getFieldCardinality(columnarFieldData(), reader));
+            }
+        }
+    }
+
+    private static BytesBinaryIndexFieldData columnarFieldData() {
+        // No script reads the field in these tests
+        return new BytesBinaryIndexFieldData(
+            "columnar",
+            CoreValuesSourceType.KEYWORD,
+            null,
+            IndexVersion.current(),
+            BinaryDocValuesFormat.COLUMNAR_PAYLOAD
+        );
+    }
+
+    /** The segments whose column names every value in a dictionary. */
+    private static int fullDictionaries(DirectoryReader reader) throws IOException {
+        int count = 0;
+        for (LeafReaderContext leaf : reader.leaves()) {
+            StringColumnReader column = ColumnarPayloadSortableBinaryDocValues.from(leaf.reader(), "columnar").columnSource().reader();
+            if (column.hasDictionary() && column.escapeCount() == 0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Writes a segment for each array with the columnar codec, a document for each element and no field for a null, so that the
+     * codec decides the layout of each column as it does in an index.
+     */
+    private void withColumnarSegments(CheckedConsumer<DirectoryReader, IOException> test, String[]... segments) throws IOException {
+        Codec base = TestUtil.getDefaultCodec();
+        DocValuesFormat columnar = new ColumNARDocValuesFormat(field -> ColumnarFieldType.STRING);
+        Codec codec = new FilterCodec(base.getName(), base) {
+            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String field) {
+                    return columnar;
+                }
+            };
+
+            @Override
+            public DocValuesFormat docValuesFormat() {
+                return perField;
+            }
+        };
+        FieldType type = new FieldType();
+        type.setDocValuesType(DocValuesType.BINARY);
+        type.freeze();
+        try (BaseDirectoryWrapper dir = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig().setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                for (String[] segment : segments) {
+                    for (String value : segment) {
+                        Document doc = new Document();
+                        if (value != null) {
+                            BytesRef payload = new StringBinaryPayload.Builder().encode(List.of(new BytesRef(value)));
+                            doc.add(new Field("columnar", BytesRef.deepCopyOf(payload), type));
+                        }
+                        writer.addDocument(doc);
+                    }
+                    writer.commit();
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                test.accept(reader);
             }
         }
     }

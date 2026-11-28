@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -22,9 +23,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
@@ -36,11 +40,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -89,9 +95,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
@@ -364,9 +372,62 @@ final class DefaultSearchContext extends SearchContext {
             } catch (IOException ioe) {
                 return -1L;
             }
+        } else if (indexFieldData instanceof BytesBinaryIndexFieldData) {
+            try {
+                return columnarCardinality(indexFieldData, directoryReader);
+            } catch (IOException ioe) {
+                return -1L;
+            }
         }
         //
         return -1L;
+    }
+
+    /** The dictionaries of this many terms in total are read to count the distinct terms among them. */
+    private static final int MAX_COLUMNAR_TERMS_TO_UNION = 1024;
+
+    /**
+     * An upper bound on the distinct values of a field kept as ColumNAR string columns, from the dictionaries of its segments, or
+     * {@code -1} when a segment does not name all its values in a dictionary. Few terms are read and counted; more are added up.
+     */
+    private static long columnarCardinality(IndexFieldData<?> indexFieldData, DirectoryReader directoryReader) throws IOException {
+        List<StringColumnSource> dictionaries = new ArrayList<>();
+        long total = 0;
+        for (LeafReaderContext leaf : directoryReader.leaves()) {
+            if (indexFieldData.load(leaf).getBytesValues() instanceof ColumnarPayloadSortableBinaryDocValues columnar) {
+                StringColumnSource source = columnar.columnSource();
+                if (source == null) {
+                    if (leaf.reader().getFieldInfos().fieldInfo(indexFieldData.getFieldName()) == null) {
+                        // The segment holds no document with the field
+                        continue;
+                    }
+                    return -1L;
+                }
+                StringColumnReader column = source.reader();
+                if (column.numDocsWithField() == 0) {
+                    continue;
+                }
+                if (column.hasDictionary() == false || column.escapeCount() > 0) {
+                    return -1L;
+                }
+                dictionaries.add(source);
+                total += column.dictionarySize();
+            } else {
+                return -1L;
+            }
+        }
+        if (total > MAX_COLUMNAR_TERMS_TO_UNION) {
+            return total;
+        }
+        Set<BytesRef> terms = new HashSet<>();
+        BytesRef scratch = new BytesRef();
+        for (StringColumnSource source : dictionaries) {
+            int size = source.reader().dictionarySize();
+            for (int ordinal = 0; ordinal < size; ordinal++) {
+                terms.add(BytesRef.deepCopyOf(source.termAt(ordinal, scratch)));
+            }
+        }
+        return terms.size();
     }
 
     static int determineMaximumNumberOfSlices(

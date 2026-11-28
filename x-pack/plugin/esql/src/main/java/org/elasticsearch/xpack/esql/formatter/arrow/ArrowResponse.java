@@ -215,8 +215,6 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
      */
     private static class SchemaResponse extends ResponseSegment {
 
-        private static final FieldType LIST_FIELD_TYPE = FieldType.nullable(MinorType.LIST.getType());
-
         private boolean done = false;
 
         SchemaResponse(ArrowResponse response) {
@@ -236,27 +234,31 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         }
 
         private Schema arrowSchema() {
-            return new Schema(response.columns.stream().map(c -> {
-                var field = c.converter().arrowField(c.column().name);
-                if (c.asList()) {
-                    // A variable-sized list is a vector of offsets and a child vector of values
-                    // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
-                    var fieldType = field.getFieldType();
-                    // Copy the ESQL type metadata at the list level
-                    var listMetadata = Map.of(
-                        BlockArrowFormatter.ESQL_TYPE_METADATA,
-                        fieldType.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA)
-                    );
-                    var listType = new FieldType(true, LIST_FIELD_TYPE.getType(), null, listMetadata);
-                    // List elements are non-nullable: neither ES|QL multivalues nor vector coordinates contain nulls.
-                    var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), fieldType.getMetadata());
-                    // The nested vector is named "$data$", following what the Arrow/Java library does.
-                    return new Field(c.column().name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
-                } else {
-                    return field;
-                }
-            }).toList());
+            return new Schema(response.columns.stream().map(c -> arrowField(c.converter(), c.column().name, c.asList())).toList());
         }
+    }
+
+    /**
+     * Builds the field used on the wire, also shared with the generated type reference.
+     */
+    static Field arrowField(BlockArrowFormatter formatter, String name, boolean multivalued) {
+        var field = formatter.arrowField(name);
+        if (multivalued == false) {
+            return field;
+        }
+        // A variable-sized list is a vector of offsets and a child vector of values.
+        // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
+        var fieldType = field.getFieldType();
+        // Copy the ES|QL type metadata at the list level.
+        var listMetadata = Map.of(
+            BlockArrowFormatter.ESQL_TYPE_METADATA,
+            fieldType.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA)
+        );
+        var listType = new FieldType(true, MinorType.LIST.getType(), null, listMetadata);
+        // List elements are non-nullable: neither ES|QL multivalues nor vector coordinates contain nulls.
+        var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), fieldType.getMetadata());
+        // The nested vector is named "$data$", following what the Arrow/Java library does.
+        return new Field(name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
     }
 
     /**

@@ -835,11 +835,6 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testNextUploadProceedsWhileCopyToSplitTargetIsSlow
   issue: https://github.com/elastic/elasticsearch/issues/167871
-- class: org.elasticsearch.index.store.BytesReadHeaderIT
-  tasks:
-  - :server:internalClusterTest
-  method: testTerminateAfterReadsFewerBytes
-  issue: https://github.com/elastic/elasticsearch/issues/167884
 - class: org.elasticsearch.xpack.esql.datasource.grpc.FlightSplitProviderTests
   tasks:
   - :x-pack:plugin:esql-datasource-grpc:test

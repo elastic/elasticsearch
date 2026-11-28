@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -75,6 +76,7 @@ public final class EscfColumnBuilder implements Releasable {
     /** Sentinel returned by {@link #arrayChildKind} for arrays that aren't a single fixed primitive kind. */
     private static final byte UNION_CHILD_KIND = -2;
     private static final byte[] EMPTY_BYTES = new byte[0];
+    private static final String STRING_WRITE_FAILED = "a string write threw; the column must be repaired with discardRow first";
     /** Reusable zero buffer for bulk absent writes in {@link FixedNumericBuilder#addAbsents}. */
     private static final byte[] ZERO_BYTES = new byte[512];
 
@@ -84,6 +86,8 @@ public final class EscfColumnBuilder implements Releasable {
     private int leadingAbsents;
     /** Row index of the last written value (not an absent gap); {@code -1} before any value. */
     private int lastWrittenRow = -1;
+    /** Whether a string write threw and {@link #discardRow} has not repaired the column yet. Only maintained by assertions. */
+    private boolean stringWriteFailed;
     /** {@code true} between {@link #beginArray} and {@link #endArray}. */
     private boolean arrayOpen;
     /** When set via {@link #lockScalar}, asserts that every scalar write uses this exact kind. {@code -1} = unrestricted. */
@@ -159,6 +163,7 @@ public final class EscfColumnBuilder implements Releasable {
     }
 
     public void addAbsent() {
+        assert stringWriteFailed == false : STRING_WRITE_FAILED;
         if (current == null) {
             leadingAbsents++;
         } else {
@@ -168,6 +173,7 @@ public final class EscfColumnBuilder implements Releasable {
 
     /** Records {@code n} consecutive absent rows; more efficient than {@code n} {@link #addAbsent()} calls. */
     public void addAbsents(int n) {
+        assert stringWriteFailed == false : STRING_WRITE_FAILED;
         if (n <= 0) {
             return;
         }
@@ -204,13 +210,16 @@ public final class EscfColumnBuilder implements Releasable {
 
     /**
      * Adds a {@code STRING} value for the next row. The {@code STRING} case of {@link #newRowScalar}, with the value written by
-     * {@link Utf8Value#copyTo} so that its bytes are copied once, into the column's buffer.
+     * {@link Utf8Value#copyTo} so that its bytes are copied once, into the column's buffer. A column of another kind is promoted
+     * only once the value has been copied out, so that a value {@link Utf8Value#copyTo} rejects leaves the column's kind as it
+     * was. If {@link Utf8Value#copyTo} throws, the column must be repaired with {@link #discardRow} before it is written again.
      */
     void addUtf8String(Utf8Value value) {
         final int row = nextAppendRow();
         assert lockedKind == -1 || lockedKind == EscfColumnKind.STRING
             : "column locked to " + EscfColumnKind.name(lockedKind) + " but received STRING";
         assert row > lastWrittenRow : nonDecreasing(row);
+        assert setStringWriteFailed(true);
         fillGapTo(row);
         if (current == null) {
             current = newScalarWithBackfill(EscfColumnKind.STRING);
@@ -220,16 +229,109 @@ public final class EscfColumnBuilder implements Releasable {
                 ab.startRow();
                 ab.appendString(value);
             } else {
+                Utf8Value copied = copyOut(value);
                 promoteToUnion();
-                current.addString(value);
+                current.addString(copied);
             }
         } else if (current.kind() == EscfColumnKind.STRING || current.kind() == EscfColumnKind.UNION) {
             current.addString(value);
         } else {
+            Utf8Value copied = copyOut(value);
             promoteToUnion();
-            current.addString(value);
+            current.addString(copied);
         }
+        assert setStringWriteFailed(false);
         lastWrittenRow = row;
+    }
+
+    /** Copies {@code value} into a new array; promotions do this first, as they cannot be undone (see {@link #discardRow}). */
+    private static Utf8Value copyOut(Utf8Value value) {
+        byte[] bytes = new byte[value.maxLength() + StringPadding.BYTES];
+        return Utf8Value.of(bytes, 0, value.copyTo(bytes, 0));
+    }
+
+    /**
+     * Adds a string array row of {@code values}, each written by {@link Utf8Value#copyTo}. A columnar {@code STRING} array
+     * column receives the elements straight into its buffer; any other column takes them packed as a {@code FIXED_ARRAY}, packed
+     * before the column is promoted, as {@link #addUtf8String} does. If {@link Utf8Value#copyTo} throws, the column must be
+     * repaired with {@link #discardRow} before it is written again.
+     */
+    void addUtf8StringArray(Utf8Value[] values) {
+        final int row = nextAppendRow();
+        assert row > lastWrittenRow : nonDecreasing(row);
+        assert setStringWriteFailed(true);
+        fillGapTo(row);
+        if (current == null
+            || current instanceof ArrayBuilder columnar
+                && (columnar.childKind() == EscfColumnKind.STRING || columnar.childKind() == UNSET_ARRAY_KIND)) {
+            appendStringRow(prepareColumnarArrayRow(EscfColumnKind.STRING), values);
+        } else {
+            PackedStringArray packed = packStringArray(values);
+            ArrayBuilder ab = prepareColumnarArrayRow(EscfColumnKind.STRING);
+            if (ab != null) {
+                // MERGE promotes a string column to an array rather than a union
+                appendStringRow(ab, values);
+            } else {
+                ((UnionBuilder) current).addInlineArray(SourceValueType.FIXED_ARRAY, packed.bytes(), packed.length());
+            }
+        }
+        assert setStringWriteFailed(false);
+        lastWrittenRow = row;
+    }
+
+    private static void appendStringRow(ArrayBuilder ab, Utf8Value[] values) {
+        ab.startRow();
+        for (Utf8Value value : values) {
+            ab.appendString(value);
+        }
+    }
+
+    /** {@code bytes[0, length)} hold a string array in the {@code FIXED_ARRAY} layout; see {@link #packStringArray}. */
+    private record PackedStringArray(byte[] bytes, int length) {}
+
+    /** Packs {@code values} in the {@code FIXED_ARRAY} layout of {@code STRING} elements: the type, then each length and bytes. */
+    private static PackedStringArray packStringArray(Utf8Value[] values) {
+        int maxLength = 1;
+        for (Utf8Value value : values) {
+            maxLength += Integer.BYTES + value.maxLength();
+        }
+        byte[] packed = new byte[maxLength + StringPadding.BYTES];
+        packed[0] = SourceValueType.STRING;
+        int pos = 1;
+        for (Utf8Value value : values) {
+            int length = value.copyTo(packed, pos + Integer.BYTES);
+            ByteUtils.writeIntLE(length, packed, pos);
+            pos += Integer.BYTES + length;
+        }
+        return new PackedStringArray(packed, pos);
+    }
+
+    /**
+     * Restores the column to {@code row} rows after the write for {@code row}, of any value or an absent row, either completed
+     * or threw (only {@link #addUtf8String} and {@link #addUtf8StringArray} can). Absent rows that write filled in before
+     * {@code row} stay, as does a builder it created for a column that had none. A write that throws does so before it would
+     * promote the column, so the rows before {@code row} are unchanged.
+     */
+    void discardRow(int row) {
+        assert policy == CollisionPolicy.SPLIT : "absent rows are only told apart from present ones by validity under SPLIT";
+        assert arrayOpen == false : "discardRow while an array is open";
+        assert row == nextAppendRowUnchecked() || row == nextAppendRowUnchecked() - 1 : "row " + row + " is not the last row written";
+        if (current == null) {
+            leadingAbsents = Math.min(leadingAbsents, row);
+        } else {
+            current.truncate(row);
+            lastWrittenRow = current.lastPresentRow();
+        }
+        assert setStringWriteFailed(false);
+    }
+
+    /**
+     * Sets {@link #stringWriteFailed}: {@code true} before a string write copies, {@code false} once it completes or is
+     * discarded, so it stays {@code true} only if the write threw. Returns {@code true}, to run inside an assert.
+     */
+    private boolean setStringWriteFailed(boolean failed) {
+        stringWriteFailed = failed;
+        return true;
     }
 
     public void addBinary(BytesRef value) {
@@ -604,6 +706,7 @@ public final class EscfColumnBuilder implements Releasable {
     public EscfColumnData finish(int docCount) {
         assert arrayOpen == false : "finish while an array is open";
         assert finished == false : "finish called twice";
+        assert stringWriteFailed == false : STRING_WRITE_FAILED;
         if (current == null) {
             FixedNumericBuilder allAbsent = new FixedNumericBuilder(EscfColumnKind.LONG, recycler);
             backfillLeadingAbsents(allAbsent);
@@ -640,6 +743,11 @@ public final class EscfColumnBuilder implements Releasable {
      * recorded so far — the row index the next {@code addX}/{@code addAbsent} call would land on.
      */
     public int nextAppendRow() {
+        assert stringWriteFailed == false : STRING_WRITE_FAILED;
+        return nextAppendRowUnchecked();
+    }
+
+    private int nextAppendRowUnchecked() {
         return current == null ? leadingAbsents : current.rowsConsumed();
     }
 
@@ -987,6 +1095,15 @@ public final class EscfColumnBuilder implements Releasable {
          */
         void repeatLastRow(int additionalCopies);
 
+        /**
+         * Drops the rows from {@code rows} on, and any bytes written past the end of the last row kept, such as those of a
+         * value whose write threw.
+         */
+        void truncate(int rows);
+
+        /** The last present row, or {@code -1} if none; only meaningful under SPLIT, where validity marks every absent row. */
+        int lastPresentRow();
+
         /** Near-free promotion to a union (adopts the value buffer where the layout allows). */
         UnionBuilder promote(Recycler<BytesRef> recycler);
 
@@ -1093,6 +1210,21 @@ public final class EscfColumnBuilder implements Releasable {
                 validity.set(count, count + n);
             }
             count += n;
+        }
+
+        @Override
+        public final int lastPresentRow() {
+            if (count == 0) {
+                return -1;
+            }
+            return validity == null ? count - 1 : validity.prevSetBit(count - 1);
+        }
+
+        /** Clears the validity bits of the rows from {@code rows} on, which later writes expect to be clear. */
+        final void clearValidity(int rows) {
+            if (validity != null) {
+                validity.clear(rows, count);
+            }
         }
 
         final boolean isAbsentAt(int d) {
@@ -1230,6 +1362,24 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
+        public void truncate(int rows) {
+            assert rows <= count : "cannot truncate " + count + " rows to " + rows;
+            if (rows < count) {
+                clearValidity(rows);
+                count = rows;
+            }
+            data.seek((long) rows * Long.BYTES);
+            if (lexicalForms != null) {
+                lexicalForms.truncate(rows);
+                if (lexicalForms.dataLen == 0) {
+                    // A stored spelling is never empty, so the sidecar holds none: it was created by a dropped row.
+                    lexicalForms.discard();
+                    lexicalForms = null;
+                }
+            }
+        }
+
+        @Override
         public UnionBuilder promote(Recycler<BytesRef> recycler) {
             if (lexicalForms != null) {
                 // TODO: Union rows cannot carry a stored spelling yet, so a promoted column loses them and its string
@@ -1352,6 +1502,18 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
+        public void truncate(int rows) {
+            assert rows <= count : "cannot truncate " + count + " rows to " + rows;
+            if (rows < count) {
+                if (values != null && rows < values.length()) {
+                    values.clear(rows, Math.min(count, values.length()));
+                }
+                clearValidity(rows);
+                count = rows;
+            }
+        }
+
+        @Override
         public UnionBuilder promote(Recycler<BytesRef> recycler) {
             byte[] typeVec = new byte[count];
             for (int i = 0; i < count; i++) {
@@ -1440,6 +1602,17 @@ public final class EscfColumnBuilder implements Releasable {
             data.repeatLastBytes(blockBytes, additionalCopies);
             dataLen += blockBytes * additionalCopies;
             bulkAdvancePresent(additionalCopies);
+        }
+
+        @Override
+        public void truncate(int rows) {
+            assert rows <= count : "cannot truncate " + count + " rows to " + rows;
+            if (rows < count) {
+                dataLen = offsets[rows];
+                clearValidity(rows);
+                count = rows;
+            }
+            data.seek(dataLen);
         }
 
         /** Records a present, zero-length row. Used for the spellings sidecar of a value that has none. */
@@ -1618,6 +1791,22 @@ public final class EscfColumnBuilder implements Releasable {
                 elemCount += blockElems * additionalCopies;
             }
             bulkAdvancePresent(additionalCopies);
+        }
+
+        @Override
+        public void truncate(int rows) {
+            assert sealed == false : "truncate would invalidate the sealed row and child fences";
+            assert rows <= count : "cannot truncate " + count + " rows to " + rows;
+            if (rows < count) {
+                final int firstElem = rowOffsets[rows];
+                if (elemCount > firstElem) {
+                    childDataLen = childOffsets[firstElem];
+                    elemCount = firstElem;
+                }
+                clearValidity(rows);
+                count = rows;
+            }
+            childData.seek(childDataLen);
         }
 
         /** Begins a new present row; the caller then appends zero or more elements. */
@@ -1811,9 +2000,14 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         void addInlineArray(byte arrayType, byte[] packed) {
+            addInlineArray(arrayType, packed, packed.length);
+        }
+
+        /** Adds the inline array {@code packed[0, length)}. */
+        void addInlineArray(byte arrayType, byte[] packed, int length) {
             prep(arrayType);
-            writeBytes(data, packed, 0, packed.length);
-            dataLen += packed.length;
+            writeBytes(data, packed, 0, length);
+            dataLen += length;
             advancePresent();
         }
 
@@ -1888,6 +2082,17 @@ public final class EscfColumnBuilder implements Releasable {
             data.repeatLastBytes(blockBytes, additionalCopies);
             dataLen += blockBytes * additionalCopies;
             bulkAdvancePresent(additionalCopies);
+        }
+
+        @Override
+        public void truncate(int rows) {
+            assert rows <= count : "cannot truncate " + count + " rows to " + rows;
+            if (rows < count) {
+                dataLen = offsets[rows];
+                clearValidity(rows);
+                count = rows;
+            }
+            data.seek(dataLen);
         }
 
         private void prep(byte type) {

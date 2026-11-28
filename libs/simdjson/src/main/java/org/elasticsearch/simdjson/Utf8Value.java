@@ -14,7 +14,7 @@ package org.elasticsearch.simdjson;
  *
  * <p>The bytes a value refers to are borrowed: they must not change until the value has been copied.
  */
-public sealed interface Utf8Value permits MaterializedUtf8Value {
+public sealed interface Utf8Value permits MaterializedUtf8Value, RawJsonUtf8Value {
 
     /** A value whose UTF-8 bytes are {@code bytes[offset, offset + length)}. */
     static Utf8Value of(byte[] bytes, int offset, int length) {
@@ -29,6 +29,8 @@ public sealed interface Utf8Value permits MaterializedUtf8Value {
      * bytes form the value. {@code dst} must have room for {@link #maxLength()} bytes from {@code dstOffset}, plus
      * {@link SimdJsonSupport#DESTINATION_PADDING} bytes for a value that simdjson copies a vector at a time;
      * bytes past the returned length are scratch.
+     *
+     * @throws JsonParsingException if the value comes from a JSON string that is malformed
      */
     int copyTo(byte[] dst, int dstOffset);
 }

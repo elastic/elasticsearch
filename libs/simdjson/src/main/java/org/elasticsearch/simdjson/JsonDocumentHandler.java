@@ -48,6 +48,17 @@ public interface JsonDocumentHandler {
     void stringField(String fieldName, byte[] buf, int off, int len);
 
     /**
+     * A string field delivered before it has been scanned or unescaped. The default copies it out and forwards to
+     * {@link #stringField(String, byte[], int, int)}; a handler that copies the bytes anyway can instead keep
+     * {@code value} and copy it with {@link Utf8Value#copyTo} later, as long as the document bytes have not changed
+     * by then.
+     */
+    default void rawStringField(String fieldName, Utf8Value value) {
+        byte[] bytes = new byte[value.maxLength() + SimdJsonSupport.DESTINATION_PADDING];
+        stringField(fieldName, bytes, 0, value.copyTo(bytes, 0));
+    }
+
+    /**
      * An integer or long field. {@code fitsInt} is true if the value fits in a Java int.
      * The raw source bytes ({@code srcBuf[srcOff..srcOff+srcLen)}) contain the original
      * JSON text of the number, for callers that need the unparsed form.
@@ -88,6 +99,15 @@ public interface JsonDocumentHandler {
 
     /** A string element inside an array. The bytes are UTF-8, already unescaped. */
     void arrayElemString(byte[] buf, int off, int len);
+
+    /**
+     * A string element inside an array, delivered before it has been scanned or unescaped. The default copies it out and
+     * forwards to {@link #arrayElemString}; see {@link #rawStringField} for keeping {@code value} instead.
+     */
+    default void rawArrayElemString(Utf8Value value) {
+        byte[] bytes = new byte[value.maxLength() + SimdJsonSupport.DESTINATION_PADDING];
+        arrayElemString(bytes, 0, value.copyTo(bytes, 0));
+    }
 
     /** An integer or long element inside an array. */
     void arrayElemLong(long value, boolean fitsInt);

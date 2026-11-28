@@ -9,9 +9,12 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdjson.JsonDocumentHandler;
 import org.elasticsearch.simdjson.JsonParsingException;
+import org.elasticsearch.simdjson.SimdJsonSupport;
+import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.FloatNarrowing;
 import org.elasticsearch.sourcebatch.KeyValueWriter;
 import org.elasticsearch.sourcebatch.LeafSink;
@@ -29,15 +32,20 @@ import java.util.Set;
  * Implements {@link JsonDocumentHandler} by delegating to {@link EscfRowBuffer}
  * for column storage and to {@link LeafSink} for routing/extraction callbacks.
  *
- * <p>Array elements are accumulated into temporary buffers and packed via
- * {@link SourceBatchEncodeHelper}. Nested objects within arrays are serialized
- * through {@link KeyValueWriter}.
+ * <p>Array elements are accumulated into temporary buffers. A top-level array of only strings is
+ * staged as its elements; other arrays are packed via {@link SourceBatchEncodeHelper}. Nested
+ * objects within arrays are serialized through {@link KeyValueWriter}.
  *
  * <p><strong>Not thread-safe.</strong> One instance per document walk.
  */
 final class EscfDocumentHandler implements JsonDocumentHandler {
 
     private static final int ARRAY_INIT_CAP = 16;
+    /**
+     * The {@link #elemTypes} of a string element still held as the {@link Utf8Value} given to {@link #rawArrayElemString}; see
+     * {@link #materializeRawElements}. Never packed, so it is outside the {@link SourceValueType} values.
+     */
+    private static final byte RAW_STRING_ELEMENT = 0x40;
 
     private final EscfRowBuffer row;
     private final EscfBatchBuilder backend;
@@ -64,6 +72,9 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int elemCount;
     private boolean forceUnion;
     private String arrayFieldName;
+    /** How many of the accumulated elements are {@link #RAW_STRING_ELEMENT}s, and the sum of their {@link Utf8Value#maxLength}. */
+    private int rawElemCount;
+    private int rawElemMaxBytes;
 
     // Stack for nested arrays within arrays
     private byte[][] nestedElemTypes;
@@ -71,6 +82,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private Object[][] nestedElemVar;
     private int[] nestedElemCounts;
     private boolean[] nestedForceUnion;
+    private int[] nestedRawElemCounts;
+    private int[] nestedRawElemMaxBytes;
     private int arrayDepth;
 
     // KV serialization for nested objects within arrays
@@ -78,6 +91,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int kvDepth;
     private KeyValueWriter[] kvWriterStack;
     private int kvWriterStackDepth;
+    /** Holds a string value of a {@code KEY_VALUE} object while {@link #kvWriter} copies it. */
+    private byte[] kvStringScratch;
     /** True while serializing an inline array field value inside a KEY_VALUE blob. */
     private boolean kvInlineArrayBuild;
     /** {@link #arrayDepth} at which the current {@link #kvInlineArrayBuild} started. */
@@ -171,6 +186,25 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         if (firePathSink) {
             sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, new XContentString.UTF8Bytes(buf, off, len));
         }
+    }
+
+    @Override
+    public void rawStringField(String fieldName, Utf8Value value) {
+        assert EscfColumnBuilder.StringPadding.BYTES > 0 : "raw string values need padding past each string they are copied into";
+        if (kvDepth > 0) {
+            final int reserve = value.maxLength() + SimdJsonSupport.DESTINATION_PADDING;
+            if (kvStringScratch == null || kvStringScratch.length < reserve) {
+                kvStringScratch = new byte[ArrayUtil.oversize(reserve, Byte.BYTES)];
+            }
+            kvWriter.writeStringField(fieldName, kvStringScratch, 0, value.copyTo(kvStringScratch, 0));
+            return;
+        }
+        if (firePathSink) {
+            // The sink receives the value's bytes during the walk, so they are copied out now rather than on commit.
+            JsonDocumentHandler.super.rawStringField(fieldName, value);
+            return;
+        }
+        row.utf8StringField(fieldName, value);
     }
 
     @Override
@@ -285,6 +319,39 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         elemTypes[elemCount] = SourceValueType.STRING;
         elemVar[elemCount] = new XContentString.UTF8Bytes(buf, off, len);
         elemCount++;
+    }
+
+    @Override
+    public void rawArrayElemString(Utf8Value value) {
+        assert EscfColumnBuilder.StringPadding.BYTES > 0 : "raw string values need padding past each string they are copied into";
+        ensureArrayCapacity();
+        elemTypes[elemCount] = RAW_STRING_ELEMENT;
+        elemVar[elemCount] = value;
+        elemCount++;
+        rawElemCount++;
+        rawElemMaxBytes += value.maxLength();
+    }
+
+    /**
+     * Turns the {@link #RAW_STRING_ELEMENT}s accumulated so far into {@code STRING} elements, for the arrays that are packed
+     * while the document is walked. They share one buffer, so an array allocates once for all its raw elements.
+     */
+    private void materializeRawElements() {
+        if (rawElemCount == 0) {
+            return;
+        }
+        final byte[] bytes = new byte[rawElemMaxBytes + SimdJsonSupport.DESTINATION_PADDING];
+        int pos = 0;
+        for (int i = 0; i < elemCount; i++) {
+            if (elemTypes[i] == RAW_STRING_ELEMENT) {
+                final int length = ((Utf8Value) elemVar[i]).copyTo(bytes, pos);
+                elemTypes[i] = SourceValueType.STRING;
+                elemVar[i] = new XContentString.UTF8Bytes(bytes, pos, length);
+                pos += length;
+            }
+        }
+        rawElemCount = 0;
+        rawElemMaxBytes = 0;
     }
 
     /** Whether the elements being accumulated are those of a top-level array parsed as floats, rather than of an array in it. */
@@ -446,6 +513,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         elemVar = new Object[ARRAY_INIT_CAP];
         elemCount = 0;
         forceUnion = false;
+        rawElemCount = 0;
+        rawElemMaxBytes = 0;
     }
 
     private void ensureArrayCapacity() {
@@ -464,6 +533,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             nestedElemVar = new Object[4][];
             nestedElemCounts = new int[4];
             nestedForceUnion = new boolean[4];
+            nestedRawElemCounts = new int[4];
+            nestedRawElemMaxBytes = new int[4];
         }
         int depth = arrayDepth - 1;
         if (depth >= nestedElemTypes.length) {
@@ -473,12 +544,16 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             nestedElemVar = Arrays.copyOf(nestedElemVar, newCap);
             nestedElemCounts = Arrays.copyOf(nestedElemCounts, newCap);
             nestedForceUnion = Arrays.copyOf(nestedForceUnion, newCap);
+            nestedRawElemCounts = Arrays.copyOf(nestedRawElemCounts, newCap);
+            nestedRawElemMaxBytes = Arrays.copyOf(nestedRawElemMaxBytes, newCap);
         }
         nestedElemTypes[depth] = elemTypes;
         nestedElemNumeric[depth] = elemNumeric;
         nestedElemVar[depth] = elemVar;
         nestedElemCounts[depth] = elemCount;
         nestedForceUnion[depth] = forceUnion;
+        nestedRawElemCounts[depth] = rawElemCount;
+        nestedRawElemMaxBytes[depth] = rawElemMaxBytes;
     }
 
     private void popArrayState() {
@@ -488,12 +563,19 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         elemVar = nestedElemVar[depth];
         elemCount = nestedElemCounts[depth];
         forceUnion = nestedForceUnion[depth];
+        rawElemCount = nestedRawElemCounts[depth];
+        rawElemMaxBytes = nestedRawElemMaxBytes[depth];
         nestedElemTypes[depth] = null;
         nestedElemNumeric[depth] = null;
         nestedElemVar[depth] = null;
     }
 
     private void finishArrayAccumulation() {
+        if (arrayDepth == 1 && elemCount > 0 && rawElemCount == elemCount) {
+            stageStringArray();
+            return;
+        }
+        materializeRawElements();
         PackedArray packed = SourceBatchEncodeHelper.packAccumulatedElements(elemTypes, elemNumeric, elemVar, elemCount, forceUnion);
         Arrays.fill(elemVar, 0, elemCount, null);
 
@@ -512,6 +594,21 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             if (firePathSink) {
                 sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));
             }
+        }
+    }
+
+    /** Stages the top-level array of only raw string elements being accumulated, so that each is copied once, on commit. */
+    private void stageStringArray() {
+        final Utf8Value[] elements = new Utf8Value[elemCount];
+        for (int i = 0; i < elemCount; i++) {
+            elements[i] = (Utf8Value) elemVar[i];
+        }
+        Arrays.fill(elemVar, 0, elemCount, null);
+        arrayDepth--;
+        floatElements = false;
+        int colIdx = row.utf8StringArrayField(arrayFieldName, elements);
+        if (firePathSink) {
+            sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));
         }
     }
 
@@ -541,6 +638,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     }
 
     private void writeKvEndArray() {
+        materializeRawElements();
         PackedArray packed = SourceBatchEncodeHelper.packAccumulatedElements(elemTypes, elemNumeric, elemVar, elemCount, forceUnion);
         Arrays.fill(elemVar, 0, elemCount, null);
 

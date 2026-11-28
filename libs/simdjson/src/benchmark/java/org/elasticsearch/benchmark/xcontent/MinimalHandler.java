@@ -10,16 +10,19 @@
 package org.elasticsearch.benchmark.xcontent;
 
 import org.elasticsearch.simdjson.JsonDocumentHandler;
+import org.elasticsearch.simdjson.SimdJsonSupport;
+import org.elasticsearch.simdjson.Utf8Value;
 
 import java.math.BigInteger;
 
 /**
- * A "do nothing" handler, which records just enough to prevent dead-code elimination of the walk; every method is otherwise
- * as cheap as possible so the benchmark measures {@code walkObject}/{@code StringParser}, not
- * a handler implementation.
+ * The least work a handler can do with a document. The walk hands string values over unread, so each one is copied into
+ * one reusable buffer, as an encoder copies it into a column. Every value is folded into a checksum, so that the walk is
+ * not eliminated as dead code. A benchmark using this handler measures the walk and {@code StringParser}, not a handler.
  */
-final class NoOpHandler implements JsonDocumentHandler {
+final class MinimalHandler implements JsonDocumentHandler {
     long checksum;
+    private byte[] stringBuffer = new byte[256];
 
     @Override
     public void startObject(String fieldName) {}
@@ -33,6 +36,11 @@ final class NoOpHandler implements JsonDocumentHandler {
     @Override
     public void stringField(String fieldName, byte[] buf, int off, int len) {
         checksum ^= len;
+    }
+
+    @Override
+    public void rawStringField(String fieldName, Utf8Value value) {
+        checksum ^= copy(value);
     }
 
     @Override
@@ -67,6 +75,19 @@ final class NoOpHandler implements JsonDocumentHandler {
     @Override
     public void arrayElemString(byte[] buf, int off, int len) {
         checksum ^= len;
+    }
+
+    @Override
+    public void rawArrayElemString(Utf8Value value) {
+        checksum ^= copy(value);
+    }
+
+    private int copy(Utf8Value value) {
+        int room = value.maxLength() + SimdJsonSupport.DESTINATION_PADDING;
+        if (stringBuffer.length < room) {
+            stringBuffer = new byte[Math.max(room, 2 * stringBuffer.length)];
+        }
+        return value.copyTo(stringBuffer, 0);
     }
 
     @Override

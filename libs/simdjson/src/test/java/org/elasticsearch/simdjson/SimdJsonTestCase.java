@@ -21,6 +21,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -295,6 +296,80 @@ public abstract class SimdJsonTestCase extends ESTestCase {
     /** Wraps a string in JSON quotes: {@code "content"}. */
     public static byte[] makeJsonString(String content) {
         return ("\"" + content + "\"").getBytes(UTF_8);
+    }
+
+    /** Copies the JSON string opening at {@code quoteIdx} into {@code dst} from {@code dstOffset}, and returns its length. */
+    @FunctionalInterface
+    public interface JsonStringCopier {
+        int copy(byte[] buffer, int quoteIdx, int maxLength, byte[] dst, int dstOffset);
+    }
+
+    /**
+     * Copies a JSON string whose content is {@code json}, placed after {@code srcOffset} bytes and followed by {@code after}, into
+     * a destination with exactly the room a copy asks for from {@code dstOffset}: the bound on the length, which counts the
+     * whitespace {@code after} starts with as the walker's bound does, plus {@link SimdJsonSupport#DESTINATION_PADDING}.
+     * Returns how the copy differs from {@code expected}, or touched the bytes before {@code dstOffset}; {@code null} if neither.
+     */
+    public static String copyMismatch(String expected, String json, int srcOffset, String after, int dstOffset, JsonStringCopier copier) {
+        byte[] buffer = toBytesAtOffset('"' + json + '"' + after, srcOffset);
+        int maxLength = json.getBytes(UTF_8).length + after.length() - after.stripLeading().length();
+        byte sentinel = (byte) 0xA5;
+        byte[] dst = new byte[dstOffset + maxLength + SimdJsonSupport.DESTINATION_PADDING];
+        Arrays.fill(dst, sentinel);
+        String actual;
+        try {
+            actual = new String(dst, dstOffset, copier.copy(buffer, srcOffset, maxLength, dst, dstOffset), UTF_8);
+        } catch (RuntimeException e) {
+            actual = e.toString();
+        }
+        String where = String.format(Locale.ROOT, "[%s] at offset %d, followed by [%s], to offset %d", json, srcOffset, after, dstOffset);
+        if (expected.equals(actual) == false) {
+            return where + ": copied [" + actual + "]";
+        }
+        for (int i = 0; i < dstOffset; i++) {
+            if (dst[i] != sentinel) {
+                return where + ": wrote byte " + i + " before the destination offset";
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Appends random string content to {@code expected}, and its spelling inside a JSON string to {@code json}: plain and
+     * multi-byte characters, short escapes, and {@code \}{@code u} escapes, surrogate pairs included.
+     */
+    public static void appendRandomStringContent(StringBuilder expected, StringBuilder json) {
+        int pieces = between(0, 30);
+        for (int i = 0; i < pieces; i++) {
+            switch (between(0, 4)) {
+                case 0 -> {
+                    String plain = randomAlphanumericOfLength(between(1, 80));
+                    expected.append(plain);
+                    json.append(plain);
+                }
+                case 1 -> {
+                    String multiByte = randomFrom("é", "日本", "\uD83D\uDE00");
+                    expected.append(multiByte);
+                    json.append(multiByte);
+                }
+                case 2 -> {
+                    int escape = between(0, 7);
+                    expected.append("\"\\/\b\f\n\r\t".charAt(escape));
+                    json.append('\\').append("\"\\/bfnrt".charAt(escape));
+                }
+                case 3 -> {
+                    int codePoint = randomValueOtherThanMany(c -> Character.isSurrogate((char) (int) c), () -> between(0, 0xFFFF));
+                    expected.appendCodePoint(codePoint);
+                    json.append(String.format(Locale.ROOT, "\\u%04x", codePoint));
+                }
+                case 4 -> {
+                    char[] pair = Character.toChars(between(Character.MIN_SUPPLEMENTARY_CODE_POINT, Character.MAX_CODE_POINT));
+                    expected.append(pair);
+                    json.append(String.format(Locale.ROOT, "\\u%04X\\u%04X", (int) pair[0], (int) pair[1]));
+                }
+                default -> throw new AssertionError("unexpected piece");
+            }
+        }
     }
 
     // ---- Batch buffer helpers (multi-document NDJSON batches) ----

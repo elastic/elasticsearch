@@ -17,6 +17,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -80,6 +81,8 @@ public final class EscfBatchBuilder implements Releasable {
      * zero-based row index within that partition.
      *
      * @throws IllegalStateException if {@link EscfRowBuffer#finishRow()} was not called for the current row
+     * @throws JsonParsingException if copying a staged string value finds it malformed; the row is discarded and the
+     *     partition is left as it was before this call
      */
     public int commit(int partitionKey) {
         if (rowBuffer.isStarted() == false) {
@@ -88,10 +91,24 @@ public final class EscfBatchBuilder implements Releasable {
         final Partition partition = getOrCreatePartition(partitionKey);
         final int leafCount = schema.leafCount();
         ensurePartitionBuilders(partition, leafCount);
-        for (int c = 0; c < leafCount; c++) {
-            drainScratchValue(partition.builders.get(c), c);
-        }
         final int rowIndex = partition.docCount;
+        int c = 0;
+        try {
+            for (; c < leafCount; c++) {
+                drainScratchValue(partition.builders.get(c), c);
+            }
+        } catch (JsonParsingException e) {
+            for (int i = 0; i <= c; i++) {
+                partition.builders.get(i).discardRow(rowIndex);
+            }
+            if (rowIndex == 0) {
+                // Partitions are only created here and have a row once a commit completes, so this commit created it.
+                Releasables.close(partition.builders);
+                partitions[partitionKey] = null;
+            }
+            rowBuffer.rowStarted = false;
+            throw e;
+        }
         partition.docCount++;
         rowBuffer.rowStarted = false;
         return rowIndex;
@@ -183,6 +200,7 @@ public final class EscfBatchBuilder implements Releasable {
                 (XContentString.UTF8Bytes) rowBuffer.scratchVar(col) // the stored spelling, or null
             );
             case SourceValueType.STRING -> builder.addUtf8String((Utf8Value) rowBuffer.scratchVar(col));
+            case EscfRowBuffer.UTF8_STRING_ARRAY -> builder.addUtf8StringArray((Utf8Value[]) rowBuffer.scratchVar(col));
             case SourceValueType.BINARY -> addBinary(builder, rowBuffer.scratchVar(col));
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));

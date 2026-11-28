@@ -34,12 +34,13 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Isolates {@link org.elasticsearch.simdjson.SimdJsonDirectWalker#walkObject} plus the vectorized
- * string-copy loop it drives in {@code StringParser.doParseString}.
+ * string-copy loop of {@code StringParser.doParseString}, which copies every string value: the walk hands
+ * values over unread, and {@link MinimalHandler} copies each one.
  *
  * <p><strong>Shapes.</strong> {@code shape=analytics} (the default) generates wide analytics documents with
- * a realistic field count, string mix and escape density, see {@link AnalyticsDocs}. {@code doParseString}
- * only runs for strings that contain an escape, and in those documents they are mostly URLs with
- * {@code \/} escapes a few bytes apart, so this is the shape to use when optimising it.
+ * a realistic field count, string mix and escape density, see {@link AnalyticsDocs}. Its escaped strings
+ * are mostly URLs with {@code \/} escapes a few bytes apart, so this is the shape to use when optimising
+ * the escape path of {@code doParseString}.
  * {@code shape=synthetic} is an 11-field document where {@code escapePercent} of the strings carry a
  * single {@code \n} in the middle; it mostly exercises the long clean runs of the vector loop.
  * Set {@code dataFile} to a newline-delimited JSON file (for example a real sample) to replay real
@@ -84,7 +85,7 @@ public class StringFieldParsingBenchmark {
 
     private byte[][] docs;
     private JsonDocumentParser docParser;
-    private final NoOpHandler handler = new NoOpHandler();
+    private final MinimalHandler handler = new MinimalHandler();
 
     @Setup
     public void setUp() throws IOException {

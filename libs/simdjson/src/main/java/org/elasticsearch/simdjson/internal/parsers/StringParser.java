@@ -39,22 +39,14 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  * <ul>
  *   <li>Vector loop bounded by {@code buffer.length - BYTES_PROCESSED} with a scalar
  *       {@link #doParseStringScalar} tail for remaining bytes.</li>
- *   <li>Upstream speculatively {@code intoArray}s every vector chunk before checking for
- *       {@code "} or {@code \}; quote and escape paths copy only the literal prefix via
- *       {@code System.arraycopy}, and {@code intoArray} runs only on the no-special-characters
- *       fast path.</li>
  *   <li>Uses {@link SimdJsonVectorSupport} for vector width selection instead of upstream
  *       {@code VectorUtils}.</li>
  *   <li>Omits upstream {@code parseChar} and length-prefixed {@code parseString} overloads not
  *       needed by the ESCF walker.</li>
- *   <li>Adds {@link #scanUnescapedLength}, a vectorized quote/backslash scan used by the walker
- *       to size and copy escape-free string values without a full {@link #parseString} call;
- *       not present upstream.</li>
  *   <li>Finds the first quote-or-backslash per chunk with a single combined mask
  *       ({@code eq(BACKSLASH).or(eq(QUOTE))}) instead of upstream's two independent masks
  *       compared via {@code hasQuoteFirst}/{@code hasBackslash}; halves the number of
- *       {@code VectorMask.toLong} conversions per chunk, which profiling showed as the
- *       largest single cost once the scalar length/escape scan above was vectorized.</li>
+ *       {@code VectorMask.toLong} conversions per chunk.</li>
  *   <li>An unpaired surrogate escape becomes {@code ?} in a string value and is rejected in a
  *       field name ({@link #parseFieldName}); upstream rejects it in both.</li>
  * </ul>
@@ -85,48 +77,18 @@ public final class StringParser {
     }
 
     /**
+     * Like {@link #parseString(byte[], int, byte[])}, writing from {@code dstOffset}: {@code stringBuffer} must have room for
+     * the raw byte length of the string plus {@link SimdJsonSupport#DESTINATION_PADDING} from {@code dstOffset}.
+     */
+    public int parseString(byte[] buffer, int idx, byte[] stringBuffer, int dstOffset) {
+        return doParseString(buffer, idx, stringBuffer, dstOffset, false) - dstOffset;
+    }
+
+    /**
      * Like {@link #parseString}, for a field name: an unpaired surrogate escape is rejected.
      */
     public int parseFieldName(byte[] buffer, int idx, byte[] stringBuffer) {
         return doParseString(buffer, idx, stringBuffer, 0, true);
-    }
-
-    /**
-     * Vectorized scan for the common case where the JSON string value starting at {@code idx}
-     * (the opening quote) contains no backslash escape before its closing quote.
-     *
-     * <p>Returns the string's raw byte length (bytes strictly between the quotes) if no escape
-     * is found. Returns {@code -1} the moment a backslash is seen, before scanning any further —
-     * callers should fall back to {@link #parseString} in that case, which discovers the true
-     * content on its own and does not need a pre-computed length.
-     *
-     * <p>Reuses the same quote/backslash vector comparison {@link #doParseString} uses, but skips
-     * all copying, so the escape-free case — the overwhelming majority of string values in
-     * practice — costs a single vectorized pass.
-     */
-    public int scanUnescapedLength(byte[] buffer, int idx) {
-        int src = idx + 1;
-        int start = src;
-        int loopBound = buffer.length - BYTES_PROCESSED;
-        while (src <= loopBound) {
-            ByteVector srcVec = ByteVector.fromArray(BYTE_SPECIES, buffer, src);
-            long specialBits = srcVec.eq(BACKSLASH).or(srcVec.eq(QUOTE)).toLong();
-            if (specialBits != 0) {
-                int dist = Long.numberOfTrailingZeros(specialBits);
-                return buffer[src + dist] == QUOTE ? src + dist - start : -1;
-            }
-            src += BYTES_PROCESSED;
-        }
-        while (true) {
-            byte b = buffer[src];
-            if (b == QUOTE) {
-                return src - start;
-            }
-            if (b == BACKSLASH) {
-                return -1;
-            }
-            src++;
-        }
     }
 
     private int doParseString(byte[] buffer, int idx, byte[] stringBuffer, int offset, boolean rejectUnpairedSurrogates) {
@@ -135,28 +97,28 @@ public final class StringParser {
         int loopBound = buffer.length - BYTES_PROCESSED;
         while (src <= loopBound) {
             ByteVector srcVec = ByteVector.fromArray(BYTE_SPECIES, buffer, src);
+            // Store the whole chunk before looking at it. Clean chunks need exactly this copy, and
+            // for a chunk with a quote or backslash it puts the literal prefix in place, so no
+            // path below needs a variable-length System.arraycopy. Bytes stored past the string's
+            // end land in the DESTINATION_PADDING slack or get overwritten by the next chunk.
+            srcVec.intoArray(stringBuffer, dst);
             long specialBits = srcVec.eq(BACKSLASH).or(srcVec.eq(QUOTE)).toLong();
 
             if (specialBits == 0) {
-                // Full vector chunk has no quote or escape — bulk-copy literal UTF-8 bytes.
-                srcVec.intoArray(stringBuffer, dst);
                 src += BYTES_PROCESSED;
                 dst += BYTES_PROCESSED;
                 continue;
             }
 
             int dist = Long.numberOfTrailingZeros(specialBits);
-            if (buffer[src + dist] == QUOTE) {
-                System.arraycopy(buffer, src, stringBuffer, dst, dist);
-                return dst + dist;
+            src += dist;
+            dst += dist;
+            if (buffer[src] == QUOTE) {
+                return dst;
             }
 
-            int backslashDist = dist;
-            System.arraycopy(buffer, src, stringBuffer, dst, backslashDist);
-            byte escapeChar = buffer[src + backslashDist + 1];
+            byte escapeChar = buffer[src + 1];
             if (escapeChar == 'u') {
-                src += backslashDist;
-                dst += backslashDist;
                 int codePoint = parseUnicodeCodePoint(buffer, src);
                 src += 6;
                 if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_LOW_SURROGATE) {
@@ -170,9 +132,9 @@ public final class StringParser {
                 }
                 dst += storeCodePointInStringBuffer(codePoint, dst, stringBuffer);
             } else {
-                stringBuffer[dst + backslashDist] = escape(escapeChar);
-                src += backslashDist + 2;
-                dst += backslashDist + 1;
+                stringBuffer[dst] = escape(escapeChar);
+                src += 2;
+                dst += 1;
             }
         }
         return doParseStringScalar(buffer, src, stringBuffer, dst, rejectUnpairedSurrogates);

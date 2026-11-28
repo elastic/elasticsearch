@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -143,6 +144,155 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertEquals(2.5, col.getDoubleValue(2), 0.0);
         assertEquals(SourceValueType.STRING, col.getTypeByte(3));
         assertEquals("more", col.getStringValue(3).string());
+    }
+
+    /** A string row discarded with {@link EscfColumnBuilder#discardRow} leaves the column as if it had never been written. */
+    public void testDiscardRowUndoesUtf8String() {
+        assertDiscardRowUndoes(EscfColumnBuilderTests::randomUtf8StringRow, () -> randomRowWriter(0));
+    }
+
+    /** A string array row discarded with {@link EscfColumnBuilder#discardRow} leaves the column as if it had never been written. */
+    public void testDiscardRowUndoesUtf8StringArray() {
+        assertDiscardRowUndoes(EscfColumnBuilderTests::randomUtf8StringArrayRow, () -> randomRowWriter(0));
+    }
+
+    public void testDiscardRowUndoesLong() {
+        assertDiscardRowUndoes(() -> randomRowWriter(0), EscfColumnBuilderTests::randomUtf8StringRow);
+    }
+
+    /** Some doubles carry a spelling, so a discarded row may extend the spellings sidecar, or be the one that creates it. */
+    public void testDiscardRowUndoesDouble() {
+        assertDiscardRowUndoes(EscfColumnBuilderTests::randomDoubleRow, EscfColumnBuilderTests::randomUtf8StringRow);
+    }
+
+    /** Only a {@code true} sets a bit, so each value gets its own run. */
+    public void testDiscardRowUndoesBoolean() {
+        for (boolean value : new boolean[] { true, false }) {
+            assertDiscardRowUndoes(() -> (b, row) -> b.addBoolean(value), () -> randomRowWriter(0));
+        }
+    }
+
+    public void testDiscardRowUndoesLongArray() {
+        assertDiscardRowUndoes(() -> randomRowWriter(4), EscfColumnBuilderTests::randomUtf8StringRow);
+    }
+
+    /**
+     * A double column without spellings gets its spellings sidecar from the first spelled value; discarding that row leaves no
+     * sidecar behind, whether or not a later row creates one again.
+     */
+    public void testDiscardRowUndoesSpelledDoubleThatCreatesSpellings() {
+        for (boolean laterSpelling : new boolean[] { false, true }) {
+            try (EscfColumnBuilder expected = builder(); EscfColumnBuilder actual = builder()) {
+                int rows = between(1, 20);
+                for (int r = 0; r < rows; r++) {
+                    double value = randomDouble();
+                    expected.addDouble(value);
+                    actual.addDouble(value);
+                }
+                actual.addDouble(1.5, utf8("1.50"));
+                actual.discardRow(rows);
+                XContentString.UTF8Bytes spelling = laterSpelling ? utf8("2.50") : null;
+                expected.addDouble(2.5, spelling);
+                actual.addDouble(2.5, spelling);
+                assertSameColumnData("later spelling " + laterSpelling, expected.finish(rows + 1), actual.finish(rows + 1));
+            }
+        }
+    }
+
+    /** Before its first value a column only counts its absent rows. */
+    public void testDiscardRowUndoesAbsentRowOfColumnWithoutValues() {
+        try (EscfColumnBuilder expected = builder(); EscfColumnBuilder actual = builder()) {
+            int rows = between(0, 20);
+            expected.addAbsents(rows);
+            actual.addAbsents(rows);
+            actual.addAbsent();
+            actual.discardRow(rows);
+            RowWriter value = randomFrom(randomRowWriter(0), randomUtf8StringRow());
+            value.write(expected, rows);
+            value.write(actual, rows);
+            assertSameColumnData("discarded absent row " + rows, expected.finish(rows + 1), actual.finish(rows + 1));
+        }
+    }
+
+    /**
+     * Writes the same rows to two builders, except for one row that only {@code actual} gets and then discards, and checks
+     * that both finish identically. Runs for a column of the kind of {@code valueRows} and for a union (a row from
+     * {@code otherKindRows} first), so that the discarded write never changes the kind, each with a value and with an absent
+     * row as the discarded row. The row after the discarded one is absent, so that anything the discard leaves behind shows.
+     */
+    private static void assertDiscardRowUndoes(Supplier<RowWriter> valueRows, Supplier<RowWriter> otherKindRows) {
+        for (boolean union : new boolean[] { false, true }) {
+            for (boolean discardValue : new boolean[] { true, false }) {
+                Supplier<RowWriter> otherRows = () -> switch (between(0, 2)) {
+                    case 0 -> (b, row) -> b.addAbsent();
+                    case 1 -> union ? otherKindRows.get() : valueRows.get();
+                    default -> valueRows.get();
+                };
+                List<RowWriter> before = new ArrayList<>();
+                if (union) {
+                    before.add(otherKindRows.get());
+                }
+                before.add(valueRows.get());
+                for (int i = between(0, 20); i > 0; i--) {
+                    before.add(otherRows.get());
+                }
+                RowWriter discarded = discardValue ? valueRows.get() : (b, row) -> b.addAbsent();
+                List<RowWriter> after = new ArrayList<>();
+                after.add((b, row) -> b.addAbsent());
+                for (int i = between(0, 20); i > 0; i--) {
+                    after.add(otherRows.get());
+                }
+                try (EscfColumnBuilder expected = builder(); EscfColumnBuilder actual = builder()) {
+                    int rows = 0;
+                    for (RowWriter writer : before) {
+                        writer.write(expected, rows);
+                        writer.write(actual, rows);
+                        rows++;
+                    }
+                    discarded.write(actual, rows);
+                    actual.discardRow(rows);
+                    for (RowWriter writer : after) {
+                        writer.write(expected, rows);
+                        writer.write(actual, rows);
+                        rows++;
+                    }
+                    String description = (union ? "union, " : "") + (discardValue ? "discarded value at " : "discarded absent at ") + before
+                        .size();
+                    assertSameColumnData(description, expected.finish(rows), actual.finish(rows));
+                }
+            }
+        }
+    }
+
+    private static RowWriter randomDoubleRow() {
+        double value = randomDouble();
+        // A spelling the canonical rendering does not produce, as the encoder stores one.
+        XContentString.UTF8Bytes spelling = randomBoolean() ? utf8(Double.toString(value) + "0") : null;
+        return (b, row) -> b.addDouble(value, spelling);
+    }
+
+    /** Sometimes long enough to cross stream pages. */
+    private static String randomPageCrossingString() {
+        return randomRealisticUnicodeOfLengthBetween(0, rarely() ? 3 * PageCacheRecycler.BYTE_PAGE_SIZE : 50);
+    }
+
+    private static RowWriter randomUtf8StringRow() {
+        String value = randomPageCrossingString();
+        return (b, row) -> b.addUtf8String(utf8Value(value));
+    }
+
+    private static RowWriter randomUtf8StringArrayRow() {
+        String[] values = new String[between(1, 5)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomPageCrossingString();
+        }
+        return (b, row) -> {
+            Utf8Value[] elements = new Utf8Value[values.length];
+            for (int i = 0; i < values.length; i++) {
+                elements[i] = utf8Value(values[i]);
+            }
+            b.addUtf8StringArray(elements);
+        };
     }
 
     public void testUtf8ValueMergesIntoStringArrayColumn() {
@@ -1337,6 +1487,11 @@ public class EscfColumnBuilderTests extends ESTestCase {
             assertEquals(description + ": child", expected.child(), actual.child());
         } else {
             assertSameColumnData(description + ": child", expected.child(), actual.child());
+        }
+        if (expected.lexicalForms() == null || actual.lexicalForms() == null) {
+            assertEquals(description + ": spellings", expected.lexicalForms(), actual.lexicalForms());
+        } else {
+            assertSameColumnData(description + ": spellings", expected.lexicalForms(), actual.lexicalForms());
         }
     }
 

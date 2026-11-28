@@ -605,7 +605,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
-     * Fetch and write in cache a region of a blob if there are enough free pages in the cache to do so.
+     * Fetch and write in cache a region of a blob if the region is already in cache, or if a free region or a freq0 region can be taken
+     * for it.
      * <p>
      * This method returns as soon as the download tasks are instantiated, but the tasks themselves
      * are run on the bulk executor.
@@ -620,9 +621,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param fetchExecutor    an executor to use for reading from the blob store
      * @param timestampMillis  representative data timestamp to stamp on the cache region
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
-     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other case:
      *                         if the region to write is already available in cache, if the region is pending fetching via another thread or
-     *                         if there is not enough free pages to fetch the region.
+     *                         if the region is not in cache and no region is free nor can be evicted to make room for it.
      */
     public void maybeFetchRegion(
         final KeyType cacheKey,
@@ -639,7 +640,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     /**
      * Fetch and write in cache a region of a blob.
      * <p>
-     * If {@code force} is {@code true} and no free regions remain, an existing region will be evicted to make room.
+     * If the region is not in cache and no free regions remain, an existing region is evicted to make room. With {@code force == false}
+     * only a freq0 region may be evicted, with {@code force == true} a region of any frequency may be evicted.
+     * In both cases the eviction policy decides which regions are evictable. A region that is already in cache needs no room, so its
+     * missing bytes are fetched without evicting anything.
      * </p>
      *
      * <p>
@@ -654,13 +658,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param blobLength       the length of the blob from which the region is fetched (used to compute the size of the ending region)
      * @param writer           a writer that handles writing of newly downloaded data to the shared cache
      * @param fetchExecutor    an executor to use for reading from the blob store
-     * @param force            flag indicating whether the cache should free an occupied region to accommodate the requested
-     *                         region when none are free.
+     * @param force            flag indicating whether the cache may evict a region of any frequency, rather than only a freq0 one,
+     *                         to accommodate the requested region when none are free.
      * @param timestampMillis  representative data timestamp to stamp on the cache region
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
-     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other case:
      *                         if the region to write is already available in cache, if the region is pending fetching via another thread or
-     *                         if there is not enough free pages to fetch the region.
+     *                         if the region is not in cache and no region is free nor can be evicted to make room for it.
      */
     public void fetchRegion(
         final KeyType cacheKey,
@@ -672,7 +676,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final long timestampMillis,
         final ActionListener<Boolean> listener
     ) {
-        if (force == false && freeRegions.isEmpty()) {
+        if (force == false && freeRegions.isEmpty() && cache.getIfPresent(cacheKey, region) == null) {
             var incoming = new CacheFileRegion<>(
                 this,
                 new RegionKey<>(cacheKey, region),
@@ -700,7 +704,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
-     * Fetch and write in cache a range within a blob region if there is at least a free page in the cache to do so.
+     * Fetch and write in cache a range within a blob region if the region is already in cache, or if a free region or a freq0 region can
+     * be taken for it.
      * <p>
      * This method returns as soon as the download tasks are instantiated, but the tasks themselves
      * are run on the bulk executor.
@@ -716,11 +721,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param fetchExecutor    an executor to use for reading from the blob store
      * @param timestampMillis  representative data timestamp to stamp on the cache region
      * @param awaitPendingFill when {@code true} and the range is pending fetching via another thread, the listener is not completed until
-     *                         that other thread is done. See {@link CacheFileRegion#populate} for the effect on the listener contract.
+     *                         that other thread is done, also when the cache is full. See {@link CacheFileRegion#populate} for the effect
+     *                         on the listener contract.
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
-     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other case:
      *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
-     *                         if there is not enough free pages to fetch the range.
+     *                         if the region is not in cache and no region is free nor can be evicted to make room for it.
      */
     public void maybeFetchRange(
         final KeyType cacheKey,
@@ -739,7 +745,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     /**
      * Fetch and write in cache a range within a blob region.
      * <p>
-     * If {@code force} is {@code true} and no free regions remain, an existing region will be evicted to make room.
+     * If the region is not in cache and no free regions remain, an existing region is evicted to make room. With {@code force == false}
+     * only a freq0 region may be evicted, with {@code force == true} a region of any frequency may be evicted.
+     * In both cases the eviction policy decides which regions are evictable. A region that is already in cache needs no room, so the
+     * missing part of the range is fetched without evicting anything.
      * </p>
      * <p>
      * This method returns as soon as the download tasks are instantiated, but the tasks themselves
@@ -754,15 +763,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param blobLength       the length of the blob from which the region is fetched (used to compute the size of the ending region)
      * @param writer           a writer that handles writing of newly downloaded data to the shared cache
      * @param fetchExecutor    an executor to use for reading from the blob store
-     * @param force            flag indicating whether the cache should free an occupied region to accommodate the requested
-     *                         range when none are free.
+     * @param force            flag indicating whether the cache may evict a region of any frequency, rather than only a freq0 one,
+     *                         to accommodate the requested range when none are free.
      * @param timestampMillis  representative data timestamp to stamp on the cache region
      * @param awaitPendingFill when {@code true} and the range is pending fetching via another thread, the listener is not completed until
-     *                         that other thread is done. See {@link CacheFileRegion#populate} for the effect on the listener contract.
+     *                         that other thread is done, also when the cache is full. See {@link CacheFileRegion#populate} for the effect
+     *                         on the listener contract.
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
-     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other case:
      *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
-     *                         if there is not enough free pages to fetch the range.
+     *                         if the region is not in cache and no region is free nor can be evicted to make room for it.
      */
     public void fetchRange(
         final KeyType cacheKey,
@@ -776,7 +786,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean awaitPendingFill,
         final ActionListener<Boolean> listener
     ) {
-        if (force == false && freeRegions.isEmpty()) {
+        if (force == false && freeRegions.isEmpty() && cache.getIfPresent(cacheKey, region) == null) {
             var incoming = new CacheFileRegion<>(
                 this,
                 new RegionKey<>(cacheKey, region),

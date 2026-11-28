@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 167657
+summary: Create the cluster state encryption key only once every node can persist it
+type: bug

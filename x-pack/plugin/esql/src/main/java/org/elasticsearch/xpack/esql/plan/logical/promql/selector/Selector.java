@@ -133,13 +133,15 @@ public abstract sealed class Selector extends UnaryPlan implements PromqlPlan pe
             return new IntermediateResult(empty, TranslationSchema.EMPTY, Literal.NULL, context.cmd().stepAttribute(), null, Kind.CONSTANT);
         }
 
-        List<Attribute> dimensions = input.output()
+        // A label is a dimension or any other field but a metric: a by(...) groups by a non-dimension field too, so a label a
+        // without carries up to one may be one.
+        List<Attribute> labels = input.output()
             .stream()
-            .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
+            .filter(attribute -> attribute instanceof FieldAttribute field && field.isMetric() == false)
             .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
             .toList();
         // Expose only required labels that exist on the relation. Consumers null-fill any required label that is absent.
-        TranslationSchema schema = project(context.required(), TranslationContext.mapFinite(dimensions));
+        TranslationSchema schema = project(context.required(), TranslationContext.mapFinite(labels));
         return new IntermediateResult(input, schema, value, context.stepAttr(), matcher);
     }
 }

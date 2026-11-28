@@ -215,7 +215,11 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
             }
 
             if (identifiedPinnedDocs.isEmpty() && identifiedExcludedDocs.isEmpty()) {
-                // Nothing to do, just return the organic query
+                // Nothing to do, just return the organic query. Wrap it if this query has its own name or boost: rewrite() only
+                // carries them over to a result that has none, so they'd be lost if the organic query has its own.
+                if (boost() != DEFAULT_BOOST || queryName() != null) {
+                    return new BoolQueryBuilder().must(rewrittenOrganicQuery);
+                }
                 return rewrittenOrganicQuery;
             }
 

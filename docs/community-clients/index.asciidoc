@@ -10,7 +10,7 @@ This is a list of clients submitted by members of the Elastic community.
 Elastic does not support or endorse these clients.
 
 If you'd like to add a new client to this list, please
-https://github.com/elastic/elasticsearch/blob/master/CONTRIBUTING.md#contributing-code-and-documentation-changes[open a pull request].
+https://github.com/elastic/elasticsearch/blob/main/CONTRIBUTING.md#contributing-code-and-documentation-changes[open a pull request].
 ====
 
 Besides the link:/guide[officially supported Elasticsearch clients], there are

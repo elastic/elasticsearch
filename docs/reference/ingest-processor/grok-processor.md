@@ -9,7 +9,7 @@ mapped_pages:
 
 Extracts structured fields out of a single text field within a document. You choose which field to extract matched fields from, as well as the grok pattern you expect will match. A grok pattern is like a regular expression that supports aliased expressions that can be reused.
 
-This processor comes packaged with many [reusable patterns](https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns).
+This processor comes packaged with many [reusable patterns](https://github.com/elastic/elasticsearch/blob/main/libs/grok/src/main/resources/patterns).
 
 If you need help building patterns to match your logs, you will find the [Grok Debugger](docs-content://explore-analyze/query-filter/tools/grok-debugger.md) tool quite useful! The [Grok Constructor](https://grokconstructor.appspot.com) is also a useful tool.
 

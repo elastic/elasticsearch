@@ -12,10 +12,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.formatter.arrow.ArrowFormat;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
@@ -42,6 +45,43 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
     public void testTsvDetection() {
         MediaType text = getResponseMediaType(reqWithAccept("text/tab-separated-values"), createTestInstance(false));
         assertThat(text, is(TSV));
+    }
+
+    public void testArrowDetection() {
+        assertThat(
+            getResponseMediaType(reqWithAccept("application/vnd.apache.arrow.stream"), createTestInstance(false)),
+            is(ArrowFormat.INSTANCE)
+        );
+        assertThat(
+            getResponseMediaType(reqWithAccept("application/vnd.elasticsearch+arrow+stream"), createTestInstance(false)),
+            is(ArrowFormat.INSTANCE)
+        );
+        assertThat(
+            getResponseMediaType(reqWithAccept("application/vnd.elasticsearch+arrow+stream; compatible-with=9"), createTestInstance(false)),
+            is(ArrowFormat.INSTANCE)
+        );
+        assertThat(getResponseMediaType(reqWithParams(Map.of("format", "arrow")), createTestInstance(false)), is(ArrowFormat.INSTANCE));
+
+        assertNull(
+            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+arrow+stream; compatible-with=invalid")
+                .toMediaType(EsqlMediaTypeParser.MEDIA_TYPE_REGISTRY)
+        );
+
+        assertEquals(
+            Set.of(
+                new MediaType.HeaderValue(ArrowFormat.CONTENT_TYPE, Map.of()),
+                new MediaType.HeaderValue(
+                    "application/vnd.elasticsearch+arrow+stream",
+                    Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, MediaType.VERSION_PATTERN)
+                )
+            ),
+            ArrowFormat.INSTANCE.headerValues()
+        );
+        assertEquals(Map.of(), EsqlMediaTypeParser.MEDIA_TYPE_REGISTRY.parametersFor(ArrowFormat.CONTENT_TYPE));
+        assertEquals(
+            Set.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME),
+            EsqlMediaTypeParser.MEDIA_TYPE_REGISTRY.parametersFor("application/vnd.elasticsearch+arrow+stream").keySet()
+        );
     }
 
     public void testMediaTypeDetectionWithParameters() {

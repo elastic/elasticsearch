@@ -276,11 +276,6 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             return done;
         }
 
-        // Writes some data and returns the number of bytes written.
-        interface BufWriter {
-            long write() throws IOException;
-        }
-
         @Override
         protected void encodeChunk(int sizeHint, RecyclerBytesStreamOutput out) throws IOException {
             // An Arrow record batch consists of:
@@ -431,7 +426,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             case DOUBLE, COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 
-            case KEYWORD, TEXT -> new BlockArrowFormatter.AsVarChar(type);
+            case KEYWORD, TEXT -> new BlockArrowFormatter.BytesReFormatter(type, MinorType.VARCHAR);
 
             case DATETIME -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPMILLI);
             case DATE_NANOS -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPNANO);
@@ -451,10 +446,10 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // TODO: support also CBOR and SMILE with an additional formatting parameter
             case SOURCE -> new BlockArrowFormatter.AsJson(type);
 
-            case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
-            case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
+            case DATE_RANGE -> BlockArrowFormatter.AsRange.dateRange(type);
+            case DOUBLE_RANGE -> BlockArrowFormatter.AsRange.doubleRange(type);
 
-            case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
+            case TSID_DATA_TYPE -> new BlockArrowFormatter.BytesReFormatter(type, MinorType.VARBINARY);
             case DENSE_VECTOR -> new BlockArrowFormatter.AsDenseVector(type);
 
             case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);

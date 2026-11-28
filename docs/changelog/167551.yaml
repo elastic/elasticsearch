@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167551
+summary: "Clean up Arrow formatter API, fix `AsJson` nulls, deduplicate ranges"
+type: bug

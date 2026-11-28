@@ -12,17 +12,17 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.ListMatcher;
-import org.elasticsearch.test.MapMatcher;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -42,17 +42,20 @@ public class HeapAttackStringFunctionsIT extends HeapAttackTestCase {
         assertResultMap(map, columns, values);
     }
 
+    /**
+     * Ten chained {@code CONCAT}s, each making the string ten times longer. The seventh would build
+     * 10,000,000 bytes, which is over the 1MB limit, so it returns {@code null} with a warning. The
+     * last three get {@code null} as input and return {@code null}.
+     */
     public void testHugeConcat() throws IOException {
         initSingleDocIndex();
-        ResponseException e = expectThrows(ResponseException.class, () -> concat(10));
-        Map<?, ?> map = responseAsMap(e.getResponse());
-        logger.info("expected request rejected {}", map);
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(
-            map,
-            mapMatcher.entry("status", 400)
-                .entry("error", matchesMap().extraOk().entry("reason", "concatenating more than [1048576] bytes is not supported"))
-        );
+        Response resp = concat(10);
+        Map<String, Object> map = responseAsMap(resp);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
+            .item(matchesMap().entry("name", "str").entry("type", "keyword"));
+        ListMatcher values = matchesList().item(Arrays.asList(1, null));
+        assertResultMap(map, columns, values);
+        assertThat(resp.getWarnings(), hasItem(containsString("concatenating more than [1048576] bytes is not supported")));
     }
 
     public void testSmallJsonString() throws IOException {

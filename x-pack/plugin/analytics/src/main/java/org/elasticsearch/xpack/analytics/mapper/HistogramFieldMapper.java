@@ -428,7 +428,7 @@ public class HistogramFieldMapper extends FieldMapper {
     /**
      * No mapping option changes what {@link #parse} writes. A batch whose histogram objects carry any key but
      * {@code values} and {@code counts} falls back here; other unsupported shapes are refused per batch in
-     * {@link #mapColumnGroupBatch}.
+     * {@link #doMapColumnGroupBatch}.
      */
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
@@ -445,7 +445,7 @@ public class HistogramFieldMapper extends FieldMapper {
      * {@code ignore_malformed} is off.
      */
     @Override
-    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+    protected void doMapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
         try (
             EscfColumnBuilder docValues = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, ctx.recycler());
             BytesStreamOutput encoded = new BytesStreamOutput()

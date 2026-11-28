@@ -30,6 +30,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.AdaptiveEviction;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
@@ -70,8 +71,16 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class IndicesRequestCacheTests extends ESTestCase {
 
     public void testBasicOperationsCache() throws Exception {
+        basicOperationsCache(Settings.EMPTY);
+    }
+
+    public void testBasicOperationsCacheWithAdaptiveEviction() throws Exception {
+        basicOperationsCache(Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_ADAPTIVE_EVICTION.getKey(), true).build());
+    }
+
+    private void basicOperationsCache(Settings settings) throws Exception {
         ShardRequestCache requestCacheStats = new ShardRequestCache();
-        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        IndicesRequestCache cache = new IndicesRequestCache(settings);
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -123,6 +132,29 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         IOUtils.close(reader, writer, dir, cache);
         assertEquals(0, cache.numRegisteredCloseListeners());
+    }
+
+    /** The LFU memory window of the adaptive eviction is configurable so that the two windows can be compared on real traffic. */
+    public void testAdaptiveEvictionSketchSampleSetting() throws Exception {
+        assertEquals(
+            AdaptiveEviction.DEFAULT_SKETCH_SAMPLE,
+            (long) IndicesRequestCache.INDICES_CACHE_QUERY_ADAPTIVE_EVICTION_SKETCH_SAMPLE.get(Settings.EMPTY)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IndicesRequestCache.INDICES_CACHE_QUERY_ADAPTIVE_EVICTION_SKETCH_SAMPLE.get(
+                Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_ADAPTIVE_EVICTION_SKETCH_SAMPLE.getKey(), 0).build()
+            )
+        );
+        for (long sample : new long[] { 1_000, AdaptiveEviction.DEFAULT_SKETCH_SAMPLE, 10L * AdaptiveEviction.DEFAULT_SKETCH_WIDTH }) {
+            IndicesRequestCache cache = new IndicesRequestCache(
+                Settings.builder()
+                    .put(IndicesRequestCache.INDICES_CACHE_QUERY_ADAPTIVE_EVICTION.getKey(), true)
+                    .put(IndicesRequestCache.INDICES_CACHE_QUERY_ADAPTIVE_EVICTION_SKETCH_SAMPLE.getKey(), sample)
+                    .build()
+            );
+            cache.close();
+        }
     }
 
     public void testCacheDifferentReaders() throws Exception {
@@ -301,10 +333,18 @@ public class IndicesRequestCacheTests extends ESTestCase {
     }
 
     public void testEviction() throws Exception {
+        eviction(Settings.EMPTY);
+    }
+
+    public void testEvictionWithAdaptiveEviction() throws Exception {
+        eviction(Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_ADAPTIVE_EVICTION.getKey(), true).build());
+    }
+
+    private void eviction(Settings settings) throws Exception {
         MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
         final ByteSizeValue size;
         {
-            IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+            IndicesRequestCache cache = new IndicesRequestCache(settings);
             AtomicBoolean indexShard = new AtomicBoolean(true);
             ShardRequestCache requestCacheStats = new ShardRequestCache();
             Directory dir = newDirectory();
@@ -330,7 +370,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
             IOUtils.close(reader, secondReader, writer, dir, cache);
         }
         IndicesRequestCache cache = new IndicesRequestCache(
-            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build()
+            Settings.builder().put(settings).put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build()
         );
         AtomicBoolean indexShard = new AtomicBoolean(true);
         ShardRequestCache requestCacheStats = new ShardRequestCache();

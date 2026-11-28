@@ -773,3 +773,8 @@ tests:
   - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
   method: testMLFeatureReset
   issue: https://github.com/elastic/elasticsearch/issues/167823
+- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
+  tasks:
+  - :x-pack:plugin:slm:internalClusterTest
+  method: testSLMRetentionAfterRestore
+  issue: https://github.com/elastic/elasticsearch/issues/167959

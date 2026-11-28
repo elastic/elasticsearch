@@ -35,17 +35,22 @@ public final class DocFilterPass {
             int maxDoc = leaf.reader().maxDoc();
             for (int from = 0; from < maxDoc; from += windowSize) {
                 DocWindow window = new DocWindow(leaf, from, Math.min(maxDoc, from + windowSize));
-                inPlay.clear();
-                inPlay.set(0, window.length());
-                if (live != null) {
-                    for (int bit = 0; bit < window.length(); bit++) {
-                        if (live.get(from + bit) == false) {
-                            inPlay.clear(bit);
-                        }
-                    }
-                }
+                putLiveDocsInPlay(window, live, inPlay);
                 root.filter(window, inPlay);
                 consumer.accept(window, inPlay);
+            }
+        }
+    }
+
+    /** Puts every doc of {@code window} that {@code live} accepts in play, and nothing past the window. */
+    static void putLiveDocsInPlay(DocWindow window, Bits live, FixedBitSet inPlay) {
+        inPlay.clear();
+        inPlay.set(0, window.length());
+        if (live != null) {
+            for (int bit = 0; bit < window.length(); bit++) {
+                if (live.get(window.from() + bit) == false) {
+                    inPlay.clear(bit);
+                }
             }
         }
     }

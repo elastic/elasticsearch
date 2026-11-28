@@ -36,8 +36,17 @@ public final class NativeDocFilter implements DocFilter {
     private final Map<Integer, SegmentState> segments = new HashMap<>();
     private FixedBitSet scratch;
 
+    /** The weight of {@code query} on {@code searcher}, which many trees can share. A tree must run on that searcher's leaves. */
+    public static Weight weight(IndexSearcher searcher, Query query) throws IOException {
+        return searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+    }
+
     public static NativeDocFilter of(IndexSearcher searcher, Query query) throws IOException {
-        return new NativeDocFilter(searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f));
+        return of(weight(searcher, query));
+    }
+
+    public static NativeDocFilter of(Weight weight) {
+        return new NativeDocFilter(weight);
     }
 
     private NativeDocFilter(Weight weight) {

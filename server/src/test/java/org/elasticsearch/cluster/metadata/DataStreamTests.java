@@ -9,10 +9,12 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1318,6 +1320,44 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
+    }
+
+    public void testGetWriteIndexClassifiesOutOfBoundsTimestamps() {
+        Instant start1 = Instant.parse("2020-01-01T00:00:00Z");
+        Instant end1 = start1.plus(1, ChronoUnit.HOURS);
+        Instant start2 = end1.plus(1, ChronoUnit.HOURS);
+        Instant end2 = start2.plus(1, ChronoUnit.HOURS);
+
+        String dataStreamName = "metrics-my-app-prod";
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStream(
+            randomProjectIdOrDefault(),
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+        );
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
+
+        assertEquals(dataStream.getIndices().getFirst(), dataStream.getWriteIndex(timestampedRequest(start1), project));
+
+        Instant beforeStart = start1.minusSeconds(1);
+        var before = expectThrows(
+            DataStream.TimestampError.class,
+            () -> dataStream.getWriteIndex(timestampedRequest(beforeStart), project)
+        );
+        assertEquals(
+            new DataStream.TimestampOutOfBounds(beforeStart, DataStream.TimestampOutOfBounds.Position.BEFORE_EARLIEST_RANGE),
+            before.outOfBounds()
+        );
+        var gap = expectThrows(DataStream.TimestampError.class, () -> dataStream.getWriteIndex(timestampedRequest(end1), project));
+        assertEquals(new DataStream.TimestampOutOfBounds(end1, DataStream.TimestampOutOfBounds.Position.BETWEEN_RANGES), gap.outOfBounds());
+        var beyond = expectThrows(DataStream.TimestampError.class, () -> dataStream.getWriteIndex(timestampedRequest(end2), project));
+        assertEquals(
+            new DataStream.TimestampOutOfBounds(end2, DataStream.TimestampOutOfBounds.Position.BEYOND_END_TIME),
+            beyond.outOfBounds()
+        );
+    }
+
+    private static IndexRequest timestampedRequest(Instant timestamp) {
+        return new IndexRequest().opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", timestamp.toString()));
     }
 
     public void testSelectTimeSeriesWriteIndices() {

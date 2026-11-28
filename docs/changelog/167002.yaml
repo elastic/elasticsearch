@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 167002
+summary: Add a metric for out-of-bounds TSDB timestamp routing failures
+type: enhancement

@@ -109,6 +109,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
     private final Map<ShardId, Exception> shortCircuitShardFailures = ConcurrentCollections.newConcurrentMap();
     private final FailureStoreMetrics failureStoreMetrics;
+    private final TimeSeriesRoutingMetrics timeSeriesRoutingMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
     @Nullable
@@ -128,6 +129,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
         FailureStoreMetrics failureStoreMetrics,
+        TimeSeriesRoutingMetrics timeSeriesRoutingMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
         BatchIndexingEnabled batchIndexingEnabled,
@@ -149,6 +151,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
             new FailureStoreDocumentConverter(),
             failureStoreMetrics,
+            timeSeriesRoutingMetrics,
             dataStreamFailureStoreSettings,
             clusterHasFailureStoreFeature,
             batchIndexingEnabled,
@@ -172,6 +175,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterStateObserver observer,
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         FailureStoreMetrics failureStoreMetrics,
+        TimeSeriesRoutingMetrics timeSeriesRoutingMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
         BatchIndexingEnabled batchIndexingEnabled,
@@ -195,6 +199,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.shortCircuitShardFailures.putAll(bulkRequest.incrementalState().shardLevelFailures());
         this.failureStoreMetrics = failureStoreMetrics;
+        this.timeSeriesRoutingMetrics = timeSeriesRoutingMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
         this.router = BatchRouterSet.create(
@@ -394,6 +399,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), shard -> new ArrayList<>()).add(bulkItemRequest);
                 }
             } catch (DataStream.TimestampError timestampError) {
+                // DataStream#getWriteIndex also serves simulate bulk. Record the metric here to count only actual writes
+                // and classify the timestamp using the coordinating node's clock.
+                DataStream.TimestampOutOfBounds outOfBounds = timestampError.outOfBounds();
+                if (outOfBounds != null) {
+                    timeSeriesRoutingMetrics.recordTimestampOutOfBounds(outOfBounds, threadPool.absoluteTimeInMillis());
+                }
                 String name = ia != null ? ia.getName() : docWriteRequest.index();
                 BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), timestampError);
                 IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, failure);

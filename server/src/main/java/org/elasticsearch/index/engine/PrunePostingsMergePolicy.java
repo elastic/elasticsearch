@@ -46,6 +46,11 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
                 return wrapReader(wrapped, idField);
             }
+
+            @Override
+            public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                toWrap.mergeFinished(success, segmentDropped); // the wrapped merge may hold per-merge state to release
+            }
         });
     }
 

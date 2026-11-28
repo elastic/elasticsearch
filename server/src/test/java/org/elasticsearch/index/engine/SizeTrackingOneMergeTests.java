@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalLong;
 
@@ -50,6 +51,33 @@ public class SizeTrackingOneMergeTests extends ESTestCase {
             SizeTrackingOneMerge failed = newMerge(segment);
             failed.mergeFinished(false, false);
             assertThat(failed.mergedSegmentSizeInBytes(), equalTo(OptionalLong.empty()));
+        }
+    }
+
+    /**
+     * Policies underneath the size tracker (e.g. ones wrapping merges through {@code OneMergeWrappingMergePolicy}) may hold
+     * per-merge state that they release in {@code mergeFinished}; the tracker must pass the callback on.
+     */
+    public void testMergeFinishedIsDelegated() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                writer.addDocument(new Document());
+                writer.commit();
+            }
+            SegmentCommitInfo segment = SegmentInfos.readLatestCommit(dir).info(0);
+            boolean success = randomBoolean();
+            boolean segmentDropped = randomBoolean();
+            List<String> finished = new ArrayList<>();
+            MergePolicy.OneMerge wrapped = new MergePolicy.OneMerge(List.of(segment)) {
+                @Override
+                public void mergeFinished(boolean s, boolean d) {
+                    finished.add(s + "/" + d);
+                }
+            };
+            SizeTrackingOneMerge merge = new SizeTrackingOneMerge(wrapped);
+            merge.setMergeInfo(segment);
+            merge.mergeFinished(success, segmentDropped);
+            assertThat(finished, equalTo(List.of(success + "/" + segmentDropped)));
         }
     }
 

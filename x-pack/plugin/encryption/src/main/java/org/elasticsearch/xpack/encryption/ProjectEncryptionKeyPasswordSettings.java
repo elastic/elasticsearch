@@ -82,6 +82,41 @@ final class ProjectEncryptionKeyPasswordSettings {
         return id != null && id.isEmpty() == false && PASSWORD.getConcreteSetting(PASSWORD_PREFIX + id).exists(settings);
     }
 
+    static boolean canWrapForDisk(Settings settings) {
+        return hasPassword(settings, getActivePasswordId(settings));
+    }
+
+    /**
+     * Rejects a reload that removes a password still needed by a node that has persisted the key: the active one, which it wraps the
+     * key with, or the one its gateway copy is wrapped with, which it needs to read the key back after a restart.
+     */
+    static void validateReload(Settings current, Settings updated, @Nullable String gatewayPasswordId) {
+        if (gatewayPasswordId == null) {
+            // nothing persisted that removing a password could make unreadable
+            return;
+        }
+        if (canWrapForDisk(current) && canWrapForDisk(updated) == false) {
+            String activePasswordId = getActivePasswordId(updated);
+            String missing = activePasswordId == null ? ACTIVE_PASSWORD_ID_KEY : PASSWORD_PREFIX + activePasswordId;
+            throw new IllegalArgumentException(
+                "cannot reload cluster state encryption settings: this node holds the project encryption key on disk and ["
+                    + missing
+                    + "] is not configured in the reloaded secure settings, so this node could no longer persist the key to disk;"
+                    + " keeping the previous settings until this node restarts. Add the setting to the keystore before restarting this node"
+            );
+        }
+        if (hasPassword(current, gatewayPasswordId) && hasPassword(updated, gatewayPasswordId) == false) {
+            String missing = PASSWORD_PREFIX + gatewayPasswordId;
+            throw new IllegalArgumentException(
+                "cannot reload cluster state encryption settings: this node's on-disk copy of the project encryption key is wrapped with ["
+                    + missing
+                    + "], which is missing from the reloaded secure settings; keeping the previous settings. Keep ["
+                    + missing
+                    + "] in the keystore until this node has restarted"
+            );
+        }
+    }
+
     /**
      * Returns a {@link Settings} that merges all non-secure entries from {@code settings} with a durable in-memory snapshot of the
      * encryption-related secure settings read from the same source. The returned instance does not hold a reference to the original

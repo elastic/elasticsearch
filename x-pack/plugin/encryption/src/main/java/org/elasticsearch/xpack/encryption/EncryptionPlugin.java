@@ -53,9 +53,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     private volatile Settings pekSettings;
 
-    private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
-    private final ProjectEncryptionKeyMetadata.DegradedBlobHolder degradedBlobHolder =
-        new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
+    private final PasswordPekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
 
     public EncryptionPlugin(Settings settings) {
         this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
@@ -101,7 +99,10 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         ProjectEncryptionKeyHealthIndicatorService healthIndicator = new ProjectEncryptionKeyHealthIndicatorService(
             services.clusterService(),
             services.projectResolver(),
-            pekService
+            pekService,
+            pekEncryption::keyInGateway,
+            pekEncryption::canReadGatewayKeys,
+            handlerRegistry
         );
 
         this.coordinator.set(coordinator);
@@ -125,9 +126,12 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         return all;
     }
 
+    // synchronized so concurrent reloads can't each validate against the same stale settings
     @Override
-    public void reload(Settings settings) {
-        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+    public synchronized void reload(Settings settings) {
+        Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+        ProjectEncryptionKeyPasswordSettings.validateReload(this.pekSettings, updated, pekEncryption.gatewayPasswordId());
+        this.pekSettings = updated;
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
         if (localCoordinator != null) {
             localCoordinator.reload();
@@ -170,7 +174,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedWriteableRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 ProjectEncryptionKeyMetadata.TYPE,
-                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption, degradedBlobHolder)
+                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption)
             ),
             new NamedWriteableRegistry.Entry(NamedDiff.class, ProjectEncryptionKeyMetadata.TYPE, ProjectEncryptionKeyMetadata::readDiffFrom)
         );
@@ -182,7 +186,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(ProjectEncryptionKeyMetadata.TYPE),
-                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption, degradedBlobHolder)
+                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption)
             )
         );
     }

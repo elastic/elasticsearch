@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption.WrappedKey;
 
 import java.util.Arrays;
@@ -18,6 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PasswordPekEncryptionTests extends ESTestCase {
+
+    private static final String LOGGER = PasswordPekEncryption.class.getName();
 
     private static Settings settingsWithPassword(String passwordId, String password) {
         MockSecureSettings secure = new MockSecureSettings();
@@ -113,5 +117,67 @@ public class PasswordPekEncryptionTests extends ESTestCase {
         assertThrows(Exception.class, () -> enc.unwrap(wrappedOld.wrapped(), wrappedOld.passwordId()));
         // New wrapped bytes unwrap correctly.
         assertThat(enc.unwrap(wrappedNew.wrapped(), wrappedNew.passwordId()), equalTo(plaintext));
+    }
+
+    /** A wrap failure with the password configured, such as a password too weak for FIPS, must not advise configuring the password. */
+    public void testOnGatewayWriteDoesNotAdviseConfiguringConfiguredPassword() {
+        PasswordPekEncryption enc = new PasswordPekEncryption(() -> settingsWithPassword("v1", "short"));
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("Wrapping key derivation failed"), false),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation(
+                "warn",
+                LOGGER,
+                Level.WARN,
+                "cannot wrap the project encryption key for disk; cluster state was persisted without the project encryption key"
+            ),
+            new MockLog.UnseenEventExpectation("no password advice", LOGGER, Level.WARN, "*Configure*")
+        );
+    }
+
+    public void testOnGatewayWriteWarnsOncePerCause() {
+        PasswordPekEncryption enc = new PasswordPekEncryption(() -> Settings.EMPTY);
+
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation(
+                "warn",
+                LOGGER,
+                Level.WARN,
+                "cannot wrap PEK for disk: missing; cluster state was persisted without the project encryption key*"
+            )
+        );
+
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
+            PasswordPekEncryption.class,
+            new MockLog.UnseenEventExpectation("no repeated warn", LOGGER, Level.WARN, "*")
+        );
+
+        // a reset removes the key, so the same cause for the next key is worth a WARN again
+        enc.onKeyRemoved("k1");
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation("warn after reset", LOGGER, Level.WARN, "cannot wrap PEK for disk: missing*")
+        );
+
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: other"), true),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation(
+                "warn on new cause",
+                LOGGER,
+                Level.WARN,
+                "*with this node's previous copy of the project encryption key*"
+            )
+        );
+
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(null, true),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation("recovered", LOGGER, Level.INFO, "*persisted to this node's disk again*")
+        );
     }
 }

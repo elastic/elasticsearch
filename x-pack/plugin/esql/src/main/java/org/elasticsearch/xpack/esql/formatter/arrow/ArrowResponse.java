@@ -416,54 +416,54 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         // - ResponseValueUtils: conversions to a toString-able representation for text output
         // - PositionToXContent: conversions for ESQL JSON output
         return switch (type) {
-            case UNSUPPORTED, NULL -> new BlockArrowFormatter.AsNull(type);
+            case UNSUPPORTED, NULL -> new ScalarArrowFormatters.AsNull(type);
 
-            case BOOLEAN -> new BlockArrowFormatter.AsBoolean(type);
+            case BOOLEAN -> new ScalarArrowFormatters.AsBoolean(type);
 
-            case INTEGER, COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
-            case LONG, COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
-            case UNSIGNED_LONG -> new BlockArrowFormatter.AsFlippedSignInt64(type);
+            case INTEGER, COUNTER_INTEGER -> new ScalarArrowFormatters.AsInt32(type);
+            case LONG, COUNTER_LONG -> new ScalarArrowFormatters.AsInt64(type);
+            case UNSIGNED_LONG -> new ScalarArrowFormatters.AsFlippedSignInt64(type);
 
-            case DOUBLE, COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
+            case DOUBLE, COUNTER_DOUBLE -> new ScalarArrowFormatters.AsFloat64(type);
 
-            case KEYWORD, TEXT -> new BlockArrowFormatter.BytesReFormatter(type, MinorType.VARCHAR);
+            case KEYWORD, TEXT -> new BytesRefArrowFormatter(type, MinorType.VARCHAR);
 
-            case DATETIME -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPMILLI);
-            case DATE_NANOS -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPNANO);
+            case DATETIME -> new ScalarArrowFormatters.AsInt64(type, MinorType.TIMESTAMPMILLI);
+            case DATE_NANOS -> new ScalarArrowFormatters.AsInt64(type, MinorType.TIMESTAMPNANO);
 
             // ip are represented as 16-byte ipv6 addresses. We shorten mapped ipv4 addresses to 4 bytes.
             // Another option would be to use a fixed size binary to avoid the offset array. But with mostly
             // ipv4 addresses it would still be twice as big.
-            case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
+            case IP -> new BytesRefArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
             // Geo types: keep the WKB format (JSON converts to WKT), tagged with the geoarrow.wkb extension type
-            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsGeoArrowWkb(type);
+            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BytesRefArrowFormatter.AsGeoArrowWkb(type);
 
             // version: convert to string
-            case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
+            case VERSION -> new BytesRefArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
 
             // _source: json, tagged with the arrow.json extension type
             // TODO: support also CBOR and SMILE with an additional formatting parameter
-            case SOURCE -> new BlockArrowFormatter.AsJson(type);
+            case SOURCE -> new BytesRefArrowFormatter.AsJson(type);
 
-            case DATE_RANGE -> BlockArrowFormatter.AsRange.dateRange(type);
-            case DOUBLE_RANGE -> BlockArrowFormatter.AsRange.doubleRange(type);
+            case DATE_RANGE -> RangeArrowFormatter.dateRange(type);
+            case DOUBLE_RANGE -> RangeArrowFormatter.doubleRange(type);
 
-            case TSID_DATA_TYPE -> new BlockArrowFormatter.BytesReFormatter(type, MinorType.VARBINARY);
-            case DENSE_VECTOR -> new BlockArrowFormatter.AsDenseVector(type);
+            case TSID_DATA_TYPE -> new BytesRefArrowFormatter(type, MinorType.VARBINARY);
+            case DENSE_VECTOR -> new ScalarArrowFormatters.AsDenseVector(type);
 
-            case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
-            case EXPONENTIAL_HISTOGRAM -> new BlockArrowFormatter.AsExponentialHistogram(type);
-            case FLATTENED -> new BlockArrowFormatter.AsJson(type);
+            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleArrowFormatter(type);
+            case EXPONENTIAL_HISTOGRAM -> new ExponentialHistogramArrowFormatter(type);
+            case FLATTENED -> new BytesRefArrowFormatter.AsJson(type);
             // Geo grid cells don't fit in GeoArrow. Geohash and geohex are output as their long block value.
             // Geohash uses all 64 bits (60 bits of hash + 4 bits of level), so it's output as unsigned.
             // Geohex never sets bit 63, so signed int64 is fine.
             // Geotile is output as a struct with zoom, x and y fields.
-            case GEOHASH -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
-            case GEOHEX -> new BlockArrowFormatter.AsInt64(type);
-            case GEOTILE -> new BlockArrowFormatter.AsGeoTile(type);
-            case HISTOGRAM -> new BlockArrowFormatter.AsHistogram(type);
-            case TDIGEST -> new BlockArrowFormatter.AsTDigest(type);
+            case GEOHASH -> new ScalarArrowFormatters.AsInt64(type, MinorType.UINT8);
+            case GEOHEX -> new ScalarArrowFormatters.AsInt64(type);
+            case GEOTILE -> new GeoTileArrowFormatter(type);
+            case HISTOGRAM -> new HistogramArrowFormatter(type);
+            case TDIGEST -> new TDigestArrowFormatter(type);
 
             // Types that should not appear in ESQL outputs
             case SHORT -> null;

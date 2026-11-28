@@ -66,13 +66,13 @@ public class RangeArrowFormatterTests extends ESTestCase {
 
     public void testArrowFields() {
         assertRangeField(
-            BlockArrowFormatter.AsRange.dateRange(DataType.DATE_RANGE).arrowField("dr"),
+            RangeArrowFormatter.dateRange(DataType.DATE_RANGE).arrowField("dr"),
             "dr",
             DataType.DATE_RANGE,
             Types.MinorType.TIMESTAMPMILLI
         );
         assertRangeField(
-            BlockArrowFormatter.AsRange.doubleRange(DataType.DOUBLE_RANGE).arrowField("dblr"),
+            RangeArrowFormatter.doubleRange(DataType.DOUBLE_RANGE).arrowField("dblr"),
             "dblr",
             DataType.DOUBLE_RANGE,
             Types.MinorType.FLOAT8
@@ -82,8 +82,8 @@ public class RangeArrowFormatterTests extends ESTestCase {
     public void testConstantNullBlockSingleValued() throws IOException {
         for (int positions : new int[] { 0, 1, 5, 9 }) {
             for (BlockArrowFormatter formatter : List.of(
-                BlockArrowFormatter.AsRange.dateRange(DataType.DATE_RANGE),
-                BlockArrowFormatter.AsRange.doubleRange(DataType.DOUBLE_RANGE)
+                RangeArrowFormatter.dateRange(DataType.DATE_RANGE),
+                RangeArrowFormatter.doubleRange(DataType.DOUBLE_RANGE)
             )) {
                 try (Block block = blockFactory.newConstantNullBlock(positions)) {
                     Converted converted = convertAndWrite(formatter, block, false);
@@ -109,8 +109,8 @@ public class RangeArrowFormatterTests extends ESTestCase {
     public void testConstantNullBlockAsList() throws IOException {
         for (int positions : new int[] { 0, 1, 5 }) {
             for (BlockArrowFormatter formatter : List.of(
-                BlockArrowFormatter.AsRange.dateRange(DataType.DATE_RANGE),
-                BlockArrowFormatter.AsRange.doubleRange(DataType.DOUBLE_RANGE)
+                RangeArrowFormatter.dateRange(DataType.DATE_RANGE),
+                RangeArrowFormatter.doubleRange(DataType.DOUBLE_RANGE)
             )) {
                 try (Block block = blockFactory.newConstantNullBlock(positions)) {
                     Converted converted = convertAndWrite(formatter, block, true);
@@ -133,7 +133,7 @@ public class RangeArrowFormatterTests extends ESTestCase {
             builder.appendLongRange(10L, 20L);
             builder.appendLongRange(30L, 40L);
             try (LongRangeBlock block = builder.build()) {
-                assertDenseSingleValuedLayout(BlockArrowFormatter.AsRange.dateRange(DataType.DATE_RANGE), block);
+                assertDenseSingleValuedLayout(RangeArrowFormatter.dateRange(DataType.DATE_RANGE), block);
             }
         }
 
@@ -141,7 +141,7 @@ public class RangeArrowFormatterTests extends ESTestCase {
             builder.appendDoubleRange(1.5, 2.5);
             builder.appendDoubleRange(3.5, 4.5);
             try (DoubleRangeBlock block = builder.build()) {
-                assertDenseSingleValuedLayout(BlockArrowFormatter.AsRange.doubleRange(DataType.DOUBLE_RANGE), block);
+                assertDenseSingleValuedLayout(RangeArrowFormatter.doubleRange(DataType.DOUBLE_RANGE), block);
             }
         }
     }

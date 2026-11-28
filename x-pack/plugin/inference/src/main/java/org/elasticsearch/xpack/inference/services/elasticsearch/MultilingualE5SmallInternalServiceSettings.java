@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.ServiceSettings;
@@ -74,24 +75,22 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
      * @return The builder
      */
     public static ElasticsearchInternalServiceSettings.Builder fromRequestMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-        var baseSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
-
-        String modelId = baseSettings.getModelId();
-        if (modelId != null) {
-            if (ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId) == false) {
-                validationException.addValidationError(
-                    "unknown Multilingual-E5-Small model ID ["
-                        + modelId
-                        + "]. Valid IDs are "
-                        + Arrays.toString(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS.toArray())
-                );
-            }
-        }
-
-        validationException.throwIfValidationErrorsExist();
-
+        var baseSettings = ElasticsearchInternalServiceSettings.fromRequestMap(map);
+        validateModelIdAllowlist(baseSettings.getModelId());
         return baseSettings;
+    }
+
+    private static void validateModelIdAllowlist(@Nullable String modelId) {
+        if (modelId != null && ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId) == false) {
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationError(
+                "unknown Multilingual-E5-Small model ID ["
+                    + modelId
+                    + "]. Valid IDs are "
+                    + Arrays.toString(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS.toArray())
+            );
+            throw validationException;
+        }
     }
 
     @Override

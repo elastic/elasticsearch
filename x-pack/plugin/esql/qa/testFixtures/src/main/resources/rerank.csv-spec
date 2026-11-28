@@ -15,6 +15,7 @@ FROM books METADATA _score
 | EVAL _score=ROUND(_score, 2)
 | KEEP book_no, title, author, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
 5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
@@ -35,6 +36,7 @@ FROM books METADATA _score
 | EVAL _score=ROUND(_score, 2), rerank_score=ROUND(rerank_score, 2)
 | KEEP book_no, title, author, rerank_score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                                            | author:text                                 | rerank_score:double
 5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
@@ -56,6 +58,7 @@ FROM books METADATA _score
 | SORT rerank_score, _score ASC, book_no ASC
 | KEEP book_no, title, author, rerank_score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                                            | author:text                                 | rerank_score:double
 2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
@@ -77,6 +80,7 @@ FROM books METADATA _score
 | LIMIT 3
 | KEEP book_no, title, author, collection, rerank_score, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                                                                                  | author:text                                                                      | collection:text       | rerank_score:double | _score:double
 2675            | The Lord of the Rings - Boxed Set                                                           | J.R.R. Tolkien                                                                   | The Lord of the Rings | 0.05                | 7.28
@@ -96,6 +100,7 @@ FROM books METADATA _score
 | SORT _score DESC, book_no ASC
 | KEEP book_no, title, author, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
 4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.1
@@ -117,6 +122,7 @@ FROM books METADATA _score
 | SORT _score DESC, book_no ASC
 | KEEP book_no, title, author, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                         | author:text                                 | _score:double
 5327            | War and Peace                      | Leo Tolstoy                                 | 0.08
@@ -137,6 +143,7 @@ FROM books METADATA _score
 | KEEP book_no, title, author, _score
 | LIMIT 3
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                         | author:text                                 | _score:double
 5327            | War and Peace                      | Leo Tolstoy                                 | 0.08
@@ -157,6 +164,7 @@ FROM books
 | SORT author, title 
 | LIMIT 3
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
 4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
@@ -182,6 +190,7 @@ FROM books METADATA _id, _index, _score
 | LIMIT 2
 | KEEP book_no, title, author, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:keyword             | author:keyword   | _score:double
 5335            | Letters of J R R Tolkien  | J.R.R. Tolkien   | 0.04
@@ -251,6 +260,7 @@ FROM books METADATA _score
 // end::combine[]
 | KEEP title, original_score, rerank_score, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 // tag::combine-result[]
 title:text                                                                 | _score:double | rerank_score:double
@@ -341,6 +351,7 @@ FROM books METADATA _score
 | EVAL _score=ROUND(_score, 2)
 | KEEP book_no, title, author, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
 5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
@@ -400,6 +411,7 @@ FROM books METADATA _score
 | EVAL b = ROUND(b, 2), r = ROUND(r, 2), _score = ROUND(_score, 2)
 | SORT _score DESC, b DESC
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 b:double | r:double | _score:double
 11.74    | 0.08     | 0.08

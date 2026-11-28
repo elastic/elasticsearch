@@ -48,6 +48,7 @@ SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -76,6 +77,7 @@ SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -299,6 +301,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP *
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -328,6 +331,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP *
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -387,6 +391,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP @t*, cli*, ev*, me*, _in*
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -416,6 +421,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP @t*, cli*, ev*, me*, _in*
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 @timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -950,6 +956,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT _index, message DESC
 | LIMIT 6
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 @timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -972,6 +979,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT _index, message DESC
 | LIMIT 6
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 @timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
@@ -1194,6 +1202,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP _index, event_duration
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 _index:keyword         | event_duration:long
@@ -1223,6 +1232,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
 | KEEP _index, event_duration
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 _index:keyword         | event_duration:long
@@ -2695,6 +2705,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT event_duration::long, _index
 | KEEP _index, event_duration
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword         | event_duration:long
 no_mapping_sample_data | 725447
@@ -2724,6 +2735,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT event_duration::long, _index
 | KEEP _index, event_duration
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword         | event_duration:long
 no_mapping_sample_data | null
@@ -2783,6 +2795,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT event_duration::keyword, _index
 | KEEP _index, event_duration
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword         | event_duration:long
 no_mapping_sample_data | 1232381
@@ -2812,6 +2825,7 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 | SORT event_duration::keyword, _index
 | KEEP _index, event_duration
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword         | event_duration:long
 no_mapping_sample_data | null
@@ -3263,6 +3277,7 @@ FROM k8s, k8s_unmapped METADATA _index
 | KEEP _index, network.bytes_in
 | LIMIT 10
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword | network.bytes_in:long
 k8s            | 1021
@@ -3289,6 +3304,7 @@ FROM k8s, k8s_unmapped METADATA _index
 | KEEP _index, network.bytes_in
 | LIMIT 10
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword | network.bytes_in:long
 k8s            | 1021
@@ -3639,6 +3655,7 @@ FROM k8s_unmapped, k8s_retyped METADATA _index
     x = network.cost::double,
     y = sqrt(network.cost)
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 network.cost:long | x:double | y:double
 9                 | 9.0      | 3.0
@@ -3691,6 +3708,7 @@ FROM k8s_unmapped, k8s METADATA _index
     x = network.cost::double,
     y = sqrt(network.cost)
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 network.cost:double | x:double | y:double
 9.375               | 9.375    | 3.0618621784789726
@@ -3735,6 +3753,7 @@ FROM k8s_unmapped, k8s_retyped METADATA _index
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 network.cost:long
 9
@@ -3779,6 +3798,7 @@ FROM k8s_unmapped, k8s_retyped METADATA _index
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
 | EVAL x = network.cost + 1
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 network.cost:long | x:long
 9                 | 10

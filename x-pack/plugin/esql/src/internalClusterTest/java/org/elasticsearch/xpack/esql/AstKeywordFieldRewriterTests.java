@@ -166,8 +166,8 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
     public void testStatsClearsScopeAndAliasesBareGroupingKey() {
         RewriteResult result = rewrite("FROM employees | STATS c = COUNT(*) BY gender", Set.of("gender"));
         assertTrue(result.modified());
-        assertThat(result.rewrittenQuery(), containsString("BY __kw_gender = field_extract(gender, \"v\")"));
-        assertThat(result.rewrittenQuery(), containsString("\n| RENAME __kw_gender AS gender"));
+        assertThat(result.rewrittenQuery(), containsString("BY kw__gender = field_extract(gender, \"v\")"));
+        assertThat(result.rewrittenQuery(), containsString("\n| RENAME kw__gender AS gender"));
         // Plain STATS clears the scope: gender is handled in-segment, not by a tail EVAL.
         assertThat(result.rewrittenQuery(), not(containsString("\n| EVAL gender = field_extract(gender, \"v\")")));
         assertThat(result.rewrittenFieldNames(), hasItem("gender"));
@@ -177,10 +177,10 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
     public void testInlineStatsPreservesScopeMinusReboundNames() {
         RewriteResult result = rewrite("FROM employees | INLINE STATS m = MAX(salary) BY gender", Set.of("gender", "first_name"));
         assertTrue(result.modified());
-        assertThat(result.rewrittenQuery(), containsString("BY __kw_gender = field_extract(gender, \"v\")"));
+        assertThat(result.rewrittenQuery(), containsString("BY kw__gender = field_extract(gender, \"v\")"));
         // INLINE STATS preserves the input row, so the original flattened gender is dropped before the rename-back.
         assertThat(result.rewrittenQuery(), containsString("\n| DROP gender"));
-        assertThat(result.rewrittenQuery(), containsString("\n| RENAME __kw_gender AS gender"));
+        assertThat(result.rewrittenQuery(), containsString("\n| RENAME kw__gender AS gender"));
         // first_name was not rebound, so it stays in scope and is recovered by the tail EVAL.
         assertThat(result.rewrittenQuery(), containsString("\n| EVAL first_name = field_extract(first_name, \"v\")"));
         assertThat(result.rewrittenFieldNames(), hasItem("gender"));
@@ -343,8 +343,8 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         );
         assertTrue(result.modified());
         // Branch 1 produces first_name as keyword via the STATS grouping alias + rename-back.
-        assertThat(result.rewrittenQuery(), containsString("BY __kw_first_name = field_extract(first_name, \"v\")"));
-        assertThat(result.rewrittenQuery(), containsString("RENAME __kw_first_name AS first_name"));
+        assertThat(result.rewrittenQuery(), containsString("BY kw__first_name = field_extract(first_name, \"v\")"));
+        assertThat(result.rewrittenQuery(), containsString("RENAME kw__first_name AS first_name"));
         // Branch 2 still has first_name flattened, so it is recovered there to match branch 1's keyword type.
         assertThat(result.rewrittenQuery(), containsString("WHERE emp_no > 10\n| EVAL first_name = field_extract(first_name, \"v\")"));
         assertThat(result.rewrittenFieldNames(), hasItem("first_name"));

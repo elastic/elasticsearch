@@ -1637,7 +1637,8 @@ FROM employees
 | EVAL _score = gender
 | FILLNULL "x" ON *
 ;
-warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+warningRegex:Line 5:3: \[FILLNULL\] the fill value could not be applied to the following fields, which were left unchanged: \[emp_no\]
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 emp_no:integer | gender:keyword | _score:keyword
 10010          | x              | x
@@ -2402,6 +2403,7 @@ FROM employees
 | FILLNULL "x" ON *
 | DROP _fork
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 gender:keyword | _score:keyword
 x              | x
@@ -2421,6 +2423,7 @@ FROM (FROM employees | WHERE emp_no == 10010 | KEEP gender | EVAL _index = gende
 | FILLNULL "x" ON *
 | SORT gender
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 gender:keyword | _index:keyword
 M              | x

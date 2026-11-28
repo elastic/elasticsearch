@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167878
+summary: Warn on column names starting with `_`
+type: enhancement

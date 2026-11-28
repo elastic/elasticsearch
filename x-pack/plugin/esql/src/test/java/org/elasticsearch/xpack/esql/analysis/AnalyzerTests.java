@@ -189,6 +189,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reservedColumnNameWarning;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.soleHighlight;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
@@ -7741,6 +7742,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         )) {
             booksWithConflictingTitleAnalyzer().error(query + highlight, containsString(analyzerConflictError("title")));
         }
+        assertWarnings(reservedColumnNameWarning(1, 41, "_index"), reservedColumnNameWarning(1, 78, "_index"));
     }
 
     /**

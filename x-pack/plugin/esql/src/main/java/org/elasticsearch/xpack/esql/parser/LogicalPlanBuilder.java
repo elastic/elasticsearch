@@ -164,6 +164,10 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.TIM
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
+ * <p>
+ * When a command lets users name its output columns, those names must be checked for the reserved {@code _} prefix. This happens
+ * automatically for {@code name = ...}, but a name given in any other way, like {@code ... AS name} or inside a string, needs a
+ * call to {@link #warnIfReservedColumnName}; see there.
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
     /**
@@ -332,10 +336,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 // Validate each pattern individually,
                 // as multiple invalid patterns could be combined to form a valid one
                 // see https://github.com/elastic/elasticsearch/issues/136750
+                Grok.Parser patternParser;
                 try {
-                    Grok.pattern(source, pattern);
+                    patternParser = Grok.pattern(source, pattern);
                 } catch (SyntaxException e) {
                     throw new ParsingException(source(ctx.string(i)), "Invalid GROK pattern [{}]: [{}]", pattern, e.getMessage());
+                }
+                for (Attribute extracted : patternParser.extractedFields()) {
+                    warnIfReservedColumnName(source(ctx.string(i)), extracted.name());
                 }
             }
 
@@ -410,6 +418,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
                 Dissect.Parser esqlDissectParser = new Dissect.Parser(pattern, appendSeparator, parser);
                 List<Attribute> keys = esqlDissectParser.keyAttributes(src);
+                for (Attribute key : keys) {
+                    warnIfReservedColumnName(source(ctx.string()), key.name());
+                }
 
                 return new Dissect(src, p, expression(ctx.primaryExpression()), esqlDissectParser, keys);
             } catch (DissectException e) {
@@ -1180,6 +1191,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
         }
+        if (parsedTargetTypeColumn != null) {
+            warnIfReservedColumnName(parsedTargetTypeColumn.source(), parsedTargetTypeColumn.name());
+        }
+        if (parsedTargetPvalueColumn != null) {
+            warnIfReservedColumnName(parsedTargetPvalueColumn.source(), parsedTargetPvalueColumn.name());
+        }
 
         Attribute targetType = new ReferenceAttribute(
             src,
@@ -1859,7 +1876,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 HIGHLIGHT_PREFIX_KEYWORD
             );
         }
-        return BytesRefs.toString(visitString(ctx.prefix).fold(FoldContext.small()));
+        String prefix = BytesRefs.toString(visitString(ctx.prefix).fold(FoldContext.small()));
+        // The prefix starts every generated column name.
+        warnIfReservedColumnName(source(ctx.prefix), prefix);
+        return prefix;
     }
 
     private Highlight applyHighlightOptions(Highlight h, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -2258,6 +2278,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
 
         String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
+        if (ctx.valueName() != null) {
+            warnIfReservedColumnName(source(ctx.valueName()), valueColumnName);
+        }
 
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
             source,

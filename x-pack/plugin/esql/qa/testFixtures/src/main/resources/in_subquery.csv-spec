@@ -1134,6 +1134,7 @@ FROM books METADATA _score
 | EVAL _score = ROUND(_score, 2)
 | KEEP book_no, title, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text    | _score:double
 5327            | War and Peace | 0.08
@@ -1158,6 +1159,7 @@ FROM books
   )
 | KEEP book_no, title
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text
 5327            | War and Peace
@@ -1178,6 +1180,7 @@ FROM books METADATA _score
 | EVAL _score = ROUND(_score, 2)
 | KEEP book_no, title, _score
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 book_no:keyword | title:text    | _score:double
 5327            | War and Peace | 0.08

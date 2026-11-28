@@ -94,6 +94,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reservedColumnNameWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -146,6 +147,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(viewService.get(projectId, "view1").query(), equalTo("FROM emp"));
         assertThat(viewService.get(projectId, "view2").query(), equalTo("FROM view1"));
         assertThat(viewService.get(projectId, "view3").query(), equalTo("FROM view2"));
+    }
+
+    /**
+     * Column names starting with {@code _} in a view's definition warn when the view is stored, where its author sees it, and not
+     * when a query reads from the view.
+     */
+    public void testPutViewWarnsAboutReservedColumnNames() {
+        addView("v", "FROM emp | EVAL _x = 1");
+        assertWarnings(reservedColumnNameWarning(1, 17, "_x"));
+        replaceViews(query("FROM v"));
+        ensureNoWarnings();
     }
 
     public void testReplaceView() {

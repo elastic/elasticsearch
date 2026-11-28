@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reservedColumnNameWarning;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -2244,6 +2245,14 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertThat(from, score, instanceOf(MetadataAttribute.class));
             assertThat(from, score.dataType(), is(DOUBLE));
         }
+        assertWarnings(
+            reservedColumnNameWarning(1, 48, "_score"),
+            reservedColumnNameWarning(1, 53, "_score"),
+            reservedColumnNameWarning(1, 55, "_score"),
+            reservedColumnNameWarning(1, 57, "_score"),
+            reservedColumnNameWarning(1, 77, "_score"),
+            reservedColumnNameWarning(1, 84, "_score")
+        );
     }
 
     /**
@@ -2261,6 +2270,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertThat(from, score, instanceOf(ReferenceAttribute.class));
             assertThat(from, score.dataType(), is(DOUBLE));
         }
+        assertWarnings(reservedColumnNameWarning(1, 40, "_score"), reservedColumnNameWarning(1, 53, "_score"));
     }
 
     /** With no branch scoring there is nothing for a later search to add onto, so the merged column stays a reference. */
@@ -2273,6 +2283,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertThat(from, score, instanceOf(ReferenceAttribute.class));
             assertThat(from, score.dataType(), is(DOUBLE));
         }
+        assertWarnings(reservedColumnNameWarning(1, 24, "_score"));
     }
 
     /**
@@ -2312,6 +2323,13 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertThat(from, score, instanceOf(MetadataAttribute.class));
             assertThat(from, score.dataType(), is(DOUBLE));
         }
+        assertWarnings(
+            reservedColumnNameWarning(1, 24, "_score"),
+            reservedColumnNameWarning(1, 30, "_score"),
+            reservedColumnNameWarning(1, 43, "_score"),
+            reservedColumnNameWarning(1, 59, "_score"),
+            reservedColumnNameWarning(1, 83, "_score")
+        );
     }
 
     /**
@@ -2330,6 +2348,12 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertThat(from, score, instanceOf(ReferenceAttribute.class));
             assertThat(from, score.dataType(), is(DOUBLE));
         }
+        assertWarnings(
+            reservedColumnNameWarning(1, 43, "_score"),
+            reservedColumnNameWarning(1, 59, "_score"),
+            reservedColumnNameWarning(1, 72, "_score"),
+            reservedColumnNameWarning(1, 88, "_score")
+        );
     }
 
     /** The {@code _score} column of the {@link UnionAll} that {@code from} resolves to, with every branch aligned to it. */

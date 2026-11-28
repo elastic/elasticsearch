@@ -18,6 +18,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -81,6 +82,7 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
@@ -144,6 +146,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     static final Literal MISSING_PARAMETER = new Literal(Source.EMPTY, null, DataType.NULL);
 
     protected final ParsingContext context;
+
+    /**
+     * The column names starting with {@code _} that the query defines, collected by {@link #warnIfReservedColumnName}. A builder
+     * parses a single query, and {@link #addReservedColumnNameWarning} reports them all in one warning once it is done.
+     */
+    private final List<ReservedColumnName> reservedColumnNames = new ArrayList<>();
+
+    private record ReservedColumnName(int line, int column, String name) {}
 
     /**
      * @param pragmas the pragmas of the query, which override the cluster limits in {@code flags} for this query
@@ -228,6 +238,104 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected static ParsingException qualifiersUnsupportedInFieldDefinitions(Source source, String qualifiedName) {
         return new ParsingException(source, "Qualified names are not supported in field definitions, found [{}]", qualifiedName);
+    }
+
+    /**
+     * Start of the warning from {@link #addReservedColumnNameWarning}, about the first column name starting with {@code _};
+     * the arguments are its line, its column and the name. Further such names of the query are listed after it.
+     */
+    public static final String RESERVED_COLUMN_NAME_WARNING =
+        "Line {}:{}: Column name [{}] starts with [_], which is reserved for internal columns";
+
+    /**
+     * How many column names starting with {@code _} the warning lists besides the first one, to bound the size of the header.
+     */
+    static final int MAX_LISTED_RESERVED_COLUMN_NAMES = 10;
+
+    /**
+     * Records that the query explicitly names a new column with a leading {@code _}, for the warning that
+     * {@link #addReservedColumnNameWarning} adds once the query is parsed.
+     * <p>
+     * Column names starting with {@code _} are reserved for columns that {@code ES|QL} itself provides, like metadata fields
+     * ({@code _index}, {@code _score}) or columns that commands add ({@code _fork}). A user-defined column with such a name can
+     * clash with one of those, including ones added in later versions. Any user-defined name counts, including one that
+     * assigns to an existing internal column, like {@code EVAL _score = ROUND(_score, 2)}.
+     * <h4>Where the check happens</h4>
+     * <ul>
+     *     <li>
+     *         Automatically, for every assignment {@code name = ...}: {@link #visitQualifiedName} and
+     *         {@link #visitQualifiedNamePattern} check any name that is directly followed by {@code =} in its grammar rule
+     *         (see {@link #isAssignmentTarget}). In the grammar, a {@code qualifiedName} or {@code qualifiedNamePattern} followed
+     *         by {@code =} always defines a column: {@code EVAL}, {@code ROW}, {@code STATS ... BY}, {@code RENAME new = old},
+     *         {@code ENRICH ... WITH new = field}, the targets of {@code RERANK}, {@code COMPLETION}, {@code DENSE_VECTOR} and
+     *         the output prefixes of {@code URI_PARTS}, {@code USER_AGENT} etc. Other {@code =} in the grammar, like settings,
+     *         named parameters or {@code LET}, have a plain {@code identifier} on the left.
+     *     </li>
+     *     <li>
+     *         Explicitly, by calling this method, for column names that a command defines in another way: {@code RENAME old AS
+     *         new}, {@code CHANGE_POINT ... AS type, pvalue}, the keys of {@code GROK} and {@code DISSECT} patterns, the
+     *         {@code HIGHLIGHT} prefix and the {@code PROMQL} value column.
+     *     </li>
+     * </ul>
+     * <h4>When adding a command</h4>
+     * If the command lets users name an output column with {@code name = ...}, using {@code qualifiedName} or
+     * {@code qualifiedNamePattern} in the grammar, nothing needs to be done. If it takes the name in any other way, call this
+     * method where the name is parsed, with the source of where the user wrote it. Do not call it for default names that the
+     * command picks when the user doesn't name the column (e.g. {@code RERANK}'s {@code _score}): those are internal columns,
+     * and queries relying on the defaults must stay warning-free. In both cases, add a case to {@code ReservedColumnNameWarningTests}.
+     */
+    protected void warnIfReservedColumnName(Source source, String name) {
+        if (name != null && name.startsWith("_") && source.source().getLineNumber() > 0) {
+            reservedColumnNames.add(new ReservedColumnName(source.source().getLineNumber(), source.source().getColumnNumber(), name));
+        }
+    }
+
+    /**
+     * Whether {@code ctx} is directly followed by {@code =} in its parent rule, i.e. it is the name on the left of an assignment
+     * like {@code EVAL name = ...}. See {@link #warnIfReservedColumnName}.
+     */
+    private static boolean isAssignmentTarget(ParserRuleContext ctx) {
+        ParserRuleContext parent = ctx.getParent();
+        if (parent == null || parent.children == null) {
+            return false;
+        }
+        int index = parent.children.indexOf(ctx);
+        return index >= 0
+            && index + 1 < parent.children.size()
+            && parent.children.get(index + 1) instanceof TerminalNode next
+            && next.getSymbol().getType() == EsqlBaseParser.ASSIGN;
+    }
+
+    /**
+     * Adds a single warning for all the column names starting with {@code _} that the query defines, if any: it points at the
+     * first one and lists the others, rather than warning once per name, which could flood the response headers.
+     */
+    void addReservedColumnNameWarning() {
+        if (reservedColumnNames.isEmpty()) {
+            return;
+        }
+        List<ReservedColumnName> names = reservedColumnNames.stream()
+            .distinct()
+            .sorted(Comparator.comparingInt(ReservedColumnName::line).thenComparingInt(ReservedColumnName::column))
+            .toList();
+        ReservedColumnName first = names.getFirst();
+        StringBuilder format = new StringBuilder(RESERVED_COLUMN_NAME_WARNING);
+        List<Object> params = new ArrayList<>(List.of(first.line(), first.column(), first.name()));
+        List<ReservedColumnName> others = names.subList(1, names.size());
+        if (others.isEmpty() == false) {
+            format.append("; other column names starting with [_]: ");
+            int listed = Math.min(others.size(), MAX_LISTED_RESERVED_COLUMN_NAMES);
+            for (int i = 0; i < listed; i++) {
+                ReservedColumnName other = others.get(i);
+                format.append(i == 0 ? "" : ", ").append("[{}] at line {}:{}");
+                params.addAll(List.of(other.name(), other.line(), other.column()));
+            }
+            if (others.size() > listed) {
+                format.append(" and [{}] more");
+                params.add(others.size() - listed);
+            }
+        }
+        HeaderWarning.addWarning(format.toString(), params.toArray());
     }
 
     protected static ParsingException qualifiersUnsupportedInPatterns(Source source, String qualifiedNamePattern) {
@@ -357,7 +465,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String name = visitFieldName(ctx.fieldName());
         String qualifier = ctx.qualifier != null ? ctx.qualifier.getText() : null;
 
-        return new UnresolvedAttribute(source(ctx), qualifier, name, null);
+        UnresolvedAttribute attribute = new UnresolvedAttribute(source(ctx), qualifier, name, null);
+        if (isAssignmentTarget(ctx)) {
+            warnIfReservedColumnName(attribute.source(), attribute.name());
+        }
+        return attribute;
     }
 
     @Override
@@ -407,6 +519,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public NamedExpression visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext qualifiedCtx) {
+        NamedExpression namePattern = qualifiedNamePattern(qualifiedCtx);
+        // Only a plain name defines a column; RENAME and ENRICH reject wildcard patterns on the left of = themselves.
+        if (namePattern instanceof UnresolvedAttribute name && isAssignmentTarget(qualifiedCtx)) {
+            warnIfReservedColumnName(name.source(), name.name());
+        }
+        return namePattern;
+    }
+
+    private NamedExpression qualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext qualifiedCtx) {
         if (qualifiedCtx == null) {
             return null;
         }
@@ -1185,6 +1306,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ua.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(src, ctx.newName.getText());
         }
+        if (ctx.AS() != null) {
+            // `new = old` is an assignment and already checked in visitQualifiedNamePattern, `old AS new` is not
+            warnIfReservedColumnName(newName.source(), newName.name());
+        }
 
         return new Alias(src, newName.name(), oldName);
     }
@@ -1231,7 +1356,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source src = source(ctx);
         NamedExpression enrichField = enrichFieldName(ctx.enrichField);
         NamedExpression newName = enrichFieldName(ctx.newName);
-        return newName == null ? enrichField : new Alias(src, newName.name(), enrichField);
+        if (newName == null) {
+            return enrichField;
+        }
+        return new Alias(src, newName.name(), enrichField);
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {

@@ -15,6 +15,7 @@ FROM employees METADATA _id, _index, _score
 | KEEP _score, _fork, emp_no
 | SORT _score, _fork, emp_no
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword | emp_no:integer
 0.0164        | fork1         | 10001
@@ -36,6 +37,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2] | 4
@@ -61,6 +63,7 @@ FROM books METADATA _id, _index, _score
 | KEEP _score, _fork, _id
 | WHERE _score > 0.014
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.03252       | [fork1, fork2] | 60
@@ -107,6 +110,7 @@ FROM books METADATA _id, _index, _score
 | EVAL title = trim(substring(title, 1, 20))
 | KEEP _score, author, title, _fork
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | author:keyword                    | title:keyword        | _fork:keyword
 0.0325        | [Keith Faulkner, Rory Tyger]      | Pop! Went Another Ba | [fork1, fork4]
@@ -132,6 +136,7 @@ FROM semantic_text METADATA _id, _score, _index
 | EVAL _fork = mv_sort(_fork)
 | KEEP _fork, _score, _id, semantic_text_field
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 _fork:keyword  | _score:double | _id:keyword | semantic_text_field:keyword
 [fork1, fork2] | 0.0328        | 2           | all we have to decide is what to do with the time that is given to us
@@ -154,6 +159,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2] | 4
@@ -179,6 +185,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.03922       | [fork1, fork2] | 4
@@ -204,6 +211,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.01639       | [fork1, fork2] | 4
@@ -229,6 +237,7 @@ FROM books METADATA _id, _score, _index
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.01639       | [fork1, fork2] | 4
@@ -254,6 +263,7 @@ FROM books METADATA _id, _index, _score
 | EVAL my_score = round(my_score, 5)
 | KEEP my_score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 my_score:double | _fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2] | 4
@@ -281,6 +291,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, new_fork, _id
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 _score:double | new_fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2]    | 4
@@ -309,6 +320,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, new.fork, _id
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 _score:double | new.fork:keyword  | _id:keyword
 0.03279       | [fork1, fork2]    | 4
@@ -335,6 +347,7 @@ FROM books METADATA _id, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, new_id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | new_id:keyword
 0.03279       | [fork1, fork2] | 44
@@ -390,6 +403,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 2.09421       | fork1          | 26
@@ -415,6 +429,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.89318       | [fork1, fork2] | 4
@@ -441,6 +456,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 1.0           | fork1          | 26
@@ -466,6 +482,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.87343       | [fork1, fork2] | 4
@@ -491,6 +508,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 1.05958       | [fork1, fork2] | 4
@@ -516,6 +534,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | _id:keyword
 0.7           | fork2          | 29
@@ -542,6 +561,7 @@ FROM books METADATA _id, _index, _score
 | EVAL my_score = round(my_score, 5)
 | KEEP my_score, _fork, _id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 my_score:double | _fork:keyword  | _id:keyword
 2.09421         | fork1          | 26
@@ -570,6 +590,7 @@ FROM books METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, new_fork, _id
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 _score:double | new_fork:keyword | _id:keyword
 2.09421       | fork1            | 26
@@ -596,6 +617,7 @@ FROM books METADATA _id, _score
 | EVAL _score = round(_score, 5)
 | KEEP _score, _fork, new_id
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _fork:keyword  | new_id:keyword
 2.09421       | fork1          | 2626
@@ -649,6 +671,7 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | EVAL my_score = round(my_score, 5)
 | KEEP _id, my_score
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _id:keyword | my_score:double
 id_0.0      | 0.01639
@@ -671,6 +694,7 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _id:keyword | my_score:double
 id_4.0      | 8.0
@@ -694,6 +718,7 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _id:keyword | my_score:double
 id_4.0      | 1.0
@@ -718,6 +743,7 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _id:keyword | my_score:double
 id_4.0      | 0.7303
@@ -741,9 +767,10 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score, my_fork
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
+warningRegex:Line 6:3: evaluation of \[FUSE LINEAR SCORE BY my_score GROUP BY my_fork\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 6:3: java\.lang\.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
-warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | [foo, bar]
@@ -767,9 +794,10 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score, my_fork
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
+warningRegex:Line 6:3: evaluation of \[FUSE LINEAR SCORE BY my_score GROUP BY my_fork\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 6:3: java\.lang\.IllegalArgumentException: score column contains multivalued entries; assigning null scores
 
-warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: score column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | foo
@@ -793,9 +821,10 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | SORT my_score DESC
 | KEEP _id, my_score, my_fork
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
+warningRegex:Line 6:3: evaluation of \[FUSE RRF SCORE BY my_score GROUP BY my_fork\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 6:3: java\.lang\.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
-warning:Line 6:3: evaluation of [FUSE RRF SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | [foo, bar]
@@ -817,6 +846,7 @@ ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
 | SORT _id
 | KEEP _id, _score
 ;
+warningRegex:Column name \[_id\] starts with \[_\], which is reserved for internal columns
 
 _id:keyword | _score:double
 a           | 0.0
@@ -835,6 +865,7 @@ ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
 | SORT _id
 | KEEP _id, _score
 ;
+warningRegex:Column name \[_id\] starts with \[_\], which is reserved for internal columns
 
 _id:keyword | _score:double
 a           | 0.0
@@ -850,6 +881,7 @@ ROW x = null, _id = "", _index = "", _score = 1.0, my_fork = ""
 | LIMIT 1
 | FUSE LINEAR GROUP BY my_fork
 ;
+warningRegex:Column name \[_id\] starts with \[_\], which is reserved for internal columns
 
 _score:double | x:null | _id:keyword | _index:keyword | my_fork:keyword
 1             | null   | ""          | ""             | ""
@@ -866,6 +898,7 @@ ROW x = null, _id = "", _index = "", _score = 1.0
 | FUSE LINEAR
 | EVAL _fork = mv_sort(_fork)
 ;
+warningRegex:Column name \[_id\] starts with \[_\], which is reserved for internal columns
 
 _score:double | x:null | _id:keyword | _index:keyword | y:integer | _fork:keyword
 2             | null   | ""          | ""             | 1    | [fork1,fork2]
@@ -907,6 +940,7 @@ FROM ( FROM employees METADATA _id, _index, _score
 | EVAL _score = round(_score, 5)
 | KEEP emp_no, _score, label
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 
 emp_no:integer | _score:double | label:keyword
 10002          | 0.01639       | query2
@@ -978,6 +1012,7 @@ FROM colors METADATA _id, _index, _score
 | KEEP _score, color, rgb_vector, hex_code, primary, _index, _fork, score1, score2
 | SORT _score DESC, color ASC
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | color:keyword | rgb_vector:dense_vector | hex_code:keyword | primary:boolean | _index:keyword | _fork:keyword  | score1:double          | score2:double
 0.03279       | red           | [255.0, 0.0, 0.0]       | #FF0000          | true            | colors         | [fork1, fork2] | 1.0                    | 1.0
@@ -1008,6 +1043,7 @@ FROM colors METADATA _id, _index, _score
 | KEEP _score, color, hex_code, id, primary, rgb_byte_vector, rgb_vector, _index, _fork
 | SORT _score DESC, color ASC
 ;
+warningRegex:Column name \[_fork\] starts with \[_\], which is reserved for internal columns
 
 _score:double | color:keyword | hex_code:keyword | id:integer | primary:boolean | rgb_byte_vector:dense_vector | rgb_vector:dense_vector | _index:keyword | _fork:keyword
 0.03279       | red           | #FF0000          | 4          | true            | [127.0, -128.0, -128.0]      | [255.0, 0.0, 0.0]       | colors         | [fork1, fork2]
@@ -1043,6 +1079,7 @@ ROW row = [
 | KEEP _score, _id, _index, _fork, title, col1
 | SORT _id ASC
 ;
+warningRegex:Column name \[_id\] starts with \[_\], which is reserved for internal columns
 
 _score:double | _id:keyword | _index:keyword | _fork:keyword  | title:keyword | col1:keyword
 2.0           | id1         | idx            | [fork1, fork2] | abc           | def

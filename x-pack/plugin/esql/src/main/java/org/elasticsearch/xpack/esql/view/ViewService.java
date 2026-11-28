@@ -289,13 +289,15 @@ public class ViewService {
         // A PUT request carries no pragmas, so the command and branch limits come from the cluster settings only, read now:
         // EsqlFlags is a snapshot of them.
         var flags = new EsqlFlags(clusterService.getClusterSettings());
+        // Warn about column names starting with _ here, where the view's author sees it, and not on every query that reads the view.
         var statement = parser.parseView(
             view.query(),
             new QueryParams(),
             new InferenceSettings(Settings.EMPTY),
             view.name(),
             QueryPragmas.EMPTY,
-            flags
+            flags,
+            true
         );
         // Named subqueries are substituted before anything is resolved, so their errors (unreferenced or forward-referenced
         // names, a named subquery read by TS or LOOKUP JOIN) depend only on the definition, and a view that has one could never

@@ -316,6 +316,7 @@ from books metadata _score
 | keep book_no, title, _score
 | limit 10
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 book_no:keyword | title:text                                                                                                                     | _score:double
@@ -333,6 +334,7 @@ from books metadata _score
 | keep book_no, title, _score 
 | limit 10
 ;
+warningRegex:Column name \[_score\] starts with \[_\], which is reserved for internal columns
 ignoreOrder:true
 
 book_no:keyword | title:text                                                                                                                     | _score:keyword

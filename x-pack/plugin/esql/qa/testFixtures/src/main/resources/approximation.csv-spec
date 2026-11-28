@@ -646,6 +646,7 @@ FROM many_numbers
 | WHERE sv <= 10
 | STATS sum=SUM(sv), `_approximation_confidence_interval(sum)`=COUNT(sv)
 ;
+warningRegex:Column name \[_approximation_confidence_interval\(sum\)\] starts with \[_\], which is reserved for internal columns
 
 documents_found: 55..65
 approximation_applied: false
@@ -1716,6 +1717,7 @@ FROM many_numbers | STATS sum=SUM(sv)
 // presence of randomness, and be able to specify an expected result for the docs.
 | EVAL sum=42284250::long, `_approximation_confidence_interval(sum)`=[41622402, 43016433]::long, `_approximation_certified(sum)`=true
 ;
+warningRegex:Column name \[_approximation_confidence_interval\(sum\)\] starts with \[_\], which is reserved for internal columns
 
 documents_found: 0
 approximation_applied: false
@@ -1739,6 +1741,7 @@ FROM many_numbers | STATS median=MEDIAN(sv)
 // presence of randomness, and be able to specify an expected result for the docs.
 | EVAL median=356.0, `_approximation_confidence_interval(median)`=[353.73, 358.79], `_approximation_certified(median)`=true
 ;
+warningRegex:Column name \[_approximation_confidence_interval\(median\)\] starts with \[_\], which is reserved for internal columns
 
 documents_found: 0
 approximation_applied: false

@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reservedColumnNameWarning;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
@@ -4668,6 +4669,7 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE",
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
+        assertWarnings(reservedColumnNameWarning(1, 47, "_fork"));
 
         defaultAnalyzer().error(
             "FROM test METADATA _index, _score, _id | FORK (WHERE true) (WHERE true) | FUSE",

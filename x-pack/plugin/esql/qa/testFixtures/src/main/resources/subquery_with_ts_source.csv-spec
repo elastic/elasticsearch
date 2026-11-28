@@ -864,6 +864,7 @@ FROM sample_data,
 | SORT _index, cluster, @timestamp
 | KEEP _index, @timestamp, client_ip, cluster, max_bytes
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword | @timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
 k8s            | null                     | null         | prod            | 10277
@@ -889,6 +890,7 @@ FROM sample_data,
 | SORT _index, cluster, @timestamp
 | KEEP _index, @timestamp, client_ip, cluster, max_bytes
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword | @timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
 k8s            | null                     | null         | prod            | 10277
@@ -915,6 +917,7 @@ FROM
 | SORT _index, cluster, pod
 | KEEP _index, cluster, max_bytes, pod, max_eth0_tx
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword  | cluster:keyword | max_bytes:long | pod:keyword | max_eth0_tx:double
 k8s             | prod            | 10277          | null        | null

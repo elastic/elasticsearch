@@ -89,6 +89,10 @@ FROM index
 | EVAL my_count = `COUNT(``1.field``)`
 ```
 
+#### Names starting with `_` [esql-underscore-names]
+
+Column names that start with `_` are reserved for columns that {{esql}} provides itself. These include [metadata fields](/reference/query-languages/esql/esql-metadata-fields.md) such as `_index`, `_id`, and `_score`, and columns that commands add, such as the `_fork` column of [`FORK`](/reference/query-languages/esql/commands/fork.md). Avoid giving your own columns names that start with `_`. Such a column can clash with an internal column, either one that exists today or one that a later version adds. Fields in your indices whose names start with `_` can clash in the same way.
+
 #### Reserved keywords [esql-reserved-keywords]
 
 {{esql}} keywords are case-insensitive, so `in`, `IN`, and `In` are the same token.

@@ -746,6 +746,7 @@ FROM apps, apps_short METADATA _index
 | KEEP _index, language_code, language_name
 | SORT _index ASC, language_code ASC
 ;
+warningRegex:Column name \[_index\] starts with \[_\], which is reserved for internal columns
 
 _index:keyword | language_code:integer | language_name:keyword
 apps           | 1                     | English

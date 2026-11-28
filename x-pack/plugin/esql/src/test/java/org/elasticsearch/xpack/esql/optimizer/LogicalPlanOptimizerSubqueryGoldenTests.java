@@ -31,6 +31,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reservedColumnNameWarning;
 
 /**
  * Captures the analyzed and logically-optimized plans for subquery-in-{@code FROM} scenarios.
@@ -747,6 +748,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | DROP _subquery
             | LIMIT 10
             """, STAGES);
+        assertWarnings(reservedColumnNameWarning(5, 14, "_subquery") + "; other column names starting with [_]: [_subquery] at line 10:14");
     }
 
     public void testConversionInlineStatsInsideInnerUnions() {
@@ -767,6 +769,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | DROP _subquery
             | LIMIT 10
             """, STAGES);
+        assertWarnings(reservedColumnNameWarning(6, 14, "_subquery") + "; other column names starting with [_]: [_subquery] at line 12:14");
     }
 
     public void testConversionStatsInsideInnerUnions() {
@@ -787,6 +790,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | DROP _subquery
             | LIMIT 10
             """, STAGES);
+        assertWarnings(reservedColumnNameWarning(6, 14, "_subquery") + "; other column names starting with [_]: [_subquery] at line 12:14");
     }
 
     public void testConversionInlineStatsInOneInnerUnion() {
@@ -1012,6 +1016,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | WHERE _subquery == 1
             | DROP _subquery
             """, STAGES);
+        assertWarnings(reservedColumnNameWarning(7, 10, "_subquery") + "; other column names starting with [_]: [_subquery] at line 14:10");
     }
 
     public void testImplicitDateNanosCastThenLaterPassExplicitToDateNanos() {

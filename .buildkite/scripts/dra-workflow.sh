@@ -207,4 +207,19 @@ steps:
         DRA_WORKFLOW: staging
         USE_PROD_DOCKER_CREDENTIALS: "true"
     if: build.env('DRA_WORKFLOW') == 'staging'
+
+  - wait: ~
+
+  - label: ":wastebasket: Delete build artifacts"
+    key: "delete_build_artifacts"
+    command: "true"
+    plugins:
+      - elastic/vault-secrets#v0.1.1:
+          path: "kv/ci-shared/manage-buildkite-artifacts/delete"
+          field: "token"
+          env_var: "BUILDKITE_API_TOKEN"
+      - elastic/delete-build-artifacts#v0.1.0:
+          continue-on-error: true
+    agents:
+      provider: k8s
 EOF

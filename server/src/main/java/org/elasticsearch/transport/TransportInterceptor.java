@@ -46,7 +46,11 @@ public interface TransportInterceptor {
 
     /**
      * A simple interface to decorate
-     * {@link #sendRequest(Transport.Connection, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}
+     * {@link #sendRequest(Transport.Connection, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}.
+     * <p>
+     * The caller holds a reference to a ref-counted {@code request} only until this method returns. An implementation that passes the
+     * request on to the next sender after returning, for instance from a listener, must take its own reference first and release it
+     * once it has passed the request on.
      */
     interface AsyncSender {
         <T extends TransportResponse> void sendRequest(

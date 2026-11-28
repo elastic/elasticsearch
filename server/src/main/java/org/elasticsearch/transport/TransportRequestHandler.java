@@ -13,5 +13,13 @@ import org.elasticsearch.tasks.Task;
 
 public interface TransportRequestHandler<T extends TransportRequest> {
 
+    /**
+     * Handles {@code request} and eventually completes {@code channel}.
+     * <p>
+     * The transport holds a reference to a ref-counted {@code request} only until this method returns. A handler that uses the request
+     * after returning, for instance in an asynchronous operation, must take its own reference first and release it when it no longer
+     * needs the request. For a request sent to the local node this is the sender's own instance, which the sender may release as soon
+     * as the response handler completes.
+     */
     void messageReceived(T request, TransportChannel channel, Task task) throws Exception;
 }

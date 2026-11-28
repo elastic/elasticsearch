@@ -356,7 +356,18 @@ public class ReplicationOperation<
 
                 @Override
                 public void tryAction(ActionListener<ReplicaResponse> listener) {
-                    replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener);
+                    // A retry runs after the attempt that scheduled it. If this action was cancelled in the meantime then the operation
+                    // may have completed and its owner released the request; this failure then only reaches the already-completed
+                    // retrying listener, which ignores it.
+                    if (replicaRequest.tryIncRef() == false) {
+                        listener.onFailure(new IllegalStateException("replica request was released before retrying"));
+                        return;
+                    }
+                    try {
+                        replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener);
+                    } finally {
+                        replicaRequest.decRef();
+                    }
                 }
 
                 @Override

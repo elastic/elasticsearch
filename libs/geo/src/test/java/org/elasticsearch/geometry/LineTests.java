@@ -104,6 +104,24 @@ public class LineTests extends BaseGeometryTestCase<Line> {
 
     @Override
     protected Line mutateInstance(Line instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        double[] x = instance.getX().clone();
+        double[] y = instance.getY().clone();
+        double[] z = instance.hasZ() ? instance.getZ().clone() : null;
+        int i = randomIntBetween(0, x.length - 1);
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> x[i] = randomValueOtherThan(x[i], GeometryTestUtils::randomLon);
+            case 1 -> y[i] = randomValueOtherThan(y[i], GeometryTestUtils::randomLat);
+            case 2 -> z = z == null ? randomAlts(x.length) : null;
+            default -> throw new AssertionError("unexpected mutation branch");
+        }
+        return z == null ? new Line(x, y) : new Line(x, y, z);
+    }
+
+    private static double[] randomAlts(int length) {
+        double[] alts = new double[length];
+        for (int i = 0; i < length; i++) {
+            alts[i] = GeometryTestUtils.randomAlt();
+        }
+        return alts;
     }
 }

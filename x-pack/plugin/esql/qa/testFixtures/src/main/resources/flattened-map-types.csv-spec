@@ -1,0 +1,432 @@
+// SET map_types=true: a flattened field is a map, and the columns of a query form a tree. See MapKeys for the contract; each test
+// names the rule it follows from.
+//
+// flattened_paths_mapped:  [attributes] flattened, keys host (a, c) and env; [meta.labels] flattened, key team
+// flattened_paths_keyword: [attributes.host] keyword (k)
+// flattened_paths_lookup:  lookup index, [attributes] flattened, keys host (L) and zone (L)
+
+// Rule 2: an expression reads the key in place, and the output has no column for it
+keyReadInAnExpressionIsNotAColumn
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| WHERE attributes.host == "a"
+| KEEP id, attr*
+| KEEP id
+;
+
+id:keyword
+f1
+;
+
+// Rule 2: KEEP takes a column, so the key becomes one
+keepMakesTheKeyAColumn
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+f2         | c
+;
+
+// Rule 3: a renamed map is the same map under another name
+keysFollowARenamedMap
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| RENAME attributes AS a
+| WHERE a.host == "a"
+| EVAL env = a.env
+| KEEP id, env
+;
+
+id:keyword | env:keyword
+f1         | prod
+;
+
+// Rule 3 and 5: the child column [attributes.host] of one index is renamed with the map of the other
+childColumnsFollowARenamedMap
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped, flattened_paths_keyword
+| RENAME attributes AS a
+| KEEP id, a.host
+| SORT id
+;
+
+id:keyword | a.host:keyword
+f1         | a
+f2         | c
+k1         | k
+;
+
+// Rule 3: the join writes a map at [attributes], which replaces the column [attributes.host] that was under that name
+joinReplacesTheSubtreeOfAMap
+required_capability: map_types_setting
+required_capability: join_lookup_v12
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| EVAL host = attributes.host, zone = attributes.zone
+| KEEP id, host, zone
+;
+
+id:keyword | host:keyword | zone:keyword
+k1         | L            | L
+;
+
+// Rule 3: a value that is not a map replaces only its own name
+nonMapValueReplacesOnlyItsName
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| EVAL attributes = "x"
+| KEEP id, attributes, attributes.host
+;
+
+id:keyword | attributes:keyword | attributes.host:keyword
+k1         | x                  | k
+;
+
+// Rule 4: KEEP attributes* takes the map and does not exclude the names under it
+wildcardKeepLeavesTheMapOpen
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| KEEP id, attributes*
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+f2         | c
+;
+
+// Rule 3 and 5: [meta.labels] renamed under [attributes] gives a row maps at two levels; the nearer one was written later and
+// has replaced what was under its name
+nearestMapIsRead
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| RENAME meta.labels AS attributes.sub
+| EVAL team = attributes.sub.team, host = attributes.host
+| KEEP id, team, host
+| SORT id
+;
+
+id:keyword | team:keyword | host:keyword
+f1         | red          | a
+f2         | blue         | c
+;
+
+// Rule 6: under load the renamed name is the child of the map, not the source field [a.host]
+renamedKeyUnderLoad
+required_capability: map_types_setting
+
+SET map_types=true\;
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped
+| RENAME attributes AS a
+| KEEP id, a.host
+| SORT id
+;
+
+id:keyword | a.host:keyword
+f1         | a
+f2         | c
+;
+
+// Rule 1 and 6: FROM answers the name per shard, so the keys of one index sit beside the values that another has in _source,
+// also under the name the map has after a rename
+keysFromFromAreAUnionUnderLoad
+required_capability: map_types_setting
+
+SET map_types=true\;
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, flattened_paths_unmapped
+| RENAME attributes AS a
+| WHERE a.host IS NOT NULL
+| EVAL host = a.host
+| KEEP id, host
+| SORT id
+;
+warningRegex:Field \[attributes\] is unmapped in some indices and has no implicit conversion from KEYWORD.*
+
+id:keyword | host:keyword
+f1         | a
+f2         | c
+u1         | d
+;
+
+// Rule 1 and 5: the key of one index and the keyword field of another are one child, without a rename too
+keysFromFromAreAUnionWithMappedFields
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped, flattened_paths_keyword
+| WHERE attributes.host IN ("a", "k")
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+k1         | k
+;
+
+// Rule 4 across a subquery, which is not a source: its KEEP closes the map, so its rows have no child of that name
+keysOfAMapThatASubqueryClosed
+required_capability: map_types_setting
+required_capability: subquery_in_from_command
+
+SET map_types=true\;
+FROM flattened_paths_keyword, (FROM flattened_paths_mapped | KEEP id, attributes)
+| WHERE attributes.host IN ("a", "k")
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+k1         | k
+;
+
+// Rule 4 and 5: the wildcard keeps the map open, and the union merges the children of both branches
+keysOfAMapThatASubqueryKeptOpen
+required_capability: map_types_setting
+required_capability: subquery_in_from_command
+
+SET map_types=true\;
+FROM flattened_paths_keyword, (FROM flattened_paths_mapped | KEEP id, attributes*)
+| WHERE attributes.host IN ("a", "k")
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+k1         | k
+;
+
+// Rule 1: a lookup index is a source. It answers the name, and the join brings in the child, hidden.
+keysOfAMapFromALookupIndex
+required_capability: map_types_setting
+required_capability: join_lookup_v12
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| WHERE attributes.zone == "L"
+| KEEP id, attr*
+| KEEP id
+;
+
+id:keyword
+k1
+;
+
+// Rule 2: KEEP makes the child from the lookup index a column
+keysOfAMapFromALookupIndexKept
+required_capability: map_types_setting
+required_capability: join_lookup_v12
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.zone, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.zone:keyword | attributes.host:keyword
+f1         | L                       | L
+f2         | null                    | null
+;
+
+// Rule 1 and 3: an enrich policy is a source too, and the map it brings replaces the column [attributes.host]
+keysOfAMapFromAnEnrichPolicy
+skip_flattened_rewrite: enrich_on_rejects_flattened
+required_capability: map_types_setting
+required_capability: enrich_load
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| ENRICH flattened_attributes_policy ON id
+| EVAL zone = attributes.zone, host = attributes.host
+| KEEP id, zone, host
+;
+
+id:keyword | zone:keyword | host:keyword
+k1         | L            | L
+;
+
+// Rule 3: a renamed map from a lookup index is the same map under another name
+keysOfARenamedMapFromALookupIndex
+required_capability: map_types_setting
+required_capability: join_lookup_v12
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| RENAME attributes AS a
+| EVAL zone = a.zone
+| KEEP id, zone
+;
+
+id:keyword | zone:keyword
+k1         | L
+;
+
+// Rule 3: a node can have a value and children. The EVAL replaces the value at [attributes]; the children that the index
+// provides stay, as the mapped [attributes.host] of another index does in nonMapValueReplacesOnlyItsName.
+childrenStayWhenAValueReplacesTheirMap
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| EVAL attributes = "x"
+| KEEP id, attributes, attributes.host
+| SORT id
+;
+
+id:keyword | attributes:keyword | attributes.host:keyword
+f1         | x                  | a
+f2         | x                  | c
+;
+
+// Rule 4: DROP names the one node [attributes]; its children stay
+childrenStayWhenTheirMapIsDropped
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| DROP attributes
+| WHERE attributes.host == "a"
+| KEEP id
+;
+
+id:keyword
+f1
+;
+
+// Rule 4: a pattern can keep children without their map
+childrenKeptWithoutTheirMap
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| KEEP id, attributes.h*
+| WHERE attributes.host == "a"
+| KEEP id
+;
+
+id:keyword
+f1
+;
+
+// Rule 3: a copy of a map has the children of the original, here the keyword field [attributes.host] of the other index
+copyOfAMapHasItsChildColumns
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_mapped, flattened_paths_keyword
+| EVAL x = attributes
+| WHERE x.host IN ("a", "k")
+| EVAL host = x.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+k1         | k
+;
+
+// Rule 3 and 1: the children of a copy are what the shards answer, so the values an index has in _source are among them
+copyOfAMapHasItsChildrenUnderLoad
+required_capability: map_types_setting
+
+SET map_types=true\;
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, flattened_paths_unmapped
+| EVAL x = attributes
+| WHERE x.host IS NOT NULL
+| EVAL host = x.host
+| KEEP id, host
+| SORT id
+;
+warningRegex:Field \[attributes\] is unmapped in some indices and has no implicit conversion from KEYWORD.*
+
+id:keyword | host:keyword
+f1         | a
+f2         | c
+u1         | d
+;
+
+// Rule 2: the children of a copy are hidden, so the copy adds one column
+copyOfAMapAddsOneColumn
+required_capability: map_types_setting
+
+SET map_types=true\;
+FROM flattened_paths_keyword
+| EVAL x = attributes.host
+| KEEP id, x*
+;
+
+id:keyword | x:keyword
+k1         | k
+;
+
+// Rule 5: FORK merges the children of its branches, as a union does. The value the unmapped index has in _source is only
+// there if the child from the shards went through the FORK.
+forkCarriesChildren
+required_capability: map_types_setting
+required_capability: fork_v9
+
+SET map_types=true\;
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, flattened_paths_unmapped
+| FORK (WHERE id == "f1") (WHERE id == "u1")
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+warningRegex:Field \[attributes\] is unmapped in some indices and has no implicit conversion from KEYWORD.*
+
+id:keyword | host:keyword
+f1         | a
+u1         | d
+;
+
+// Rule 4 inside a FORK branch: a branch that closes the map has no child of that name
+forkBranchThatClosesTheMap
+required_capability: map_types_setting
+required_capability: fork_v9
+
+SET map_types=true\;
+FROM flattened_paths_mapped
+| FORK (WHERE id == "f1") (WHERE id == "f2" | KEEP id, attributes)
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+f2         | null
+;

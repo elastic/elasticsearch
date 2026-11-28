@@ -1,0 +1,7 @@
+{
+  "match": {
+    "indices": "flattened_paths_lookup",
+    "match_field": "id",
+    "enrich_fields": ["attributes"]
+  }
+}

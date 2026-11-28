@@ -3898,6 +3898,62 @@ a
 c
 ;
 
+// A view is index-like: a map that it outputs is a map in the query that reads it, whatever the view's body does.
+// The setting does not change the body of the view.
+keysOfAMapThatAViewOutputs
+required_capability: map_types_setting
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET map_types=true\;
+FROM view_flattened_paths_mapped
+| RENAME attributes AS a
+| EVAL host = a.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+f2         | c
+;
+
+// Rule 1 and 5: in a union every branch provides the child. The index maps [attributes.host] as a keyword; the view only outputs
+// the map, and provides the child by reading the key at its boundary.
+keysOfAMapInAUnionOfAViewAndAnIndex
+required_capability: map_types_setting
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET map_types=true\;
+FROM flattened_paths_keyword, view_flattened_paths_mapped
+| WHERE attributes.host IN ("a", "k")
+| EVAL host = attributes.host
+| KEEP id, host
+| SORT id
+;
+
+id:keyword | host:keyword
+f1         | a
+k1         | k
+;
+
+// Rule 1 and 5: the index answers the key from its shards and the view from its map; the child is hidden in both
+keysOfAMapInAUnionOfAViewAndItsIndex
+required_capability: map_types_setting
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET map_types=true\;
+FROM flattened_paths_mapped, view_flattened_paths_mapped
+| WHERE attributes.host == "a"
+| STATS c = COUNT(*)
+;
+
+c:long
+2
+;
+
 flattenedKeyInViewAndIndex
 skip_flattened_rewrite: keyword_also_a_flattened_key
 required_capability: flattened_keys

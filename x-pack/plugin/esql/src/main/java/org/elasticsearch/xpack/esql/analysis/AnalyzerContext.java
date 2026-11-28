@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -64,6 +65,7 @@ public class AnalyzerContext {
     private final Map<String, ViewQuerySettings> viewSettings;
     private final EsqlFlags flags;
     private final Set<String> fieldNames;
+    private final boolean mapTypes;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -138,6 +140,7 @@ public class AnalyzerContext {
     ) {
         this.fieldNames = fieldNames;
         this.configuration = configuration;
+        this.mapTypes = configuration != null && Boolean.TRUE.equals(QuerySettings.MAP_TYPES.get(configuration.resolvedSettings()));
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.analysisRegistry = analysisRegistry;
@@ -171,10 +174,24 @@ public class AnalyzerContext {
      * Warnings recorded while resolving a view branch stay visible on the context that started analysis.
      */
     AnalyzerContext withUnmappedResolution(UnmappedResolution unmappedResolution) {
-        return new AnalyzerContext(this, unmappedResolution);
+        return new AnalyzerContext(this, unmappedResolution, mapTypes);
     }
 
-    private AnalyzerContext(AnalyzerContext other, UnmappedResolution unmappedResolution) {
+    /**
+     * The context for the body of a view. Like {@link #withUnmappedResolution}, and {@code SET map_types} does not reach into the
+     * view either: a setting of the caller's query does not change what the definition of a view means.
+     */
+    AnalyzerContext forViewBody(UnmappedResolution unmappedResolution) {
+        return new AnalyzerContext(this, unmappedResolution, false);
+    }
+
+    /** Whether fields with keys are maps in this scope, see {@code MapKeys} for the rules. */
+    public boolean mapTypes() {
+        return mapTypes;
+    }
+
+    private AnalyzerContext(AnalyzerContext other, UnmappedResolution unmappedResolution, boolean mapTypes) {
+        this.mapTypes = mapTypes;
         this.configuration = other.configuration;
         this.functionRegistry = other.functionRegistry;
         this.promqlFunctionRegistry = other.promqlFunctionRegistry;

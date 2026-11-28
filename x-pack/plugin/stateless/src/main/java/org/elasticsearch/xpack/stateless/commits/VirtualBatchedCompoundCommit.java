@@ -343,7 +343,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 if (blobLocation == null) {
                     blobLocation = uploadedBlobLocationsSupplier.apply(commitFile);
                     assert blobLocation != null : commitFile;
-                    assert blobLocation.getBatchedCompoundCommitTermAndGeneration().before(primaryTermAndGeneration);
+                    assert (blobLocation.blob() instanceof BccBlob bcc && bcc.termAndGeneration().before(primaryTermAndGeneration))
+                        || (blobLocation.blob() instanceof MergeBlob merge && merge.primaryTerm() <= primaryTermAndGeneration.primaryTerm())
+                        : "expected a "
+                            + MergeBlob.class.getSimpleName()
+                            + " or a "
+                            + BccBlob.class.getSimpleName()
+                            + " with a term/gen less than "
+                            + primaryTermAndGeneration;
                 }
                 referencedFiles.put(commitFile, blobLocation);
             }
@@ -382,7 +389,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
-            var referencedBlobs = referencedFiles.values().stream().map(location -> location.bccBlob().blobName()).distinct().count();
+            var referencedBlobs = referencedFiles.values().stream().map(BlobLocation::blobName).distinct().count();
             logger.debug(
                 """
                     {}{} appending commit ({} bytes). References external {} files in {} other CCs and adds
@@ -538,16 +545,24 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     + BlobCacheUtils.toPageAlignedSize(cc.sizeInBytes());
             assert it.hasNext() || pendingCompoundCommit.padding == 0 : "last pending compound commit should not have padding";
 
-            // Assert that all generational files are contained in the same VBCC (no reference to a previous VBCC or BCC)
             for (var commitFile : cc.commitFiles().entrySet()) {
+                // assert that all generational files are contained in the same BCC (no reference to a previous BCC or a merge blob)
                 assert isGenerationalFile(commitFile.getKey()) == false
-                    || commitFile.getValue().getBatchedCompoundCommitTermAndGeneration().equals(primaryTermAndGeneration)
+                    || commitFile.getValue().blob() instanceof BccBlob bcc && bcc.termAndGeneration().equals(primaryTermAndGeneration)
                     : "generational file "
                         + commitFile.getValue()
                         + " should be located in BCC "
                         + primaryTermAndGeneration
                         + " but got "
-                        + commitFile.getValue().getBatchedCompoundCommitTermAndGeneration();
+                        + commitFile.getValue().blob();
+                // a blob cannot have a term greater than the one from the commit that references the blob
+                assert commitFile.getValue().primaryTerm() <= primaryTermAndGeneration.primaryTerm()
+                    : "file "
+                        + commitFile.getKey()
+                        + " is located in "
+                        + commitFile.getValue().blob()
+                        + " which is from a term after the term of BCC "
+                        + primaryTermAndGeneration;
             }
 
             assert cc.commitFiles().keySet().containsAll(cc.internalFiles())
@@ -583,13 +598,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     + cc.extraContent().keySet();
 
             // a blob location that refers to the whole CC, so that we can check that internal and extra content files are in these bounds
-            final var maxBlobLocation = Stream.concat(cc.commitFiles().entrySet().stream(), cc.extraContent().entrySet().stream())
+            final var maxBccBlobLocation = Stream.concat(cc.commitFiles().entrySet().stream(), cc.extraContent().entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (value1, value2) -> value2))
                 .values()
                 .stream()
+                .filter(blobLocation -> blobLocation.blob() instanceof BccBlob)
                 .max((bl1, bl2) -> {
-                    final var bcc = bl1.getBatchedCompoundCommitTermAndGeneration();
-                    int cmp = bcc.compareTo(bl2.getBatchedCompoundCommitTermAndGeneration());
+                    final var bcc = ((BccBlob) bl1.blob()).termAndGeneration();
+                    int cmp = bcc.compareTo(((BccBlob) bl2.blob()).termAndGeneration());
                     if (cmp != 0) {
                         return cmp;
                     }
@@ -597,8 +613,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 })
                 .get();
             final var ccLocation = new BlobLocation(
-                maxBlobLocation.bccBlob(),
-                maxBlobLocation.offset() + maxBlobLocation.fileLength() - cc.sizeInBytes(),
+                maxBccBlobLocation.blob(),
+                maxBccBlobLocation.offset() + maxBccBlobLocation.fileLength() - cc.sizeInBytes(),
                 cc.sizeInBytes()
             );
             assert cc.extraContent().values().stream().allMatch(location -> ccLocation.contains(location))

@@ -1,0 +1,137 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+versions << [
+  'hadoop' : '3.4.3',
+]
+
+esplugin {
+  name = 'parquet-write-engine'
+  description = 'An append-only engine that stores the documents of an index only as Parquet files in an object store'
+  classname = 'org.elasticsearch.xpack.parquet.write.ParquetWriteEnginePlugin'
+  // The Iceberg plugin provides Iceberg and parquet-hadoop-bundle (the Parquet writer is in the same jar), and it extends the compression
+  // plugin that provides Snappy and ZSTD. A plugin's class loader only sees the plugins it names directly. This plugin cannot also
+  // extend the ES|QL Parquet reader plugin: both contain the Parquet classes, and the node refuses to load a plugin with that jar hell.
+  extendedPlugins = ['esql-datasource-iceberg']
+}
+
+base {
+  archivesName = 'x-pack-parquet-write-engine'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  // Snappy and ZSTD are provided at runtime by the compression plugin that the Iceberg plugin extends.
+  compileOnly project(path: xpackModule('esql-datasource-compression-libs'))
+  compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  // The bundle's API surface references Hadoop types, so the Hadoop jars are needed at compile time only.
+  compileOnly "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  compileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+
+  // Apache Iceberg (spike S0). At runtime a node would get these from esql-datasource-iceberg through the class loader chain.
+  compileOnly("org.apache.iceberg:iceberg-api:${versions.iceberg}") {
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+  }
+  compileOnly("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
+    exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('esql-datasource-parquet'))
+  testImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  testImplementation "org.locationtech.jts:jts-core:${versions.jts}"
+  testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
+  // ZSTD for the merged file: PanamaZstd lives in the compression plugin that the reader plugin extends.
+  testImplementation project(path: xpackModule('esql-datasource-compression-libs'))
+  testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  testImplementation project(path: xpackModule('esql'))
+  testImplementation project(path: xpackModule('esql-core'))
+  testImplementation project(xpackModule('esql:compute'))
+  // The same Iceberg modules and exclusions as the esql-datasource-iceberg plugin, to avoid jar hell on a flat class path.
+  testImplementation("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
+    exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+    exclude group: 'org.apache.httpcomponents.client5', module: 'httpclient5'
+    exclude group: 'commons-codec', module: 'commons-codec'
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    exclude group: 'io.airlift', module: 'aircompressor'
+  }
+  testImplementation("org.apache.iceberg:iceberg-parquet:${versions.iceberg}") {
+    exclude group: 'org.apache.httpcomponents.client5', module: 'httpclient5'
+    exclude group: 'org.apache.parquet'
+    exclude group: 'commons-codec', module: 'commons-codec'
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    exclude group: 'io.airlift', module: 'aircompressor'
+  }
+  testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  testCompileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  testCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))
+  // The read options and the codec factory of the reader plugin use the data source SPI of the ES|QL plugin.
+  internalClusterTestImplementation project(path: xpackModule('esql'))
+  internalClusterTestImplementation project(path: xpackModule('esql-core'))
+  internalClusterTestImplementation project(xpackModule('esql:compute'))
+  internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  // The Parquet writer (1.18) loads the JTS classes for geospatial statistics. A node gets them through the class loader chain of
+  // the reader plugin, but the flat class path of a test needs them.
+  internalClusterTestImplementation "org.locationtech.jts:jts-core:${versions.jts}"
+  // The codec factory of the reader plugin loads the compression libraries, which a node gets from esql-datasource-compression-libs.
+  internalClusterTestImplementation "io.airlift:aircompressor:${versions.aircompressor}"
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
+  // the integration tests read the files with the helpers of the unit tests
+  internalClusterTestImplementation sourceSets.test.output
+  internalClusterTestImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  internalClusterTestCompileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  internalClusterTestCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
+tasks.named("test").configure {
+  // The local Parquet files are not Lucene files, and the store asserts that it knows the extension of every file that it opens.
+  systemProperty 'es.allow_unknown_lucene_file_extensions', 'true'
+  // Needed for Arrow's direct memory access, which the Parquet reader plugin uses (same as esql-datasource-parquet)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}
+
+tasks.named("internalClusterTest").configure {
+  systemProperty 'es.allow_unknown_lucene_file_extensions', 'true'
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}

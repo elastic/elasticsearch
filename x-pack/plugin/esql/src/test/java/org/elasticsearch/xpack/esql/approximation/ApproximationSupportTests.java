@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
@@ -372,7 +373,7 @@ public class ApproximationSupportTests extends ESTestCase {
     }
 
     public void testIntoQueryIsRejectedByApproximationVerifier() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         Row row = new Row(Source.EMPTY, List.of());
         // Wrap with Aggregate so the "must have STATS" check passes, then Into triggers the INTO-specific rejection.
         org.elasticsearch.xpack.esql.plan.logical.Aggregate agg = new org.elasticsearch.xpack.esql.plan.logical.Aggregate(
@@ -381,7 +382,7 @@ public class ApproximationSupportTests extends ESTestCase {
             List.of(),
             List.of()
         );
-        Into into = new Into(Source.EMPTY, agg, "dst");
+        Into into = new Into(Source.EMPTY, agg, "dst", IntoOptions.DEFAULT);
         VerificationException e = expectThrows(
             VerificationException.class,
             () -> ApproximationVerifier.verifyPlanOrThrow(into, TransportVersion.current())

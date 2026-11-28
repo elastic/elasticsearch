@@ -42,6 +42,12 @@ import java.util.List;
  * drop splits whose min/max cannot overlap a WHERE (or request-filter) predicate. MATCH and
  * MISS are exact; AMBIGUOUS keeps the split and the engine still filters rows.
  * <p>
+ * File-format min/max omit IEEE NaN. A {@code Double} or {@code Float} extrema pair may therefore
+ * hide NaN rows: ordered / {@code ==} / {@code IN} MATCH is withheld (NaN fails those comparisons),
+ * and {@code !=} MISS is withheld (NaN != lit is true). Ordered MISS and {@code !=} MATCH stay valid
+ * unless the extrema are themselves NaN (unusable) or an {@code IN} list contains a NaN literal
+ * ({@code In.process} uses {@code Double.compare}, so a hidden NaN matches {@code IN (NaN)}).
+ * <p>
  * Supports AND, OR, and NOT logical operators, IS NULL / IS NOT NULL null checks, IN lists,
  * {@code mv_in_range}, and leaf comparisons (field op literal). Unsupported leaf expressions
  * (function calls, etc.) conservatively return AMBIGUOUS.
@@ -353,7 +359,7 @@ public final class SplitFilterClassifier {
         }
         Object min = splitStats.columnMin(columnName);
         Object max = splitStats.columnMax(columnName);
-        if (min == null || max == null) {
+        if (unusableExtrema(min, max)) {
             return SplitMatch.AMBIGUOUS;
         }
         // IN tells opposite-sign zeros apart; compare() equates them for ==. Leave the pair unknown.
@@ -376,6 +382,10 @@ public final class SplitFilterClassifier {
         }
 
         if (anyInRange == false) {
+            // In.process uses Double.compare, so NaN IN (NaN) is true. A hidden NaN row matches.
+            if (statsMayHideNaN(min, max) && listContainsNaN(literalValues)) {
+                return SplitMatch.AMBIGUOUS;
+            }
             return SplitMatch.MISS;
         }
 
@@ -383,7 +393,7 @@ public final class SplitFilterClassifier {
         if (minMaxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minMaxCmp == 0) {
+        if (minMaxCmp == 0 && statsMayHideNaN(min, max) == false) {
             for (Object lit : literalValues) {
                 if (compareValues(min, lit) == 0 && matchableColumn(columnName, splitStats)) {
                     return SplitMatch.MATCH;
@@ -425,7 +435,7 @@ public final class SplitFilterClassifier {
         }
         Object min = splitStats.columnMin(columnName);
         Object max = splitStats.columnMax(columnName);
-        if (min == null || max == null) {
+        if (unusableExtrema(min, max)) {
             return SplitMatch.AMBIGUOUS;
         }
         int maxVsLower = compareValues(max, lower);
@@ -447,7 +457,7 @@ public final class SplitFilterClassifier {
         }
         boolean minInside = includeLower ? minVsLower >= 0 : minVsLower > 0;
         boolean maxInside = includeUpper ? maxVsUpper <= 0 : maxVsUpper < 0;
-        if (minInside && maxInside && matchableColumn(columnName, splitStats)) {
+        if (minInside && maxInside && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -459,7 +469,7 @@ public final class SplitFilterClassifier {
     private static SplitMatch classifyGreaterThan(String columnName, Object literalValue, SplitStats splitStats) {
         Object min = splitStats.columnMin(columnName);
         Object max = splitStats.columnMax(columnName);
-        if (min == null || max == null) {
+        if (unusableExtrema(min, max)) {
             return SplitMatch.AMBIGUOUS;
         }
         int maxCmp = compareValues(max, literalValue);
@@ -473,7 +483,7 @@ public final class SplitFilterClassifier {
         if (minCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minCmp > 0 && matchableColumn(columnName, splitStats)) {
+        if (minCmp > 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -485,7 +495,7 @@ public final class SplitFilterClassifier {
     private static SplitMatch classifyGreaterThanOrEqual(String columnName, Object literalValue, SplitStats splitStats) {
         Object min = splitStats.columnMin(columnName);
         Object max = splitStats.columnMax(columnName);
-        if (min == null || max == null) {
+        if (unusableExtrema(min, max)) {
             return SplitMatch.AMBIGUOUS;
         }
         int maxCmp = compareValues(max, literalValue);
@@ -499,7 +509,7 @@ public final class SplitFilterClassifier {
         if (minCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minCmp >= 0 && matchableColumn(columnName, splitStats)) {
+        if (minCmp >= 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -511,7 +521,7 @@ public final class SplitFilterClassifier {
     private static SplitMatch classifyLessThan(String columnName, Object literalValue, SplitStats splitStats) {
         Object min = splitStats.columnMin(columnName);
         Object max = splitStats.columnMax(columnName);
-        if (min == null || max == null) {
+        if (unusableExtrema(min, max)) {
             return SplitMatch.AMBIGUOUS;
         }
         int minCmp = compareValues(min, literalValue);
@@ -525,7 +535,7 @@ public final class SplitFilterClassifier {
         if (maxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (maxCmp < 0 && matchableColumn(columnName, splitStats)) {
+        if (maxCmp < 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -537,7 +547,7 @@ public final class SplitFilterClassifier {
     private static SplitMatch classifyLessThanOrEqual(String columnName, Object literalValue, SplitStats splitStats) {
         Object min = splitStats.columnMin(columnName);
         Object max = splitStats.columnMax(columnName);
-        if (min == null || max == null) {
+        if (unusableExtrema(min, max)) {
             return SplitMatch.AMBIGUOUS;
         }
         int minCmp = compareValues(min, literalValue);
@@ -551,7 +561,7 @@ public final class SplitFilterClassifier {
         if (maxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (maxCmp <= 0 && matchableColumn(columnName, splitStats)) {
+        if (maxCmp <= 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -563,7 +573,7 @@ public final class SplitFilterClassifier {
     private static SplitMatch classifyEquals(String columnName, Object literalValue, SplitStats splitStats) {
         Object min = splitStats.columnMin(columnName);
         Object max = splitStats.columnMax(columnName);
-        if (min == null || max == null) {
+        if (unusableExtrema(min, max)) {
             return SplitMatch.AMBIGUOUS;
         }
         int minCmp = compareValues(literalValue, min);
@@ -574,7 +584,7 @@ public final class SplitFilterClassifier {
         if (minCmp < 0 || maxCmp > 0) {
             return SplitMatch.MISS;
         }
-        if (minCmp == 0 && maxCmp == 0 && matchableColumn(columnName, splitStats)) {
+        if (minCmp == 0 && maxCmp == 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -586,7 +596,7 @@ public final class SplitFilterClassifier {
     private static SplitMatch classifyNotEquals(String columnName, Object literalValue, SplitStats splitStats) {
         Object min = splitStats.columnMin(columnName);
         Object max = splitStats.columnMax(columnName);
-        if (min == null || max == null) {
+        if (unusableExtrema(min, max)) {
             return SplitMatch.AMBIGUOUS;
         }
         int minCmp = compareValues(literalValue, min);
@@ -598,13 +608,48 @@ public final class SplitFilterClassifier {
         if (minMaxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minMaxCmp == 0 && minCmp == 0) {
+        if (minMaxCmp == 0 && minCmp == 0 && statsMayHideNaN(min, max) == false) {
             return SplitMatch.MISS;
         }
         if (minMaxCmp == 0 && minCmp != 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * Parquet/ORC min/max omit NaN. Any {@link Double} or {@link Float} extrema pair may therefore
+     * hide NaN rows, even when {@code min == max} looks constant. Not folded into
+     * {@link #matchableColumn}: {@code !=} MATCH stays sound with a hidden NaN (NaN != lit is true).
+     */
+    private static boolean statsMayHideNaN(Object min, Object max) {
+        return isFloatingStat(min) || isFloatingStat(max);
+    }
+
+    /**
+     * Missing extrema, or extrema that are themselves NaN (text harvest can record {@code [NaN, NaN]}
+     * for a split that also holds finite values). {@code Double.compare} orders NaN as largest,
+     * which yields false MATCH/MISS.
+     */
+    private static boolean unusableExtrema(Object min, Object max) {
+        return min == null || max == null || isNaNStat(min) || isNaNStat(max);
+    }
+
+    private static boolean listContainsNaN(List<Object> values) {
+        for (Object v : values) {
+            if (isNaNStat(v)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isFloatingStat(Object value) {
+        return value instanceof Double || value instanceof Float;
+    }
+
+    private static boolean isNaNStat(Object value) {
+        return (value instanceof Double d && d.isNaN()) || (value instanceof Float f && f.isNaN());
     }
 
     /**

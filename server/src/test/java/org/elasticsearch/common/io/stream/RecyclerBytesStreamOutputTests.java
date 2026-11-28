@@ -139,6 +139,31 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         out.close();
     }
 
+    public void testUnreserveGivesBackTheUnusedPartOfADirectPageWrite() throws Exception {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        byte[] prefix = randomizedByteArrayWithSize(between(0, 100));
+        out.writeBytes(prefix, 0, prefix.length);
+
+        int reserved = between(1, 200);
+        int used = between(0, reserved);
+        byte[] value = randomizedByteArrayWithSize(used);
+        BytesRef page = out.tryGetPageForWrite(reserved);
+        assertNotNull(page);
+        System.arraycopy(value, 0, page.bytes, page.offset, used);
+        out.unreserve(reserved - used);
+        assertEquals(prefix.length + used, out.size());
+
+        byte[] suffix = randomizedByteArrayWithSize(between(0, 100));
+        out.writeBytes(suffix, 0, suffix.length);
+        byte[] expected = new byte[prefix.length + used + suffix.length];
+        System.arraycopy(prefix, 0, expected, 0, prefix.length);
+        System.arraycopy(value, 0, expected, prefix.length, used);
+        System.arraycopy(suffix, 0, expected, prefix.length + used, suffix.length);
+        assertArrayEquals(expected, BytesReference.toBytes(out.bytes()));
+
+        out.close();
+    }
+
     public void testIllegalBulkWrite() throws Exception {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
 

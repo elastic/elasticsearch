@@ -83,17 +83,16 @@ public final class StripeStatsHarvester {
      * own piece of every stripe it overlapped, which is what the staging area exists to stop.
      */
     private final StripeStatsSink staging;
+    /** The widest text extremum this read publishes; see {@code esql.external.cache.stats.max_extremum_size}. */
+    private final int maxExtremumBytes;
     /** Per-stripe accumulators keyed by ordinal; the emit loop reads them by byte-range geometry. */
     private final TreeMap<Long, StripeAccum> stripeAccums = new TreeMap<>();
 
-    public StripeStatsHarvester(long stripeSize, boolean fileFinal) {
-        this(stripeSize, fileFinal, null);
-    }
-
-    public StripeStatsHarvester(long stripeSize, boolean fileFinal, StripeStatsSink staging) {
+    public StripeStatsHarvester(long stripeSize, boolean fileFinal, StripeStatsSink staging, int maxExtremumBytes) {
         this.stripeSize = stripeSize;
         this.fileFinal = fileFinal;
         this.staging = staging;
+        this.maxExtremumBytes = maxExtremumBytes;
     }
 
     /** Stripe ordinal a record starting at {@code recordStartOffset} is attributed to. */
@@ -237,7 +236,8 @@ public final class StripeStatsHarvester {
                 // The staging area holds this piece in compact form and stages the stripe once its grid cell is
                 // covered, so the flat map below is built once per stripe read rather than once per chunk that
                 // touched it. TextFormatStats.build is applied here, not there, so what the staging area retains
-                // is already filtered to the schema the published record is serialized against.
+                // is already filtered to the schema the published record is serialized against, and capped to
+                // the publishable extremum width.
                 staging.contribute(
                     sourceLocation,
                     identity,
@@ -250,12 +250,16 @@ public final class StripeStatsHarvester {
                     TextFormatStats.build(
                         Optional.of(new ExternalStats.Stats(rows, OptionalLong.empty(), cols)),
                         OptionalLong.empty(),
-                        schema
+                        schema,
+                        maxExtremumBytes
                     )
                 );
                 continue;
             }
-            ExternalStatsCapture.record(sourceLocation, flatten(identity, ordinal, start, end, atStart, atEnd, eof, rows, cols, schema));
+            ExternalStatsCapture.record(
+                sourceLocation,
+                flatten(identity, ordinal, start, end, atStart, atEnd, eof, rows, cols, schema, maxExtremumBytes)
+            );
         }
     }
 
@@ -274,10 +278,11 @@ public final class StripeStatsHarvester {
         boolean eof,
         long rows,
         Map<String, ExternalStats.ColumnStats> cols,
-        List<Attribute> schema
+        List<Attribute> schema,
+        int maxExtremumBytes
     ) {
         ExternalStats.Stats statsRecord = new ExternalStats.Stats(rows, OptionalLong.empty(), cols);
-        SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema);
+        SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), OptionalLong.empty(), schema, maxExtremumBytes);
         return flatten(identity, ordinal, start, end, atStart, atEnd, eof, sourceStats);
     }
 
@@ -309,7 +314,7 @@ public final class StripeStatsHarvester {
         // The licence rides per fragment, exactly as on the whole-file publishes: without it a chunked FAIL_FAST
         // read could never license the crossing an unchunked one can, purely because of how the file was split.
         if (identity.rowCountReadConfigIndependent()) {
-            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         }
         base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
         base.put(ExternalStats.STRIPE_SIZE_KEY, identity.stripeSize());

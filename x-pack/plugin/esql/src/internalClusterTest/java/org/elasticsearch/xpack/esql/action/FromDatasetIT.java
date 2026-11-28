@@ -51,6 +51,8 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -71,6 +73,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -3405,6 +3408,79 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * Hive-style day of 12 five-minute {@code epoch_second} Parquet files. An hourly filter must plan
+     * exactly the overlapping files (footer min/max rescaled to millis), not the whole day.
+     */
+    public void testDeclaredEpochSecondHourlyFilterPlansOnlyOverlappingFiles() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        ZonedDateTime day = ZonedDateTime.of(2025, 11, 20, 0, 0, 0, 0, ZoneOffset.UTC);
+        Path dayDir = createTempDir().resolve("year=2025").resolve("month=11").resolve("day=20");
+        Files.createDirectories(dayDir);
+        for (int hour = 0; hour < 24; hour += 2) {
+            long hourStart = day.plusHours(hour).toEpochSecond();
+            Path file = dayDir.resolve(String.format(java.util.Locale.ROOT, "%02d00.parquet", hour));
+            writeParquet(file, "message m { required int64 start; }", 5, 1024, (g, i) -> g.add("start", hourStart + i * 60L));
+        }
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("@timestamp", DatasetFieldMapping.withFormat("date", "start", "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "epoch_day_files",
+                    "local_ds",
+                    StoragePath.fileUri(dayDir) + "/*.parquet",
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // STATS COUNT(*) (not KEEP): KEEP + default LIMIT sets filteredLimit, which caps footer
+        // discovery at taskConcurrency and emits whole-file splits for the rest — that masks prune.
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T10:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-20T11:00:00Z")
+            | STATS c = COUNT(*)
+            """, 5L, 1);
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T11:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-20T12:00:00Z")
+            | STATS c = COUNT(*)
+            """, 0L, 0);
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T00:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-21T00:00:00Z")
+            | STATS c = COUNT(*)
+            """, 60L, 12);
+    }
+
+    /**
+     * COUNT must match the overlapping rows. {@code filesScanned} is 0 when discovery folds, otherwise
+     * exactly the overlapping files — never the rest of the day.
+     */
+    private void assertEpochPrune(String query, long expectedCount, int expectedFilesIfNotFolded) {
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertEquals(expectedCount, ((Number) rows.get(0).get(0)).longValue());
+            int scanned = response.getExecutionInfo().queryProfile().filesScanned();
+            if (expectedFilesIfNotFolded == 0) {
+                assertEquals("non-overlapping filter must not scan", 0, scanned);
+            } else {
+                assertThat(scanned, either(equalTo(0)).or(equalTo(expectedFilesIfNotFolded)));
+            }
+        }
+    }
+
     public void testDeclaredEpochSecondFormatOnStrictParquetLongCoerces() throws Exception {
         // Same as the non-strict case above, but a STRICT (Dynamic.FALSE) declaration — the strict resolution path
         // legalizes format-on-numeric identically. emp_no 1 -> 1000ms.
@@ -5515,14 +5591,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // Off (the default): the wildcard reaches neither dataset. Unlike the bare-wildcard case, the
-        // exclusion carries no wildcard of its own, so a concrete index counts as requested and a pattern
-        // matching nothing is fatal rather than empty.
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT).close()
-        );
-        assertThat(e.getMessage(), containsString("Unknown index [employees*,-employees_alt]"));
+        // Off (the default): the wildcard reaches neither dataset. An exclusion only removes names, so it is
+        // never a concrete request of its own, and the query is an empty success as in the bare-wildcard case.
+        try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+        }
 
         // On: employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
         try (

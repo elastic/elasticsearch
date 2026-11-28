@@ -156,14 +156,18 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
             state.docsPerRequest = docsPerRequest;
             return state;
         }, List.of(bench::rowBatch, bench::rowJson));
-        runLifecycles(FallbackState.class, (shape, docsPerRequest) -> {
+        BiFunction<String, Integer, FallbackState> fallbackFactory = (shape, docsPerRequest) -> {
             FallbackState state = new FallbackState();
             state.shape = shape;
             state.docsPerRequest = docsPerRequest;
             return state;
-        }, List.of(bench::columnThenRow));
+        };
+        runLifecycles(FallbackState.class, fallbackFactory, List.of(bench::columnThenRow));
+        // double.mv1to4 is opt-in, because it falls back only with the simdjson encoder, so check it explicitly.
+        runLifecycle(fallbackFactory, "double.mv1to4", ALTERNATE_SOURCE_MODE, ShardIndexingBenchmark.DOCS_PER_INVOCATION, List.of());
+        runLifecycle(fallbackFactory, "double.mv1to4", SOURCE_MODE, ALTERNATE_DOCS_PER_REQUEST, List.of());
         ColumnState column = new ColumnState();
-        column.shape = "long.nullexplicit";
+        column.shape = "scaled_float.nullexplicit";
         column.docsPerRequest = ShardIndexingBenchmark.DOCS_PER_INVOCATION;
         assertSetupRejects(column);
         FallbackState fallback = new FallbackState();

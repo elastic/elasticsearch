@@ -7,12 +7,16 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -87,6 +91,7 @@ import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
@@ -94,11 +99,15 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamDeleteAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlDeleteStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlGetStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
@@ -171,10 +180,12 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.TsidPrefixRangeQueryBuilder;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
+import org.elasticsearch.xpack.esql.timeseries.TransportTsidPrefixHistogramAction;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -204,6 +215,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -394,6 +406,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+    private final SetOnce<BooleanSupplier> batchIndexingSupported = new SetOnce<>();
+    private final SetOnce<EscfBulkService> escfBulkService = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> storedStreamBreaker = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -410,6 +425,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
+        this.escfBulkService.set(
+            new EscfBulkService(services.indexingPressure(), services.threadPool().generic(), services.bigArrays().bytesRefRecycler())
+        );
+        this.storedStreamBreaker.set(services.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BatchIndexingEnabled batchIndexingEnabled = new BatchIndexingEnabled(services.clusterService().getClusterSettings());
+        this.batchIndexingSupported.set(() -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, services.clusterService()));
         var blockFactoryProvider = blockFactoryProvider(
             BlockFactory.builder(bigArrays)
                 .maxPrimitiveArraySize(
@@ -555,7 +576,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.telemetryProvider().getMeterRegistry(),
             localFileAccess,
             services.threadPool().executor(externalBlobStorePool()),
-            listingService
+            listingService,
+            // The live flag, not the yml value: setEnabled doubles as the cache's clear operation.
+            cacheService::isEnabled
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -819,12 +842,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return List.of(
             new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
             new ActionHandler(EsqlStreamQueryAction.INSTANCE, TransportEsqlStreamQueryAction.class),
+            new ActionHandler(EsqlStreamGetResultAction.INSTANCE, TransportEsqlStreamGetResultsAction.class),
+            new ActionHandler(EsqlStreamDeleteAction.INSTANCE, TransportEsqlStreamDeleteAction.class),
             new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
             new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
             new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
             new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
             new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler(TransportTsidPrefixHistogramAction.TYPE, TransportTsidPrefixHistogramAction.class),
             new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
             new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
@@ -834,6 +860,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
             new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+            new ActionHandler(EsqlIntoDestinationAction.TYPE, EsqlIntoDestinationAction.class),
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
@@ -901,7 +928,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
         if (RestEsqlStreamQueryAction.ENABLED) {
-            handlers.add(new RestEsqlStreamQueryAction(capabilities));
+            handlers.add(
+                new RestEsqlStreamQueryAction(
+                    capabilities,
+                    batchIndexingSupported.get(),
+                    escfBulkService.get(),
+                    storedStreamBreaker.get(),
+                    restHandlersServices.projectResolver()
+                )
+            );
+            // A stream can be read or deleted only where it can be created, and only when its results are stored.
+            if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestEsqlGetStreamResultAction());
+                handlers.add(new RestEsqlDeleteStreamResultAction());
+            }
         }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
@@ -946,6 +986,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(MvExpandOperator.Status.ENTRY);
         entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
         entries.add(SingleValueQuery.ENTRY);
+        entries.add(TsidPrefixRangeQueryBuilder.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichQuerySourceOperator.Status.ENTRY);
         entries.add(LookupQueryOperator.Status.ENTRY);
@@ -1019,13 +1060,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             // consume their output. Max is the heap- and CPU-scaled concurrency knob (memory-capped,
             // ceiling 100, or a max_concurrent_requests override still clipped by the memory term) that also
             // sizes the permit semaphore, so pool capacity tracks the concurrency the reads are permitted.
-            // Scales from 0 so idle nodes pay nothing.
+            // Scales from 0 so idle nodes pay nothing. Tracks execution time so TaskLoadAttribution.charging
+            // can attribute I/O wall as busy and CPU as compute, same as shards.
             new ScalingExecutorBuilder(
                 EXTERNAL_IO_THREAD_POOL_NAME,
                 0,
                 ExternalSourceSettings.externalIoThreads(settings),
                 TimeValue.timeValueSeconds(30),
-                false
+                false,
+                "thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME,
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .attributeTaskLoad()
+                    .build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             )
         );
     }

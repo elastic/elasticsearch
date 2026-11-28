@@ -17,14 +17,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.sourcebatch.FloatNarrowing;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.util.function.Consumer;
-import java.util.function.DoubleToLongFunction;
 import java.util.function.LongUnaryOperator;
 
 /**
- * Converts a numeric {@link EscfColumn} (LONG, DOUBLE, STRING, or ARRAY) into an
+ * Converts a numeric {@link EscfColumn} (LONG, DOUBLE, STRING, ARRAY, or UNION) into an
  * {@link EscfColumnData} of LONG kind holding the sortable-long doc-values encoding for a given
  * {@link NumberFieldMapper.NumberType}. STRING values are parsed with indexing-path semantics:
  * integer types try an ASCII fast path then fall back to {@link AbstractXContentParser};
@@ -105,12 +106,135 @@ public final class NumberColumnTransform {
                 yield result;
             }
             case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement, rejectDroppedValues, ownedSink);
+            case EscfColumnKind.UNION -> {
+                EscfColumnData result = fromUnion(source, type, coerce, recycler, nullReplacement);
+                ownedSink.accept(result);
+                yield result;
+            }
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: unsupported ESCF column kind ["
                     + EscfColumnKind.name(source.kind())
-                    + "] — only LONG, DOUBLE, STRING, and ARRAY are supported"
+                    + "] — only LONG, DOUBLE, STRING, ARRAY, and UNION are supported"
             );
         };
+    }
+
+    /**
+     * Converts a UNION column row by row on its type byte, e.g. integers mixed with floats. Rows that the row path would
+     * reject or record differently (booleans, objects, arrays, a double that needs its original spelling) throw so that the
+     * batch falls back to the row path.
+     */
+    private static EscfColumnData fromUnion(
+        EscfColumn source,
+        NumberFieldMapper.NumberType type,
+        boolean coerce,
+        Recycler<BytesRef> recycler,
+        Long nullReplacement
+    ) {
+        try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
+            final long min = integerMinForType(type);
+            final long max = integerMaxForType(type);
+            final long[] scratch = new long[1];
+            boolean coerceChecked = false;
+            PresentDocIterator present = source.presentDocs();
+            for (int doc = present.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = present.nextDoc()) {
+                final byte rowType = source.typeByteForPresent(doc);
+                switch (rowType) {
+                    case SourceValueType.LONG -> builder.setLong(doc, longToSortable(source.getLongValue(doc), type));
+                    case SourceValueType.INT -> builder.setLong(doc, longToSortable(source.getIntValue(doc), type));
+                    case SourceValueType.DOUBLE -> builder.setLong(doc, doubleToSortable(source.getDoubleValue(doc), type, coerce));
+                    // The row path widens a float to a double, as the implicit conversion does here.
+                    case SourceValueType.FLOAT -> builder.setLong(doc, doubleToSortable(source.getFloatValue(doc), type, coerce));
+                    case SourceValueType.STRING -> {
+                        if (coerceChecked == false) {
+                            AbstractXContentParser.checkCoerceString(coerce, classForType(type));
+                            coerceChecked = true;
+                        }
+                        BytesRef value = source.getBinaryValue(doc);
+                        if (coerce && value.length == 0) {
+                            if (nullReplacement != null) {
+                                builder.setLong(doc, nullReplacement);
+                            }
+                        } else {
+                            builder.setLong(doc, stringToSortableLong(value, type, min, max, scratch));
+                        }
+                    }
+                    case SourceValueType.NULL -> {
+                        if (nullReplacement != null) {
+                            builder.setLong(doc, nullReplacement);
+                        }
+                    }
+                    case SourceValueType.TRUE, SourceValueType.FALSE, SourceValueType.BINARY, SourceValueType.KEY_VALUE,
+                        SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY, SourceValueType.ABSENT ->
+                        throw new UnsupportedOperationException(
+                            "toSortableLongColumn: UNION row type [" + SourceValueType.name(rowType) + "] is not supported for a number"
+                        );
+                    default -> throw new IllegalStateException("unexpected union value type [" + SourceValueType.name(rowType) + "]");
+                }
+            }
+            return builder.finish(source.docCount());
+        }
+    }
+
+    /** The sortable long for one long value, as {@link #fromLong} computes it for a whole column. */
+    private static long longToSortable(long l, NumberFieldMapper.NumberType type) {
+        return switch (type) {
+            case LONG -> l;
+            case BYTE -> checkedRange(l, Byte.MIN_VALUE, Byte.MAX_VALUE, "a byte");
+            case SHORT -> checkedRange(l, Short.MIN_VALUE, Short.MAX_VALUE, "a short");
+            case INTEGER -> checkedRange(l, Integer.MIN_VALUE, Integer.MAX_VALUE, "an integer");
+            case FLOAT -> NumericUtils.floatToSortableInt((float) l);
+            case DOUBLE -> NumericUtils.doubleToSortableLong((double) l);
+            case HALF_FLOAT -> toValidatedHalfFloat((float) l);
+        };
+    }
+
+    private static long checkedRange(long l, long min, long max, String typeName) {
+        if (l < min || l > max) {
+            throw new IllegalArgumentException("Value [" + l + "] is out of range for " + typeName);
+        }
+        return l;
+    }
+
+    /**
+     * The sortable long for one double value, as {@link #fromDouble} computes it for a whole column. A union row carries no
+     * spelling, so a float midpoint, which the row path parses from the client's text, is left to the row path.
+     */
+    private static long doubleToSortable(double d, NumberFieldMapper.NumberType type, boolean coerce) {
+        return switch (type) {
+            case DOUBLE -> NumericUtils.doubleToSortableLong(finite(d));
+            case FLOAT -> floatToSortable(narrowToFloat(d));
+            case HALF_FLOAT -> toValidatedHalfFloat(narrowToFloat(d));
+            case BYTE -> narrowedDouble(d, Byte.MIN_VALUE, Byte.MAX_VALUE, "a byte", coerce);
+            case SHORT -> narrowedDouble(d, Short.MIN_VALUE, Short.MAX_VALUE, "a short", coerce);
+            case INTEGER -> narrowedDouble(d, Integer.MIN_VALUE, Integer.MAX_VALUE, "an integer", coerce);
+            case LONG -> narrowedDouble(d, Long.MIN_VALUE, Long.MAX_VALUE, "a long", coerce);
+        };
+    }
+
+    private static float narrowToFloat(double d) {
+        if (FloatNarrowing.isFloatMidpoint(d)) {
+            throw new UnsupportedOperationException("toSortableLongColumn: a UNION double [" + d + "] needs its original spelling");
+        }
+        return (float) d;
+    }
+
+    /** A union row can hold a non-finite double that JSON cannot; the row path rejects it, so reject it to fall back to it. */
+    private static double finite(double d) {
+        if (Double.isFinite(d) == false) {
+            throw new IllegalArgumentException("[double] supports only finite values, but got [" + d + "]");
+        }
+        return d;
+    }
+
+    private static long narrowedDouble(double d, double min, double max, String typeName, boolean coerce) {
+        if (d < min || d > max || Double.isNaN(d)) {
+            throw new IllegalArgumentException("Value [" + d + "] is out of range for " + typeName);
+        }
+        if (coerce == false && d % 1 != 0) {
+            throw new IllegalArgumentException("Value [" + d + "] has a decimal part");
+        }
+        return (long) d;
     }
 
     private static EscfColumnData fromArray(
@@ -242,7 +366,7 @@ public final class NumberColumnTransform {
                 }
                 yield intVal;
             }
-            case FLOAT -> doubleToFloatSortable(Float.parseFloat(s));
+            case FLOAT -> floatToSortable(Float.parseFloat(s));
             case HALF_FLOAT -> toValidatedHalfFloat(Float.parseFloat(s));
             case DOUBLE -> {
                 double d = Double.parseDouble(s);
@@ -385,12 +509,12 @@ public final class NumberColumnTransform {
     ) {
         return switch (type) {
             case DOUBLE -> copyDoubleBits(source, recycler);
-            case FLOAT -> copyDouble(source, NumberColumnTransform::doubleToFloatSortable, recycler);
+            case FLOAT -> copyDoubleAsFloat(source, NumberColumnTransform::floatToSortable, recycler);
             case BYTE -> narrowDoubleToInteger(source, Byte.MIN_VALUE, Byte.MAX_VALUE, "a byte", coerce, recycler);
             case SHORT -> narrowDoubleToInteger(source, Short.MIN_VALUE, Short.MAX_VALUE, "a short", coerce, recycler);
             case INTEGER -> narrowDoubleToInteger(source, Integer.MIN_VALUE, Integer.MAX_VALUE, "an integer", coerce, recycler);
             case LONG -> narrowDoubleToInteger(source, Long.MIN_VALUE, Long.MAX_VALUE, "a long", coerce, recycler);
-            case HALF_FLOAT -> copyDouble(source, d -> toValidatedHalfFloat((float) d), recycler);
+            case HALF_FLOAT -> copyDoubleAsFloat(source, NumberColumnTransform::toValidatedHalfFloat, recycler);
         };
     }
 
@@ -404,19 +528,31 @@ public final class NumberColumnTransform {
         }
     }
 
-    private static EscfColumnData copyDouble(EscfColumn source, DoubleToLongFunction convert, Recycler<BytesRef> recycler) {
+    /** Converts a float into the sortable long a float-typed column stores. */
+    @FunctionalInterface
+    private interface FloatToLongFunction {
+        long applyAsLong(float value);
+    }
+
+    /**
+     * Narrows each double to the float the row path parses from the same text, then converts it. {@code (float) d} rounds the
+     * value a second time, which differs from parsing the text straight to float only when {@code d} is a float midpoint; only
+     * then is the row's text parsed (see {@link FloatNarrowing}). A scalar column renders the client's spelling, so the result is
+     * exactly the row path's; an array element renders canonically, as array elements carry no spelling yet.
+     */
+    private static EscfColumnData copyDoubleAsFloat(EscfColumn source, FloatToLongFunction convert, Recycler<BytesRef> recycler) {
         try (EscfColumnBuilder builder = newLongBuilder(recycler)) {
             LongTupleCursor cursor = source.longCursor();
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
                 double d = Double.longBitsToDouble(cursor.longValue());
-                builder.setLong(doc, convert.applyAsLong(d));
+                float f = FloatNarrowing.isFloatMidpoint(d) ? Float.parseFloat(source.getStringValue(doc).string()) : (float) d;
+                builder.setLong(doc, convert.applyAsLong(f));
             }
             return builder.finish(source.docCount());
         }
     }
 
-    private static long doubleToFloatSortable(double d) {
-        float f = (float) d;
+    private static long floatToSortable(float f) {
         if (Float.isFinite(f) == false) {
             throw new IllegalArgumentException("[float] supports only finite values, but got [" + f + "]");
         }

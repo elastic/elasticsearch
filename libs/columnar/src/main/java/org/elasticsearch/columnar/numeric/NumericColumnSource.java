@@ -9,13 +9,14 @@
 
 package org.elasticsearch.columnar.numeric;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.search.DocIdSetIterator;
 
 import java.io.IOException;
 
 /**
- * Binary doc values that can find the documents in a range from a numeric column's own skip index, rather
- * than reading a value for every document.
+ * Binary doc values that hold a numeric column, which can find the documents in a range and hand out its skip index
+ * without reading a value for every document.
  *
  * <p>Doc values reach a search through whatever wraps them, and what a caller holds is not always the
  * instance the format made. Asking for this rather than for that instance lets anything standing in front
@@ -29,4 +30,7 @@ public interface NumericColumnSource {
      * cannot answer the range itself and the caller has to read the values.
      */
     DocIdSetIterator rangeIterator(long lowerValue, long upperValue) throws IOException;
+
+    /** A new skipper over the column's values, or {@code null} if the column has no skip index. */
+    DocValuesSkipper skipper() throws IOException;
 }

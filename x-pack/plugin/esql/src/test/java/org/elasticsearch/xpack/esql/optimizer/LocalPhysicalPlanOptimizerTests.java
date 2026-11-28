@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValue
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
@@ -638,8 +639,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testIsNotNull_TextField_Pushdown() {
         String textField = randomFrom("gender", "job");
+        // The fields may be multivalued, so count() cannot be pushed down as a stats query.
         var plan = plannerOptimizer.plan(
-            String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField)
+            String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField),
+            new TestSearchStats(true, true)
         );
 
         var limit = as(plan, LimitExec.class);
@@ -3379,6 +3382,25 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         return new TestPlannerOptimizer(configuration, analyzer, optimizer).plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
     }
 
+    public void testDisableSinglePassWindowedAggregations() {
+        String query = "TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY pod, TBUCKET(5 minute)";
+        for (String set : List.of("", "SET time_series_reduce_per_index=false; ", "SET time_series_reduce_per_index=true; ")) {
+            var statement = EsqlTestUtils.TEST_PARSER.createStatement(set + query);
+            var resolvedSettings = QuerySettings.resolve(
+                Map.of(),
+                statement,
+                new SettingsValidationContext(false, Build.current().isSnapshot())
+            );
+            var configuration = new ConfigurationBuilder(EsqlTestUtils.configuration(QueryPragmas.EMPTY)).resolvedSettings(resolvedSettings)
+                .build();
+            var analyzer = metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer();
+            var plan = new TestPlannerOptimizer(configuration, analyzer).plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
+            var timeSeriesAggs = plan.collect(TimeSeriesAggregateExec.class);
+            assertThat(timeSeriesAggs, hasSize(greaterThanOrEqualTo(1)));
+            assertFalse(timeSeriesAggs.stream().anyMatch(agg -> agg.getMode() == AggregatorMode.SINGLE));
+        }
+    }
+
     public void testSinglePassDisabledByPragma() {
         var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.builder().put("time_series_single_pass", false).build()));
         var analyzer = metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer();
@@ -3489,6 +3511,21 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var plan = PlannerUtils.localPlan(physicalPlan, logicalOptimizer, physicalOptimizer, null);
         assertThat(plan.collect(ReadDimsExec.class), hasSize(0));
         assertFalse(GoldenTestCase.checkTimeSeriesMetadataLoadOncePerTimeSeries(plan));
+    }
+
+    /**
+     * Grouping by the same dimension twice ({@code cluster} and {@code c2 = cluster}) must read the dimension once.
+     * Regression test for https://github.com/elastic/elasticsearch/issues/166793.
+     */
+    public void testTranslateMetricsGroupedBySameDimensionTwice() {
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, c2 = cluster, pod";
+        for (TransportVersion version : List.of(DimensionValues.DIMENSION_VALUES_VERSION, PackDimsAgg.PACK_DIMS_AGG_VERSION)) {
+            var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzerAt(version).buildAnalyzer());
+            List<ReadDimsExec> readDims = new ArrayList<>();
+            plan.forEachDown(ReadDimsExec.class, readDims::add);
+            assertThat(readDims, hasSize(1));
+            assertThat(Expressions.names(readDims.get(0).dims()), containsInAnyOrder("cluster", "pod"));
+        }
     }
 
     /**

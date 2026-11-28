@@ -631,3 +631,58 @@ fls_flattened_except_key:
       field_security:
         grant: [ '*' ]
         except: [ 'attrs.bar' ]
+
+# Can write to an INTO destination, but refreshing it afterwards needs the maintenance privilege, which write does not grant.
+# ES|QL needs some read privilege to run at all, so both roles read an index that is not a destination.
+into_write_only:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]
+
+into_write_and_maintenance:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write', 'maintenance' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]
+
+# May refresh an index, but not the destination: the action itself is allowed, the destination is not.
+into_write_and_maintenance_elsewhere:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read', 'maintenance' ]
+
+# Can read an INTO destination, but not write to it, so INTO is denied, as it is for a destination that does not exist.
+into_read_only:
+  cluster: []
+  indices:
+    - names: [ 'into-existing' ]
+      privileges: [ 'read' ]
+
+# Can create documents in a destination, with no read access to it. Only such a caller is told what a bulk would tell, such as that a
+# destination has an ingest pipeline or does not exist. ES|QL needs some read privilege to run at all, so the role reads an index that
+# is not a destination.
+into_create_doc_only:
+  cluster: []
+  indices:
+    - names: [ 'into-existing', 'into-missing', 'into-plain', 'into-ds', 'into-alias', 'into-nowrite-alias' ]
+      privileges: [ 'create_doc' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]
+
+# Can create documents, but in another index than the destinations, so INTO is denied. A check of whether the caller may write
+# anywhere would let this role through.
+into_create_doc_elsewhere:
+  cluster: []
+  indices:
+    - names: [ 'into-elsewhere' ]
+      privileges: [ 'create_doc' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]

@@ -8,22 +8,34 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.rest.AbstractRestChannel;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +43,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -710,6 +723,181 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
             () -> PrometheusQueryResponseListener.convertToPrometheusJson(List.of(), columns, ZoneOffset.UTC, "matrix", QueryMode.RANGE)
         );
         assertThat(e.getMessage(), containsString("missing required 'step' column at last index"));
+    }
+
+    /**
+     * The listener writes the body into the channel's output, which the HTTP channel backs with recycled pages, instead of
+     * a single growing byte array: a series that spans several pages is sent as the bytes of that output, and the response
+     * keeps the JSON media type whatever the request's Accept header says.
+     */
+    public void testOnResponseWritesBodyIntoChannelOutput() throws IOException {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("__name__", "keyword"), col("step", "long"));
+        int points = between(4, 8) * 1024;
+        List<Object> values = new ArrayList<>(points);
+        List<Object> steps = new ArrayList<>(points);
+        for (int i = 0; i < points; i++) {
+            values.add((double) i);
+            steps.add(1735689600000L + i * 1000L);
+        }
+        RecyclingRestChannel channel = new RecyclingRestChannel(
+            new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", List.of("application/json; charset=utf-16")))
+                .build()
+        );
+        EsqlQueryResponse response = new EsqlQueryResponse(
+            columns,
+            pagesOf(List.of(List.of(values, "up", steps))),
+            0,
+            0,
+            null,
+            false,
+            false,
+            ZoneOffset.UTC,
+            0,
+            0,
+            null
+        );
+        try {
+            new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(response);
+
+            RestResponse restResponse = channel.response;
+            assertThat(restResponse.status(), equalTo(RestStatus.OK));
+            assertThat(restResponse.contentType(), equalTo("application/json"));
+            assertThat(restResponse.content().length(), greaterThan(2 * PageCacheRecycler.BYTE_PAGE_SIZE));
+            assertNotNull("the body must be written into the channel output", channel.output);
+            assertThat(restResponse.content().length(), equalTo(channel.output.size()));
+            try (
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(XContentParserConfiguration.EMPTY, restResponse.content().streamInput())
+            ) {
+                ObjectPath path = new ObjectPath(parser.map());
+                assertSuccessMatrix(path);
+                assertThat(path.evaluate("data.result.0.values"), hasSize(points));
+                assertThat(
+                    path.evaluate("data.result.0.values." + (points - 1)),
+                    equalTo(List.of(1735689600.0 + points - 1, points - 1 + ".0"))
+                );
+            }
+        } finally {
+            response.decRef();
+            channel.releaseOutputBuffer();
+        }
+    }
+
+    /**
+     * A query whose result is valid but does not fit in the channel output gets a server error, not the {@code 400} that the
+     * output's {@link IllegalArgumentException} would map to: the client sent nothing wrong. The limit is hit while the
+     * samples are written.
+     */
+    public void testOnResponseReportsResponseTooLargeAsServerError() throws IOException {
+        assertResponseTooLargeIsServerError(4 * 1024, PageCacheRecycler.BYTE_PAGE_SIZE);
+    }
+
+    /**
+     * Like {@link #testOnResponseReportsResponseTooLargeAsServerError}, but the body is small enough to stay in the JSON
+     * generator's buffer until the builder is closed, so the limit is hit by the final flush.
+     */
+    public void testOnResponseReportsResponseTooLargeOnFinalFlushAsServerError() throws IOException {
+        assertResponseTooLargeIsServerError(2, 16);
+    }
+
+    private static void assertResponseTooLargeIsServerError(int points, long maxBytes) throws IOException {
+        List<ColumnInfoImpl> columns = List.of(col("value", "double"), col("__name__", "keyword"), col("step", "long"));
+        List<Object> values = new ArrayList<>(points);
+        List<Object> steps = new ArrayList<>(points);
+        for (int i = 0; i < points; i++) {
+            values.add((double) i);
+            steps.add(1735689600000L + i * 1000L);
+        }
+        RecyclingRestChannel channel = new RecyclingRestChannel(new FakeRestRequest(), maxBytes);
+        EsqlQueryResponse response = new EsqlQueryResponse(
+            columns,
+            pagesOf(List.of(List.of(values, "up", steps))),
+            0,
+            0,
+            null,
+            false,
+            false,
+            ZoneOffset.UTC,
+            0,
+            0,
+            null
+        );
+        try {
+            new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(response);
+
+            RestResponse restResponse = channel.response;
+            assertThat(restResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+            try (
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(XContentParserConfiguration.EMPTY, restResponse.content().streamInput())
+            ) {
+                ObjectPath path = new ObjectPath(parser.map());
+                assertThat(path.evaluate("status"), equalTo("error"));
+                assertThat(path.evaluate("errorType"), equalTo("execution"));
+                assertThat(path.evaluate("error"), containsString("failed to write the query response"));
+            }
+            assertTrue("the partial body must be released before the error is sent", channel.output.isClosed());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * A channel whose output, like the HTTP channel's, is made of recycled pages and throws {@link IllegalArgumentException}
+     * past a size limit (2 GB there), and which keeps the response it is sent.
+     */
+    private static class RecyclingRestChannel extends AbstractRestChannel {
+        private final long maxBytes;
+        private LimitedOutput output;
+        private RestResponse response;
+
+        RecyclingRestChannel(RestRequest request) {
+            this(request, Long.MAX_VALUE);
+        }
+
+        RecyclingRestChannel(RestRequest request, long maxBytes) {
+            super(request, false);
+            this.maxBytes = maxBytes;
+        }
+
+        @Override
+        protected BytesStream newBytesOutput() {
+            output = new LimitedOutput(maxBytes);
+            return output;
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            this.response = response;
+        }
+    }
+
+    private static class LimitedOutput extends RecyclerBytesStreamOutput {
+        private final long maxBytes;
+        private boolean closed;
+
+        LimitedOutput(long maxBytes) {
+            super(new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)));
+            this.maxBytes = maxBytes;
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) {
+            if (size() + length > maxBytes) {
+                throw new IllegalArgumentException("cannot hold more than " + maxBytes + " bytes of data");
+            }
+            super.writeBytes(b, offset, length);
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+            super.close();
+        }
+
+        boolean isClosed() {
+            return closed;
+        }
     }
 
     // -------------------------------------------------------------------------

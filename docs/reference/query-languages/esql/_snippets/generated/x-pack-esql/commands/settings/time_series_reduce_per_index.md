@@ -5,7 +5,7 @@
 serverless: ga
 stack: ga
 ```
-When enabled, time-series aggregates are reduced separately in each index before results are combined. This uses less memory and can improve query performance, but results may be approximate for time buckets that overlap index rollover boundaries and for windowed aggregates whose windows reach across those boundaries. Defaults to `false`.
+When enabled, eligible time-series aggregates are reduced separately in each index before results are combined. This uses less memory and can improve query performance, but results may be approximate for time buckets that overlap index rollover boundaries. This setting applies only to aggregations without a window. Defaults to `false`.
 
 **Type**: `boolean`
 

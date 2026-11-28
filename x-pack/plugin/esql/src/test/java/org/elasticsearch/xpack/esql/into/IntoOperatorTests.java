@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.mockBigArrays;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.noFailures;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -57,7 +58,8 @@ public class IntoOperatorTests extends ComputeTestCase {
         blockFactory.breaker(),
         IntoTestUtils.DEST,
         COLUMNS,
-        INDEX
+        INDEX,
+        IntoOptions.DEFAULT
     );
 
     @After
@@ -76,7 +78,7 @@ public class IntoOperatorTests extends ComputeTestCase {
         assertFalse(op.isBlocked().listener().isDone());
 
         client.answer(CREATED, CREATED);
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(2, 2)));
+        assertThat(stats(op.getOutput()), equalTo(noFailures(2, 2)));
         assertTrue(op.isFinished());
     }
 
@@ -84,7 +86,7 @@ public class IntoOperatorTests extends ComputeTestCase {
         Operator op = new IntoOperator.Factory(sink, Function.identity()).get(driverContext);
         op.finish();
         assertTrue(op.canProduceMoreDataWithoutExtraInput());
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(0, 0)));
+        assertThat(stats(op.getOutput()), equalTo(noFailures(0, 0)));
         assertTrue(op.isFinished());
     }
 
@@ -95,6 +97,24 @@ public class IntoOperatorTests extends ComputeTestCase {
         client.answer(CREATED, REFUSED);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    public void testKeepGoingEmitsFailureColumns() {
+        IntoPageWriter.Factory keepGoing = IntoPageWriter.Factory.createFactory(
+            bulks(),
+            client,
+            blockFactory.breaker(),
+            IntoTestUtils.DEST,
+            COLUMNS,
+            INDEX,
+            IntoOptions.builder().keepGoing(true).build()
+        );
+        Operator op = new IntoOperator.Factory(keepGoing, Function.identity()).get(driverContext);
+        op.addInput(page("ok", "bad"));
+        op.finish();
+        client.answer(CREATED, REFUSED);
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(2, 1, 1, List.of("[400] mapper_parsing_exception[1]"))));
+        assertTrue(op.isFinished());
     }
 
     public void testFailureFastAtAddInput() {
@@ -134,13 +154,14 @@ public class IntoOperatorTests extends ComputeTestCase {
             blockFactory.breaker(),
             IntoTestUtils.DEST,
             COLUMNS,
-            DISCARD
+            DISCARD,
+            IntoOptions.DEFAULT
         );
         Operator op = new IntoOperator.Factory(discardSink, Function.identity()).get(driverContext);
         op.addInput(page("discarded"));
         op.finish();
         assertThat(client.bulks, empty());
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(0, 0)));
+        assertThat(stats(op.getOutput()), equalTo(noFailures(0, 0)));
         assertTrue(op.isFinished());
     }
 

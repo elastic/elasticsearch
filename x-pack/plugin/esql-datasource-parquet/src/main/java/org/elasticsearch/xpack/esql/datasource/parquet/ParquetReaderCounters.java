@@ -103,9 +103,11 @@ public final class ParquetReaderCounters implements FormatReadCounters {
     }
 
     /**
-     * Records row groups the filter ran without parquet-mr's DICTIONARY level because the dictionary
-     * pages of the predicate columns were not pre-warmed and reading them would have cost one
-     * synchronous range GET each. Such groups can only be pruned by statistics and bloom filters.
+     * Records row groups the filter ran without parquet-mr's DICTIONARY level. That includes groups
+     * whose dictionary pages were not pre-warmed (missing pages, sequential-preload fallback) and
+     * groups {@link FilterLevelUsefulness} marked not dictionary-useful after STATISTICS. Such
+     * groups can only be pruned by statistics and bloom filters. A dedicated bloom-skip counter
+     * is a follow-up (needs a transport version).
      */
     public void addRowGroupsDictionaryFilterSkipped(int count) {
         if (count > 0) {

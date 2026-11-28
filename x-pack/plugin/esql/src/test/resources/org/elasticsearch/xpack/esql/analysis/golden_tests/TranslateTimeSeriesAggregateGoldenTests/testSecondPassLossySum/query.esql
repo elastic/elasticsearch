@@ -1,0 +1,1 @@
+TS k8s | STATS a = SUM(RATE(network.total_bytes_in)), b = SUM(MAX_OVER_TIME(network.bytes_in)) BY TBUCKET(1 minute)

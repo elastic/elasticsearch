@@ -29,6 +29,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.scheduling.QueryLoad;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -440,7 +441,10 @@ public final class LuceneSliceQueue {
                  * load attribution.
                  */
                 long now = System.nanoTime();
-                TaskLoadAttribution.charge(ctx.stats().searchLoadTarget(), now - startShard, now);
+                TaskLoadAttribution.Target shardLoad = ctx.stats().searchLoadTarget();
+                // the load of the task counts it too, as it would if its pool charged it
+                QueryLoad.Charging running = QueryLoad.Charging.running();
+                TaskLoadAttribution.charge(running == null ? shardLoad : running.load().charging(shardLoad), now - startShard, now);
             }
         }
         return new LuceneSliceQueue(contexts::get, slices, partitioningStrategies);
@@ -576,8 +580,9 @@ public final class LuceneSliceQueue {
                 LeafSplitGuard guard,
                 int minDocsPerSlice
             ) {
+                final TsidPrefixRange tsidRange = weight == null ? null : TsidPrefixRangeQuery.find(weight.getQuery());
                 try {
-                    return new TimeSeriesPartitioner().partition(searcher.getLeafContexts(), taskConcurrency, MAX_DOCS_PER_SLICE);
+                    return TimeSeriesPartitioner.partition(searcher.getLeafContexts(), tsidRange, taskConcurrency, MAX_DOCS_PER_SLICE);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -904,16 +909,33 @@ public final class LuceneSliceQueue {
             final int[] prefixes;
             final int[] startDocs;
             final int numPartitions;
+            final int endDoc;
             final int[] metricStarts = new int[NUM_METRICS + 1];
             int sliceStart;
             int next;
             int metricEnd;
 
-            LeafPartitions(LeafReaderContext leaf, PartitionedDocValues.PrefixPartitions partitions, int shift) {
+            LeafPartitions(
+                LeafReaderContext leaf,
+                PartitionedDocValues.PrefixPartitions partitions,
+                int partitionBits,
+                @Nullable TsidPrefixRange range
+            ) {
                 this.leaf = leaf;
-                this.prefixes = partitions.prefixes();
-                this.startDocs = partitions.startDocs();
-                this.numPartitions = partitions.numPartitions();
+                if (range != null) {
+                    final int from = range.startPartition(partitions, partitionBits);
+                    final int to = range.endPartition(partitions, partitionBits, from);
+                    this.prefixes = from > 0 ? Arrays.copyOfRange(partitions.prefixes(), from, to) : partitions.prefixes();
+                    this.startDocs = from > 0 ? Arrays.copyOfRange(partitions.startDocs(), from, to) : partitions.startDocs();
+                    this.numPartitions = to - from;
+                    this.endDoc = to < partitions.numPartitions() ? partitions.startDocs()[to] : leaf.reader().maxDoc();
+                } else {
+                    this.prefixes = partitions.prefixes();
+                    this.startDocs = partitions.startDocs();
+                    this.numPartitions = partitions.numPartitions();
+                    this.endDoc = leaf.reader().maxDoc();
+                }
+                final int shift = partitionBits - Byte.SIZE;
                 int partition = 0;
                 for (int metric = 0; metric < NUM_METRICS; metric++) {
                     metricStarts[metric] = partition;
@@ -929,7 +951,7 @@ public final class LuceneSliceQueue {
             }
 
             int startDoc(int partition) {
-                return partition < numPartitions ? startDocs[partition] : leaf.reader().maxDoc();
+                return partition < numPartitions ? startDocs[partition] : endDoc;
             }
         }
 
@@ -940,9 +962,13 @@ public final class LuceneSliceQueue {
          * single leaf within a slice reaches {@code maxDocsPerLeave} docs to bound per-leaf
          * processing cost.
          */
-        List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int taskConcurrency, int maxDocsPerLeave)
-            throws IOException {
-            final LeafPartitions[] allPartitions = loadPartitions(leaves);
+        static List<List<PartialLeafReaderContext>> partition(
+            List<LeafReaderContext> leaves,
+            @Nullable TsidPrefixRange range,
+            int taskConcurrency,
+            int maxDocsPerLeave
+        ) throws IOException {
+            final LeafPartitions[] allPartitions = loadPartitions(leaves, range);
             final List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
             final LeafPartitions[] metricLeaves = new LeafPartitions[allPartitions.length];
             for (int metric = 0; metric < NUM_METRICS; metric++) {
@@ -989,8 +1015,8 @@ public final class LuceneSliceQueue {
             return slices;
         }
 
-        static LeafPartitions[] loadPartitions(List<LeafReaderContext> leaves) throws IOException {
-            int prefixBitsShift = -1;
+        static LeafPartitions[] loadPartitions(List<LeafReaderContext> leaves, @Nullable TsidPrefixRange range) throws IOException {
+            int partitionBits = -1;
             final List<LeafPartitions> leafPartitions = new ArrayList<>(leaves.size());
             for (LeafReaderContext leaf : leaves) {
                 var tsidValues = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
@@ -998,14 +1024,15 @@ public final class LuceneSliceQueue {
                     continue; // empty
                 }
                 var partitionedDV = (PartitionedDocValues) tsidValues;
-                if (prefixBitsShift == -1) {
-                    prefixBitsShift = partitionedDV.prefixPartitionBits() - Byte.SIZE;
-                } else {
-                    assert prefixBitsShift == partitionedDV.prefixPartitionBits() - Byte.SIZE;
-                }
-                var prefixPartitions = partitionedDV.prefixPartitions(null);
+                final PartitionedDocValues.PrefixPartitions prefixPartitions = partitionedDV.prefixPartitions(null);
                 assert prefixPartitions != null;
-                leafPartitions.add(new LeafPartitions(leaf, prefixPartitions, prefixBitsShift));
+                final int leafBits = partitionedDV.prefixPartitionBits();
+                assert partitionBits == -1 || partitionBits == leafBits;
+                partitionBits = leafBits;
+                final LeafPartitions partitions = new LeafPartitions(leaf, prefixPartitions, partitionBits, range);
+                if (partitions.numPartitions > 0) {
+                    leafPartitions.add(partitions);
+                }
             }
             return leafPartitions.toArray(LeafPartitions[]::new);
         }

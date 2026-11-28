@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 121279
+pr: 164901
+summary: Sort empty sub-agg values last in both directions
+type: bug

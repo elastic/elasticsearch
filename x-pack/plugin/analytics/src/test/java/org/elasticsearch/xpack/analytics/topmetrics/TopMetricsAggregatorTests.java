@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
@@ -33,10 +34,12 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -55,6 +58,8 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -70,6 +75,7 @@ import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -80,6 +86,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -351,6 +358,96 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         InternalTopMetrics top2 = bucket2.getAggregations().get("test");
         assertThat(top2.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(top2.getTopMetrics(), equalTo(List.of(top(1.0, 9.0), top(2.0, 3.0))));
+    }
+
+    public void testTermsOrderedByTopMetricsUnderFilterDesc() throws IOException {
+        assertTermsOrderedByTopMetricsUnderFilter(false, List.of(2.0, 1.0, 5.0));
+    }
+
+    public void testTermsOrderedByTopMetricsUnderFilterAsc() throws IOException {
+        assertTermsOrderedByTopMetricsUnderFilter(true, List.of(5.0, 1.0, 2.0));
+    }
+
+    /**
+     * Orders {@code terms} by a {@code top_metrics} inside a {@code filter}. Terms {@code 3.0} and {@code 4.0}
+     * have no documents matching the filter, so their {@code top_metrics} is empty and they sort last.
+     */
+    private void assertTermsOrderedByTopMetricsUnderFilter(boolean asc, List<Double> expectedWithValues) throws IOException {
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").field("c")
+            .subAggregation(
+                new FilterAggregationBuilder("f", new TermQueryBuilder("keep", "yes")).subAggregation(
+                    simpleBuilder(new FieldSortBuilder("s").order(SortOrder.DESC))
+                )
+            )
+            .order(BucketOrder.aggregation("f>test[m]", asc));
+        Terms result = (Terms) collect(terms, Queries.ALL_DOCS_INSTANCE, writer -> {
+            writer.addDocument(filteredDoc(1.0, true, 1.0, 5.0));
+            writer.addDocument(filteredDoc(1.0, false, 2.0, 100.0));
+            writer.addDocument(filteredDoc(2.0, true, 1.0, 10.0));
+            writer.addDocument(filteredDoc(3.0, false, 1.0, 50.0));
+            writer.addDocument(filteredDoc(4.0, false, 1.0, -50.0));
+            writer.addDocument(filteredDoc(5.0, true, 1.0, 1.0));
+        }, true, filteredFields());
+        List<Double> keys = result.getBuckets().stream().map(b -> (Double) b.getKey()).toList();
+        assertThat(keys, hasSize(5));
+        assertThat(keys.subList(0, 3), equalTo(expectedWithValues));
+        assertThat(keys.subList(3, 5), containsInAnyOrder(3.0, 4.0));
+        for (Terms.Bucket bucket : result.getBuckets().subList(3, 5)) {
+            SingleBucketAggregation filter = bucket.getAggregations().get("f");
+            assertThat(filter.getDocCount(), equalTo(0L));
+            InternalTopMetrics top = filter.getAggregations().get("test");
+            assertThat(top.getTopMetrics(), hasSize(0));
+        }
+    }
+
+    /**
+     * With {@code size} and {@code shard_size} of 1 the shard picks its single bucket by the {@code top_metrics}
+     * value. The terms without a document matching the filter have no value and lose to the only term that has
+     * one, however low ({@code desc}) or high ({@code asc}) that value is.
+     */
+    public void testTermsOrderedByTopMetricsUnderFilterOnShard() throws IOException {
+        boolean asc = randomBoolean();
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").field("c")
+            .size(1)
+            .shardSize(1)
+            .subAggregation(
+                new FilterAggregationBuilder("f", new TermQueryBuilder("keep", "yes")).subAggregation(
+                    simpleBuilder(new FieldSortBuilder("s").order(SortOrder.DESC))
+                )
+            )
+            .order(BucketOrder.aggregation("f>test[m]", asc));
+        int emptyTerms = between(1, 20);
+        Terms result = (Terms) collect(terms, Queries.ALL_DOCS_INSTANCE, writer -> {
+            /*
+             * A single block keeps every document in one segment and in this order, so the term with a value
+             * gets the highest bucket ordinal and the terms without a value get lower ordinals.
+             */
+            List<List<IndexableField>> docs = new ArrayList<>();
+            for (int i = 0; i < emptyTerms; i++) {
+                docs.add(filteredDoc(i, false, 1.0, 1.0));
+            }
+            docs.add(filteredDoc(emptyTerms, true, 1.0, asc ? 1_000_000.0 : -1_000_000.0));
+            writer.addDocuments(docs);
+        }, true, filteredFields());
+        assertThat(result.getBuckets(), hasSize(1));
+        assertThat(result.getBuckets().get(0).getKey(), equalTo((double) emptyTerms));
+    }
+
+    private List<IndexableField> filteredDoc(double c, boolean keep, double s, double m) {
+        return List.of(
+            doubleField("c", c),
+            doubleField("s", s),
+            doubleField("m", m),
+            new StringField("keep", keep ? "yes" : "no", Field.Store.NO)
+        );
+    }
+
+    private MappedFieldType[] filteredFields() {
+        return new MappedFieldType[] {
+            numberFieldType(NumberType.DOUBLE, "c"),
+            numberFieldType(NumberType.DOUBLE, "s"),
+            numberFieldType(NumberType.DOUBLE, "m"),
+            new KeywordFieldMapper.KeywordFieldType("keep") };
     }
 
     public void testTonsOfBucketsTriggersBreaker() throws IOException {

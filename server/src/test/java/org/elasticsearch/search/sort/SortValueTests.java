@@ -145,6 +145,15 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         assertThat(SortValue.empty(), equalTo(SortValue.empty()));
     }
 
+    public void testIsEmpty() {
+        assertTrue(SortValue.empty().isEmpty());
+        assertTrue(SortValue.from(Double.NaN).isEmpty());
+        assertFalse(SortValue.from(randomDouble()).isEmpty());
+        assertFalse(SortValue.from(randomLong()).isEmpty());
+        assertFalse(SortValue.from(new BytesRef(randomAlphaOfLength(5))).isEmpty());
+        assertFalse(SortValue.from(new BytesRef("")).isEmpty());
+    }
+
     public void testSortValueOrdering() {
         final SortValue maxLong = SortValue.from(Long.MAX_VALUE);
         final SortValue minLong = SortValue.from(Long.MIN_VALUE);

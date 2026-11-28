@@ -99,6 +99,15 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
+        if (sort.inHeapMode(owningBucketOrd) == false) {
+            /*
+             * A bucket enters heap mode once it has collected `size` documents. With the
+             * `size: 1` that bucket ordering supports, a bucket outside heap mode has no
+             * value and its metric slot is unwritten, so this reports NaN, which bucket
+             * ordering sorts last in both directions.
+             */
+            return Double.NaN;
+        }
         return metrics.metric(name, owningBucketOrd * size);
     }
 

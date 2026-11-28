@@ -40,7 +40,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             @Override
             public AvgAggregationBuilder builder() {
                 AvgAggregationBuilder factory = avg(name);
-                factory.field("numeric_field");
+                factory.field("numeric_value");
                 return factory;
             }
 
@@ -53,7 +53,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             @Override
             public ExtendedStatsAggregationBuilder builder() {
                 ExtendedStatsAggregationBuilder factory = extendedStats(name);
-                factory.field("numeric_field");
+                factory.field("numeric_value");
                 return factory;
             }
 
@@ -71,7 +71,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             @Override
             public ExtendedStatsAggregationBuilder builder() {
                 ExtendedStatsAggregationBuilder factory = extendedStats(name);
-                factory.field("numeric_field");
+                factory.field("numeric_value");
                 return factory;
             }
 
@@ -103,15 +103,17 @@ public class NaNSortingIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(indicesAdmin().prepareCreate("idx").setMapping("string_value", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("idx").setMapping("string_value", "type=keyword", "numeric_value", "type=double").get());
         final int numDocs = randomIntBetween(2, 10);
         for (int i = 0; i < numDocs; ++i) {
-            final long value = randomInt(5);
+            // The first two documents guarantee both a bucket with a numeric_value (0) and one without (1).
+            final long value = i < 2 ? i : randomInt(5);
             XContentBuilder source = jsonBuilder().startObject()
                 .field("long_value", value)
                 .field("double_value", value + 0.05)
                 .field("string_value", "str_" + value);
-            if (randomBoolean()) {
+            // Only even values carry numeric_value, so buckets for odd values have NaN sub-aggregation values.
+            if (value % 2 == 0) {
                 source.field("numeric_value", randomDouble());
             }
             prepareIndex("idx").setSource(source.endObject()).get();

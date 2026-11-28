@@ -82,6 +82,15 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     }
 
     /**
+     * Whether this is the {@linkplain #empty() empty} value, used for
+     * missing values and {@link Double#NaN}. Bucket ordering uses this to
+     * place buckets without a value last in both sort directions.
+     */
+    public boolean isEmpty() {
+        return false;
+    }
+
+    /**
      * Write the key as xcontent.
      */
     public final XContentBuilder toXContent(XContentBuilder builder, DocValueFormat format) throws IOException {
@@ -413,6 +422,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public int typeComparisonKey() {
             return 0;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return true;
         }
 
         @Override

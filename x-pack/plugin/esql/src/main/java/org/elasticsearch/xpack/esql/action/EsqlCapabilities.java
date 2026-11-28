@@ -4531,7 +4531,7 @@ public class EsqlCapabilities {
         /**
          * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
          */
-        FILLNULL(Build.current().isSnapshot()),
+        FILLNULL,
 
         /**
          * {@code FILLNULL} under {@code unmapped_fields="LOAD_ALL"}, where {@code ON *} leaves {@code _unmapped_fields} alone, and filled

@@ -82,10 +82,10 @@ processingCommand
     | highlightCommand
     | denseVectorCommand
     | describeCommand
+    | fillNullCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
-    | {this.isDevVersion()}? fillNullCommand
     | {this.isDevVersion()}? intoCommand
     | {this.isDevVersion()}? nestedExpandCommand
     ;
@@ -434,7 +434,7 @@ qualifiedNames
     ;
 
 fillNullCommand
-    : DEV_FILLNULL fillNullValue ON qualifiedNamePatterns
+    : FILLNULL fillNullValue ON qualifiedNamePatterns
     ;
 
 fillNullValue

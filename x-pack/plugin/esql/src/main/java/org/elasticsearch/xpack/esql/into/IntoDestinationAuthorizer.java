@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.into;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
+import org.elasticsearch.xpack.esql.action.EsqlIntoReplaceDestinationAction;
 
 import java.util.concurrent.Executor;
 
@@ -27,8 +30,10 @@ public interface IntoDestinationAuthorizer {
      * Fails with a 403 if the caller may not write to {@code destination}.
      *
      * @param destination the concrete name the write goes to, with date math already resolved
+     * @param opType      what the write sends for each row: an {@code index} request, which overwrites, needs more than a
+     *                    {@code create} one
      */
-    void authorize(String destination, ActionListener<Void> listener);
+    void authorize(String destination, DocWriteRequest.OpType opType, ActionListener<Void> listener);
 
     /**
      * Authorizes through the security filter, with an {@link EsqlIntoDestinationAction} that runs as the caller, so that a denial is
@@ -38,7 +43,7 @@ public interface IntoDestinationAuthorizer {
      * on the thread pool that it expects.
      */
     static IntoDestinationAuthorizer create(Client client, Executor executor) {
-        return (destination, listener) -> {
+        return (destination, opType, listener) -> {
             try {
                 // The filter would read a pattern as more than the one index the write targets. This is about the name alone, so it
                 // says nothing about any destination.
@@ -47,8 +52,13 @@ public interface IntoDestinationAuthorizer {
                 listener.onFailure(e);
                 return;
             }
+            ActionType<EsqlIntoDestinationAction.Response> action = switch (opType) {
+                case CREATE -> EsqlIntoDestinationAction.TYPE;
+                case INDEX -> EsqlIntoReplaceDestinationAction.TYPE;
+                case UPDATE, DELETE -> throw new IllegalArgumentException("INTO does not send [" + opType + "] requests");
+            };
             client.execute(
-                EsqlIntoDestinationAction.TYPE,
+                action,
                 new EsqlIntoDestinationAction.Request(destination),
                 new ThreadedActionListener<>(executor, true, listener.map(ignored -> null))
             );

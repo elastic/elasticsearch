@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -41,6 +42,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,7 +71,11 @@ class IntoTestUtils {
         /** The mapping rejects the row with a {@link MapperException}, which has no status of its own and is reported as a 500. */
         MAPPER_REJECTED,
         /** Like {@link #MAPPER_REJECTED}, but another node handled the mapping update, so the exception arrives wrapped. */
-        REMOTE_MAPPER_REJECTED
+        REMOTE_MAPPER_REJECTED,
+        /** The {@code _id} existed and the document was overwritten. */
+        UPDATED,
+        /** The {@code _id} existed and a {@code create} was refused with a 409 version conflict. */
+        CONFLICT
     }
 
     static final int LONG_MESSAGE_LENGTH = 5000;
@@ -124,62 +130,49 @@ class IntoTestUtils {
             BulkItemResponse[] items = new BulkItemResponse[outcomes.length];
             for (int i = 0; i < outcomes.length; i++) {
                 DocWriteRequest.OpType opType = bulk.requests().get(i).opType();
+                final int index = i;
+                String id = "id-" + i;
+                BiFunction<Exception, RestStatus, BulkItemResponse> failure = (ex, status) -> BulkItemResponse.failure(
+                    index,
+                    opType,
+                    new BulkItemResponse.Failure(DEST, id, ex, status)
+                );
                 items[i] = switch (outcomes[i]) {
-                    case CREATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, "id-" + i, 0, 1, 1, true));
-                    case REFUSED -> refused(i, opType, new IllegalArgumentException("mapper_parsing_exception[" + i + "]"));
-                    case REFUSED_WITHOUT_MESSAGE -> refused(i, opType, new IllegalArgumentException());
-                    case REFUSED_WITH_LONG_MESSAGE -> refused(i, opType, new IllegalArgumentException("x".repeat(LONG_MESSAGE_LENGTH)));
-                    case REJECTED -> BulkItemResponse.failure(
-                        i,
-                        opType,
-                        new BulkItemResponse.Failure(
-                            DEST,
-                            "id-" + i,
-                            new EsRejectedExecutionException("rejected"),
-                            RestStatus.TOO_MANY_REQUESTS
-                        )
+                    case CREATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, id, 0, 1, 1, true));
+                    case UPDATED -> BulkItemResponse.success(i, opType, new IndexResponse(SHARD, id, 0, 1, 2, false));
+                    case REFUSED -> failure.apply(
+                        new IllegalArgumentException("mapper_parsing_exception[" + i + "]"),
+                        RestStatus.BAD_REQUEST
                     );
-                    case FORBIDDEN -> BulkItemResponse.failure(
-                        i,
-                        opType,
-                        new BulkItemResponse.Failure(
-                            DEST,
-                            "id-" + i,
-                            new ElasticsearchSecurityException("action [indices:data/write/bulk[s]] is unauthorized", RestStatus.FORBIDDEN),
-                            RestStatus.FORBIDDEN
-                        )
+                    case REFUSED_WITHOUT_MESSAGE -> failure.apply(new IllegalArgumentException(), RestStatus.BAD_REQUEST);
+                    case REFUSED_WITH_LONG_MESSAGE -> failure.apply(
+                        new IllegalArgumentException("x".repeat(LONG_MESSAGE_LENGTH)),
+                        RestStatus.BAD_REQUEST
                     );
-                    case FAILED -> refused(i, opType, new IllegalStateException("shard failed"));
-                    case REMOTE_MAPPER_REJECTED -> BulkItemResponse.failure(
-                        i,
-                        opType,
-                        new BulkItemResponse.Failure(
-                            DEST,
-                            "id-" + i,
-                            new RemoteTransportException(
-                                "[node-b][127.0.0.1:9300][indices:data/write/bulk[s][p]]",
-                                new MapperException("Pass-through source [a] has a conflicting param [priority=1] with source [b]")
-                            ),
-                            RestStatus.INTERNAL_SERVER_ERROR
-                        )
+                    case CONFLICT -> {
+                        var expception = new VersionConflictEngineException(SHARD, "[" + id + "]", "document already exists");
+                        yield BulkItemResponse.failure(i, opType, new BulkItemResponse.Failure(DEST, id, expception));
+                    }
+                    case REJECTED -> failure.apply(new EsRejectedExecutionException("rejected"), RestStatus.TOO_MANY_REQUESTS);
+                    case FORBIDDEN -> failure.apply(
+                        new ElasticsearchSecurityException("action [indices:data/write/bulk[s]] is unauthorized", RestStatus.FORBIDDEN),
+                        RestStatus.FORBIDDEN
                     );
-                    case MAPPER_REJECTED -> BulkItemResponse.failure(
-                        i,
-                        opType,
-                        new BulkItemResponse.Failure(
-                            DEST,
-                            "id-" + i,
-                            new MapperException("Pass-through source [a] has a conflicting param [priority=1] with source [b]"),
-                            RestStatus.INTERNAL_SERVER_ERROR
-                        )
+                    case FAILED -> failure.apply(new IllegalStateException("shard failed"), RestStatus.INTERNAL_SERVER_ERROR);
+                    case REMOTE_MAPPER_REJECTED -> failure.apply(
+                        new RemoteTransportException(
+                            "[node-b][127.0.0.1:9300][indices:data/write/bulk[s][p]]",
+                            new MapperException("Pass-through source [a] has a conflicting param [priority=1] with source [b]")
+                        ),
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    );
+                    case MAPPER_REJECTED -> failure.apply(
+                        new MapperException("Pass-through source [a] has a conflicting param [priority=1] with source [b]"),
+                        RestStatus.INTERNAL_SERVER_ERROR
                     );
                 };
             }
             listeners.removeFirst().onResponse(new BulkResponse(items, 1));
-        }
-
-        private static BulkItemResponse refused(int item, DocWriteRequest.OpType opType, Exception cause) {
-            return BulkItemResponse.failure(item, opType, new BulkItemResponse.Failure(DEST, "id-" + item, cause));
         }
 
         void fail(Exception e) {
@@ -222,6 +215,6 @@ class IntoTestUtils {
 
     /** Stats of a run in which the destination refused nothing. */
     static IntoStats noFailures(long total, long created) {
-        return new IntoStats(total, created, 0, List.of());
+        return IntoStats.builder().total(total).created(created).build();
     }
 }

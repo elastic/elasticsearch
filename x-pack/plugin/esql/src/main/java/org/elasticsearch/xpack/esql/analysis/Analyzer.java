@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -162,6 +166,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.into.IntoOptions.Collisions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
@@ -376,6 +381,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Limiter.ONCE,
                 new BindNestedAny(),
                 new HideNestedScopeFields(),
+                new RejectReplaceIntoDataStream(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
@@ -561,6 +567,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             throw new VerificationException(failures);
         }
         return plan;
+    }
+
+    /** Rejects {@code collisions: replace} on a data stream, which is append-only and so would refuse every row. */
+    private static class RejectReplaceIntoDataStream extends ParameterizedAnalyzerRule<Into, AnalyzerContext> {
+
+        public static final String MSG = "INTO collisions [{}] is not supported on data stream [{}]";
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(Into into, AnalyzerContext context) {
+            if (into.options().collisions() != Collisions.REPLACE || context.projectMetadata() == null) {
+                return into;
+            }
+            if (writesToDataStream(context.projectMetadata(), into.destination())) {
+                throw new VerificationException(List.of(Failure.fail(into, MSG, Collisions.REPLACE.optionValue(), into.destination())));
+            }
+            return into;
+        }
+
+        /** A data stream, an alias of one, one of its backing indices, or a missing name a data stream template matches. */
+        private static boolean writesToDataStream(ProjectMetadata project, String destinationExpression) {
+            String destination = IndexNameExpressionResolver.resolveDateMathExpression(destinationExpression);
+            IndexAbstraction abstraction = project.getIndicesLookup().get(destination);
+            if (abstraction == null) {
+                String template = MetadataIndexTemplateService.findV2Template(project, destination, false);
+                return template != null && project.templatesV2().get(template).getDataStreamTemplate() != null;
+            }
+            return abstraction.isDataStreamRelated() || abstraction.getParentDataStream() != null;
+        }
     }
 
     /**

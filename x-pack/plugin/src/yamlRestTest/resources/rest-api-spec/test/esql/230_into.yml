@@ -47,15 +47,64 @@ teardown:
           query: 'ROW k = ["a", "b", "c"], n = 1 | MV_EXPAND k | INTO into-dest'
   - match: { columns.0.name: total }
   - match: { columns.1.name: created }
-  - match: { columns.2.name: failures }
-  - match: { columns.3.name: failure_details }
-  - match: { values.0: [3, 3, 0, null] }
+  - match: { columns.2.name: updated }
+  - match: { columns.3.name: version_conflicts }
+  - match: { columns.4.name: failures }
+  - match: { columns.5.name: failure_details }
+  - match: { values.0: [3, 3, 0, 0, 0, null] }
 
   - do:
       esql.query:
         body:
           query: 'FROM into-dest | SORT k | KEEP k, n | LIMIT 10'
   - match: { values: [["a", 1], ["b", 1], ["c", 1]] }
+
+---
+"INTO with collisions keep leaves an existing document and counts the conflict":
+  - do:
+      index:
+        index: into-dest
+        id: a
+        refresh: true
+        body: { k: "old", n: 1 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW k = ["a", "b"] | MV_EXPAND k | EVAL _id = k, n = 2 | INTO into-dest WITH {"collisions": "keep"}'
+  # total, created, updated, version_conflicts, failures, failure_details
+  - match: { columns.2.name: updated }
+  - match: { columns.3.name: version_conflicts }
+  - match: { values.0: [2, 1, 0, 1, 0, null] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM into-dest METADATA _id | SORT _id | KEEP _id, k, n | LIMIT 10'
+  - match: { values: [["a", "old", 1], ["b", "b", 2]] }
+
+---
+"INTO with collisions replace overwrites an existing document and counts the update":
+  - do:
+      index:
+        index: into-dest
+        id: a
+        refresh: true
+        body: { k: "old", n: 1 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW k = ["a", "b"] | MV_EXPAND k | EVAL _id = k, n = 2 | INTO into-dest WITH {"collisions": "replace"}'
+  - match: { columns.2.name: updated }
+  - match: { columns.3.name: version_conflicts }
+  - match: { values.0: [2, 1, 1, 0, 0, null] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM into-dest METADATA _id | SORT _id | KEEP _id, k, n | LIMIT 10'
+  - match: { values: [["a", "a", 2], ["b", "b", 2]] }
 
 ---
 "INTO a destination that does not exist is an error, and does not create it":

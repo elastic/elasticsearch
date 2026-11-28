@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.into.IntoOptions.Collisions;
 import org.elasticsearch.xpack.esql.into.IntoOptions.Option;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -178,6 +179,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private static final Set<String> FROM_MODE_KEYWORDS = Set.of("metadata", "with");
 
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
+    private static final String INTO_INVALID_COLLISIONS_MESSAGE = "Invalid value [{}] for option [{}] in INTO, expected one of {}";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
 
     public LogicalPlanBuilder(ParsingContext context) {
@@ -620,13 +622,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return IntoOptions.DEFAULT;
         }
         Map<String, Expression> optionExpressionsByName = new LinkedHashMap<>();
+        // Lowercased name -> name as written, so an unknown option is reported the way the user typed it
+        Map<String, String> writtenNames = new LinkedHashMap<>();
         // The entries, not the folded map: it keeps only the last value of a name, which would hide an invalid one before it
         for (EntryExpression entry : optionsExpression.entryExpressions()) {
             if (entry.key() instanceof Literal key) {
-                String name = BytesRefs.toString(key.value()).toLowerCase(Locale.ROOT);
+                String written = BytesRefs.toString(key.value());
+                String name = written.toLowerCase(Locale.ROOT);
                 if (optionExpressionsByName.put(name, entry.value()) != null) {
                     throw new ParsingException(entry.value().source(), "Duplicate option [{}] in INTO", name);
                 }
+                writtenNames.put(name, written);
             } else {
                 throw new ParsingException(entry.key().source(), "Option names must be literals in INTO");
             }
@@ -635,16 +641,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         boolean refresh = booleanOption(optionExpressionsByName, Option.REFRESH, IntoOptions.DEFAULT.refresh());
         boolean keepGoing = booleanOption(optionExpressionsByName, Option.KEEP_GOING, IntoOptions.DEFAULT.keepGoing());
 
+        Collisions collisions = IntoOptions.DEFAULT.collisions();
+        Expression collisionsExpr = optionExpressionsByName.remove(Option.COLLISIONS.optionName());
+        if (collisionsExpr != null) {
+            collisions = intoCollisions(collisionsExpr);
+        }
+
         if (optionExpressionsByName.isEmpty() == false) {
             throw new ParsingException(
                 source,
                 "Invalid option{} {} in INTO, expected one of {}",
                 optionExpressionsByName.size() > 1 ? "s" : "",
-                optionExpressionsByName.keySet(),
+                optionExpressionsByName.keySet().stream().map(writtenNames::get).toList(),
                 Option.NAMES
             );
         }
-        return IntoOptions.builder().refresh(refresh).keepGoing(keepGoing).build();
+        return IntoOptions.builder().refresh(refresh).keepGoing(keepGoing).collisions(collisions).build();
     }
 
     /** Removes {@code name} from {@code optionExpressionsByName}, so that whatever remains afterwards is an unknown option. */
@@ -657,6 +669,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return value;
         }
         throw new ParsingException(expression.source(), "Option [{}] must be a boolean literal", option.optionName());
+    }
+
+    private static Collisions intoCollisions(Expression value) {
+        String option = Option.COLLISIONS.optionName();
+        if (value instanceof Literal lit && DataType.isString(lit.dataType()) && lit.value() != null) {
+            String text = BytesRefs.toString(lit.value());
+            return Collisions.parse(text)
+                .orElseThrow(() -> new ParsingException(value.source(), INTO_INVALID_COLLISIONS_MESSAGE, text, option, Collisions.NAMES));
+        }
+        throw new ParsingException(value.source(), "Option [{}] must be a string literal, one of {}", option, Collisions.NAMES);
     }
 
     @Override

@@ -171,9 +171,8 @@ public final class IntoMergeStatsOperator implements Operator {
             return;
         }
         finished = true;
-        // TODO: this only counts creates. Once INTO can replace documents, refresh when any document was written (created + updated),
-        // or a run that only replaces would skip the refresh.
-        if (refresher != null && merged.created() > 0) {
+        // Replaced documents need the refresh too; rows kept as version conflicts changed nothing.
+        if (refresher != null && documentsWritten() > 0) {
             startRefresh(refresher);
         }
     }
@@ -212,10 +211,14 @@ public final class IntoMergeStatsOperator implements Operator {
         refreshWarning = Strings.format(
             "index refresh for INTO [%s] failed after [%d] documents were written, so they may not be searchable yet: %s%s",
             refresher.destination(),
-            merged.created(),
+            documentsWritten(),
             underlying.getMessage(),
             hint
         );
+    }
+
+    private long documentsWritten() {
+        return merged.created() + merged.updated();
     }
 
     private boolean refreshPending() {

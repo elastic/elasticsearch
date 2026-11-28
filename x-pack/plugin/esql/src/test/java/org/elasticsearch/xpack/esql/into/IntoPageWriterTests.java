@@ -39,6 +39,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -50,6 +51,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.into.IntoOptions.Collisions;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
@@ -58,6 +61,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +71,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.IN_FLIGHT;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CONFLICT;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FAILED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.FORBIDDEN;
@@ -100,7 +105,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     private ThreadPool threadPool;
     private IntoTestUtils.CapturingClient client;
-    private BlockFactory blockFactory;
+    private BlockFactory factory;
     private DriverContext driverContext;
     private IntoPageWriter.Factory sink;
     private IntoPageWriter writer;
@@ -109,9 +114,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void setUpWriter() {
         threadPool = new TestThreadPool(getTestName());
         client = new IntoTestUtils.CapturingClient(threadPool);
-        blockFactory = blockFactory();
-        driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
-        sink = newSink(blockFactory.breaker());
+        factory = blockFactory();
+        driverContext = new DriverContext(mockBigArrays(), factory, null);
+        sink = newSink(factory.breaker());
         writer = sink.create(driverContext);
     }
 
@@ -138,10 +143,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testPageToSourceConversion() throws IOException {
-        try (
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
-            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
-        ) {
+        try (BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(2); LongBlock.Builder ts = factory.newLongBlockBuilder(2)) {
             host.beginPositionEntry().appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).endPositionEntry();
             ts.appendLong(1_750_000_000_000L);
             host.appendNull();
@@ -162,12 +164,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testEscfBatchProperties() throws IOException {
-        var escfSink = newSink(blockFactory.breaker());
-        IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), blockFactory, null));
-        try (
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
-            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
-        ) {
+        var escfSink = newSink(factory.breaker());
+        IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), factory, null));
+        try (BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(2); LongBlock.Builder ts = factory.newLongBlockBuilder(2)) {
             host.beginPositionEntry().appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).endPositionEntry();
             ts.appendLong(1_750_000_000_000L);
             host.appendNull();
@@ -186,7 +185,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
             )
         );
         client.answer(CREATED, CREATED);
-        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
     }
 
     public void testEscfBatchBytesIncludeRecyclerOverhead() {
@@ -341,7 +340,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
         var exactWriter = newSink(driverContext.breaker(), List.of(column)).create(driverContext);
         expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+            try (LongBlock.Builder values = factory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(BigInteger.TWO.pow(63).add(BigInteger.ONE)));
                 exactWriter.consume(new Page(values.build()));
             }
@@ -385,7 +384,12 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
         assertTrue(writer.isFinished());
         assertThat(writer.failure(), nullValue());
-        assertThat(writer.stats(), equalTo(new IntoStats(4, 3, 1, List.of("[400] mapper_parsing_exception[1]"))));
+        assertThat(
+            writer.stats(),
+            equalTo(
+                IntoStats.builder().total(4).created(3).failures(1).failureDetails(List.of("[400] mapper_parsing_exception[1]")).build()
+            )
+        );
     }
 
     public void testKeepGoingCapsFailureDetailsKeepingTheFirstOnes() {
@@ -537,6 +541,341 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(writer.stats(), equalTo(noFailures(0, 0)));
     }
 
+    public void testMultiValuedIdIsRejected() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
+        Page page;
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(2);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(2)
+        ) {
+            id.appendBytesRef(new BytesRef("ok"));
+            host.appendBytesRef(new BytesRef("h1"));
+            id.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
+            host.appendBytesRef(new BytesRef("h2"));
+            page = new Page(id.build(), host.build());
+        }
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> idWriter.consume(page));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("must be single-valued, found [[a, b]]"));
+        assertThat(client.bulks, empty());
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+        assertThat(sink.failure(), sameInstance(e));
+    }
+
+    /** A row whose {@code _id} has several values is refused on its own under {@code keep_going}, like an empty or an over-long one. */
+    public void testKeepGoingRefusesOnlyTheRowsWithAMultiValuedId() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        Page page;
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(3)
+        ) {
+            id.appendBytesRef(new BytesRef("a"));
+            id.beginPositionEntry().appendBytesRef(new BytesRef("x")).appendBytesRef(new BytesRef("y")).endPositionEntry();
+            id.appendBytesRef(new BytesRef("c"));
+            host.appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).appendBytesRef(new BytesRef("h3"));
+            page = new Page(id.build(), host.build());
+        }
+        idWriter.consume(page);
+
+        assertThat(client.bulks.getFirst().requests().stream().map(DocWriteRequest::id).toList(), equalTo(List.of("a", "c")));
+        client.answer(CREATED, CREATED);
+        idWriter.finish();
+
+        assertThat(sink.failure(), nullValue());
+        assertThat(
+            idWriter.stats(),
+            equalTo(
+                IntoStats.builder()
+                    .total(3)
+                    .created(2)
+                    .failures(1)
+                    .failureDetails(List.of("[400] [_id] must be single-valued, found [x, y]"))
+                    .build()
+            )
+        );
+    }
+
+    /** The values of a multi-valued {@code _id} can be large, and are only there to point at the row, so only a preview is decoded. */
+    public void testTheReasonForAMultiValuedIdOnlyPreviewsItsValues() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        Page page;
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(1)
+        ) {
+            id.beginPositionEntry();
+            for (int i = 0; i < 5; i++) {
+                id.appendBytesRef(new BytesRef("x".repeat(600)));
+            }
+            id.endPositionEntry();
+            host.appendBytesRef(new BytesRef("h1"));
+            page = new Page(id.build(), host.build());
+        }
+        idWriter.consume(page);
+        idWriter.finish();
+
+        assertThat(client.bulks, empty());
+        assertThat(
+            idWriter.stats().failureDetails(),
+            equalTo(List.of("[400] [_id] must be single-valued, found [" + "x".repeat(256) + "..., ... 4 more]"))
+        );
+    }
+
+    /** Values that take no bytes, like empty ones, are not shown without limit either. */
+    public void testTheReasonForAMultiValuedIdPreviewsAtMostTenValues() {
+        assertThat(
+            multiValuedIdReason(Collections.nCopies(100, "")),
+            equalTo("[400] [_id] must be single-valued, found [" + ", ".repeat(10) + "... 90 more]")
+        );
+    }
+
+    /** The preview is cut where a character starts, as the bytes of half of one would read as a character that is not in the id. */
+    public void testThePreviewOfAMultiValuedIdDoesNotCutACharacter() {
+        // The 256 bytes of the preview end between the two bytes of the first é
+        String value = "x".repeat(255) + "éé";
+        assertThat(
+            multiValuedIdReason(List.of(value, "b")),
+            equalTo("[400] [_id] must be single-valued, found [" + "x".repeat(255) + "..., b]")
+        );
+    }
+
+    private String multiValuedIdReason(List<String> values) {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        Page page;
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(1)
+        ) {
+            id.beginPositionEntry();
+            for (String value : values) {
+                id.appendBytesRef(new BytesRef(value));
+            }
+            id.endPositionEntry();
+            host.appendBytesRef(new BytesRef("h1"));
+            page = new Page(id.build(), host.build());
+        }
+        idWriter.consume(page);
+        idWriter.finish();
+        return idWriter.stats().failureDetails().getFirst();
+    }
+
+    public void testMultiValuedIdStopsSiblingWriters() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
+        IntoPageWriter sibling = sink.create(new DriverContext(mockBigArrays(), factory, null));
+        Page bad;
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(1)
+        ) {
+            id.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
+            host.appendBytesRef(new BytesRef("h1"));
+            bad = new Page(id.build(), host.build());
+        }
+        expectThrows(ElasticsearchStatusException.class, () -> idWriter.consume(bad));
+
+        sibling.consume(idPage(new String[] { "c" }, "dropped"));
+        assertThat(client.bulks, empty());
+    }
+
+    public void testKeepCountsCollisionsAndContinues() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.KEEP);
+        idWriter.consume(idPage(new String[] { "a", "b", "c" }, "h1", "h2", "h3"));
+        client.answer(CREATED, CONFLICT, CONFLICT);
+        assertThat(sink.failure(), nullValue());
+
+        idWriter.consume(idPage(new String[] { "d" }, "h4"));
+        client.answer(CREATED);
+        idWriter.finish();
+        assertTrue(idWriter.isFinished());
+        assertThat(idWriter.stats(), equalTo(IntoStats.builder().total(4).created(2).versionConflicts(2).build()));
+    }
+
+    public void testKeepStillFailsOnARefusedRow() {
+        IntoPageWriter idWriter = writerWithIds(Collisions.KEEP);
+        idWriter.consume(idPage(new String[] { "a", "b" }, "h1", "h2"));
+        client.answer(CONFLICT, REFUSED);
+        ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+        assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("mapper_parsing_exception"));
+    }
+
+    /** Only {@code keep} tolerates a conflict. An index request has no version check, so a 409 under replace is not a collision. */
+    public void testOnlyKeepToleratesAConflict() {
+        for (Collisions collisions : List.of(Collisions.ABORT, Collisions.REPLACE)) {
+            IntoPageWriter idWriter = writerWithIds(collisions);
+            idWriter.consume(idPage(new String[] { "a" }, "h1"));
+            client.answer(CONFLICT);
+            ElasticsearchStatusException failure = asInstanceOf(ElasticsearchStatusException.class, sink.failure());
+            assertThat(collisions.toString(), failure.status(), equalTo(RestStatus.CONFLICT));
+            // Only abort has the option to point to: under replace a conflict is not a collision
+            Matcher<String> hint = containsString(
+                "use \"collisions\": \"keep\", or \"collisions\": \"replace\" (not supported on a data stream)"
+            );
+            assertThat(collisions.toString(), failure.getMessage(), collisions == Collisions.ABORT ? hint : not(hint));
+        }
+    }
+
+    /** An empty or over-long {@code _id} would fail the whole bulk, so the run fails before anything is sent. */
+    public void testInvalidIdFailsTheRunWithoutKeepGoing() {
+        for (String invalid : List.of("", "x".repeat(IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES + 1))) {
+            IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(false).build());
+            ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> idWriter.consume(idPage(new String[] { "a", invalid }, "h1", "h2"))
+            );
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(client.bulks, empty());
+            assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+            assertThat(sink.failure(), sameInstance(e));
+        }
+    }
+
+    /** The rows next to an invalid {@code _id} are still written, and each invalid one is counted as refused, with its reason. */
+    public void testKeepGoingRefusesOnlyTheRowsWithAnInvalidId() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        String tooLong = "x".repeat(IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES + 1);
+        idWriter.consume(idPage(new String[] { "a", "", tooLong, "d" }, "h1", "h2", "h3", "h4"));
+
+        BulkRequest bulk = client.bulks.getFirst();
+        assertThat(bulk.requests().stream().map(DocWriteRequest::id).toList(), equalTo(List.of("a", "d")));
+        client.answer(CREATED, CREATED);
+        idWriter.finish();
+
+        assertThat(sink.failure(), nullValue());
+        assertThat(
+            idWriter.stats(),
+            equalTo(
+                IntoStats.builder()
+                    .total(4)
+                    .created(2)
+                    .failures(2)
+                    .failureDetails(
+                        List.of(
+                            "[400] if _id is specified it must not be empty",
+                            "[400] _id is too long, must be no longer than 512 bytes but was: 513"
+                        )
+                    )
+                    .build()
+            )
+        );
+    }
+
+    /** The limit is in bytes of UTF-8, not in characters: it takes 512 bytes to be sent and 513 to be refused. */
+    public void testIdLengthLimitIsInUtf8Bytes() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        int limit = IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES;
+        String ascii512 = "x".repeat(limit);
+        String twoByteChars512 = "é".repeat(limit / 2);
+        String twoByteChars600 = "é".repeat(300);
+        String twoByteChars513 = "é".repeat(limit / 2) + "x";
+        idWriter.consume(idPage(new String[] { ascii512, twoByteChars512, twoByteChars600, twoByteChars513 }, "h1", "h2", "h3", "h4"));
+
+        assertThat(
+            client.bulks.getFirst().requests().stream().map(DocWriteRequest::id).toList(),
+            equalTo(List.of(ascii512, twoByteChars512))
+        );
+        client.answer(CREATED, CREATED);
+        idWriter.finish();
+        assertThat(
+            idWriter.stats(),
+            equalTo(
+                IntoStats.builder()
+                    .total(4)
+                    .created(2)
+                    .failures(2)
+                    .failureDetails(
+                        List.of(
+                            "[400] _id is too long, must be no longer than 512 bytes but was: 600",
+                            "[400] _id is too long, must be no longer than 512 bytes but was: 513"
+                        )
+                    )
+                    .build()
+            )
+        );
+    }
+
+    /** Every refused row is counted, but only a sample of the reasons is reported, and it is the first reasons. */
+    public void testKeepGoingCountsEveryInvalidIdButKeepsTheFirstDetails() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        int cap = IntoStats.MAX_FAILURE_DETAILS;
+        int beyondCap = 5;
+        String tooLong = "x".repeat(IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES + 1);
+        // The empty ones fill the sample, and the ones that come after it have another reason, so that keeping the last ones shows
+        String[] ids = new String[cap + beyondCap + 2];
+        Arrays.fill(ids, 1, 1 + cap, "");
+        Arrays.fill(ids, 1 + cap, 1 + cap + beyondCap, tooLong);
+        ids[0] = "first";
+        ids[ids.length - 1] = "last";
+        String[] hosts = new String[ids.length];
+        Arrays.setAll(hosts, i -> "h" + i);
+        idWriter.consume(idPage(ids, hosts));
+
+        assertThat(client.bulks.getFirst().requests().stream().map(DocWriteRequest::id).toList(), equalTo(List.of("first", "last")));
+        client.answer(CREATED, CREATED);
+        idWriter.finish();
+
+        IntoStats stats = idWriter.stats();
+        assertThat(stats.total(), equalTo((long) ids.length));
+        assertThat(stats.created(), equalTo(2L));
+        assertThat(stats.failures(), equalTo((long) cap + beyondCap));
+        assertThat(stats.failureDetails(), equalTo(Collections.nCopies(cap, "[400] if _id is specified it must not be empty")));
+    }
+
+    public void testKeepGoingSendsNothingWhenEveryIdIsInvalid() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        idWriter.consume(idPage(new String[] { "", "" }, "h1", "h2"));
+        idWriter.finish();
+
+        assertThat(client.bulks, empty());
+        assertTrue(idWriter.isFinished());
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+        assertThat(
+            idWriter.stats(),
+            equalTo(
+                IntoStats.builder()
+                    .total(2)
+                    .failures(2)
+                    .failureDetails(
+                        List.of("[400] if _id is specified it must not be empty", "[400] if _id is specified it must not be empty")
+                    )
+                    .build()
+            )
+        );
+    }
+
+    private IntoPageWriter writerWithIds(Collisions collisions) {
+        return writerWithIds(IntoOptions.builder().collisions(collisions).build());
+    }
+
+    private IntoPageWriter writerWithIds(IntoOptions options) {
+        List<Attribute> columns = List.of(
+            new ReferenceAttribute(Source.EMPTY, IdFieldMapper.NAME, DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, "host", DataType.KEYWORD)
+        );
+        sink = IntoPageWriter.Factory.createFactory(bulks(), client, factory.breaker(), DEST, columns, INDEX, options);
+        return sink.create(driverContext);
+    }
+
+    /** One row per host, with {@code ids[i]} as the {@code _id} of row {@code i}; a {@code null} id is a null {@code _id}. */
+    private Page idPage(String[] ids, String... hosts) {
+        assertThat(ids.length, equalTo(hosts.length));
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(ids.length);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(hosts.length)
+        ) {
+            for (int i = 0; i < ids.length; i++) {
+                if (ids[i] == null) {
+                    id.appendNull();
+                } else {
+                    id.appendBytesRef(new BytesRef(ids[i]));
+                }
+                host.appendBytesRef(new BytesRef(hosts[i]));
+            }
+            return new Page(id.build(), host.build());
+        }
+    }
+
     private IntoPageWriter.Factory newSink(CircuitBreaker breaker) {
         return newSink(breaker, COLUMNS, IntoOptions.DEFAULT);
     }
@@ -555,7 +894,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     /** Replaces the default {@link #sink} and {@link #writer} with ones that run under {@code keep_going}. */
     private void keepGoingSink() {
-        sink = newSink(blockFactory.breaker(), IntoOptions.builder().keepGoing(true).build());
+        sink = newSink(factory.breaker(), IntoOptions.builder().keepGoing(true).build());
         writer = sink.create(driverContext);
     }
 
@@ -564,7 +903,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
         var exactWriter = newSink(driverContext.breaker(), List.of(column)).create(driverContext);
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
+            try (LongBlock.Builder values = factory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(big));
                 exactWriter.consume(new Page(values.build()));
             }
@@ -726,11 +1065,11 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     private Page page(String... hosts) {
-        try (BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(hosts.length)) {
+        try (BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(hosts.length)) {
             for (String value : hosts) {
                 host.appendBytesRef(new BytesRef(value));
             }
-            return new Page(host.build(), blockFactory.newConstantLongBlockWith(0L, hosts.length));
+            return new Page(host.build(), factory.newConstantLongBlockWith(0L, hosts.length));
         }
     }
 

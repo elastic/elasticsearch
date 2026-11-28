@@ -12,15 +12,19 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,6 +37,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.into.IntoOptions.Collisions;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -41,6 +46,7 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,14 +61,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class IntoIT extends AbstractEsqlIntegTestCase {
@@ -71,6 +75,11 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     private static final String SOURCE = "src-into";
     private static final String FAILING_SOURCE = "src-into-failing";
     private static final String RETRY_SOURCE = "src-into-retry";
+    private static final String DATA_STREAM_PREFIX = "into-ds-";
+    private static final String DATA_STREAM = DATA_STREAM_PREFIX + "logs";
+    private static final String UNMAPPED_COL_REFUSAL =
+        "[400] [0:0] mapping set to strict, dynamic introduction of [unmapped_col] within [_doc] is not allowed";
+    private static final String COLLIDING_ROWS = "ROW _id = [\"a\", \"b\"], k = \"new\" | MV_EXPAND _id";
     private static final String MAPPING = """
         {
           "dynamic": "strict",
@@ -86,13 +95,14 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         """;
 
     @Override
+    @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(
-                CollectionUtils.appendToCopy(super.nodePlugins(), IngestCommonPlugin.class),
-                MockTransportService.TestPlugin.class
-            ),
-            FailingFieldPlugin.class
+        return CollectionUtils.appendToCopyNoNullElements(
+            super.nodePlugins(),
+            IngestCommonPlugin.class,
+            MockTransportService.TestPlugin.class,
+            FailingFieldPlugin.class,
+            DataStreamsPlugin.class
         );
     }
 
@@ -224,27 +234,20 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run(query)) {
             assertIntoColumns(response);
             List<Object> summary = singleValue(getValuesList(response));
-            assertThat(summary.subList(0, 3), equalTo(List.of(3L, 2L, 1L)));
-            assertThat((String) summary.get(3), startsWith("[400] "));
-            assertThat((String) summary.get(3), containsString("unmapped_col"));
+            assertThat(summary, hasSize(6));
+            assertThat(summary.subList(0, 5), equalTo(List.of(3L, 2L, 0L, 0L, 1L)));
+            assertThat(summary.get(5), equalTo(UNMAPPED_COL_REFUSAL));
         }
         assertReadBack("KEEP k | SORT k", List.of(List.of("ok1"), List.of("ok2")));
     }
 
     public void testKeepGoingFromSourceCountsEveryRefusal() {
         createSource();
-        try (
-            EsqlQueryResponse response = run(
-                "FROM " + SOURCE + " | EVAL unmapped_col = k | INTO " + DESTINATION + " WITH {\"keep_going\": true}"
-            )
-        ) {
+        try (var response = run("FROM " + SOURCE + " | EVAL unmapped_col = k | INTO " + DESTINATION + " WITH {\"keep_going\": true}")) {
             List<Object> summary = getValuesList(response).getFirst();
-            assertThat(summary.subList(0, 3), equalTo(List.of(3L, 0L, 3L)));
-            List<?> details = (List<?>) summary.get(3);
-            assertThat(details, hasSize(3));
-            for (Object detail : details) {
-                assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
-            }
+            assertThat(summary, hasSize(6));
+            assertThat(summary.subList(0, 5), equalTo(List.of(3L, 0L, 0L, 0L, 3L)));
+            assertThat(summary.get(5), equalTo(Collections.nCopies(3, UNMAPPED_COL_REFUSAL)));
         }
         assertReadBack(List.of());
     }
@@ -375,7 +378,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             IntStream.range(0, 2000).mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", wide + i)).collect(Collectors.toList())
         );
         try (EsqlQueryResponse response = run(requestWithManyWriters("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION))) {
-            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(2000L, 2000L, 0L, null))));
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(2000L, 2000L, 0L, 0L, 0L, null))));
             assertThat(countWriters(response), greaterThan(1L));
         }
         assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
@@ -407,12 +410,9 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             + " WITH {\"keep_going\": true}";
         try (EsqlQueryResponse response = run(requestWithManyWriters(query))) {
             List<Object> summary = singleValue(getValuesList(response));
-            assertThat(summary.subList(0, 3), equalTo(List.of(600L, 300L, 300L)));
-            List<?> details = (List<?>) summary.get(3);
-            assertThat(details, hasSize(IntoStats.MAX_FAILURE_DETAILS));
-            for (Object detail : details) {
-                assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
-            }
+            assertThat(summary, hasSize(6));
+            assertThat(summary.subList(0, 5), equalTo(List.of(600L, 300L, 0L, 0L, 300L)));
+            assertThat(summary.get(5), equalTo(Collections.nCopies(IntoStats.MAX_FAILURE_DETAILS, UNMAPPED_COL_REFUSAL)));
             // Writers on one node share their stats, so the stats of several nodes are only merged if writers ran on several nodes
             assertThat(writerNodes(response), hasSize(greaterThan(1)));
         }
@@ -659,13 +659,140 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack("KEEP k | SORT k", List.of(List.of("r1"), List.of("r2")));
     }
 
+    public void testCopyingTwiceWithKeepCountsEveryDocumentAsAConflict() {
+        createSource();
+        String copy = "FROM "
+            + SOURCE
+            + " METADATA _id | KEEP _id, k | INTO "
+            + DESTINATION
+            + " WITH {\"collisions\": \"keep\", \"refresh\": true}";
+        try (EsqlQueryResponse response = run(copy)) {
+            assertStats(response, IntoStats.builder().total(3).created(3).build());
+        }
+        try (EsqlQueryResponse response = run(copy)) {
+            assertStats(response, IntoStats.builder().total(3).versionConflicts(3).build());
+        }
+        assertReadBack("KEEP k | SORT k", List.of(List.of("a"), List.of("b"), List.of("c")));
+    }
+
+    public void testCollisionsAbortFailsAndLeavesTheExistingDocument() {
+        indexExistingDocument();
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> run(COLLIDING_ROWS + " | INTO " + DESTINATION + " WITH {\"collisions\": \"abort\"}").close()
+        );
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "INTO ["
+                    + DESTINATION
+                    + "] failed: [a]: version conflict, document already exists (current version [1]); "
+                    + "to handle documents that already exist, use \"collisions\": \"keep\", "
+                    + "or \"collisions\": \"replace\" (not supported on a data stream)"
+            )
+        );
+        assertReadBackWithIds("WHERE _id == \"a\" | KEEP k, l", List.of(List.of("old", 1L)));
+    }
+
+    public void testCollisionsKeepCountsConflictsAndLeavesTheExistingDocument() {
+        indexExistingDocument();
+        try (EsqlQueryResponse response = run(COLLIDING_ROWS + " | INTO " + DESTINATION + " WITH {\"collisions\": \"keep\"}")) {
+            assertStats(response, IntoStats.builder().total(2).created(1).versionConflicts(1).build());
+        }
+        assertReadBackWithIds("KEEP _id, k, l | SORT _id", List.of(Arrays.asList("a", "old", 1L), Arrays.asList("b", "new", null)));
+    }
+
+    public void testCollisionsReplaceOverwritesTheWholeDocument() {
+        indexExistingDocument();
+        try (EsqlQueryResponse response = run(COLLIDING_ROWS + " | INTO " + DESTINATION + " WITH {\"collisions\": \"REPLACE\"}")) {
+            assertStats(response, IntoStats.builder().total(2).created(1).updated(1).build());
+        }
+        // l was only on the old document, so a replace drops it
+        assertReadBackWithIds("KEEP _id, k, l | SORT _id", List.of(Arrays.asList("a", "new", null), Arrays.asList("b", "new", null)));
+    }
+
+    public void testNullIdLeavesTheIdToTheDestinationUnderEveryPolicy() {
+        for (Collisions collisions : Collisions.values()) {
+            String name = collisions.optionValue();
+            try (
+                var response = run(
+                    "ROW _id = null, k = \"" + name + "\" | INTO " + DESTINATION + " WITH {\"collisions\": \"" + name + "\"}"
+                )
+            ) {
+                assertStats(response, IntoStats.builder().total(1).created(1).build());
+            }
+        }
+        assertReadBack("KEEP k | SORT k", List.of(List.of("abort"), List.of("keep"), List.of("replace")));
+    }
+
+    private static final String ROWS_WITH_INVALID_IDS = """
+        ROW x = [1, 2, 3, 4, 5]
+        | MV_EXPAND x
+        | EVAL _id = CASE(x == 2, "", x == 3, REPEAT("x", 513), x == 4, MV_APPEND("p", "q"), CONCAT("id", TO_STRING(x))),
+               k = CONCAT("k", TO_STRING(x))
+        | KEEP _id, k
+        """;
+
+    /** An empty, over-long or multi-valued {@code _id} is refused on its own, and does not take the valid rows around it with it. */
+    public void testKeepGoingRefusesOnlyTheRowsWithAnInvalidId() {
+        try (var response = run(ROWS_WITH_INVALID_IDS + "| INTO " + DESTINATION + " WITH {\"keep_going\": true}")) {
+            IntoStats expected = IntoStats.builder()
+                .total(5)
+                .created(2)
+                .failures(3)
+                .failureDetails(
+                    List.of(
+                        "[400] if _id is specified it must not be empty",
+                        "[400] _id is too long, must be no longer than 512 bytes but was: 513",
+                        "[400] [_id] must be single-valued, found [p, q]"
+                    )
+                )
+                .build();
+            assertStats(response, expected);
+        }
+        assertReadBackWithIds("KEEP _id, k | SORT _id", List.of(List.of("id1", "k1"), List.of("id5", "k5")));
+    }
+
+    public void testInvalidIdFailsTheQueryWithoutKeepGoing() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> run(ROWS_WITH_INVALID_IDS + "| INTO " + DESTINATION + " WITH {\"keep_going\": false}").close()
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("INTO [" + DESTINATION + "] failed: if _id is specified it must not be empty"));
+        assertReadBack(List.of());
+    }
+
+    public void testReplaceOnAnExistingDataStreamIsRejected() {
+        createDataStream();
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("ROW k = \"y\" | INTO " + DATA_STREAM + " WITH {\"collisions\": \"replace\"}").close()
+        );
+        assertThat(e.getMessage(), containsString("INTO collisions [replace] is not supported on data stream [" + DATA_STREAM + "]"));
+    }
+
+    public void testKeepOnADataStreamCountsConflicts() {
+        createDataStream();
+        String query = "ROW @timestamp = TO_DATETIME(\"2026-01-01T00:00:00Z\"), _id = \"a\", k = \"x\" | INTO "
+            + DATA_STREAM
+            + " WITH {\"collisions\": \"keep\"}";
+        try (EsqlQueryResponse response = run(query)) {
+            assertStats(response, IntoStats.builder().total(1).created(1).build());
+        }
+        try (EsqlQueryResponse response = run(query)) {
+            assertStats(response, IntoStats.builder().total(1).created(0).versionConflicts(1).build());
+        }
+    }
+
     private void disableDestinationRefresh() {
         assertAcked(indicesAdmin().prepareUpdateSettings(DESTINATION).setSettings(Settings.builder().put("index.refresh_interval", -1)));
     }
 
     private void assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed(String producer) {
         try (EsqlQueryResponse response = run(producer + " | INTO " + DESTINATION + " WITH {\"refresh\": false}")) {
-            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(3L, 3L, 0L, null))));
+            assertStats(response, IntoStats.builder().total(3).created(3).build());
         }
         assertThat(countDestinationDocuments(), equalTo(0L));
         refresh(DESTINATION);
@@ -676,6 +803,33 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("FROM " + DESTINATION + " | STATS c = COUNT(*)")) {
             return (long) getValuesList(response).getFirst().getFirst();
         }
+    }
+
+    private void indexExistingDocument() {
+        indexRandom(true, client().prepareIndex(DESTINATION).setId("a").setSource("k", "old", "l", 1));
+    }
+
+    private void createDataStream() {
+        putDataStreamTemplate();
+        client().prepareIndex(DATA_STREAM)
+            .setCreate(true)
+            .setSource("@timestamp", "2025-12-31T00:00:00Z", "k", "seed")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+    }
+
+    private void putDataStreamTemplate() {
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("into-ds-template").indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(DATA_STREAM_PREFIX + "*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                )
+            )
+        );
     }
 
     private int countDataNodeRequests(Runnable action) {
@@ -780,18 +934,31 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     private void assertIntoTarget(String producer, String target, long rows) {
         try (EsqlQueryResponse response = run(producer + " | INTO " + target)) {
-            assertIntoColumns(response);
-            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(rows, rows, 0L, null))));
+            assertStats(response, IntoStats.builder().total(rows).created(rows).build());
         }
     }
 
     private static void assertIntoColumns(EsqlQueryResponse response) {
-        assertColumnNames(response.columns(), List.of("total", "created", "failures", "failure_details"));
-        assertColumnTypes(response.columns(), List.of("long", "long", "long", "keyword"));
+        assertColumnNames(response.columns(), List.of("total", "created", "updated", "version_conflicts", "failures", "failure_details"));
+        assertColumnTypes(response.columns(), List.of("long", "long", "long", "long", "long", "keyword"));
+    }
+
+    private void assertStats(EsqlQueryResponse response, IntoStats stats) {
+        assertIntoColumns(response);
+        List<String> details = stats.failureDetails().isEmpty() ? null : stats.failureDetails();
+        var asList = Arrays.asList(stats.total(), stats.created(), stats.updated(), stats.versionConflicts(), stats.failures(), details);
+        assertThat(singleValue(getValuesList(response)), equalTo(asList));
     }
 
     private void assertReadBack(List<List<Object>> expected) {
         assertReadBack("", expected);
+    }
+
+    private void assertReadBackWithIds(String commands, List<List<Object>> expected) {
+        refresh(DESTINATION);
+        try (EsqlQueryResponse response = run("FROM " + DESTINATION + " METADATA _id | " + commands)) {
+            assertThat(getValuesList(response), equalTo(expected));
+        }
     }
 
     private void assertReadBack(String commands, List<List<Object>> expected) {

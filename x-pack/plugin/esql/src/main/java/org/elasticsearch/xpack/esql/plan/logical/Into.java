@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -17,10 +18,10 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -39,7 +40,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Terminal command that writes the query's rows into {@link #destination()}.
  * It is a {@link PipelineBreaker} so the mapper ends the data-node fragment at the write and
  * wraps it in a coordinator-side MERGE_STATS node. {@link #output()} is the one-row {@link IntoStats}
- * result returned to the caller.
+ * result returned to the caller. {@link #options()} are the {@code WITH} options, applied by every node that writes or merges.
  */
 public class Into extends UnaryPlan
     implements
@@ -52,6 +53,10 @@ public class Into extends UnaryPlan
         + "add a LIMIT after the SORT, or remove the SORT";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
+    public static final String INVALID_TYPE_MSG_FORMAT = "INTO column [{}] must be of type [keyword] or [text], found [{}]";
+
+    /** {@code NULL} is an all-null {@code _id} column, which leaves every id to the destination. */
+    private static final Set<DataType> ID_TYPES = Set.of(DataType.KEYWORD, DataType.TEXT, DataType.NULL);
 
     private static final Set<String> LOCAL_ONLY = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
@@ -163,6 +168,11 @@ public class Into extends UnaryPlan
         OrderBy sort = unboundedSort(child());
         if (sort != null) {
             failures.add(fail(this, UNBOUNDED_SORT, sort.sourceText()));
+        }
+        for (Attribute column : child().output()) {
+            if (column.name().equals(IdFieldMapper.NAME) && ID_TYPES.contains(column.dataType()) == false) {
+                failures.add(fail(column, INVALID_TYPE_MSG_FORMAT, IdFieldMapper.NAME, column.dataType().typeName()));
+            }
         }
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
@@ -74,11 +75,11 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
     public void testMultiplePagesAreSummed() {
         IntoMergeStatsOperator op = operator(NO_REFRESH, INDEX);
-        op.addInput(noFailures(3L, 2L).toPage(blockFactory));
-        op.addInput(noFailures(5L, 4L).toPage(blockFactory));
-        op.addInput(noFailures(1L, 1L).toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(3L).created(2L).updated(1L).build().toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(5L).created(1L).versionConflicts(4L).build().toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(1L).created(1L).build().toPage(blockFactory));
         op.finish();
-        assertThat(stats(op.getOutput()), equalTo(noFailures(9L, 7L)));
+        assertThat(stats(op.getOutput()), equalTo(IntoStats.builder().total(9L).created(4L).updated(1L).versionConflicts(4L).build()));
         assertTrue(op.isFinished());
     }
 
@@ -116,7 +117,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, empty());
     }
 
-    public void testNothingCreatedSkipsRefresh() {
+    public void testNothingWrittenSkipsRefresh() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(noFailures(0L, 0L).toPage(blockFactory));
         op.finish();
@@ -329,24 +330,29 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
     public void testFailuresAreSummedAndDetailsConcatenatedInArrivalOrder() {
         IntoMergeStatsOperator op = operator(NO_REFRESH, INDEX);
-        op.addInput(new IntoStats(4L, 2L, 2L, List.of("a", "b")).toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(4L).created(2L).failures(2L).failureDetails(List.of("a", "b")).build().toPage(blockFactory));
         op.addInput(noFailures(1L, 1L).toPage(blockFactory));
-        op.addInput(new IntoStats(5L, 2L, 3L, List.of("c", "d", "e")).toPage(blockFactory));
+        op.addInput(
+            IntoStats.builder().total(5L).created(2L).failures(3L).failureDetails(List.of("c", "d", "e")).build().toPage(blockFactory)
+        );
         op.finish();
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(10L, 5L, 5L, List.of("a", "b", "c", "d", "e"))));
+        assertThat(
+            stats(op.getOutput()),
+            equalTo(IntoStats.builder().total(10L).created(5L).failures(5L).failureDetails(List.of("a", "b", "c", "d", "e")).build())
+        );
     }
 
     public void testFailureDetailsAreCappedAfterMerge() {
         IntoMergeStatsOperator op = operator(NO_REFRESH, INDEX);
         List<String> first = details("first", 15);
         List<String> second = details("second", 15);
-        op.addInput(new IntoStats(15L, 0L, 15L, first).toPage(blockFactory));
-        op.addInput(new IntoStats(15L, 0L, 15L, second).toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(15L).failures(15L).failureDetails(first).build().toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(15L).failures(15L).failureDetails(second).build().toPage(blockFactory));
         op.finish();
 
         List<String> expected = new ArrayList<>(first);
         expected.addAll(second.subList(0, IntoStats.MAX_FAILURE_DETAILS - first.size()));
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(30L, 0L, 30L, expected)));
+        assertThat(stats(op.getOutput()), equalTo(IntoStats.builder().total(30L).failures(30L).failureDetails(expected).build()));
     }
 
     public void testNoFailureDetailsIsANullValue() {
@@ -355,7 +361,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         op.finish();
         Page output = op.getOutput();
         try {
-            BytesRefBlock details = output.getBlock(3);
+            BytesRefBlock details = output.getBlock(5);
             assertTrue(details.isNull(0));
         } finally {
             output.releaseBlocks();
@@ -364,23 +370,59 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
     public void testKeepGoingRefreshesWhenSomeRowsWereCreated() {
         IntoMergeStatsOperator op = operator(IntoOptions.builder().refresh(true).keepGoing(true).build(), INDEX);
-        op.addInput(new IntoStats(3L, 1L, 2L, List.of("a", "b")).toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(3L).created(1L).failures(2L).failureDetails(List.of("a", "b")).build().toPage(blockFactory));
         op.finish();
         assertThat(client.refreshes, hasSize(1));
         assertThat(op.getOutput(), nullValue());
 
         client.answerRefresh();
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(3L, 1L, 2L, List.of("a", "b"))));
+        assertThat(
+            stats(op.getOutput()),
+            equalTo(IntoStats.builder().total(3L).created(1L).failures(2L).failureDetails(List.of("a", "b")).build())
+        );
         assertTrue(op.isFinished());
     }
 
     public void testKeepGoingSkipsRefreshWhenEveryRowWasRefused() {
         IntoMergeStatsOperator op = operator(IntoOptions.builder().refresh(true).keepGoing(true).build(), INDEX);
-        op.addInput(new IntoStats(2L, 0L, 2L, List.of("a", "b")).toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(2L).failures(2L).failureDetails(List.of("a", "b")).build().toPage(blockFactory));
         op.finish();
         assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(2L, 0L, 2L, List.of("a", "b"))));
+        assertThat(stats(op.getOutput()), equalTo(IntoStats.builder().total(2L).failures(2L).failureDetails(List.of("a", "b")).build()));
         assertThat(client.refreshes, empty());
+    }
+
+    public void testOnlyVersionConflictsSkipsRefresh() {
+        IntoMergeStatsOperator op = operator(IntoOptions.builder().refresh(true).collisions(IntoOptions.Collisions.KEEP).build(), INDEX);
+        op.addInput(IntoStats.builder().total(3L).versionConflicts(3L).build().toPage(blockFactory));
+        op.addInput(IntoStats.builder().total(2L).versionConflicts(2L).build().toPage(blockFactory));
+        op.finish();
+        assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
+        assertThat(stats(op.getOutput()), equalTo(IntoStats.builder().total(5L).versionConflicts(5L).build()));
+        assertThat("kept rows changed nothing, so there is nothing to make visible", client.refreshes, empty());
+    }
+
+    public void testOnlyUpdatesRefreshes() {
+        IntoMergeStatsOperator op = operator(IntoOptions.builder().refresh(true).collisions(IntoOptions.Collisions.REPLACE).build(), INDEX);
+        op.addInput(IntoStats.builder().total(2L).updated(2L).build().toPage(blockFactory));
+        op.finish();
+        assertThat("replaced documents must become visible too", client.refreshes, hasSize(1));
+        assertFalse(op.canProduceMoreDataWithoutExtraInput());
+
+        client.answerRefresh();
+        assertThat(stats(op.getOutput()), equalTo(IntoStats.builder().total(2L).updated(2L).build()));
+        assertTrue(op.isFinished());
+    }
+
+    public void testRefreshFailureCountsUpdatedDocumentsAsWritten() {
+        IntoMergeStatsOperator op = operator(IntoOptions.builder().refresh(true).collisions(IntoOptions.Collisions.REPLACE).build(), INDEX);
+        op.addInput(IntoStats.builder().total(3L).created(1L).updated(2L).build().toPage(blockFactory));
+        op.finish();
+
+        client.failRefresh(new IndexNotFoundException(DEST));
+        assertThat(stats(op.getOutput()), equalTo(IntoStats.builder().total(3L).created(1L).updated(2L).build()));
+        String format = "index refresh for INTO [%s] failed after [%d] documents were written, so they may not be searchable yet: %s";
+        assertThat(warnings(), equalTo(List.of(Strings.format(format, DEST, 3, "no such index [" + DEST + "]"))));
     }
 
     /** A shard failure as broadcast replication reports it: wrapped in an exception that has no message of its own. */

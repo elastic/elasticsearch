@@ -29,6 +29,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
+import org.elasticsearch.xpack.esql.action.EsqlIntoReplaceDestinationAction;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -164,25 +165,41 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     public void testDestinationDeniedWithoutWriteAccess() throws IOException {
         createDestinationWithPipeline();
 
-        assertDenied(READ_ONLY_USER, "into_read_only");
-        assertDenied(CREATE_DOC_ELSEWHERE_USER, "into_create_doc_elsewhere");
+        assertDenied(READ_ONLY_USER, "into_read_only", "", EsqlIntoDestinationAction.NAME);
+        assertDenied(CREATE_DOC_ELSEWHERE_USER, "into_create_doc_elsewhere", "", EsqlIntoDestinationAction.NAME);
     }
 
-    private static void assertDenied(String user, String role) throws IOException {
-        ResponseException existing = expectThrows(ResponseException.class, () -> intoDestination(user, EXISTING));
-        ResponseException missing = expectThrows(ResponseException.class, () -> intoDestination(user, "into-missing"));
+    /**
+     * Replacing documents sends index requests, which {@code create_doc} does not allow, so a caller who may only create documents is
+     * denied up front, as for any other write, and not by a 403 on every row. A caller who may index them is not.
+     */
+    public void testReplaceNeedsMoreThanCreateDoc() throws IOException {
+        createDestinationWithPipeline();
+
+        assertDenied(CREATE_DOC_USER, "into_create_doc_only", " WITH {\"collisions\": \"replace\"}", EsqlIntoReplaceDestinationAction.NAME);
+
+        Response response = runInto("into_writer", " WITH {\"collisions\": \"replace\", \"refresh\": false}");
+        assertSummary(response);
+    }
+
+    private static void assertDenied(String user, String role, String options, String action) throws IOException {
+        ResponseException existing = expectThrows(ResponseException.class, () -> intoDestination(user, "ROW x = 1", EXISTING, options));
+        ResponseException missing = expectThrows(
+            ResponseException.class,
+            () -> intoDestination(user, "ROW x = 1", "into-missing", options)
+        );
         String existingBody = EntityUtils.toString(existing.getResponse().getEntity());
         String missingBody = EntityUtils.toString(missing.getResponse().getEntity());
         assertThat(existingBody, existing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         assertThat(missingBody, missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-        assertDeniedByTheFilter(existingBody, user, role, EXISTING);
-        assertDeniedByTheFilter(missingBody, user, role, "into-missing");
+        assertDeniedByTheFilter(existingBody, user, role, EXISTING, action);
+        assertDeniedByTheFilter(missingBody, user, role, "into-missing", action);
     }
 
     /** The denial is the one of the security filter, which audits it, and which names the roles and the privileges that grant it. */
-    private static void assertDeniedByTheFilter(String body, String user, String role, String destination) {
-        String action = "action [" + EsqlIntoDestinationAction.NAME + "] is unauthorized for user [test-admin] run as [";
-        assertThat(body, containsString(action + user + "] with effective roles [" + role + "]"));
+    private static void assertDeniedByTheFilter(String body, String user, String role, String destination, String action) {
+        String denial = "action [" + action + "] is unauthorized for user [test-admin] run as [";
+        assertThat(body, containsString(denial + user + "] with effective roles [" + role + "]"));
         assertThat(body, containsString("on indices [" + destination + "], this action is granted by the index privileges ["));
     }
 
@@ -317,8 +334,12 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     }
 
     private static Response intoDestination(String user, String rows, String destination) throws IOException {
+        return intoDestination(user, rows, destination, "");
+    }
+
+    private static Response intoDestination(String user, String rows, String destination, String options) throws IOException {
         Request request = new Request("POST", "_query");
-        String query = rows + " | INTO " + destination;
+        String query = rows + " | INTO " + destination + options;
         request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("query", query).endObject()));
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(WarningsHandler.PERMISSIVE)
@@ -328,8 +349,8 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
 
     private static void assertSummary(Response response) throws IOException {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        // total, created, failures, failure_details
-        assertThat(entityAsMap(response).get("values"), equalTo(List.of(Arrays.asList(2, 2, 0, null))));
+        // total, created, updated, version_conflicts, failures, failure_details
+        assertThat(entityAsMap(response).get("values"), equalTo(List.of(Arrays.asList(2, 2, 0, 0, 0, null))));
     }
 
     private static String warning(Response response) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -121,6 +122,9 @@ public class TestAnalyzer {
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private boolean wildcardsMatchDatasets = QuerySettings.WILDCARDS_MATCH_DATASETS.defaultValue();
     private TimestampBounds timestampBounds;
+    /** {@code null} (the default) analyzes without project metadata, which skips the checks that need it, like the one for data streams. */
+    @Nullable
+    private ProjectMetadata projectMetadata;
     private Supplier<TransportVersion> minimumTransportVersion = TransportVersionUtils::randomCompatibleVersion;
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
@@ -684,6 +688,11 @@ public class TestAnalyzer {
         return this;
     }
 
+    public TestAnalyzer projectMetadata(ProjectMetadata projectMetadata) {
+        this.projectMetadata = projectMetadata;
+        return this;
+    }
+
     /**
      * Set the minimum transport version used by the analyzer. Some behaviors are
      * disabled on older transport versions because the remote nodes won't
@@ -1146,7 +1155,7 @@ public class TestAnalyzer {
             functionRegistry,
             PromqlFunctionRegistry.INSTANCE,
             analysisRegistry,
-            null,
+            projectMetadata,
             indexResolutions,
             lookupResolution,
             lenientResolution,

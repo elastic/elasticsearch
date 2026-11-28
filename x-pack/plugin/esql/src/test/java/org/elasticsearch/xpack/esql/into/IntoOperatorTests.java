@@ -50,12 +50,12 @@ public class IntoOperatorTests extends ComputeTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getTestName());
     private final IntoTestUtils.CapturingClient client = new IntoTestUtils.CapturingClient(threadPool);
     @SuppressWarnings("this-escape")
-    private final BlockFactory blockFactory = blockFactory();
-    private final DriverContext driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
+    private final BlockFactory factory = blockFactory();
+    private final DriverContext driverContext = new DriverContext(mockBigArrays(), factory, null);
     private final IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
         bulks(),
         client,
-        blockFactory.breaker(),
+        factory.breaker(),
         IntoTestUtils.DEST,
         COLUMNS,
         INDEX,
@@ -100,20 +100,18 @@ public class IntoOperatorTests extends ComputeTestCase {
     }
 
     public void testKeepGoingEmitsFailureColumns() {
-        IntoPageWriter.Factory keepGoing = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            blockFactory.breaker(),
-            IntoTestUtils.DEST,
-            COLUMNS,
-            INDEX,
-            IntoOptions.builder().keepGoing(true).build()
-        );
-        Operator op = new IntoOperator.Factory(keepGoing, Function.identity()).get(driverContext);
+        IntoOptions opts = IntoOptions.builder().keepGoing(true).build();
+        var ipwFactory = IntoPageWriter.Factory.createFactory(bulks(), client, factory.breaker(), IntoTestUtils.DEST, COLUMNS, INDEX, opts);
+        Operator op = new IntoOperator.Factory(ipwFactory, Function.identity()).get(driverContext);
         op.addInput(page("ok", "bad"));
         op.finish();
         client.answer(CREATED, REFUSED);
-        assertThat(stats(op.getOutput()), equalTo(new IntoStats(2, 1, 1, List.of("[400] mapper_parsing_exception[1]"))));
+        assertThat(
+            stats(op.getOutput()),
+            equalTo(
+                IntoStats.builder().total(2).created(1).failures(1).failureDetails(List.of("[400] mapper_parsing_exception[1]")).build()
+            )
+        );
         assertTrue(op.isFinished());
     }
 
@@ -151,7 +149,7 @@ public class IntoOperatorTests extends ComputeTestCase {
         IntoPageWriter.Factory discardSink = IntoPageWriter.Factory.createFactory(
             bulks(),
             client,
-            blockFactory.breaker(),
+            factory.breaker(),
             IntoTestUtils.DEST,
             COLUMNS,
             DISCARD,
@@ -166,7 +164,7 @@ public class IntoOperatorTests extends ComputeTestCase {
     }
 
     private Page page(String... values) {
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
+        try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(values.length)) {
             for (String value : values) {
                 builder.appendBytesRef(new BytesRef(value));
             }

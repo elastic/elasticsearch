@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -112,5 +118,76 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
             assertThat(query, into.child().anyMatch(LocalRelation.class::isInstance), equalTo(true));
             assertThat(query, into.child().anyMatch(p -> p instanceof Row || p instanceof EsRelation), equalTo(false));
         }
+    }
+
+    public void testIdColumnMayBeAString() {
+        analyzer().query(randomFrom("ROW _id = \"a\", x = 1 | INTO dst", "ROW _id = null, x = 1 | INTO dst"));
+    }
+
+    public void testIdColumnMayBeComputedFromAnotherColumn() {
+        analyzer().addEmployees().query("FROM employees | EVAL _id = emp_no::keyword | INTO dst");
+    }
+
+    public void testIdColumnMayBeTheIdMetadataField() {
+        analyzer().addEmployees().query("FROM employees METADATA _id | INTO dst");
+    }
+
+    public void testIdColumnOfAnotherTypeIsRejected() {
+        String error = "INTO column [_id] must be of type [keyword] or [text], found [integer]";
+        analyzer().error("ROW _id = 1, x = 1 | INTO dst", containsString(error));
+        analyzer().addEmployees().error("FROM employees | EVAL _id = emp_no | KEEP _id | INTO dst", containsString(error));
+    }
+
+    public void testReplaceIsRejectedOnDataStreams() {
+        TestAnalyzer analyzer = analyzer().projectMetadata(projectWithDataStream());
+        for (String destination : List.of("logs-ds", "logs-ds-alias", BACKING_INDEX, "auto-ds-new")) {
+            analyzer.error(
+                "ROW a = 1 | INTO \"" + destination + "\" WITH {\"collisions\": \"replace\"}",
+                containsString("INTO collisions [replace] is not supported on data stream [" + destination + "]")
+            );
+        }
+    }
+
+    public void testReplaceIsRejectedOnDateMathDestinationMatchingADataStreamTemplate() {
+        TestAnalyzer analyzer = analyzer().projectMetadata(projectWithDataStream());
+        analyzer.error(
+            "ROW a = 1 | INTO \"<auto-ds-{now/d}>\" WITH {\"collisions\": \"replace\"}",
+            containsString("INTO collisions [replace] is not supported on data stream [<auto-ds-{now/d}>]")
+        );
+    }
+
+    public void testKeepAndAbortAreAllowedOnDataStreams() {
+        TestAnalyzer analyzer = analyzer().projectMetadata(projectWithDataStream());
+        for (String collisions : List.of("keep", "abort")) {
+            analyzer.query("ROW a = 1 | INTO logs-ds WITH {\"collisions\": \"" + collisions + "\"}");
+            analyzer.query("ROW a = 1 | INTO auto-ds-new WITH {\"collisions\": \"" + collisions + "\"}");
+        }
+    }
+
+    private static final String BACKING_INDEX = ".ds-logs-ds-2026.01.01-000001";
+
+    /**
+     * A data stream {@code logs-ds} with one backing index and an alias {@code logs-ds-alias}, a regular index {@code plain},
+     * and a data stream template matching {@code auto-ds-*}, so writing to a missing {@code auto-ds-*} creates a data stream.
+     */
+    private static ProjectMetadata projectWithDataStream() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        IndexMetadata backing = IndexMetadata.builder(BACKING_INDEX)
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        builder.put(backing, false);
+        builder.put(DataStreamTestHelper.newInstance("logs-ds", List.of(backing.getIndex())));
+        builder.put("logs-ds-alias", "logs-ds", true, null);
+        builder.put(IndexMetadata.builder("plain").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
+        builder.put(
+            "auto-ds-template",
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("auto-ds-*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        return builder.build();
     }
 }

@@ -11,8 +11,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.into.IntoOptions.Collisions;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -79,8 +81,8 @@ public class IntoParserTests extends AbstractStatementParserTests {
 
     public void testMultipleUnknownOptionsRejected() {
         expectError(
-            "ROW a = 1 | INTO dst WITH {\"foo\": 1, \"bar\": 2}",
-            "Invalid options [foo, bar] in INTO, expected one of [refresh, keep_going]"
+            "ROW a = 1 | INTO dst WITH {\"Foo\": 1, \"BAR\": 2}",
+            "Invalid options [Foo, BAR] in INTO, expected one of [refresh, keep_going, collisions]"
         );
     }
 
@@ -89,22 +91,36 @@ public class IntoParserTests extends AbstractStatementParserTests {
         assertFalse(as(query("ROW a = 1 | INTO dst WITH {\"refresh\": false}"), Into.class).options().refresh());
     }
 
-    public void testOptionNamesAreCaseInsensitive() {
-        String query = "ROW a = 1 | INTO dst WITH {\"" + randomCasing("refresh") + "\": false}";
-        assertFalse(as(query(query), Into.class).options().refresh());
+    public void testOptionNamesAndCollisionsValuesAreCaseInsensitive() {
+        String query = "ROW a = 1 | INTO dst WITH {\""
+            + randomCasing("refresh")
+            + "\": false, \""
+            + randomCasing("keep_going")
+            + "\": true, \""
+            + randomCasing("collisions")
+            + "\": \""
+            + randomCasing("replace")
+            + "\"}";
+        assertThat(
+            intoOptions(query),
+            equalTo(IntoOptions.builder().refresh(false).keepGoing(true).collisions(Collisions.REPLACE).build())
+        );
+    }
+
+    public void testOptionsFromParameters() {
+        LogicalPlan plan = query(
+            "ROW a = 1 | INTO dst WITH {\"refresh\": ?r, \"keep_going\": ?kg, \"collisions\": ?c}",
+            new QueryParams(List.of(paramAsConstant("r", false), paramAsConstant("kg", true), paramAsConstant("c", "replace")))
+        );
+        assertThat(
+            as(plan, Into.class).options(),
+            equalTo(IntoOptions.builder().refresh(false).keepGoing(true).collisions(Collisions.REPLACE).build())
+        );
     }
 
     public void testKeywordsAreCaseInsensitiveWithOptions() {
         String query = "ROW a = 1 | " + randomCasing("into") + " dst " + randomCasing("with") + " {\"refresh\": false}";
         assertFalse(as(query(query), Into.class).options().refresh());
-    }
-
-    public void testRefreshFromParameter() {
-        Into into = as(
-            query("ROW a = 1 | INTO dst WITH {\"refresh\": ?r}", new QueryParams(List.of(paramAsConstant("r", false)))),
-            Into.class
-        );
-        assertFalse(into.options().refresh());
     }
 
     public void testRefreshMustBeBoolean() {
@@ -147,14 +163,6 @@ public class IntoParserTests extends AbstractStatementParserTests {
         expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": true, \"KEEP_GOING\": false}", "Duplicate option [keep_going] in INTO");
     }
 
-    public void testKeepGoingFromParameter() {
-        Into into = as(
-            query("ROW a = 1 | INTO dst WITH {\"keep_going\": ?kg}", new QueryParams(List.of(paramAsConstant("kg", true)))),
-            Into.class
-        );
-        assertTrue(into.options().keepGoing());
-    }
-
     public void testKeepGoingMustBeBoolean() {
         String error = "Option [keep_going] must be a boolean literal";
         expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": \"yes\"}", error);
@@ -164,9 +172,9 @@ public class IntoParserTests extends AbstractStatementParserTests {
         expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": {\"x\": true}}", error);
     }
 
-    public void testRefreshAndKeepGoingTogether() {
-        Into into = as(query("ROW a = 1 | INTO dst WITH {\"refresh\": false, \"keep_going\": true}"), Into.class);
-        assertThat(into.options(), equalTo(IntoOptions.builder().refresh(false).keepGoing(true).build()));
+    public void testAllOptionsTogether() {
+        Into into = as(query("ROW a = 1 | INTO dst WITH {\"refresh\": false, \"keep_going\": true, \"collisions\": \"keep\"}"), Into.class);
+        assertThat(into.options(), equalTo(IntoOptions.builder().refresh(false).keepGoing(true).collisions(Collisions.KEEP).build()));
     }
 
     public void testExplainInto() {
@@ -181,5 +189,20 @@ public class IntoParserTests extends AbstractStatementParserTests {
 
     public void testKeywordDestination() {
         assertThat(as(query("ROW a = 1 | INTO \"with\""), Into.class).destination(), equalTo("with"));
+    }
+
+    public void testCollisionsDefaultsToAbort() {
+        assertThat(IntoOptions.DEFAULT.collisions(), equalTo(Collisions.ABORT));
+    }
+
+    public void testCollisionsInvalidValue() {
+        expectError(
+            "ROW a = 1 | INTO dst WITH {\"collisions\": \"overwrite\"}",
+            "Invalid value [overwrite] for option [collisions] in INTO, expected one of [abort, keep, replace]"
+        );
+    }
+
+    private IntoOptions intoOptions(String query) {
+        return as(query(query), Into.class).options();
     }
 }

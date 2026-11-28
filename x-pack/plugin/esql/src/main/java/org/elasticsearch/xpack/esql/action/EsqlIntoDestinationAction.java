@@ -34,6 +34,9 @@ import java.util.Arrays;
  * create a document there pass, and a denial is audited as the write would be. A bulk also needs its own actions
  * ({@code indices:data/write/bulk*}), which a custom role can lack, and which are not checked here. The name copies
  * {@code AuthorizationService.IMPLIED_CREATE_ACTION}, which is private to the security plugin.
+ * <p>
+ * A write that replaces documents sends {@code index} requests, which need more than {@code create_doc}, and is authorized by
+ * {@link EsqlIntoReplaceDestinationAction}.
  */
 public class EsqlIntoDestinationAction extends TransportAction<EsqlIntoDestinationAction.Request, EsqlIntoDestinationAction.Response> {
     public static final String NAME = TransportIndexAction.NAME + ":op_type/create";
@@ -41,7 +44,12 @@ public class EsqlIntoDestinationAction extends TransportAction<EsqlIntoDestinati
 
     @Inject
     public EsqlIntoDestinationAction(TransportService transportService, ActionFilters actionFilters) {
-        super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this(NAME, transportService, actionFilters);
+    }
+
+    /** For an action that is the same, but is authorized as another write, so it has its own name. */
+    protected EsqlIntoDestinationAction(String name, TransportService transportService, ActionFilters actionFilters) {
+        super(name, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override

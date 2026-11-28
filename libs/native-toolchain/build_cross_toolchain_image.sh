@@ -57,5 +57,5 @@ else
     -t "$IMAGE" \
     --push \
     .
-  echo "Done. Point the toolchainImage of the libraries that need this image to $REPOSITORY:$VERSION."
+  echo "Done. Point the toolchainImage of the libraries that need this image to $IMAGE."
 fi

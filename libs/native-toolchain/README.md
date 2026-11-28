@@ -199,6 +199,11 @@ sources is all it takes.
 Note: this means that artifacts are "immutable": a hash is final once published. To replace a bad
 artifact, change the sources so that a new hash is generated.
 
+Jobs that only download (those whose `<LIBRARY>_NATIVE_BUILD` is not `docker`, such as the Windows jobs
+started by `.buildkite/hooks/pre-command.bat`) need the hash to be published before they start;
+otherwise they fail until a Docker-enabled job has uploaded it, and re-running them is enough. This
+applies to any change to a hashed file, including a comment in a `Makefile`.
+
 ### Build locally without publishing
 
 Without `ARTIFACTORY_API_KEY` in the environment, nothing is ever uploaded:

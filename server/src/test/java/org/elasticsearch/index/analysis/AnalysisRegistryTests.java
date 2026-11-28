@@ -57,6 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -304,6 +305,28 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexAnalyzers a = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sA));
         IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sB));
         assertNotSame(a.get("a1"), b.get("a1"));
+    }
+
+    /**
+     * With no stop words configured the default set is used as is, so {@code ignore_case} leaves it case-sensitive. It must not
+     * share with {@code _english_}, the same words made case-insensitive by {@code ignore_case}.
+     */
+    public void testStopIgnoreCaseFollowsTheSetApplied() throws IOException {
+        assumeAnalyzerSharingEnabled();
+        Settings.Builder defaults = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.my_stop.type", "stop")
+            .put("index.analysis.filter.my_stop.ignore_case", true)
+            .put("index.analysis.analyzer.a1.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a1.filter", "my_stop");
+        Settings english = Settings.builder().put(defaults.build()).put("index.analysis.filter.my_stop.stopwords", "_english_").build();
+        IndexAnalyzers a = nonEmptyRegistry.build(
+            IndexCreationContext.CREATE_INDEX,
+            IndexSettingsModule.newIndexSettings("a", defaults.build())
+        );
+        IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("b", english));
+        assertAnalyzesTo(a.get("a1"), "The fox", new String[] { "The", "fox" });
+        assertAnalyzesTo(b.get("a1"), "The fox", new String[] { "fox" });
     }
 
     /**

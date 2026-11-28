@@ -74,7 +74,11 @@ public class AnalysisKuromojiFactoryTests extends AnalysisFactoryTestCase {
         filters.put("kuromoji_stemmer", settings().affects("minimum_length", "5"));
         filters.put(
             "ja_stop",
-            settings().affects("stopwords", List.of("foo")).affects("ignore_case", "true").affects("remove_trailing", "false")
+            settings().affects("stopwords", List.of("foo"))
+                .affects("ignore_case", "true")
+                .affects("remove_trailing", "false")
+                // ignore_case leaves the implicit default list case-sensitive; the same list named explicitly is not.
+                .alsoWith(settings(Map.of("ignore_case", "true")).affects("stopwords", "_japanese_"))
         );
         // An unrecognized mode falls back to index.
         filters.put("kuromoji_completion", settings().affects("mode", "query").ignored("mode", "index", "unknown"));

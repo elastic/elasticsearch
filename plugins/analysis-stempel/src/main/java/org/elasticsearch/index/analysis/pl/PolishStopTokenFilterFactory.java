@@ -41,7 +41,11 @@ public class PolishStopTokenFilterFactory extends AbstractTokenFilterFactory {
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
         this.stopWords = Analysis.parseWords(env, settings, "stopwords", PolishAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), ignoreCase, removeTrailing);
+        this.sharingKey = new Key(
+            Analysis.stableStopWords(stopWords, PolishAnalyzer.getDefaultStopSet(), ignoreCase),
+            ignoreCase,
+            removeTrailing
+        );
     }
 
     @Override
@@ -66,5 +70,5 @@ public class PolishStopTokenFilterFactory extends AbstractTokenFilterFactory {
         return sharingKey;
     }
 
-    private record Key(Analysis.StableCharArraySet stopWords, boolean ignoreCase, boolean removeTrailing) {}
+    private record Key(Object stopWords, boolean ignoreCase, boolean removeTrailing) {}
 }

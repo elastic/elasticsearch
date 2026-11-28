@@ -38,7 +38,11 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         if (settings.get("enable_position_increments") != null) {
             throw new IllegalArgumentException("enable_position_increments is not supported anymore. Please fix your analysis chain");
         }
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), ignoreCase, removeTrailing);
+        this.sharingKey = new Key(
+            Analysis.stableStopWords(stopWords, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase),
+            ignoreCase,
+            removeTrailing
+        );
     }
 
     @Override
@@ -69,5 +73,5 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
      * plus the two boolean settings. Equality uses {@link CharArraySet#equals} (content-based);
      * hashing uses the precomputed stable hash inside the wrapper.
      */
-    private record Key(Analysis.StableCharArraySet stopWords, boolean ignoreCase, boolean removeTrailing) {}
+    private record Key(Object stopWords, boolean ignoreCase, boolean removeTrailing) {}
 }

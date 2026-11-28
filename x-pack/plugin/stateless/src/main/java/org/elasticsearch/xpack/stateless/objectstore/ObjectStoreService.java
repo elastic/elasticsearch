@@ -42,7 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -412,8 +412,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final Settings settings;
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
-    private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
-    private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
+    private final ThrottledTaskRunner uploadTranslogTaskRunner;
+    private final InstrumentedThrottledTaskRunner<ActionListener<Releasable>> uploadTaskRunner;
+    private final Map<ShardId, PrimaryTermAndGeneration> lastRequestedCommitUploads = Assertions.ENABLED
+        ? ConcurrentCollections.newConcurrentMap()
+        : null;
     private final ConcurrentLinkedQueue<String> translogBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<StaleCompoundCommit> commitBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final Map<ShardId, Set<StaleCompoundCommit>> commitBlobsDeletionsInProgress = ConcurrentCollections.newConcurrentMap();
@@ -452,12 +455,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
+        this.uploadTranslogTaskRunner = new ThrottledTaskRunner(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
             threadPool.info(StatelessThreadPools.TRANSLOG_THREAD_POOL).getMax(),
             threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL)
         );
-        this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
+        this.uploadTaskRunner = new InstrumentedThrottledTaskRunner<>(
             "upload_task_runner",
             threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax(),
             threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL),
@@ -916,11 +919,15 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     ) {
         enqueueTask(
             listener,
-            uploadTranslogTaskRunner,
+            uploadTranslogTaskRunner::enqueueTask,
             l -> new TranslogFileUploadTask(fileName, reference, isAlreadyUploaded, onBeforeUpload, l)
         );
     }
 
+    /**
+     * Uploads a batched compound commit to the object store. The uploads run in the order they are requested, so the commits of a shard
+     * are expected to be requested in generation order.
+     */
     public void uploadBatchedCompoundCommitFile(
         long primaryTerm,
         Directory directory,
@@ -928,9 +935,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         VirtualBatchedCompoundCommit pendingCommit,
         ActionListener<BccUploadObjectStoreTiming> listener
     ) {
+        assert assertRequestedInGenerationOrder(pendingCommit);
         enqueueTask(
             listener,
-            uploadTaskRunner,
+            uploadTaskRunner::enqueueTask,
             l -> new BatchedCommitFileUploadTask(
                 enqueuedAtNanos,
                 pendingCommit,
@@ -938,6 +946,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 l
             )
         );
+    }
+
+    private boolean assertRequestedInGenerationOrder(VirtualBatchedCompoundCommit commit) {
+        final var requested = commit.getPrimaryTermAndGeneration();
+        final var previous = lastRequestedCommitUploads.put(commit.getShardId(), requested);
+        assert previous == null || previous.primaryTerm() != requested.primaryTerm() || previous.generation() <= requested.generation()
+            : commit.getShardId() + " upload of commit " + requested + " requested after the upload of " + previous;
+        return true;
     }
 
     public void asyncDeleteTranslogFile(String fileToDelete) {
@@ -968,10 +984,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    private <R, T extends AbstractRunnable & Comparable<T>> void enqueueTask(
+    private <R> void enqueueTask(
         ActionListener<R> listener,
-        PrioritizedThrottledTaskRunner<T> runner,
-        Function<ActionListener<R>, T> task
+        Consumer<ActionListener<Releasable>> runner,
+        Function<ActionListener<R>, AbstractRunnable> task
     ) {
         try {
             ensureRunning();
@@ -981,7 +997,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             final var releasable = Releasables.releaseOnce(permits::release);
             boolean enqueued = false;
             try {
-                runner.enqueueTask(task.apply(ActionListener.releaseAfter(listener, releasable)));
+                runner.accept(asRunnerTask(task.apply(ActionListener.releaseAfter(listener, releasable))));
                 enqueued = true;
             } finally {
                 if (enqueued == false) {
@@ -993,6 +1009,32 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             // release the references they hold (e.g. commit refs) rather than leaking them.
             listener.onFailure(e);
         }
+    }
+
+    private static ActionListener<Releasable> asRunnerTask(AbstractRunnable task) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    task.run();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert e instanceof EsRejectedExecutionException : e;
+                try {
+                    task.onRejection(e);
+                } finally {
+                    task.onAfter();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return task.toString();
+            }
+        };
     }
 
     /**
@@ -1583,11 +1625,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Abstract class for commit and files upload tasks.
-     *
-     * Tasks belonging to the same shard are ordered by commit generation. Tasks belonging to different shards are ordered by the commit
-     * enqueue time.
      */
-    private abstract static class ObjectStoreTask extends AbstractRunnable implements Comparable<ObjectStoreTask> {
+    private abstract static class ObjectStoreTask extends AbstractRunnable {
 
         protected final ShardId shardId;
         protected final long generation;
@@ -1598,29 +1637,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             this.generation = generation;
             this.timeInNanos = timeInNanos;
         }
-
-        @Override
-        public final int compareTo(ObjectStoreTask other) {
-            if (shardId.equals(other.shardId)) {
-                return Long.compare(generation, other.generation);
-            }
-
-            // Nano time requires relative comparisons
-            long diff = timeInNanos - other.timeInNanos;
-            if (diff == 0) {
-                return 0;
-            } else if (diff > 0) {
-                return 1;
-            } else {
-                return -1;
-            }
-        }
     }
 
     /**
      * {@link TranslogFileUploadTask} uploads the compound translog file to the object store
      */
-    private class TranslogFileUploadTask extends AbstractRunnable implements Comparable<TranslogFileUploadTask> {
+    private class TranslogFileUploadTask extends AbstractRunnable {
 
         private final String fileName;
         private final BytesReference reference;
@@ -1676,12 +1698,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
 
             listener.onResponse(null);
-        }
-
-        @Override
-        public int compareTo(TranslogFileUploadTask o) {
-            // TODO: Implement
-            return 0;
         }
     }
 

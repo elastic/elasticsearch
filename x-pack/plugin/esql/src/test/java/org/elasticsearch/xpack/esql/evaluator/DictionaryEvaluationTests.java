@@ -297,12 +297,7 @@ public class DictionaryEvaluationTests extends ESTestCase {
     }
 
     public void testAllowlistedShapesDoNotWarnOnOddSingleValues() {
-        List<BytesRef> dict = List.of(
-            new BytesRef(""),
-            new BytesRef("foo"),
-            new BytesRef("x".repeat(4096)),
-            new BytesRef("日本語")
-        );
+        List<BytesRef> dict = List.of(new BytesRef(""), new BytesRef("foo"), new BytesRef("x".repeat(4096)), new BytesRef("日本語"));
         List<Expression> shapes = List.of(
             new Equals(Source.EMPTY, a, Literal.keyword(Source.EMPTY, "foo")),
             new NotEquals(Source.EMPTY, a, Literal.keyword(Source.EMPTY, "-")),

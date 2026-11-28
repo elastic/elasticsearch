@@ -1,0 +1,17 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name = 'x-pack-query-sampling'
+  description = 'Elasticsearch Expanded Pack Plugin - Query sampling for kNN search'
+  classname = 'org.elasticsearch.xpack.querysampling.KnnQuerySamplingPlugin'
+}
+
+base {
+  archivesName = 'x-pack-query-sampling'
+}
+
+tasks.named('internalClusterTest') {
+  // the plugin default is off in release builds so switch on for test
+  systemProperty 'es.query_sampling_feature_flag_enabled', 'true'
+}

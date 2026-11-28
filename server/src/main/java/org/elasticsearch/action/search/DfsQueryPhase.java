@@ -178,7 +178,11 @@ class DfsQueryPhase extends SearchPhase {
                     TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
                     SearchPhaseController.setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
-                    nestedPath.get(i).trySet(knnResults.getNestedPath());
+                    // Shards of indices that do not map the knn field report no nested path. Ignore them, otherwise the
+                    // nested path depends on the order of the shards and the query phase can't join child hits to parents.
+                    if (knnResults.getNestedPath() != null) {
+                        nestedPath.get(i).trySet(knnResults.getNestedPath());
+                    }
                 }
             }
         }

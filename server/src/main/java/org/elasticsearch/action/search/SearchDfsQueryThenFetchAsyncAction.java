@@ -177,7 +177,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
                 source.knnSearch().get(i).getFilterQueries(),
                 rescoreVectorBuilder == null ? null : rescoreVectorBuilder.oversample()
             ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
-            if (nestedPath != null) {
+            if (nestedPath != null && scoreDocs.isEmpty() == false) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
             }
             subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));

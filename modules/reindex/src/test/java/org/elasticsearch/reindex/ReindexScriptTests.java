@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -105,7 +106,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         ReindexRequest request = request();
         IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing(routing).setRoutingFromSlice(true);
-        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting(routing);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting(routing).setRoutingFromSlice(true);
 
         IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> ctx.put("_routing", routing), request, index, doc);
         assertEquals(routing, result.routing());
@@ -126,6 +127,199 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> ctx.put("_routing", sourceRouting), request, index, doc);
         assertEquals(sourceRouting, result.routing());
         assertFalse(result.isRoutingFromSlice());
+    }
+
+    public void testSetRoutingSameValueDoesNotOverrideDestinationRouting() throws Exception {
+        String sourceRouting = randomRealisticUnicodeOfLengthBetween(5, 20);
+        String destinationRouting = randomValueOtherThan(sourceRouting, () -> randomRealisticUnicodeOfLengthBetween(5, 20));
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing(destinationRouting);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting(sourceRouting);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> ctx.put("_routing", sourceRouting), request, index, doc);
+        assertEquals(destinationRouting, result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
+    /**
+     * A script that only edits the source must not disturb the slice that copying the hit's routing left on the request.
+     */
+    public void testScriptThatLeavesRoutingAloneKeepsSliceProvenance() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing("tenant-a").setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting("tenant-a").setRoutingFromSlice(true);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {}, request, index, doc);
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * A script that leaves routing alone must keep the destination slice even though the hit carries no routing.
+     */
+    public void testScriptThatLeavesRoutingAloneKeepsDestinationSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing("tenant-a").setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {}, request, index, doc);
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * When the slice was dropped for a non-sliced destination, a script that leaves routing alone must not bring it back.
+     */
+    public void testScriptThatLeavesRoutingAloneDoesNotRestoreDroppedSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar"));
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting("tenant-a").setRoutingFromSlice(true);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {}, request, index, doc);
+        assertNull(result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
+    /**
+     * A redirect leaves the prepared destination slice in place. If the new target does not accept a slice the write is rejected there,
+     * which is preferable to silently dropping the slice or persisting it as plain routing.
+     */
+    public void testScriptChangingIndexKeepsDestinationSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("source", "id", 0);
+
+        IndexRequest result = applyScriptToRequest(
+            (Map<String, Object> ctx) -> ctx.put("_index", "other-destination"),
+            request,
+            index,
+            doc
+        );
+        assertEquals("other-destination", result.index());
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * Converting the prepared request to a delete must retain the slice provenance, or the destination slice would become ordinary
+     * routing on the redirected target.
+     */
+    public void testScriptDeletePreservesDestinationSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("source", "id", 0);
+
+        DeleteRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {
+            ctx.put("_index", "plain-destination");
+            ctx.put("op", "delete");
+        }, request, index, doc);
+        assertEquals("plain-destination", result.index());
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * Clearing the routing is an explicit write, so a script can redirect a sliced document to a plain index by nulling it out.
+     */
+    public void testScriptChangingIndexCanClearTheSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("sliced-source", "id", 0).setRouting("tenant-a")
+            .setRoutingFromSlice(true);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {
+            ctx.put("_index", "plain-destination");
+            ctx.put("_routing", null);
+        }, request, index, doc);
+        assertEquals("plain-destination", result.index());
+        assertNull(result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
+    /**
+     * A slice-enabled source hit carries its slice as routing. On a redirect it stays a slice; it must never turn into plain routing.
+     */
+    public void testScriptChangingIndexKeepsSourceSliceAsSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("sliced-source", "id", 0).setRouting("tenant-a")
+            .setRoutingFromSlice(true);
+
+        IndexRequest result = applyScriptToRequest(
+            (Map<String, Object> ctx) -> ctx.put("_index", "other-destination"),
+            request,
+            index,
+            doc
+        );
+        assertEquals("other-destination", result.index());
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * The metadata sees any {@code _index} differing from the source hit as a change. Setting it to the destination the request was
+     * already prepared for, as a conditional redirect script does, is not a redirect and must keep the slice.
+     */
+    public void testScriptSettingIndexToPreparedDestinationKeepsSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("sliced-source", "id", 0).setRouting("tenant-a")
+            .setRoutingFromSlice(true);
+
+        IndexRequest result = applyScriptToRequest(
+            (Map<String, Object> ctx) -> ctx.put("_index", "sliced-destination"),
+            request,
+            index,
+            doc
+        );
+        assertEquals("sliced-destination", result.index());
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * Redirecting with an explicit {@code _slice} puts that slice on the new target instead of the destination's.
+     */
+    public void testScriptChangingIndexKeepsSliceItExplicitlySets() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("destination-slice")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("sliced-source", "id", 0).setRouting("tenant-a")
+            .setRoutingFromSlice(true);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {
+            ctx.put("_index", "other-sliced-destination");
+            ctx.put(SliceIndexing.FIELD_NAME, "tenant-b");
+        }, request, index, doc);
+        assertEquals("other-sliced-destination", result.index());
+        assertEquals("tenant-b", result.routing());
+        assertTrue(result.isRoutingFromSlice());
     }
 
     public void testSetSlice() throws Exception {

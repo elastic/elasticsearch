@@ -1301,7 +1301,7 @@ public class Reindexer {
             }
 
             @Override
-            protected CtxMap<ReindexMetadata> execute(PaginatedHitSource.Hit doc, Map<String, Object> source) {
+            protected CtxMap<ReindexMetadata> execute(PaginatedHitSource.Hit doc, Map<String, Object> source, boolean routingFromSlice) {
                 if (reindex == null) {
                     reindex = scriptService.compile(script, ReindexScript.CONTEXT);
                 }
@@ -1312,6 +1312,7 @@ public class Reindexer {
                         doc.getId(),
                         doc.getVersion(),
                         doc.getRouting(),
+                        routingFromSlice,
                         INDEX,
                         nowInMillisSupplier.getAsLong()
                     )
@@ -1342,7 +1343,9 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())) {
+                // The prepared routing stays unless the script changes it, also on an _index change: a target that does not accept a
+                // slice rejects it rather than the slice being silently dropped, and the script can clear it explicitly.
+                if (metadata.routingChangedWithSlice()) {
                     request.setRouting(metadata.getRouting());
                     request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 }

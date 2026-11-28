@@ -31,7 +31,7 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     protected void reset() {
-        metadata = new ReindexMetadata(INDEX, ID, VERSION, ROUTING, OP, TIMESTAMP);
+        metadata = new ReindexMetadata(INDEX, ID, VERSION, ROUTING, false, OP, TIMESTAMP);
     }
 
     public void testIndex() {
@@ -158,23 +158,37 @@ public class ReindexMetadataTests extends ESTestCase {
         assertFalse(metadata.isRoutingFromSlice());
     }
 
-    public void testRoutingChangedWithSliceTracksProvenanceOnlyChanges() {
+    /**
+     * The request's slice provenance is the baseline, so an untouched script is never a change, whichever way the request is routed.
+     */
+    public void testRoutingChangedWithSliceStartsFromTheRequest() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
-        assertFalse(metadata.routingChangedWithSlice(false));
-        assertTrue(metadata.routingChangedWithSlice(true));
+        assertFalse(metadata.routingChangedWithSlice());
+        assertFalse(metadata.isRoutingFromSlice());
+
+        ReindexMetadata sliced = new ReindexMetadata(INDEX, ID, VERSION, ROUTING, true, OP, TIMESTAMP);
+        assertFalse(sliced.routingChangedWithSlice());
+        assertTrue(sliced.isRoutingFromSlice());
+    }
+
+    public void testRoutingChangedWithSliceTracksProvenanceOnlyChanges() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         metadata.put(SliceIndexing.FIELD_NAME, ROUTING);
         assertFalse(metadata.routingChanged());
         assertTrue(metadata.isRoutingFromSlice());
-        assertTrue(metadata.routingChangedWithSlice(false));
-        assertFalse(metadata.routingChangedWithSlice(true));
+        assertTrue(metadata.routingChangedWithSlice());
 
         metadata.put("_routing", ROUTING);
         assertFalse(metadata.routingChanged());
         assertFalse(metadata.isRoutingFromSlice());
-        assertFalse(metadata.routingChangedWithSlice(false));
-        assertTrue(metadata.routingChangedWithSlice(true));
+        assertFalse(metadata.routingChangedWithSlice());
+
+        ReindexMetadata sliced = new ReindexMetadata(INDEX, ID, VERSION, ROUTING, true, OP, TIMESTAMP);
+        sliced.put("_routing", ROUTING);
+        assertFalse(sliced.routingChanged());
+        assertTrue(sliced.routingChangedWithSlice());
     }
 
     public void testRoutingChangedWithSliceTracksRoutingValueChanges() {
@@ -182,8 +196,33 @@ public class ReindexMetadataTests extends ESTestCase {
 
         metadata.put("_routing", "routing2");
         assertTrue(metadata.routingChanged());
-        assertTrue(metadata.routingChangedWithSlice(false));
-        assertTrue(metadata.routingChangedWithSlice(true));
+        assertTrue(metadata.routingChangedWithSlice());
+    }
+
+    public void testRoutingChangedWithSliceTracksRemovingNullRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        metadata = new ReindexMetadata(INDEX, ID, VERSION, null, true, OP, TIMESTAMP);
+
+        assertFalse(metadata.routingChangedWithSlice());
+        metadata.remove("_routing");
+        assertFalse(metadata.routingChanged());
+        assertTrue(metadata.routingChangedWithSlice());
+    }
+
+    /**
+     * A script may catch the error from assigning a non-string routing. The rejected write leaves the metadata untouched, so it is not
+     * a routing change either.
+     */
+    public void testRejectedRoutingWriteIsNotAChange() {
+        metadata = new ReindexMetadata(INDEX, ID, VERSION, ROUTING, true, OP, TIMESTAMP);
+        expectThrows(IllegalArgumentException.class, () -> metadata.put("_routing", 5));
+        assertFalse(metadata.routingChanged());
+        assertFalse(metadata.routingChangedWithSlice());
+
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            expectThrows(IllegalArgumentException.class, () -> metadata.put(SliceIndexing.FIELD_NAME, 5));
+            assertFalse(metadata.routingChangedWithSlice());
+        }
     }
 
     public void testSliceUnavailableWhenFeatureFlagDisabled() {

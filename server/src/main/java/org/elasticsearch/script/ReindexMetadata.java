@@ -70,14 +70,22 @@ public class ReindexMetadata extends Metadata {
     protected final String id;
     protected final Long version;
     protected final String routing;
+    private final boolean requestRoutingFromSlice;
     private boolean routingFromSlice;
 
-    public ReindexMetadata(String index, String id, Long version, String routing, String op, long timestamp) {
+    /**
+     * @param routing the hit's routing, which the script sees as {@code _routing} and {@code _slice}
+     * @param routingFromSlice whether the request is slice-routed; the script cannot see this, so it is the baseline for
+     *                         {@link #routingChangedWithSlice()} rather than something derived from the hit
+     */
+    public ReindexMetadata(String index, String id, Long version, String routing, boolean routingFromSlice, String op, long timestamp) {
         super(metadataMap(index, id, version, routing, op, timestamp), PROPERTIES);
         this.index = index;
         this.id = id;
         this.version = version;
         this.routing = routing;
+        this.requestRoutingFromSlice = routingFromSlice;
+        this.routingFromSlice = routingFromSlice;
     }
 
     /**
@@ -179,8 +187,11 @@ public class ReindexMetadata extends Metadata {
         return Objects.equals(routing, getString(ROUTING)) == false;
     }
 
-    public boolean routingChangedWithSlice(boolean previousRoutingFromSlice) {
-        return Objects.equals(routing, getString(ROUTING)) == false || routingFromSlice != previousRoutingFromSlice;
+    /**
+     * Whether the script changed the routing value, compared against the hit, or its slice provenance, compared against the request.
+     */
+    public boolean routingChangedWithSlice() {
+        return routingChanged() || routingFromSlice != requestRoutingFromSlice;
     }
 
     public boolean isRoutingFromSlice() {

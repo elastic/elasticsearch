@@ -426,9 +426,6 @@ public final class IntoPageWriter {
     public void consume(Page page) {
         try {
             if (producer != null && page.getPositionCount() > 0 && sink.failure.get() == null) {
-                if (sink.idColumnPosition >= 0) {
-                    requireSingleValuedIds(page);
-                }
                 int[] rows = rowsWithValidIds(page);
                 if (rows == null || rows.length > 0) {
                     if (asyncAction.compareAndSet(false, true)) {
@@ -450,38 +447,11 @@ public final class IntoPageWriter {
     }
 
     /**
-     * Rejects the page if the {@code _id} of any row has several values, and fails every driver of the run, not just this one, so that
-     * a row that can never be written does not keep the others sending. Does nothing otherwise.
-     */
-    private void requireSingleValuedIds(Page page) {
-        BytesRefBlock ids = page.getBlock(sink.idColumnPosition);
-        for (int row = 0; row < page.getPositionCount(); row++) {
-            int count = ids.getValueCount(row);
-            if (count > 1) {
-                BytesRef scratch = new BytesRef();
-                int start = ids.getFirstValueIndex(row);
-                List<String> values = new ArrayList<>(count);
-                for (int i = 0; i < count; i++) {
-                    values.add(ids.getBytesRef(start + i, scratch).utf8ToString());
-                }
-                var failed = new ElasticsearchStatusException(
-                    MULTI_VALUED_ID_MESSAGE,
-                    RestStatus.BAD_REQUEST,
-                    sink.destination,
-                    IdFieldMapper.NAME,
-                    values
-                );
-                sink.failure.compareAndSet(null, failed);
-                throw failed;
-            }
-        }
-    }
-
-    /**
      * The positions of the rows of {@code page} whose {@code _id} the destination can take, or {@code null} when every row has one.
-     * The bulk fails as a whole, or reports the same failure against all its rows, for an {@code _id} that is empty or too long, so
-     * the valid rows next to it would be lost with it. A row like that fails the run, as soon as it is found, or, under
-     * {@code keep_going}, is counted as refused and left out, as it would be if the destination had refused it alone.
+     * The bulk fails as a whole, or reports the same failure against all its rows, for an {@code _id} that is empty or too long, and
+     * a row with several ids can never be written, so the valid rows next to them would be lost with them. A row like that fails
+     * the run, as soon as it is found, or, under {@code keep_going}, is counted as refused and left out, as it would be if the
+     * destination had refused it alone.
      */
     @Nullable
     private int[] rowsWithValidIds(Page page) {
@@ -496,24 +466,34 @@ public final class IntoPageWriter {
         List<String> reasons = new ArrayList<>();
         BytesRef scratch = new BytesRef();
         for (int row = 0; row < page.getPositionCount(); row++) {
-            int length = ids.isNull(row) ? -1 : ids.getBytesRef(ids.getFirstValueIndex(row), scratch).length;
-            if (length != 0 && length <= IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
+            IdProblem problem = idProblem(ids, row, scratch);
+            if (problem == null) {
                 valid[validCount++] = row;
                 continue;
             }
             if (sink.options.keepGoing() == false) {
-                var failed = new ElasticsearchStatusException(
-                    "INTO [{}] failed: {}",
-                    RestStatus.BAD_REQUEST,
-                    sink.destination,
-                    invalidIdReason(length)
-                );
+                // Fails every driver of the run, not just this one, so that a row that can never be written does not keep the others
+                // sending
+                var failed = problem == IdProblem.MULTI_VALUED
+                    ? new ElasticsearchStatusException(
+                        MULTI_VALUED_ID_MESSAGE,
+                        RestStatus.BAD_REQUEST,
+                        sink.destination,
+                        IdFieldMapper.NAME,
+                        idValues(ids, row, scratch)
+                    )
+                    : new ElasticsearchStatusException(
+                        "INTO [{}] failed: {}",
+                        RestStatus.BAD_REQUEST,
+                        sink.destination,
+                        invalidIdReason(problem, ids, row, scratch)
+                    );
                 sink.failure.compareAndSet(null, failed);
                 throw failed;
             }
             refused++;
             if (reasons.size() < IntoStats.MAX_FAILURE_DETAILS) {
-                reasons.add(invalidIdReason(length));
+                reasons.add(invalidIdReason(problem, ids, row, scratch));
             }
         }
         if (refused == 0) {
@@ -523,10 +503,46 @@ public final class IntoPageWriter {
         return Arrays.copyOf(valid, validCount);
     }
 
-    private static String invalidIdReason(int length) {
-        return length == 0
-            ? EMPTY_ID_REASON
-            : "_id is too long, must be no longer than " + IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES + " bytes but was: " + length;
+    /** Why the destination cannot take a row's {@code _id}, or {@code null} if it can. A row without one has it assigned. */
+    @Nullable
+    private static IdProblem idProblem(BytesRefBlock ids, int row, BytesRef scratch) {
+        if (ids.isNull(row)) {
+            return null;
+        }
+        if (ids.getValueCount(row) > 1) {
+            return IdProblem.MULTI_VALUED;
+        }
+        int length = ids.getBytesRef(ids.getFirstValueIndex(row), scratch).length;
+        if (length == 0) {
+            return IdProblem.EMPTY;
+        }
+        return length > IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES ? IdProblem.TOO_LONG : null;
+    }
+
+    private enum IdProblem {
+        EMPTY,
+        TOO_LONG,
+        MULTI_VALUED
+    }
+
+    private static String invalidIdReason(IdProblem problem, BytesRefBlock ids, int row, BytesRef scratch) {
+        return switch (problem) {
+            case EMPTY -> EMPTY_ID_REASON;
+            case TOO_LONG -> "_id is too long, must be no longer than "
+                + IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES
+                + " bytes but was: "
+                + ids.getBytesRef(ids.getFirstValueIndex(row), scratch).length;
+            case MULTI_VALUED -> "[" + IdFieldMapper.NAME + "] must be single-valued, found " + idValues(ids, row, scratch);
+        };
+    }
+
+    private static List<String> idValues(BytesRefBlock ids, int row, BytesRef scratch) {
+        int start = ids.getFirstValueIndex(row);
+        List<String> values = new ArrayList<>(ids.getValueCount(row));
+        for (int i = 0; i < ids.getValueCount(row); i++) {
+            values.add(ids.getBytesRef(start + i, scratch).utf8ToString());
+        }
+        return values;
     }
 
     public void finish() {

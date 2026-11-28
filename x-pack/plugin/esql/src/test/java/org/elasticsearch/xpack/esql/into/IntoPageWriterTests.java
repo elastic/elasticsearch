@@ -562,6 +562,40 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(sink.failure(), sameInstance(e));
     }
 
+    /** A row whose {@code _id} has several values is refused on its own under {@code keep_going}, like an empty or an over-long one. */
+    public void testKeepGoingRefusesOnlyTheRowsWithAMultiValuedId() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        Page page;
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(3)
+        ) {
+            id.appendBytesRef(new BytesRef("a"));
+            id.beginPositionEntry().appendBytesRef(new BytesRef("x")).appendBytesRef(new BytesRef("y")).endPositionEntry();
+            id.appendBytesRef(new BytesRef("c"));
+            host.appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).appendBytesRef(new BytesRef("h3"));
+            page = new Page(id.build(), host.build());
+        }
+        idWriter.consume(page);
+
+        assertThat(client.bulks.getFirst().requests().stream().map(DocWriteRequest::id).toList(), equalTo(List.of("a", "c")));
+        client.answer(CREATED, CREATED);
+        idWriter.finish();
+
+        assertThat(sink.failure(), nullValue());
+        assertThat(
+            idWriter.stats(),
+            equalTo(
+                IntoStats.builder()
+                    .total(3)
+                    .created(2)
+                    .failures(1)
+                    .failureDetails(List.of("[400] [_id] must be single-valued, found [x, y]"))
+                    .build()
+            )
+        );
+    }
+
     public void testMultiValuedIdStopsSiblingWriters() {
         IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
         IntoPageWriter sibling = sink.create(new DriverContext(mockBigArrays(), factory, null));

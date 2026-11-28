@@ -727,29 +727,31 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     private static final String ROWS_WITH_INVALID_IDS = """
-        ROW x = [1, 2, 3, 4]
+        ROW x = [1, 2, 3, 4, 5]
         | MV_EXPAND x
-        | EVAL _id = CASE(x == 2, "", x == 3, REPEAT("x", 513), CONCAT("id", TO_STRING(x))), k = CONCAT("k", TO_STRING(x))
+        | EVAL _id = CASE(x == 2, "", x == 3, REPEAT("x", 513), x == 4, MV_APPEND("p", "q"), CONCAT("id", TO_STRING(x))),
+               k = CONCAT("k", TO_STRING(x))
         | KEEP _id, k
         """;
 
-    /** An empty or over-long {@code _id} is refused on its own, and does not take the valid rows around it with it. */
+    /** An empty, over-long or multi-valued {@code _id} is refused on its own, and does not take the valid rows around it with it. */
     public void testKeepGoingRefusesOnlyTheRowsWithAnInvalidId() {
         try (var response = run(ROWS_WITH_INVALID_IDS + "| INTO " + DESTINATION + " WITH {\"keep_going\": true}")) {
             IntoStats expected = IntoStats.builder()
-                .total(4)
+                .total(5)
                 .created(2)
-                .failures(2)
+                .failures(3)
                 .failureDetails(
                     List.of(
                         "[400] if _id is specified it must not be empty",
-                        "[400] _id is too long, must be no longer than 512 bytes but was: 513"
+                        "[400] _id is too long, must be no longer than 512 bytes but was: 513",
+                        "[400] [_id] must be single-valued, found [p, q]"
                     )
                 )
                 .build();
             assertStats(response, expected);
         }
-        assertReadBackWithIds("KEEP _id, k | SORT _id", List.of(List.of("id1", "k1"), List.of("id4", "k4")));
+        assertReadBackWithIds("KEEP _id, k | SORT _id", List.of(List.of("id1", "k1"), List.of("id5", "k5")));
     }
 
     public void testInvalidIdFailsTheQueryWithoutKeepGoing() {

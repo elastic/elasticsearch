@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -818,7 +820,263 @@ public class EvalBenchmark {
             void checkExpected(Page actual) {
                 checkTimeGroupingExpected(this, actual);
             }
+        },
+        /**
+         * Lucene-shaped: 8k rows, 2 dictionary entries, all referenced. Twin of {@link #EQ_KEYWORD_FLAT_8K}.
+         */
+        EQ_KEYWORD_ORDS_8K("eq_keyword_ords_8k") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, false);
+            }
+
+            @Override
+            Page page() {
+                return keywordOrdinalsPage(BLOCK_LENGTH, 2, 2, false);
+            }
+        },
+        EQ_KEYWORD_FLAT_8K("eq_keyword_flat_8k") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, false);
+            }
+
+            @Override
+            Page page() {
+                return keywordFlatPage(BLOCK_LENGTH, KEYWORD_FOUR[0], KEYWORD_FOUR[1]);
+            }
+        },
+        /** Parquet default page, tiny dict. Expected win for referenced-ord eval. */
+        EQ_KEYWORD_ORDS_N1000_K4("eq_keyword_ords_n1000_k4") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, false);
+            }
+
+            @Override
+            Page page() {
+                return keywordOrdinalsPage(N1000, 4, 4, false);
+            }
+        },
+        EQ_KEYWORD_FLAT_N1000("eq_keyword_flat_n1000") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, false);
+            }
+
+            @Override
+            Page page() {
+                return keywordFlatPage(N1000, KEYWORD_FOUR);
+            }
+        },
+        /**
+         * Row-group dict larger than the batch, only 4 values referenced. Original {@code isDense}
+         * misses this; referenced-ord eval must still win.
+         */
+        EQ_KEYWORD_ORDS_N1000_K2000("eq_keyword_ords_n1000_k2000") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, false);
+            }
+
+            @Override
+            Page page() {
+                return keywordOrdinalsPage(N1000, 2000, 4, false);
+            }
+        },
+        EQ_KEYWORD_ORDS_N256_K5000("eq_keyword_ords_n256_k5000") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, false);
+            }
+
+            @Override
+            Page page() {
+                return keywordOrdinalsPage(256, 5000, 4, false);
+            }
+        },
+        /**
+         * High cardinality: n unique ordinals, gate skip. Twin of {@link #EQ_KEYWORD_FLAT_N1000};
+         * should sit within noise of the flat path.
+         */
+        EQ_KEYWORD_ORDS_N1000_HIGH_CARD("eq_keyword_ords_n1000_high_card") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, false);
+            }
+
+            @Override
+            Page page() {
+                return keywordOrdinalsPage(N1000, N1000, N1000, false);
+            }
+        },
+        /** PCR all-equal: constant {@code BytesRefVector}, not ordinals. */
+        EQ_KEYWORD_CONST_VECTOR("eq_keyword_const_vector") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                int n = actual.getPositionCount();
+                for (int i = 0; i < n; i++) {
+                    if (v.getBoolean(i) == false) {
+                        throw new AssertionError("[" + this + "] expected [true] but was [false] at [" + i + "]");
+                    }
+                }
+            }
+
+            @Override
+            Page page() {
+                return new Page(blockFactory.newConstantBytesRefBlockWith(KEYWORD_FOUR[0], N1000));
+            }
+        },
+        NEQ_KEYWORD_ORDS_ALL_PASS("neq_keyword_ords_all_pass") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return neqKeywordEvaluator("zzz");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                int n = actual.getPositionCount();
+                for (int i = 0; i < n; i++) {
+                    if (v.getBoolean(i) == false) {
+                        throw new AssertionError("[" + this + "] expected [true] but was [false] at [" + i + "]");
+                    }
+                }
+            }
+
+            @Override
+            Page page() {
+                return keywordOrdinalsPage(N1000, 4, 4, false);
+            }
+        },
+        NEQ_KEYWORD_ORDS_MIXED("neq_keyword_ords_mixed") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return neqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, true);
+            }
+
+            @Override
+            Page page() {
+                return keywordOrdinalsPage(N1000, 4, 4, false);
+            }
+        },
+        NEQ_KEYWORD_FLAT_MIXED("neq_keyword_flat_mixed") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return neqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkEqKeywordExpected(this, actual, true);
+            }
+
+            @Override
+            Page page() {
+                return keywordFlatPage(N1000, KEYWORD_FOUR);
+            }
+        },
+        NEQ_KEYWORD_FLAT_ALL_PASS("neq_keyword_flat_all_pass") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return neqKeywordEvaluator("zzz");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                int n = actual.getPositionCount();
+                for (int i = 0; i < n; i++) {
+                    if (v.getBoolean(i) == false) {
+                        throw new AssertionError("[" + this + "] expected [true] but was [false] at [" + i + "]");
+                    }
+                }
+            }
+
+            @Override
+            Page page() {
+                return keywordFlatPage(N1000, KEYWORD_FOUR);
+            }
+        },
+        EQ_KEYWORD_ORDS_NULLS("eq_keyword_ords_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return eqKeywordEvaluator("foo");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                BooleanBlock b = actual.getBlock(1);
+                int n = actual.getPositionCount();
+                for (int i = 0; i < n; i++) {
+                    if (i % 7 == 0) {
+                        if (b.isNull(i) == false) {
+                            throw new AssertionError("[" + this + "] expected null at [" + i + "]");
+                        }
+                    } else {
+                        boolean expected = (i % 4) == 0;
+                        if (b.isNull(i) || b.getBoolean(b.getFirstValueIndex(i)) != expected) {
+                            throw new AssertionError("[" + this + "] expected [" + expected + "] at [" + i + "]");
+                        }
+                    }
+                }
+            }
+
+            @Override
+            Page page() {
+                return keywordOrdinalsPage(N1000, 4, 4, true);
+            }
         };
+
+        Page page() {
+            return null;
+        }
 
         private final String id;
 
@@ -858,6 +1116,12 @@ public class EvalBenchmark {
     private static final FoldContext FOLD_CONTEXT = FoldContext.small();
 
     private static final int BLOCK_LENGTH = 8 * 1024;
+    private static final int N1000 = 1000;
+    private static final BytesRef[] KEYWORD_FOUR = new BytesRef[] {
+        new BytesRef("foo"),
+        new BytesRef("bar"),
+        new BytesRef("baz"),
+        new BytesRef("qux") };
     private static final String BASE64_SMALL_TEXT = "benchmark-value";
     private static final long TBUCKET_RANGE_START_MILLIS = Instant.parse("2024-01-01T00:00:00Z").toEpochMilli();
     private static final long TBUCKET_RANGE_END_MILLIS = Instant.parse("2024-01-03T00:00:00Z").toEpochMilli();
@@ -1004,6 +1268,24 @@ public class EvalBenchmark {
                 configuration()
             ),
             layout(timestamp)
+        ).get(driverContext);
+    }
+
+    private static ExpressionEvaluator eqKeywordEvaluator(String literal) {
+        FieldAttribute keywordField = keywordField();
+        return EvalMapper.toEvaluator(
+            FOLD_CONTEXT,
+            new Equals(Source.EMPTY, keywordField, Literal.keyword(Source.EMPTY, literal)),
+            layout(keywordField)
+        ).get(driverContext);
+    }
+
+    private static ExpressionEvaluator neqKeywordEvaluator(String literal) {
+        FieldAttribute keywordField = keywordField();
+        return EvalMapper.toEvaluator(
+            FOLD_CONTEXT,
+            new NotEquals(Source.EMPTY, keywordField, Literal.keyword(Source.EMPTY, literal)),
+            layout(keywordField)
         ).get(driverContext);
     }
 
@@ -1541,6 +1823,30 @@ public class EvalBenchmark {
         }
     }
 
+    private static void checkEqKeywordExpected(Operation operation, Page actual, boolean negate) {
+        BytesRefBlock input = actual.getBlock(0);
+        BooleanBlock result = actual.getBlock(1);
+        BytesRef scratch = new BytesRef();
+        BytesRef foo = KEYWORD_FOUR[0];
+        int n = actual.getPositionCount();
+        for (int i = 0; i < n; i++) {
+            if (input.isNull(i)) {
+                if (result.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at [" + i + "]");
+                }
+                continue;
+            }
+            boolean eq = input.getBytesRef(input.getFirstValueIndex(i), scratch).equals(foo);
+            boolean expected = negate ? eq == false : eq;
+            if (result.isNull(i)) {
+                throw new AssertionError("[" + operation + "] unexpected null at [" + i + "]");
+            }
+            if (result.getBoolean(result.getFirstValueIndex(i)) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] at [" + i + "] but was [" + !expected + "]");
+            }
+        }
+    }
+
     private static void checkEqualToConstExpected(Operation operation, Page actual) {
         BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
         for (int i = 0; i < BLOCK_LENGTH; i++) {
@@ -1814,7 +2120,46 @@ public class EvalBenchmark {
         }
     }
 
+    private static Page keywordOrdinalsPage(int n, int dictSize, int referenced, boolean nulls) {
+        var bytes = blockFactory.newBytesRefVectorBuilder(dictSize);
+        for (int i = 0; i < dictSize; i++) {
+            if (i < KEYWORD_FOUR.length) {
+                bytes.appendBytesRef(KEYWORD_FOUR[i]);
+            } else {
+                bytes.appendBytesRef(new BytesRef("pad" + i));
+            }
+        }
+        if (nulls) {
+            var ordinals = blockFactory.newIntBlockBuilder(n);
+            for (int i = 0; i < n; i++) {
+                if (i % 7 == 0) {
+                    ordinals.appendNull();
+                } else {
+                    ordinals.appendInt(i % referenced);
+                }
+            }
+            return new Page(new OrdinalBytesRefBlock(ordinals.build(), bytes.build()));
+        }
+        var ordinals = blockFactory.newIntVectorFixedBuilder(n);
+        for (int i = 0; i < n; i++) {
+            ordinals.appendInt(i % referenced);
+        }
+        return new Page(new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock());
+    }
+
+    private static Page keywordFlatPage(int n, BytesRef... values) {
+        var builder = blockFactory.newBytesRefVectorBuilder(n);
+        for (int i = 0; i < n; i++) {
+            builder.appendBytesRef(values[i % values.length]);
+        }
+        return new Page(builder.build().asBlock());
+    }
+
     private static Page page(Operation operation) {
+        Page custom = operation.page();
+        if (custom != null) {
+            return custom;
+        }
         return switch (operation) {
             case TSTEP_5_EQUAL, TSTEP_7_EQUAL, TBUCKET_5_EQUAL, TSTEP_99_EQUAL, TBUCKET_99_EQUAL, TSTEP_64_EQUAL, TBUCKET_64_EQUAL,
                 TSTEP_1024_EQUAL, TBUCKET_1024_EQUAL, TBUCKET_7_EQUAL, TBUCKET_5_NONEQUAL, TBUCKET_7_NONEQUAL, TBUCKET_99_NONEQUAL,
@@ -2056,6 +2401,7 @@ public class EvalBenchmark {
                 }
                 yield new Page(new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock());
             }
+            default -> throw new IllegalStateException("missing page for " + operation);
         };
     }
 

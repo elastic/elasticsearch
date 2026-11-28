@@ -27,6 +27,7 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.LongBytesRefBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -37,15 +38,29 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.DictionaryPredicateEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.planner.Layout;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -82,6 +97,65 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
     @Before
     public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+    }
+
+    /**
+     * {@code WHERE f != "-"} on a dictionary-encoded file must match the same predicate on a
+     * plain-encoded file. No csv-spec and no capability — this is a reader-level smoke test.
+     */
+    public void testNotEqualsDashDictionaryMatchesPlain() throws IOException {
+        int numRows = 2_000;
+        IntFunction<String> valueFor = row -> row % 11 == 0 ? "-" : "v_" + (row % 8);
+        byte[] dictFile = writeStringFile(numRows, false, valueFor);
+        byte[] plainFile = writePlainStringFile(numRows, valueFor);
+
+        FieldAttribute f = new FieldAttribute(
+            Source.EMPTY,
+            "name",
+            new EsField("name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Layout layout = new Layout.Builder().append(f).build();
+        ExpressionEvaluator.Factory factory = EvalMapper.toEvaluator(
+            FoldContext.small(),
+            new NotEquals(Source.EMPTY, f, Literal.keyword(Source.EMPTY, "-")),
+            layout
+        );
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+        boolean[] dictResults = evalAll(factory, ctx, dictFile, true);
+        boolean[] plainResults = evalAll(factory, ctx, plainFile, false);
+        assertEquals(numRows, dictResults.length);
+        assertEquals(numRows, plainResults.length);
+        for (int i = 0; i < numRows; i++) {
+            assertEquals("row " + i, plainResults[i], dictResults[i]);
+            assertEquals("row " + i, valueFor.apply(i).equals("-") == false, dictResults[i]);
+        }
+    }
+
+    public void testWildcardLikeDictionaryMatchesPlain() throws IOException {
+        int numRows = 2_000;
+        IntFunction<String> valueFor = row -> row % 11 == 0 ? "-" : "v_" + (row % 8);
+        byte[] dictFile = writeStringFile(numRows, false, valueFor);
+        byte[] plainFile = writePlainStringFile(numRows, valueFor);
+
+        FieldAttribute f = new FieldAttribute(
+            Source.EMPTY,
+            "name",
+            new EsField("name", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Layout layout = new Layout.Builder().append(f).build();
+        ExpressionEvaluator.Factory factory = EvalMapper.toEvaluator(
+            FoldContext.small(),
+            new WildcardLike(Source.EMPTY, f, new WildcardPattern("v_*")),
+            layout
+        );
+        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+        boolean[] dictResults = evalAll(factory, ctx, dictFile, true);
+        boolean[] plainResults = evalAll(factory, ctx, plainFile, false);
+        assertEquals(numRows, dictResults.length);
+        for (int i = 0; i < numRows; i++) {
+            assertEquals("row " + i, plainResults[i], dictResults[i]);
+            assertEquals("row " + i, valueFor.apply(i).startsWith("v_"), dictResults[i]);
+        }
     }
 
     public void testDictionaryEncodedColumnEmitsOrdinalBlock() throws IOException {
@@ -513,6 +587,72 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
             g.append("user_id", userFor.apply(i));
             g.append("search_phrase", phraseFor.apply(i));
         });
+    }
+
+    private boolean[] evalAll(ExpressionEvaluator.Factory factory, DriverContext ctx, byte[] data, boolean expectOrdinals)
+        throws IOException {
+        List<Boolean> out = new ArrayList<>();
+        boolean sawOrdinals = false;
+        boolean sawDictionaryPath = false;
+        try (ExpressionEvaluator eval = factory.get(ctx); CloseableIterator<Page> iter = openIterator(data)) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                try (BooleanBlock result = (BooleanBlock) eval.eval(page)) {
+                    BytesRefBlock col = page.getBlock(0);
+                    if (col.asOrdinals() != null) {
+                        sawOrdinals = true;
+                    }
+                    if (eval instanceof DictionaryPredicateEvaluator dpe
+                        && dpe.lastPath() == DictionaryPredicateEvaluator.Path.DICTIONARY) {
+                        sawDictionaryPath = true;
+                    }
+                    for (int i = 0; i < result.getPositionCount(); i++) {
+                        assertFalse("null at " + out.size(), result.isNull(i));
+                        out.add(result.getBoolean(result.getFirstValueIndex(i)));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        if (expectOrdinals) {
+            assertTrue("dictionary file should emit ordinals", sawOrdinals);
+            assertTrue("dictionary predicate path should run", sawDictionaryPath);
+        }
+        boolean[] arr = new boolean[out.size()];
+        for (int i = 0; i < out.size(); i++) {
+            arr[i] = out.get(i);
+        }
+        return arr;
+    }
+
+    private byte[] writePlainStringFile(int numRows, IntFunction<String> valueFor) throws IOException {
+        Types.MessageTypeBuilder schemaBuilder = Types.buildMessage();
+        schemaBuilder.addField(Types.required(BINARY).as(LogicalTypeAnnotation.stringType()).named("name"));
+        MessageType schema = schemaBuilder.named("plain_test");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        PlainParquetConfiguration conf = new PlainParquetConfiguration();
+        conf.set("parquet.enable.dictionary", "false");
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(conf)
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(64 * 1024L)
+                .withPageSize(4 * 1024)
+                .build()
+        ) {
+            for (int i = 0; i < numRows; i++) {
+                Group g = factory.newGroup();
+                g.append("name", valueFor.apply(i));
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
     }
 
     private byte[] writeStringFile(int numRows, boolean optional, IntFunction<String> valueFor) throws IOException {

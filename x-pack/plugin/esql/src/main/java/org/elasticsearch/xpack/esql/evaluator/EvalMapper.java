@@ -92,8 +92,13 @@ public final class EvalMapper {
         @Nullable AnalysisRegistry analysisRegistry,
         @Nullable PlannerSettings plannerSettings
     ) {
+        EvaluatorMapper.ToEvaluator ctx = toEvaluatorContext(foldCtx, layout, shardContexts, analysisRegistry, plannerSettings);
+        ExpressionEvaluator.Factory wrapped = DictionaryEvaluation.maybeWrap(exp, layout, ctx);
+        if (wrapped != null) {
+            return wrapped;
+        }
         if (exp instanceof EvaluatorMapper m) {
-            return m.toEvaluator(toEvaluatorContext(foldCtx, layout, shardContexts, analysisRegistry, plannerSettings));
+            return m.toEvaluator(ctx);
         }
         if (exp instanceof Attribute attr) {
             return new LoadFromPageEvaluator.Factory(layout.get(attr.id()).channel());
@@ -155,8 +160,11 @@ public final class EvalMapper {
     }
 
     /**
-     * The context for evaluating an expression over {@code layout}, for an expression whose evaluator builds a body of its own
-     * over different channels than {@code parent}'s. Everything but the layout comes from {@code parent}.
+     * Context for evaluating an expression over {@code layout} when the body uses different channels
+     * than {@code parent}. Everything but the layout comes from {@code parent}.
+     * <p>
+     * Does not re-enter {@link #toEvaluator}, so dictionary-predicate wrapping is not applied to the
+     * inner tree. {@link DictionaryEvaluation#maybeWrap} uses this so the wrapper is not nested.
      */
     public static EvaluatorMapper.ToEvaluator toEvaluatorContext(Layout layout, EvaluatorMapper.ToEvaluator parent) {
         return new EvaluatorMapper.ToEvaluator() {

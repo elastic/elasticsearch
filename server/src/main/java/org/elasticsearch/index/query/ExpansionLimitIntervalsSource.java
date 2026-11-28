@@ -92,6 +92,11 @@ final class ExpansionLimitIntervalsSource extends IntervalsSource {
         return in.minExtent();
     }
 
+    @Override
+    public int maxExtent() {
+        return in.maxExtent();
+    }
+
     /**
      * This source only ever wraps the root of an intervals query, so it has no parent that would pull up its disjunctions.
      */

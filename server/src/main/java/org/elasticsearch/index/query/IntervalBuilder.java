@@ -300,6 +300,12 @@ public abstract class IntervalBuilder {
         }
 
         @Override
+        public int maxExtent() {
+            // No intervals are produced, so this is not a fixed width of 0. Same as Lucene's no-match source.
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
         public Collection<IntervalsSource> pullUpDisjunctions() {
             return Collections.emptyList();
         }

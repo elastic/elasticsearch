@@ -86,6 +86,25 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         return codec;
     }
 
+    /**
+     * Numeric and binary bulk fuzz sometimes update doc values. Lucene flushes an update through
+     * {@code DocValuesFormat.forName("ES87TSDB")}, the read-only production format, rather than
+     * {@link TestES87TSDBDocValuesFormat}.
+     */
+    static void skipDocValueUpdateFuzz() {
+        assumeFalse("ES87TSDB no longer writes doc values, so doc-value updates cannot be flushed", true);
+    }
+
+    @Override
+    public void testRandomNumericBulkFuzz() {
+        skipDocValueUpdateFuzz();
+    }
+
+    @Override
+    public void testRandomBinaryBulkFuzz() {
+        skipDocValueUpdateFuzz();
+    }
+
     public void testSortedDocValuesSingleUniqueValue() throws IOException {
         try (Directory directory = newDirectory()) {
             Analyzer analyzer = new MockAnalyzer(random());

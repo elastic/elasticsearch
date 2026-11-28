@@ -264,6 +264,15 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         int resolved = 0;
         for (int c = 0; c < colCount; c++) {
             infos[c] = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
+            if (infos[c] == null && reader.compositeAssembly() && ParquetFormatReader.isAssembledCompositeColumn(schema, columnNames[c])) {
+                // resolveColumnInfo re-derives the type from the schema without the assembly switch, so a
+                // composite lands in the null slot above and this route would constant-null-fill a column the
+                // eager scan assembles. Deferred extraction does not implement assembly, and a silent column
+                // of nulls is the one answer worse than no answer.
+                throw new IllegalStateException(
+                    "composite assembly is only implemented in the optimized iterator; column [" + columnNames[c] + "]"
+                );
+            }
             if (infos[c] != null) {
                 resolved++;
                 // The decode loops own the fuse-or-cast decision: handed a target-typed view they decode a fused

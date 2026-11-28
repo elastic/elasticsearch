@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
@@ -30,6 +31,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  * The synthetic {@code _rowPosition} column has no Parquet descriptor (it is materialised by the
  * iterator from the file's footer + per-row position bookkeeping); use {@link #rowPosition()} to
  * obtain the sentinel and {@link #isRowPosition()} to detect it in emit code paths.
+ * <p>
+ * {@code compositeSchema} is the one place this record stops describing a single Parquet leaf. One ESQL
+ * column binds to one {@link ColumnDescriptor}, which is why a composite &mdash; several leaves read
+ * together and rendered as one value &mdash; cannot be expressed by {@code descriptor} alone. For a
+ * composite it carries the one-field sub-schema the record assembler is built from, and {@code descriptor}
+ * degrades to the composite's FIRST leaf: enough to keep the repetition levels and the list routing right,
+ * and not enough to decode the column, so every decode site must consult {@link #isComposite()} first.
+ * {@code null} for every other column. See {@code JsonRecordMaterializer}.
  */
 record ColumnInfo(
     ColumnDescriptor descriptor,
@@ -39,8 +48,23 @@ record ColumnInfo(
     int maxRepLevel,
     LogicalTypeAnnotation logicalType,
     @Nullable DateFormatter dateFormatter,
-    @Nullable DataType fileEsqlType
+    @Nullable DataType fileEsqlType,
+    @Nullable MessageType compositeSchema
 ) {
+    /** Convenience constructor for the (dominant) non-composite columns: {@code compositeSchema == null}. */
+    ColumnInfo(
+        ColumnDescriptor descriptor,
+        PrimitiveType.PrimitiveTypeName parquetType,
+        DataType esqlType,
+        int maxDefLevel,
+        int maxRepLevel,
+        LogicalTypeAnnotation logicalType,
+        @Nullable DateFormatter dateFormatter,
+        @Nullable DataType fileEsqlType
+    ) {
+        this(descriptor, parquetType, esqlType, maxDefLevel, maxRepLevel, logicalType, dateFormatter, fileEsqlType, null);
+    }
+
     /**
      * Convenience constructor for columns read at the file's own type (no declared coercion):
      * {@code fileEsqlType == esqlType}.
@@ -54,7 +78,7 @@ record ColumnInfo(
         LogicalTypeAnnotation logicalType,
         @Nullable DateFormatter dateFormatter
     ) {
-        this(descriptor, parquetType, esqlType, maxDefLevel, maxRepLevel, logicalType, dateFormatter, esqlType);
+        this(descriptor, parquetType, esqlType, maxDefLevel, maxRepLevel, logicalType, dateFormatter, esqlType, null);
     }
 
     /** Formatter-free convenience constructor for the (dominant) columns with no declared date format. */
@@ -79,7 +103,17 @@ record ColumnInfo(
         if (fileEsqlType == null || fileEsqlType == esqlType) {
             return this;
         }
-        return new ColumnInfo(descriptor, parquetType, fileEsqlType, maxDefLevel, maxRepLevel, logicalType, dateFormatter, fileEsqlType);
+        return new ColumnInfo(
+            descriptor,
+            parquetType,
+            fileEsqlType,
+            maxDefLevel,
+            maxRepLevel,
+            logicalType,
+            dateFormatter,
+            fileEsqlType,
+            compositeSchema
+        );
     }
 
     /**
@@ -90,7 +124,7 @@ record ColumnInfo(
      */
     ColumnInfo targetTyped(DataType target, @Nullable DateFormatter formatter) {
         DataType fileType = fileEsqlType == null ? esqlType : fileEsqlType;
-        return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, formatter, fileType);
+        return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, formatter, fileType, compositeSchema);
     }
 
     /** Sentinel marker for the synthetic {@code _rowPosition} column slot. */
@@ -104,5 +138,15 @@ record ColumnInfo(
     /** Whether this slot represents the synthetic {@code _rowPosition} column. */
     boolean isRowPosition() {
         return this == ROW_POSITION;
+    }
+
+    /**
+     * Whether this column is several Parquet leaves read together and rendered as one value, so that
+     * {@link #descriptor()} is only its first leaf. A decode path that does not implement assembly must
+     * refuse such a column rather than decode {@link #descriptor()}, which would return values that are
+     * individually in the file and wrong for the column.
+     */
+    boolean isComposite() {
+        return compositeSchema != null;
     }
 }

@@ -58,6 +58,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         "forceBaselinePath",
         "skipFilterLevelUsefulness",
         "optimizedReader",
+        "compositeAssembly",
         "dynamicThreshold",
         "declaredDateFormats",
         "declaredTypeColumns",

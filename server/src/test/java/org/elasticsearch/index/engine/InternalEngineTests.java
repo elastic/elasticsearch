@@ -18,7 +18,13 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -28,6 +34,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -43,6 +50,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -108,6 +116,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.BatchMappingContext;
@@ -209,6 +218,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
@@ -541,6 +551,111 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(stats2.getFiles().get(extension).getCount(), greaterThan((stats1.getFiles().get(extension).getCount())));
                 assertThat(stats2.getFiles().get(extension).getMin(), greaterThan((0L)));
                 assertThat(stats2.getFiles().get(extension).getMax(), greaterThan((0L)));
+            }
+        }
+    }
+
+    public void testSegmentsStatsIncludingFileSizesWithSameExtensionInSegment() throws Exception {
+        final String[] vectorFields = new String[] { "vector_1", "vector_2", "vector_3" };
+        // distinct dimensions give the same-extension files of a segment different sizes
+        final int[] vectorDims = new int[] { 3, 7, 17 };
+        // a distinct format instance per field makes each field write its own .vec, .vex, ... files within the same segment
+        final Map<String, KnnVectorsFormat> vectorFormats = new HashMap<>();
+        for (String field : vectorFields) {
+            vectorFormats.put(field, new Lucene99HnswVectorsFormat());
+        }
+        final Codec defaultCodec = newCodecService().codec(CodecService.DEFAULT_CODEC);
+        final Codec codec = new FilterCodec(defaultCodec.getName(), defaultCodec) {
+            private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
+                @Override
+                public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+                    return vectorFormats.get(field);
+                }
+            };
+
+            @Override
+            public KnnVectorsFormat knnVectorsFormat() {
+                return knnVectorsFormat;
+            }
+        };
+        final CodecProvider codecProvider = new CodecProvider() {
+            @Override
+            public Codec codec(String name) {
+                return codec;
+            }
+
+            @Override
+            public String[] availableCodecs() {
+                return new String[] { codec.getName() };
+            }
+        };
+        // disable compound files so that the per-field files are not packed into a single .cfs file
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.USE_COMPOUND_FILE, false).build()
+        );
+        try (Store store = createStore()) {
+            final EngineConfig config = EngineConfig.builder(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE))
+                .codecProvider(codecProvider)
+                .build();
+            try (InternalEngine engine = createEngine(config)) {
+                final int numSegments = randomIntBetween(1, 3);
+                for (int segment = 0; segment < numSegments; segment++) {
+                    final int numDocs = randomIntBetween(1, 10);
+                    for (int i = 0; i < numDocs; i++) {
+                        final LuceneDocument document = testDocumentWithTextField();
+                        for (int f = 0; f < vectorFields.length; f++) {
+                            final float[] vector = new float[vectorDims[f]];
+                            for (int d = 0; d < vector.length; d++) {
+                                vector[d] = randomFloat();
+                            }
+                            document.add(new KnnFloatVectorField(vectorFields[f], vector));
+                        }
+                        indexDoc(engine, indexForDoc(testParsedDocument(segment + "_" + i, null, document, B_1)));
+                    }
+                    engine.refresh("test");
+                }
+
+                final Map<String, SegmentsStats.FileStats> expectedFiles = new HashMap<>();
+                try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                    assertThat(searcher.getIndexReader().leaves(), hasSize(numSegments));
+                    for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+                        final SegmentReader segmentReader = Lucene.segmentReader(context.reader());
+                        final Collection<String> segmentFiles = segmentReader.getSegmentInfo().files();
+                        final List<String> vecFiles = segmentFiles.stream()
+                            .filter(file -> "vec".equals(IndexFileNames.getExtension(file)))
+                            .toList();
+                        assertThat(vecFiles, hasSize(vectorFields.length));
+                        final Set<Long> vecLengths = new HashSet<>();
+                        for (String file : vecFiles) {
+                            vecLengths.add(segmentReader.directory().fileLength(file));
+                        }
+                        assertThat(vecLengths, hasSize(vectorFields.length));
+                        for (String file : segmentFiles) {
+                            final String extension = IndexFileNames.getExtension(file);
+                            if (extension != null) {
+                                final long length = segmentReader.directory().fileLength(file);
+                                expectedFiles.compute(
+                                    extension,
+                                    (ext, stats) -> stats == null
+                                        ? new SegmentsStats.FileStats(ext, length, 1L, length, length)
+                                        : new SegmentsStats.FileStats(
+                                            ext,
+                                            stats.getTotal() + length,
+                                            stats.getCount() + 1L,
+                                            Math.min(stats.getMin(), length),
+                                            Math.max(stats.getMax(), length)
+                                        )
+                                );
+                            }
+                        }
+                    }
+                }
+
+                final Map<String, SegmentsStats.FileStats> files = engine.segmentsStats(true, false).getFiles();
+                assertThat(files, equalTo(expectedFiles));
+                assertThat(files.get("vec").getCount(), equalTo((long) numSegments * vectorFields.length));
+                assertThat(engine.segmentsStats(false, false).getFiles(), anEmptyMap());
             }
         }
     }

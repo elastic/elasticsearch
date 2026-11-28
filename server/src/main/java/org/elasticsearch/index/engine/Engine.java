@@ -1387,7 +1387,11 @@ public abstract class Engine implements Closeable {
                 if (fileExtension != null) {
                     try {
                         long fileLength = segmentReader.directory().fileLength(fileName);
-                        files.put(fileExtension, new SegmentsStats.FileStats(fileExtension, fileLength, 1L, fileLength, fileLength));
+                        files.merge(
+                            fileExtension,
+                            new SegmentsStats.FileStats(fileExtension, fileLength, 1L, fileLength, fileLength),
+                            SegmentsStats.FileStats::merge
+                        );
                     } catch (IOException ioe) {
                         logger.warn(() -> "Error when retrieving file length for [" + fileName + "]", ioe);
                     } catch (AlreadyClosedException ace) {

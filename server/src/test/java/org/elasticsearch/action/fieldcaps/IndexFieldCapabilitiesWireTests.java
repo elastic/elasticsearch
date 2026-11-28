@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -26,7 +27,7 @@ public class IndexFieldCapabilitiesWireTests extends ESTestCase {
     }
 
     private static IndexFieldCapabilities copy(IndexFieldCapabilities original, TransportVersion version) throws IOException {
-        return copyWriteable(original, new NamedWriteableRegistry(java.util.List.of()), IndexFieldCapabilities::readFrom, version);
+        return copyWriteable(original, new NamedWriteableRegistry(List.of()), IndexFieldCapabilities::readFrom, version);
     }
 
     public void testRuntimeFieldFlagSurvivesCurrentVersion() throws IOException {

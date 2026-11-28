@@ -239,7 +239,8 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         Supplier<FallbackSyntheticSourceBlockLoader.Reader<?>> readerSupplier
     ) {
         var indexSettings = blContext.indexSettings();
-        // A runtime field is defined at the root of the mapping, so one named under a nested field has no ignored source entry either.
+        // A runtime field named under a nested field reads through its script, because the parent document has no ignored source entry for
+        // it.
         // A runtime and normal field can share the same name.
         // In that case there is no ignored source entry, and so we need to fail back to LongScriptBlockLoader.
         // We could optimize this, but at this stage feels like a rare scenario.

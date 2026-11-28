@@ -1442,11 +1442,7 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute longField(String name) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            name,
-            new EsField(name, DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-        );
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static FieldAttribute doubleField() {

@@ -11,6 +11,8 @@ applies_to:
 
 This page provides instructions for searching and retrieving data from `semantic_text` fields. Learn how to query `semantic_text` fields, retrieve indexed chunks, retrieve field embeddings, and highlight the most relevant fragments from search results.
 
+After you index documents, [confirm that their embeddings are searchable](docs-content://solutions/search/vector/knn.md#verify-embeddings). kNN search applies only to `semantic_text` fields backed by a dense embedding model (`text_embedding` or `embedding`).
+
 ## Query `semantic_text` fields [querying-semantic-text-fields]
 
 You can query `semantic_text` fields using the following query types:

@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -41,7 +40,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DiscoveryNodesTests extends ESTestCase {
@@ -324,23 +322,6 @@ public class DiscoveryNodesTests extends ESTestCase {
         logger.info("nodes B: {}", discoNodesB);
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
-
-        if (masterA == null) {
-            assertThat(delta.previousMasterNode(), nullValue());
-        } else {
-            assertThat(delta.previousMasterNode().getId(), equalTo(masterAId));
-        }
-        if (masterB == null) {
-            assertThat(delta.newMasterNode(), nullValue());
-        } else {
-            assertThat(delta.newMasterNode().getId(), equalTo(masterBId));
-        }
-
-        if (Objects.equals(masterAId, masterBId)) {
-            assertFalse(delta.masterNodeChanged());
-        } else {
-            assertTrue(delta.masterNodeChanged());
-        }
 
         Set<DiscoveryNode> newNodes = new HashSet<>(nodesB);
         newNodes.removeAll(nodesA);

@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -530,7 +531,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      */
     public Delta delta(DiscoveryNodes other) {
         if (this == other) {
-            return new Delta(this.masterNode, this.masterNode, localNodeId, List.of(), List.of());
+            return new Delta(localNodeId, List.of(), List.of());
         }
         final List<DiscoveryNode> removed = new ArrayList<>();
         final List<DiscoveryNode> added = new ArrayList<>();
@@ -545,13 +546,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             }
         }
 
-        return new Delta(
-            other.getMasterNode(),
-            getMasterNode(),
-            localNodeId,
-            Collections.unmodifiableList(removed),
-            Collections.unmodifiableList(added)
-        );
+        return new Delta(localNodeId, Collections.unmodifiableList(removed), Collections.unmodifiableList(added));
     }
 
     @Override
@@ -574,43 +569,17 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     public static class Delta {
 
         private final String localNodeId;
-        @Nullable
-        private final DiscoveryNode previousMasterNode;
-        @Nullable
-        private final DiscoveryNode newMasterNode;
         private final List<DiscoveryNode> removed;
         private final List<DiscoveryNode> added;
 
-        private Delta(
-            @Nullable DiscoveryNode previousMasterNode,
-            @Nullable DiscoveryNode newMasterNode,
-            String localNodeId,
-            List<DiscoveryNode> removed,
-            List<DiscoveryNode> added
-        ) {
-            this.previousMasterNode = previousMasterNode;
-            this.newMasterNode = newMasterNode;
+        private Delta(String localNodeId, List<DiscoveryNode> removed, List<DiscoveryNode> added) {
             this.localNodeId = localNodeId;
             this.removed = removed;
             this.added = added;
         }
 
         public boolean hasChanges() {
-            return masterNodeChanged() || removed.isEmpty() == false || added.isEmpty() == false;
-        }
-
-        public boolean masterNodeChanged() {
-            return Objects.equals(newMasterNode, previousMasterNode) == false;
-        }
-
-        @Nullable
-        public DiscoveryNode previousMasterNode() {
-            return previousMasterNode;
-        }
-
-        @Nullable
-        public DiscoveryNode newMasterNode() {
-            return newMasterNode;
+            return removed.isEmpty() == false || added.isEmpty() == false;
         }
 
         public boolean removed() {
@@ -636,33 +605,20 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
 
         public String shortSummary() {
             final StringBuilder summary = new StringBuilder();
-            if (masterNodeChanged()) {
-                summary.append("master node changed {previous [");
-                if (previousMasterNode != null) {
-                    previousMasterNode.appendDescriptionWithoutAttributes(summary);
-                }
-                summary.append("], current [");
-                if (newMasterNode != null) {
-                    newMasterNode.appendDescriptionWithoutAttributes(summary);
-                }
-                summary.append("]}");
-            }
             if (removed()) {
-                if (summary.length() > 0) {
-                    summary.append(", ");
-                }
                 summary.append("removed {");
                 addCommaSeparatedNodesWithoutAttributes(removedNodes().iterator(), summary);
                 summary.append('}');
             }
             if (added()) {
                 // ignore ourselves when reporting on nodes being added
-                final Iterator<DiscoveryNode> addedNodesIterator = addedNodes().stream()
-                    .filter(node -> node.getId().equals(localNodeId) == false)
-                    .iterator();
+                final Iterator<DiscoveryNode> addedNodesIterator = Iterators.filter(
+                    addedNodes().iterator(),
+                    node -> node.getId().equals(localNodeId) == false
+                );
 
                 if (addedNodesIterator.hasNext()) {
-                    if (summary.length() > 0) {
+                    if (summary.isEmpty() == false) {
                         summary.append(", ");
                     }
                     summary.append("added {");

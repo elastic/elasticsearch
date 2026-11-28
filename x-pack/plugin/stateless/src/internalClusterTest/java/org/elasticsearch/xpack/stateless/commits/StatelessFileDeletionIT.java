@@ -1436,8 +1436,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         var rejoinedCluster = new PlainActionFuture<>();
         internalCluster().getInstance(ClusterService.class, indexNodeA).addListener(clusterChangedEvent -> {
             if (rejoinedCluster.isDone() == false) {
-                var nodesDelta = clusterChangedEvent.nodesDelta();
-                if (nodesDelta.masterNodeChanged() && nodesDelta.previousMasterNode() == null) {
+                if (clusterChangedEvent.previousState().nodes().getMasterNode() == null
+                    && clusterChangedEvent.state().nodes().getMasterNode() != null) {
                     rejoinedCluster.onResponse(null);
                 }
             }

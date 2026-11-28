@@ -30,7 +30,9 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -86,6 +88,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
@@ -438,6 +441,62 @@ public class MasterServiceTests extends ESTestCase {
             ).submitTask("testClusterStateTaskListenerThrowingExceptionIsOkay", new ExpectSuccessTask(), null);
             assertTrue(latch.await(10, TimeUnit.SECONDS));
         }
+    }
+
+    private void runStateUpdateAndAssertLogs(UnaryOperator<ClusterState> update, Consumer<MockLog> addExpectations) throws Exception {
+        try (var mockLog = MockLog.capture(MasterService.class); var masterService = createMasterService(true)) {
+            addExpectations.accept(mockLog);
+            final var processed = new CountDownLatch(1);
+            masterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return update.apply(currentState);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    processed.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            safeAwait(processed);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    @TestLogging(value = "org.elasticsearch.cluster.service:INFO", reason = "to verify the INFO-level election logging")
+    public void testMasterChangeLogging() throws Exception {
+        runStateUpdateAndAssertLogs(
+            state -> ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).coordinationMetadata(CoordinationMetadata.builder().term(1).build()))
+                .build(),
+            mockLog -> mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "election",
+                    MasterService.class.getCanonicalName(),
+                    Level.INFO,
+                    "test, term: 1, version: *"
+                )
+            )
+        );
+
+        runStateUpdateAndAssertLogs(
+            state -> ClusterState.builder(state)
+                .nodes(DiscoveryNodes.builder(state.nodes()).add(DiscoveryNodeUtils.builder("node2").roles(emptySet()).build()))
+                .build(),
+            mockLog -> mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no election or node change logging",
+                    MasterService.class.getCanonicalName(),
+                    Level.INFO,
+                    "*"
+                )
+            )
+        );
     }
 
     @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")

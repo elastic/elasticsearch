@@ -308,7 +308,7 @@ public class MetadataUpdateSettingsService {
                     if (routingTableBuilder == null) {
                         routingTableBuilder = RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentRoutingTable);
                     }
-                    routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                    routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices, currentProject::index);
                     metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                 }

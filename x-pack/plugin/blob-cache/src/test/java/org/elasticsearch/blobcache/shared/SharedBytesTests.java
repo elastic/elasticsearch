@@ -52,6 +52,30 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
+    public void testTwoCachesWithDifferentFileNamesDoNotShareAFile() throws Exception {
+        int regions = randomIntBetween(1, 4);
+        int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            var dataPath = nodeEnv.nodeDataPaths()[0];
+            SharedBytes first = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, false);
+            SharedBytes second = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, false, "other_cache");
+            assertTrue(Files.exists(dataPath.resolve("shared_snapshot_cache")));
+            assertTrue(Files.exists(dataPath.resolve("other_cache")));
+            // a cache of size zero deletes only the file of its own name
+            new SharedBytes(0, regionSize, nodeEnv, ignored -> {}, ignored -> {}, false, "other_cache").decRef();
+            assertFalse(Files.exists(dataPath.resolve("other_cache")));
+            assertTrue(Files.exists(dataPath.resolve("shared_snapshot_cache")));
+            second.decRef();
+            first.decRef();
+            assertFalse(Files.exists(dataPath.resolve("shared_snapshot_cache")));
+        }
+    }
+
     public void testCopyAllWith0Padding() throws Exception {
         int regions = randomIntBetween(1, 4);
         int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;

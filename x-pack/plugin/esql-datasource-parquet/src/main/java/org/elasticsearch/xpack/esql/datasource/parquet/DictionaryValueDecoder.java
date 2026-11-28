@@ -261,20 +261,30 @@ final class DictionaryValueDecoder {
         }
     }
 
+    /**
+     * Skips up to {@code remaining} values of the current bit-packed run and returns how many it skipped, fewer only when the run ends.
+     * Whole groups of 8 are skipped by moving the byte offset; only the group that the skip ends in is unpacked.
+     */
     private int skipPackedValues(int remaining) {
         int skipped = 0;
-        while (skipped < remaining) {
-            if (packedRemaining == 0) {
-                return skipped;
-            }
-            if (groupNext >= 8) {
-                if (packedRemaining == 0) {
-                    return skipped;
-                }
-                loadPackedGroup();
-            }
-            int inGroupAvail = 8 - groupNext;
-            int take = Math.min(inGroupAvail, remaining - skipped);
+        // finish the group that an earlier read left partly consumed
+        if (groupNext < 8 && packedRemaining > 0) {
+            int take = Math.min(8 - groupNext, remaining);
+            groupNext += take;
+            packedRemaining -= take;
+            skipped += take;
+        }
+        // Here groupNext == 8 and packedRemaining is a multiple of 8, or the request is used up.
+        int wholeGroups = Math.min((remaining - skipped) >>> 3, packedRemaining >>> 3);
+        if (wholeGroups > 0 && groupNext >= 8) {
+            packedByteOffset += wholeGroups * bitWidth;
+            packedRemaining -= wholeGroups << 3;
+            skipped += wholeGroups << 3;
+        }
+        // the group that the skip ends in; the next read continues in it
+        if (skipped < remaining && packedRemaining > 0 && groupNext >= 8) {
+            loadPackedGroup();
+            int take = Math.min(8, remaining - skipped);
             groupNext += take;
             packedRemaining -= take;
             skipped += take;

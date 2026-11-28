@@ -150,6 +150,36 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
+    /**
+     * A field that the mapping declares with a skipper while no segment has one, as when a segment comes from a format that does not
+     * serve skippers, gives no bounds, so a range can neither be within the bounds nor disjoint from them.
+     */
+    public void testIsFieldWithinQueryNoSegmentHasASkipper() throws IOException {
+        var ft = new DateFieldType(
+            "my_date",
+            IndexType.skippers(),
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            LuceneDocument doc = new LuceneDocument();
+            // the values are doc values without a skipper
+            doc.add(new SortedNumericDocValuesField("my_date", ft.parse("2015-10-12")));
+            w.addDocument(doc);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> nowInMillis);
+                assertEquals(
+                    Relation.INTERSECTS,
+                    ft.isFieldWithinQuery(reader, "2015-01-01", "2016-01-01", true, true, null, null, context)
+                );
+            }
+        }
+    }
+
     public void isFieldWithinRangeTestCase(DateFieldType ft) throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));

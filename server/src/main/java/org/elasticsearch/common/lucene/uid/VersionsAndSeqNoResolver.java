@@ -102,7 +102,11 @@ public final class VersionsAndSeqNoResolver {
         public final LeafReader reader;
         public final int docBase;
 
-        DocIdAndVersion(int docId, long version, long seqNo, long primaryTerm, LeafReader reader, int docBase) {
+        /**
+         * Public so that an engine that does not keep the {@code _id} in an index (for example a read-only engine over segments that
+         * reference external files) can resolve a document by its own means and still return it through {@code GetResult}.
+         */
+        public DocIdAndVersion(int docId, long version, long seqNo, long primaryTerm, LeafReader reader, int docBase) {
             this.docId = docId;
             this.version = version;
             this.seqNo = seqNo;

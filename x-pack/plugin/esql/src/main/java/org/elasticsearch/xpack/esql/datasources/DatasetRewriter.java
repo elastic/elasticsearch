@@ -699,6 +699,21 @@ public final class DatasetRewriter {
     }
 
     /**
+     * The settings of a data source as they enter a query-time config, under {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY}: a
+     * secret forwards its raw value (an encrypted secret carries an {@code EncryptedData} that the registry decrypts), and
+     * {@code region}, a dataset-level key, is never inherited from the data source. The single place that does this, for a dataset
+     * here and for a read of a data source with no dataset ({@link DataSourceStorageResolver}).
+     */
+    public static Map<String, Object> dataSourceSettings(DataSource parent) {
+        Map<String, Object> dsSettings = new HashMap<>();
+        for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
+            dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().rawValue() : e.getValue().nonSecretValue());
+        }
+        dsSettings.remove("region");
+        return dsSettings;
+    }
+
+    /**
      * Dataset format settings at the top level; data-source auth/connection settings stored under
      * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY} so they are kept separate from format
      * options. {@link ExternalSourceResolver#storageConfig} flattens the sub-map before passing
@@ -728,13 +743,7 @@ public final class DatasetRewriter {
             merged.put(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION, FormatReader.SchemaResolution.UNION_BY_NAME.configName());
         }
         if (parent.settings().isEmpty() == false) {
-            Map<String, Object> dsSettings = new HashMap<>();
-            for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
-                dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().rawValue() : e.getValue().nonSecretValue());
-            }
-            // region is a dataset-level key; a data-source-level value is never inherited.
-            dsSettings.remove("region");
-            merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
+            merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dataSourceSettings(parent));
         }
         // Attach dataset context so operators can annotate classified failures without the full path.
         // Stripped from storageConfig() before reaching any provider; never sent to the object store.

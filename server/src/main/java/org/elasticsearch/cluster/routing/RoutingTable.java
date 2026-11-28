@@ -35,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -441,6 +442,23 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
          * @return the builder
          */
         public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
+            return updateNumberOfReplicas(numberOfReplicas, indices, index -> null);
+        }
+
+        /**
+         * Update the number of replicas for the specified indices, giving the new replicas the role that the shard routing role strategy
+         * chooses for their index.
+         *
+         * @param numberOfReplicas the number of replicas
+         * @param indices          the indices to update the number of replicas for
+         * @param indexMetadata    the metadata of an index by its name, or {@code null} if it is not known
+         * @return the builder
+         */
+        public Builder updateNumberOfReplicas(
+            final int numberOfReplicas,
+            final String[] indices,
+            final Function<String, IndexMetadata> indexMetadata
+        ) {
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
             }
@@ -460,7 +478,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 if (currentNumberOfReplicas < numberOfReplicas) {
                     // now, add "empty" ones
                     for (int i = 0; i < (numberOfReplicas - currentNumberOfReplicas); i++) {
-                        builder.addReplica(shardRoutingRoleStrategy.newReplicaRole());
+                        builder.addReplica(shardRoutingRoleStrategy.newReplicaRole(indexMetadata.apply(index)));
                     }
                 } else if (currentNumberOfReplicas > numberOfReplicas) {
                     for (int i = 0; i < (currentNumberOfReplicas - numberOfReplicas); i++) {

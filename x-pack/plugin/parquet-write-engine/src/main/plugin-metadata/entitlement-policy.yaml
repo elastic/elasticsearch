@@ -1,0 +1,4 @@
+# Iceberg is bundled in this plugin. Its static worker pool (org.apache.iceberg.util.ThreadPools) names its threads and registers a
+# shutdown hook when the class initializes, which fails with NotEntitledException [manage_threads] on the first table commit without it.
+ALL-UNNAMED:
+  - manage_threads

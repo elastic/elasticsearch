@@ -68,6 +68,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DOCUMENT);
     static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
+    static final ProvidedIdFieldMapper COLUMNAR_ID_NOT_INDEXED = new ProvidedIdFieldMapper(Mode.COLUMNAR, false);
 
     /**
      * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
@@ -75,8 +76,13 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Mode> mode;
+        private final boolean indexed;
 
-        Builder(boolean columnarIdByDefault) {
+        /**
+         * @param indexed whether the {@code _id} has an inverted index, which the index setting
+         *                {@link IndexSettings#ID_FIELD_INDEXED} decides and not the mapping
+         */
+        Builder(boolean columnarIdByDefault, boolean indexed) {
             super(NAME);
             mode = Parameter.enumParam(
                 "mode",
@@ -84,6 +90,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 (Supplier<Mode>) () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DOCUMENT,
                 Mode.class
             );
+            this.indexed = indexed;
         }
 
         @Override
@@ -94,9 +101,16 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         @Override
         public MetadataFieldMapper build() {
             var mode = this.mode.getValue();
+            // An _id that is not indexed has doc values and no postings, so it can only be found by scanning. It is only supported
+            // together with the columnar mode, which keeps the _id in doc values.
+            if (indexed == false && mode != Mode.COLUMNAR) {
+                throw new IllegalArgumentException(
+                    "[" + IndexSettings.ID_FIELD_INDEXED.getKey() + "] can only be false when the mode of [" + NAME + "] is [columnar]"
+                );
+            }
             switch (mode) {
                 case COLUMNAR:
-                    return COLUMNAR_ID;
+                    return indexed ? COLUMNAR_ID : COLUMNAR_ID_NOT_INDEXED;
                 case DOCUMENT:
                     return DOCUMENT_ID;
                 default:
@@ -181,8 +195,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     static final class ColumnarIdFieldType extends AbstractIdFieldType {
 
-        ColumnarIdFieldType() {
-            super(true);
+        ColumnarIdFieldType(boolean indexed) {
+            super(indexed ? IndexType.terms(true, true) : IndexType.docValuesOnly());
         }
 
         @Override
@@ -309,8 +323,15 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     private final Mode mode;
 
+    private final boolean indexed;
+
     public ProvidedIdFieldMapper(Mode mode) {
-        super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
+        this(mode, true);
+    }
+
+    private ProvidedIdFieldMapper(Mode mode, boolean indexed) {
+        super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType(indexed) : new IdFieldType());
+        this.indexed = indexed;
         this.mode = mode;
     }
 
@@ -326,9 +347,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     @Override
     public void preColumnarParse(BatchMappingContext context) {
-        // Mirror preParse: in columnar storage mode _id is indexed + BINARY doc values; otherwise it
-        // is indexed + stored.
-        final IndexableFieldType idFieldType = mode == Mode.COLUMNAR ? ColumnarIdField.TYPE : StringField.TYPE_STORED;
+        // Mirror preParse: in columnar storage mode _id is indexed + BINARY doc values, or only BINARY doc values when it is not
+        // indexed; otherwise it is indexed + stored.
+        final IndexableFieldType idFieldType = mode == Mode.COLUMNAR
+            ? (indexed ? ColumnarIdField.TYPE : ColumnarIdField.DOC_VALUES_ONLY_TYPE)
+            : StringField.TYPE_STORED;
         context.addColumn(MappedColumns.binaryColumn(context.uids(), NAME, idFieldType));
     }
 
@@ -345,7 +368,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
         context.id(context.sourceToParse().id());
         if (mode == Mode.COLUMNAR) {
-            context.doc().add(columnarIdField(context.id()));
+            context.doc().add(indexed ? columnarIdField(context.id()) : new BinaryDocValuesField(NAME, Uid.encodeId(context.id())));
         } else {
             context.doc().add(standardIdField(context.id()));
         }
@@ -401,6 +424,17 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             TYPE.setTokenized(false);
             TYPE.setDocValuesType(DocValuesType.BINARY);
             TYPE.freeze();
+        }
+
+        /** The type of a columnar {@code _id} that is not indexed (see {@link IndexSettings#ID_FIELD_INDEXED}): doc values only. */
+        static final FieldType DOC_VALUES_ONLY_TYPE = new FieldType();
+
+        static {
+            DOC_VALUES_ONLY_TYPE.setOmitNorms(true);
+            DOC_VALUES_ONLY_TYPE.setIndexOptions(IndexOptions.NONE);
+            DOC_VALUES_ONLY_TYPE.setTokenized(false);
+            DOC_VALUES_ONLY_TYPE.setDocValuesType(DocValuesType.BINARY);
+            DOC_VALUES_ONLY_TYPE.freeze();
         }
 
         private BytesRef binaryValue;

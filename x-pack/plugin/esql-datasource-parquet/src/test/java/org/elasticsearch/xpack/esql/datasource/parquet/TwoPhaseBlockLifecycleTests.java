@@ -526,6 +526,10 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         final int rowsPerPage = 100; // divides survivorRows so the cut is on a page boundary
         final int trailingLabelBytes = 8 * 1024;
         assert survivorRows % rowsPerPage == 0;
+        // The batch ends in the middle of the first trailing page. skipRows drops the pages that lie wholly inside a skip without
+        // decompressing them, so a trailing skip that ends on a page boundary never reaches the decompression buffer; this one
+        // ends 50 rows into the page, and the reader must decompress that page to get past those rows.
+        final int trailingSkipEndsInPageBatchSize = survivorRows + rowsPerPage / 2;
         byte[] parquetData = buildParquet(TWO_COL_SCHEMA, totalRows, i -> {
             SimpleGroupFactory factory = new SimpleGroupFactory(TWO_COL_SCHEMA);
             Group g = factory.newGroup();
@@ -547,7 +551,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         try (
             CloseableIterator<Page> it = new ParquetFormatReader(bf, true).withPushedFilter(pushed)
-                .read(nativeAsyncStorage(parquetData), FormatReadContext.builder().batchSize(1024).build())
+                .read(nativeAsyncStorage(parquetData), FormatReadContext.builder().batchSize(trailingSkipEndsInPageBatchSize).build())
         ) {
             // Phase 1 (predicate decode) + Phase 2 (projection prefetch) must succeed; arm only
             // once next() is about to run readBatchSparse's trailing skip.

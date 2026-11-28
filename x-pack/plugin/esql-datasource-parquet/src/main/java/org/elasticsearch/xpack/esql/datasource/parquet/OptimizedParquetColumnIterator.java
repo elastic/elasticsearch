@@ -2227,6 +2227,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 currentGroupRowsForBudget = rowsRemainingInGroup;
                 triggerNextRowGroupPrefetch();
                 initColumnReaders(buildRowRanges);
+                applyRowsToSkipInFirstGroup(buildRowRanges);
                 if (rowsRemainingInGroup == 0 && validateListExhaustion) {
                     validateListColumnsExhausted();
                 }
@@ -3236,6 +3237,39 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 r.setFailedPositionSink(sink);
             }
         }
+    }
+
+    /**
+     * Asks the iterator to start the first row group that it reads at the given row, so that the pages before it are skipped and not
+     * decoded and emitted. It must be called before the first {@code hasNext()}. It is for a reader that scans one row group of a
+     * file that has no column index from the middle of the group, where a caller would otherwise decode every page up to its row;
+     * the readers skip the pages that lie wholly before the row without decompressing them (see {@link PageColumnReader#skipRows}).
+     * It applies to a plain scan of flat columns only; {@link #applyRowsToSkipInFirstGroup} fails for any other read.
+     */
+    void skipRowsInFirstGroup(long rows) {
+        assert rows >= 0 : rows;
+        rowsToSkipInFirstGroup = rows;
+    }
+
+    private long rowsToSkipInFirstGroup;
+
+    private void applyRowsToSkipInFirstGroup(RowRanges currentRowRanges) {
+        long rows = rowsToSkipInFirstGroup;
+        if (rows == 0) {
+            return;
+        }
+        rowsToSkipInFirstGroup = 0;
+        if (currentRowRanges != null || pageColumnReaders == null || listColumnReaders != null || columnReaders != null) {
+            throw new IllegalStateException("rows can be skipped at the start of a plain scan of flat columns only");
+        }
+        long skip = Math.min(rows, rowsRemainingInGroup);
+        for (PageColumnReader reader : pageColumnReaders) {
+            if (reader != null) {
+                reader.skipRows(Math.toIntExact(skip));
+            }
+        }
+        rowsRemainingInGroup -= skip;
+        currentGroupRowsForBudget = rowsRemainingInGroup;
     }
 
     private void initColumnReaders(RowRanges currentRowRanges) {

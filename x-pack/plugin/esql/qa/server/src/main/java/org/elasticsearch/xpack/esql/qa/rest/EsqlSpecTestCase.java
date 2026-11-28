@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -643,6 +644,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         // by default the fetch phase runs only where it pays off, the pragma runs it for every plan that can use it
         if (randomBoolean() && coordinatorHasTheFetchPhase()) {
             pragma.put(QueryPragmas.FETCH_PHASE.getKey(), true);
+        }
+        if (randomInt(100) < 20 && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.SPLIT_TIME_SERIES_QUERIES_V0.capabilityName()))) {
+            pragma.put(QueryPragmas.TIME_SERIES_MAX_SPLITS.getKey(), between(2, 5))
+                .put(QueryPragmas.TIME_SERIES_SPLIT_TARGET_MEMORY.getKey(), ByteSizeValue.ofBytes(randomLongBetween(2048, 1024 * 1024)));
         }
     }
 

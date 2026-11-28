@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -52,6 +53,15 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
     public LogicalPlan rule(TimeSeriesAggregate agg) {
+        Expression conditional = metricsFilter(agg);
+        if (conditional == null) {
+            return agg;
+        }
+        return agg.replaceChild(new Filter(agg.source(), agg.child(), conditional));
+    }
+
+    @Nullable
+    public static Expression metricsFilter(TimeSeriesAggregate agg) {
         AttributeMap<Expression> aliases = aliases(agg.child());
         // Preserve expression order so equivalent plans produce the same null-filter predicate.
         Set<Attribute> metrics = new LinkedHashSet<>();
@@ -83,7 +93,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
         // filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have never been filtered out,
         // and aggregations rely on seeing them, like absent_over_time or buckets reporting null.
         if (nonMetricInput.get() || metrics.isEmpty()) {
-            return agg;
+            return null;
         }
         Expression conditional = null;
         for (Attribute metric : metrics) {
@@ -95,7 +105,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
                 conditional = new Or(agg.source(), conditional, new IsNotNull(agg.source(), metric));
             }
         }
-        return agg.replaceChild(new Filter(agg.source(), agg.child(), conditional));
+        return conditional;
     }
 
     /**

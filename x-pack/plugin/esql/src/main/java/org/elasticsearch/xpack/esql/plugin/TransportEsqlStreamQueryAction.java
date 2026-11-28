@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
@@ -274,6 +275,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             public void run(
                 Role role,
                 PhysicalPlan plan,
+                TransportVersion minimumVersion,
                 Configuration configuration,
                 FoldContext foldCtx,
                 PlanTimeProfile planTimeProfile,
@@ -289,6 +291,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         (CancellableTask) task,
                         flags,
                         plan,
+                        minimumVersion,
                         configuration,
                         foldCtx,
                         executionInfo,
@@ -331,6 +334,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             (CancellableTask) task,
                             flags,
                             streamingPlan,
+                            minimumVersion,
                             configuration,
                             foldCtx,
                             executionInfo,

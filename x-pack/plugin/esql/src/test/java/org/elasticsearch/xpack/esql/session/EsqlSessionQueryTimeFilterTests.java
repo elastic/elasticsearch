@@ -434,7 +434,15 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         // Nothing is executed: reaching the runner means that the query was analyzed and planned.
         EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(false);
         AtomicReference<List<Attribute>> output = new AtomicReference<>();
-        EsqlSession.PlanRunner runner = (role, plan, configuration, foldContext, planTimeProfile, maxResultSize, listener) -> {
+        EsqlSession.PlanRunner runner = (
+            role,
+            plan,
+            minimumVersion,
+            configuration,
+            foldContext,
+            planTimeProfile,
+            maxResultSize,
+            listener) -> {
             output.set(plan.output());
             executionInfo.markEndQuery();
             listener.onResponse(new Result(plan.output(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, executionInfo, null));

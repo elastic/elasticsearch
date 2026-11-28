@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -82,6 +84,24 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Boolean> TIME_SERIES_SINGLE_PASS = Setting.boolSetting("time_series_single_pass", true);
 
     public static final Setting<Boolean> TIME_SERIES_REDUCE_PER_INDEX = Setting.boolSetting("time_series_reduce_per_index", false);
+
+    /**
+     * Target coordinator memory per {@code _tsid} split. Defaults to the greater of 100 MB and 3% of the coordinator heap.
+     */
+    public static final Setting<ByteSizeValue> TIME_SERIES_SPLIT_TARGET_MEMORY = new Setting<>(
+        "time_series_split_target_memory",
+        s -> ByteSizeValue.ofBytes(
+            Math.max(ByteSizeValue.ofMb(100).getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 3L / 100)
+        ).getStringRep(),
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "time_series_split_target_memory"),
+        memory -> {
+            if (memory.getBytes() <= 0) {
+                throw new IllegalArgumentException("[time_series_split_target_memory] must be greater than zero");
+            }
+        }
+    );
+
+    public static final Setting<Integer> TIME_SERIES_MAX_SPLITS = Setting.intSetting("time_series_max_splits", 1, 1);
 
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
@@ -298,7 +318,9 @@ public final class QueryPragmas implements Writeable {
         SINGLE_NODE_OPTIMIZATIONS,
         TIME_SERIES_SINGLE_PASS,
         TIME_SERIES_REDUCE_PER_INDEX,
-        FETCH_PHASE
+        FETCH_PHASE,
+        TIME_SERIES_SPLIT_TARGET_MEMORY,
+        TIME_SERIES_MAX_SPLITS
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -424,6 +446,14 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean timeSeriesSinglePass() {
         return TIME_SERIES_SINGLE_PASS.get(settings);
+    }
+
+    public ByteSizeValue timeSeriesSplitTargetMemory() {
+        return TIME_SERIES_SPLIT_TARGET_MEMORY.get(settings);
+    }
+
+    public int timeSeriesMaxSplits() {
+        return TIME_SERIES_MAX_SPLITS.get(settings);
     }
 
     /**

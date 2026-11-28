@@ -700,6 +700,11 @@ public class EsqlCapabilities {
         SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
 
         /**
+         * Support splitting time-series queries
+         */
+        SPLIT_TIME_SERIES_QUERIES_V0,
+
+        /**
          * Fix for a bug where {@code ST_DISTANCE} threw a {@code ClassCastException} when both its
          * {@code geo_point} or {@code cartesian_point} arguments were extracted from doc-values
          * simultaneously.

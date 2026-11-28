@@ -106,6 +106,16 @@ $if(BytesRef)$
         return this;
     }
 
+    @Override
+    public BytesRefBlockBuilder appendConcatenated(BytesRef[] parts) {
+        ensureCapacity();
+        values.appendConcatenated(parts);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
 $endif$
     @Override
     protected int elementSize() {

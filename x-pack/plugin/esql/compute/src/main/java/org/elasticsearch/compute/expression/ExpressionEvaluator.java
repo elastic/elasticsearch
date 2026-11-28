@@ -106,7 +106,7 @@ public interface ExpressionEvaluator extends Releasable {
 
     /**
      * Heap used by the evaluator <strong>excluding</strong> any memory that's separately tracked
-     * like the {@link BreakingBytesRefBuilder} used for string concat.
+     * like a {@link BreakingBytesRefBuilder} used as scratch space.
      */
     long baseRamBytesUsed();
 }

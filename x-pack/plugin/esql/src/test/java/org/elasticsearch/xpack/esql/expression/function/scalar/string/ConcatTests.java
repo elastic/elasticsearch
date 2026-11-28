@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -156,15 +157,18 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     }
 
     private void testOversized(int totalLen, List<Expression> mix, List<Object> fieldValues) {
-        for (int len; totalLen < Concat.MAX_CONCAT_LENGTH; totalLen += len) {
+        for (int len; totalLen <= Concat.MAX_CONCAT_LENGTH; totalLen += len) {
             len = randomIntBetween(1, (int) Concat.MAX_CONCAT_LENGTH);
-            mix.add(new Literal(Source.EMPTY, new BytesRef(randomAlphaOfLength(len)), DataType.KEYWORD));
+            // The filler's content does not matter, only its length, and a random string this long is slow to build.
+            byte[] filler = new byte[len];
+            Arrays.fill(filler, (byte) 'a');
+            mix.add(new Literal(Source.EMPTY, new BytesRef(filler), DataType.KEYWORD));
         }
         Expression expression = build(testCase.getSource(), mix);
         Exception e = expectThrows(EsqlClientException.class, () -> {
             try (ExpressionEvaluator eval = evaluator(expression).get(driverContext()); Block block = eval.eval(row(fieldValues))) {}
         });
-        assertThat(e.getMessage(), is("concatenating more than [1048576] bytes is not supported"));
+        assertThat(e.getMessage(), is("concatenating more than [" + Concat.MAX_CONCAT_LENGTH + "] bytes is not supported"));
     }
 
     private int testDataLength() {

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
@@ -285,6 +286,47 @@ public class BytesRefBlockTests extends BlockTestCase<BytesRefBlock, BytesRefBlo
                 assertThat(BytesRefBlock.equals(b1, b2), is(true));
             }
         }
+    }
+
+    public void testAppendConcatenated() {
+        int positions = between(1, 5);
+        try (
+            BytesRefBlock.Builder concatenatedBuilder = blockFactory().newBytesRefBlockBuilder(positions);
+            BytesRefBlock.Builder bytesRefBuilder = blockFactory().newBytesRefBlockBuilder(positions)
+        ) {
+            for (int p = 0; p < positions; p++) {
+                if (randomBoolean()) {
+                    concatenatedBuilder.appendNull();
+                    bytesRefBuilder.appendNull();
+                    continue;
+                }
+                byte[][] parts = randomParts();
+                concatenatedBuilder.appendConcatenated(Arrays.stream(parts).map(BytesRef::new).toArray(BytesRef[]::new));
+                bytesRefBuilder.appendBytesRef(concatenate(parts));
+            }
+            try (BytesRefBlock b1 = concatenatedBuilder.build(); BytesRefBlock b2 = bytesRefBuilder.build()) {
+                assertThat(BytesRefBlock.equals(b1, b2), is(true));
+            }
+        }
+    }
+
+    /**
+     * Parts that are sometimes empty and sometimes long enough for the concatenated value to span several pages.
+     */
+    private static byte[][] randomParts() {
+        byte[][] parts = new byte[between(1, 5)][];
+        for (int i = 0; i < parts.length; i++) {
+            parts[i] = randomByteArrayOfLength(randomBoolean() ? between(0, 50) : between(0, 40_000));
+        }
+        return parts;
+    }
+
+    private static BytesRef concatenate(byte[][] parts) {
+        BytesRefBuilder concatenated = new BytesRefBuilder();
+        for (byte[] part : parts) {
+            concatenated.append(part, 0, part.length);
+        }
+        return concatenated.toBytesRef();
     }
 
     public void testAppendBytesReferenceThroughBlockLoader() {

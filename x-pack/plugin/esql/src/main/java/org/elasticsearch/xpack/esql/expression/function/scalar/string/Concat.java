@@ -12,9 +12,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -36,7 +35,6 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
-import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -47,7 +45,12 @@ public class Concat extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Concat", Concat::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Concat.class).unaryVariadic(Concat::new).name("concat");
 
-    static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
+    /**
+     * The most bytes a concatenated value may have. Building the value is tracked by the circuit breaker, but
+     * whatever reads it afterwards may copy it out of its block without the breaker knowing, and chained
+     * {@code CONCAT}s multiply their input, so the size of a single value stays bounded.
+     */
+    static final long MAX_CONCAT_LENGTH = MB.toBytes(10);
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -115,28 +118,23 @@ public class Concat extends EsqlScalarFunction implements AnyNullIsNull {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var values = children().stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new);
-        return new ConcatEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "concat"), values);
+        return new ConcatEvaluator.Factory(source(), values);
     }
 
+    /**
+     * Copies the values straight into the result instead of returning the concatenated value, so it never
+     * has to be built in a buffer of its own first.
+     */
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef[] values) {
-        scratch.grow(checkedTotalLength(values));
-        scratch.clear();
-        for (int i = 0; i < values.length; i++) {
-            scratch.append(values[i]);
-        }
-        return scratch.bytesRefView();
-    }
-
-    private static int checkedTotalLength(BytesRef[] values) {
-        int length = 0;
-        for (var v : values) {
+    static void process(BytesRefBlock.Builder builder, BytesRef[] values) {
+        long length = 0;
+        for (BytesRef v : values) {
             length += v.length;
         }
         if (length > MAX_CONCAT_LENGTH) {
             throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported");
         }
-        return length;
+        builder.appendConcatenated(values);
     }
 
     @Override

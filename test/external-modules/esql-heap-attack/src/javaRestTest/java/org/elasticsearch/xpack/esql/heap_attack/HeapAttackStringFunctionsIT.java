@@ -51,7 +51,7 @@ public class HeapAttackStringFunctionsIT extends HeapAttackTestCase {
         assertMap(
             map,
             mapMatcher.entry("status", 400)
-                .entry("error", matchesMap().extraOk().entry("reason", "concatenating more than [1048576] bytes is not supported"))
+                .entry("error", matchesMap().extraOk().entry("reason", "concatenating more than [10485760] bytes is not supported"))
         );
     }
 
@@ -110,16 +110,16 @@ public class HeapAttackStringFunctionsIT extends HeapAttackTestCase {
     }
 
     /**
-     * Hits a circuit breaker by building many moderately long strings.
+     * Hits the folding limit by building many long strings. A query has no room for many more than
+     * 5000 {@code CONCAT}s, so the strings get longer with the heap and with each attempt instead.
      */
     public void testHugeManyConcatFromRow() throws IOException {
-        // 5000 is plenty to break on most nodes
-        assertFoldCircuitBreaks(
-            attempt -> manyConcat(
-                "ROW a=9999999999999, b=99999999999999999, c=99999999999999999, d=99999999999999999, e=99999999999999999",
-                attempt * 5000
-            )
-        );
+        // Folding all 5000 results would take about three times the limit
+        int width = scaleToHeap(100);
+        assertFoldCircuitBreaks(attempt -> {
+            String field = "\\\"" + "9".repeat(attempt * width) + "\\\"";
+            return manyConcat("ROW a=" + field + ", b=" + field + ", c=" + field + ", d=" + field + ", e=" + field, 5000);
+        });
     }
 
     /**

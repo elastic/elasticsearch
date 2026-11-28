@@ -68,6 +68,16 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
+    public BytesRefBlockBuilder appendConcatenated(BytesRef[] parts) {
+        ensureCapacity();
+        values.appendConcatenated(parts);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
+    @Override
     protected int elementSize() {
         return -1;
     }

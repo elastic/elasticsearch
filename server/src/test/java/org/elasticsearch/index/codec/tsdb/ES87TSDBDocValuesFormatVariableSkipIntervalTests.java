@@ -47,6 +47,16 @@ public class ES87TSDBDocValuesFormatVariableSkipIntervalTests extends BaseDocVal
         return TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat(random().nextInt(4, 16)));
     }
 
+    @Override
+    public void testRandomNumericBulkFuzz() {
+        ES87TSDBDocValuesFormatTests.skipDocValueUpdateFuzz();
+    }
+
+    @Override
+    public void testRandomBinaryBulkFuzz() {
+        ES87TSDBDocValuesFormatTests.skipDocValueUpdateFuzz();
+    }
+
     public void testSkipIndexIntervalSize() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,

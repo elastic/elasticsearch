@@ -92,6 +92,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -99,6 +100,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
@@ -3908,6 +3910,180 @@ public class BatchBulkIT extends ESIntegTestCase {
                 {
                     mapping.startObject("f").field("type", "keyword").endObject();
                     mapping.startObject("g").field("type", "keyword").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+    }
+
+    public void testKeywordNormalizerBatchMatchesRowPath() throws IOException {
+        final String batched = "test-keyword-normalizer-batched";
+        final String sequential = "test-keyword-normalizer-sequential";
+
+        createKeywordNormalizerIndex(batched);
+        createKeywordNormalizerIndex(sequential);
+
+        final int numDocs = 200;
+        final Map<String, String> sources = new LinkedHashMap<>();
+        long cmdZeroDocs = 0;
+        long tagOneDocs = 0;
+        for (int i = 0; i < numDocs; i++) {
+            final String cmd = "Cmd-" + (i % 8) + ".EXE";
+            final String once = "Once-" + i + ".Exe";
+            sources.put("doc-" + i, switch (i % 5) {
+                case 0 -> "{\"name\":\"" + cmd + "\",\"tag\":\"Tag-" + (i % 4) + "\"}";
+                case 1 -> "{\"name\":\"" + once + "\"}";
+                case 2 -> "{\"name\":[\"PowerShell-" + (i % 8) + ".exe\",\"SvcHost.EXE\"],\"tag\":[\"ALPHA\",\"Beta-" + (i % 3) + "\"]}";
+                case 3 -> "{\"name\":[\"" + cmd + "\",null,\"" + once + "\"],\"tag\":\"TAG-" + (i % 4) + "\"}";
+                default -> "{\"other\":\"no-name-here\"}";
+            });
+            if (i % 5 == 0 || i % 5 == 3) {
+                cmdZeroDocs += i % 8 == 0 ? 1 : 0;
+                tagOneDocs += i % 4 == 1 ? 1 : 0;
+            }
+        }
+        // Longer than ignore_above on the field and on its sub-field.
+        sources.put("doc-long", "{\"name\":\"" + "LongName".repeat(200) + "\"}");
+        final String coordinatingNode = findCoordinatingNode();
+
+        final Logger indexerLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Logger mapperLogger = LogManager.getLogger(ShardBatchMapper.class);
+        final Level origIndexerLevel = indexerLogger.getLevel();
+        final Level origMapperLevel = mapperLogger.getLevel();
+        Loggers.setLevel(indexerLogger, Level.TRACE);
+        Loggers.setLevel(mapperLogger, Level.DEBUG);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class, ShardBatchMapper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            // Either fallback re-indexes the documents on the row path, which would make the comparison below prove nothing.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "normalizer does not disable batch mapping",
+                    ShardBatchMapper.class.getName(),
+                    Level.DEBUG,
+                    "columnar batch mapping disabled*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no batch mapping fallback",
+                    ShardBatchMapper.class.getName(),
+                    Level.WARN,
+                    "columnar batch mapping failed*"
+                )
+            );
+            assertNoFailures(client(coordinatingNode).bulk(bulkOf(batched, sources)).actionGet());
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(indexerLogger, origIndexerLevel);
+            Loggers.setLevel(mapperLogger, origMapperLevel);
+        }
+
+        // The same documents again with batch indexing off, so the row path is the oracle.
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        try {
+            assertNoFailures(client(coordinatingNode).bulk(bulkOf(sequential, sources)).actionGet());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        refresh(batched, sequential);
+
+        for (String index : List.of(batched, sequential)) {
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("name.caseless", "cmd-0.exe")).setSize(0), cmdZeroDocs);
+            // Only the sub-field is normalized: the field itself keeps the case of the value.
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("name", "Cmd-0.EXE")).setSize(0), cmdZeroDocs);
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("name", "cmd-0.exe")).setSize(0), 0);
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("tag", "tag-1")).setSize(0), tagOneDocs);
+        }
+        assertSameHits(batched, sequential, QueryBuilders.termQuery("name.caseless", "svchost.exe"), "caseless term in an array");
+        assertSameHits(batched, sequential, QueryBuilders.termQuery("name.caseless", "longname".repeat(200)), "caseless long term");
+        assertSameHits(batched, sequential, QueryBuilders.termQuery("tag", "alpha"), "tag term in an array");
+        assertSameHits(batched, sequential, QueryBuilders.existsQuery("name.caseless"), "caseless exists");
+        assertSameHits(batched, sequential, QueryBuilders.existsQuery("tag"), "tag exists");
+        assertSameHits(batched, sequential, QueryBuilders.matchQuery("name.text", "svchost.exe"), "text sub-field match");
+
+        for (String field : List.of("name.caseless", "tag")) {
+            assertResponse(
+                prepareSearch(batched).addAggregation(new TermsAggregationBuilder("terms").field(field).size(numDocs)).setSize(0),
+                batchResponse -> assertResponse(
+                    prepareSearch(sequential).addAggregation(new TermsAggregationBuilder("terms").field(field).size(numDocs)).setSize(0),
+                    rowResponse -> {
+                        final Map<String, Long> batchBuckets = bucketCounts(batchResponse.getAggregations().get("terms"));
+                        final Map<String, Long> rowBuckets = bucketCounts(rowResponse.getAggregations().get("terms"));
+                        assertThat("terms aggregation on [" + field + "]", batchBuckets, equalTo(rowBuckets));
+                        for (String term : batchBuckets.keySet()) {
+                            assertThat("doc value of [" + field + "]", term, equalTo(term.toLowerCase(Locale.ROOT)));
+                        }
+                    }
+                )
+            );
+        }
+
+        final MultiGetRequest batchGets = new MultiGetRequest();
+        final MultiGetRequest rowGets = new MultiGetRequest();
+        for (String id : sources.keySet()) {
+            batchGets.add(batched, id);
+            rowGets.add(sequential, id);
+        }
+        final MultiGetItemResponse[] fromBatch = client().multiGet(batchGets).actionGet().getResponses();
+        final MultiGetItemResponse[] fromRow = client().multiGet(rowGets).actionGet().getResponses();
+        assertThat(fromBatch.length, equalTo(fromRow.length));
+        for (int i = 0; i < fromBatch.length; i++) {
+            final String id = fromBatch[i].getId();
+            assertNull("batch path failed to read [" + id + "]: " + fromBatch[i].getFailure(), fromBatch[i].getFailure());
+            assertNull("row path failed to read [" + id + "]: " + fromRow[i].getFailure(), fromRow[i].getFailure());
+            assertThat(
+                "source of [" + id + "]",
+                fromBatch[i].getResponse().getSourceAsMap(),
+                equalTo(fromRow[i].getResponse().getSourceAsMap())
+            );
+        }
+    }
+
+    // The shape of process.name in the Elastic Endpoint mappings, and a field that has a normalizer of its own.
+    private void createKeywordNormalizerIndex(String index) throws IOException {
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("name").field("type", "keyword").field("ignore_above", 1024);
+                    {
+                        mapping.startObject("fields");
+                        mapping.startObject("caseless")
+                            .field("type", "keyword")
+                            .field("normalizer", "lowercase")
+                            .field("ignore_above", 1024)
+                            .endObject();
+                        mapping.startObject("text").field("type", "text").endObject();
+                        mapping.endObject();
+                    }
+                    mapping.endObject();
+                    mapping.startObject("tag").field("type", "keyword").field("normalizer", "lowercase").endObject();
+                    mapping.startObject("other").field("type", "keyword").endObject();
                 }
                 mapping.endObject();
             }

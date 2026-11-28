@@ -10,8 +10,8 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesStreamOutput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +52,7 @@ public class CategorizeBlockHash extends BlockHash {
     private static final CategorizationAnalyzerConfig DEFAULT_ANALYZER_CONFIG = CategorizationAnalyzerConfig
         .buildStandardEsqlCategorizationAnalyzer();
     private static final int NULL_ORD = 0;
+    private static final String CIRCUIT_BREAKER_LABEL = "CategorizeBlockHash";
 
     private final int channel;
     private final AggregatorMode aggregatorMode;
@@ -217,19 +220,24 @@ public class CategorizeBlockHash extends BlockHash {
             return blockFactory.newConstantNullBlock(seenNull ? 1 : 0);
         }
         int positionCount = categorizer.getCategoryCount() + (seenNull ? 1 : 0);
-        // We're returning a block with N positions just because the Page must have all blocks with the same position count!
-        return blockFactory.newConstantBytesRefBlockWith(serializeCategorizer(), positionCount);
+        try (BreakingBytesStreamOutput out = new BreakingBytesStreamOutput(blockFactory.breaker(), CIRCUIT_BREAKER_LABEL)) {
+            serializeCategorizer(out);
+            // We're returning a block with N positions just because the Page must have all blocks with the same position count!
+            return blockFactory.newConstantBytesRefBlockWith(out.bytesRefView(), positionCount);
+        }
     }
 
-    BytesRef serializeCategorizer() {
-        // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+    /**
+     * Serializes the categorizer state into {@code out}, to be read back by {@link #recategorize}.
+     */
+    void serializeCategorizer(StreamOutput out) {
+        try {
             out.writeBoolean(seenNull);
             out.writeVInt(categorizer.getCategoryCount());
-            for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                category.writeTo(out);
+            Iterator<SerializableTokenListCategory> categories = categorizer.categoriesByIdIterator();
+            while (categories.hasNext()) {
+                categories.next().writeTo(out);
             }
-            return out.bytes().toBytesRef();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

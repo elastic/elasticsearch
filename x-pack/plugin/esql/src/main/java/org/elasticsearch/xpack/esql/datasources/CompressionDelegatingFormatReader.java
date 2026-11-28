@@ -176,6 +176,12 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public FormatReader withNestedColumns(boolean nestedColumns) {
+        FormatReader configured = inner.withNestedColumns(nestedColumns);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
     public FormatReader withHeaderBindingByProvenance(boolean byProvenance) {
         FormatReader configured = inner.withHeaderBindingByProvenance(byProvenance);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);

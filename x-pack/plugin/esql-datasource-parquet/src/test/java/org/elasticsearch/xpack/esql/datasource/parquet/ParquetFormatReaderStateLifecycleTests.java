@@ -62,7 +62,8 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         "declaredDateFormats",
         "declaredTypeColumns",
         "codecFactory",
-        "heapBufferPool"
+        "heapBufferPool",
+        "describesNestedColumns"
     );
 
     /** Internally mutable fields written during reads. Counters are now passed via context, not stored as fields. */
@@ -89,6 +90,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.CREATES_COPY),
         Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withNestedColumns", WitherLifecycle.CREATES_COPY),
         Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withBlockFactory", WitherLifecycle.CREATES_COPY),
         Map.entry("withSchemaSampleShare", WitherLifecycle.IDENTITY_NO_COPY)
@@ -255,6 +257,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
             case "withSchema" -> new Object[] { List.of() };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
             case "withHeaderBindingByProvenance" -> new Object[] { false };
+            case "withNestedColumns" -> new Object[] { true };
             case "withReadConfig" -> new Object[] { "" };
             case "withBlockFactory" -> new Object[] {
                 BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build() };

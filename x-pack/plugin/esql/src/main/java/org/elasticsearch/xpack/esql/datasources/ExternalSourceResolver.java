@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -2931,6 +2932,14 @@ public class ExternalSourceResolver {
                         buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats),
                         datasetFormat
                     );
+                    // buildUnifiedMetadata keeps the anchor's nested columns; the dataset's are the ones the reconciliation merged
+                    // by its policy. A reader describes nested columns only where the build reads them (DataSourceModule).
+                    if (result.nestedColumns().isEmpty() == false) {
+                        extMetadata = withExtraSourceMetadata(
+                            extMetadata,
+                            Map.of(NestedColumns.KEY, result.nestedColumns().writeTo(null).get(NestedColumns.KEY))
+                        );
+                    }
 
                     // Mirror the FFW invariants: file count enables canSkipSplitDiscovery. Partial-stats
                     // marking is gated on fileCount > 1 (a genuine single-file glob has no other file missing
@@ -3100,7 +3109,7 @@ public class ExternalSourceResolver {
                 new SchemaReconciliation.FileSchemaInfo(info.fileSchema(), mapping, info.statistics(), info.inferredTypes())
             );
         }
-        return new SchemaReconciliation.Result(new ExternalSchema(dataOnlyUnified), Map.copyOf(perFileInfo));
+        return new SchemaReconciliation.Result(new ExternalSchema(dataOnlyUnified), Map.copyOf(perFileInfo), result.nestedColumns());
     }
 
     /**

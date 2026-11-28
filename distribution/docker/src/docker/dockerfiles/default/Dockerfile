@@ -22,7 +22,8 @@
   The Docker Hub image does not split any layers: it is built by the Docker Official Images build system,
   which does not normalize timestamps and so does not reuse these layers between builds.
 */
-def separateLayers = docker_context == 'docker-hub-build-context' ? [] : ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+def dockerHub = docker_context == 'docker-hub-build-context'
+def separateLayers = dockerHub ? [] : ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
 
 
 ################################################################################
@@ -52,9 +53,29 @@ RUN set -eux; \\
     mv /tmp/tini /bin/tini; \\
     chmod 0555 /bin/tini
 
-WORKDIR /usr/share/elasticsearch
-RUN arch="\$(rpm --query --queryformat='%{ARCH}' rpm)" && curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz
-RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
+WORKDIR /usr/share/elasticsearch<% if (local_distribution) { %>
+COPY elasticsearch-${version} .
+RUN \\<% } else { %>
+<% /*
+  The published build contexts download the published distribution, which must be verified (the Docker Official
+  Images policy requires it for the Docker Hub image). DistributionChecksumFilter replaces the `@es_sha512_<arch>@`
+  tokens with the checksums of the tarballs built together with this Dockerfile. The tarballs are not reproducible,
+  so the checksums only match the tarballs published by the same build.
+
+  Images built locally copy in the distribution instead (`local_distribution`), so that building an image does not
+  require the tarballs of all architectures.
+*/ %>
+# Download the Elasticsearch distribution and verify it against its SHA-512 checksum.
+RUN set -eux; \\
+    arch="\$(rpm --query --queryformat='%{ARCH}' rpm)"; \\
+    case "\$arch" in \\
+        aarch64) es_sha512='@es_sha512_aarch64@' ;; \\
+        x86_64)  es_sha512='@es_sha512_x86_64@' ;; \\
+        *) echo >&2 "Unsupported architecture \$arch"; exit 1 ;; \\
+    esac; \\
+    curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz; \\
+    echo "\$es_sha512  /tmp/elasticsearch.tar.gz" | sha512sum -c -
+RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\<% } %>
 # Configure the distribution for Docker
     sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
 # Create required directory

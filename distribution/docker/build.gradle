@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.docker.DistributionChecksumFilter
 import org.elasticsearch.gradle.internal.docker.DockerImagePullSupport
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin
 import org.elasticsearch.gradle.internal.docker.DockerSupportService
@@ -177,10 +178,15 @@ class SquashNewlinesFilter extends FilterReader {
   }
 }
 
-CopySpec dockerBuildContext(DockerVariant variant, String publicationContext = '') {
+/**
+ * The files of a Docker build context. With {@code localDistribution}, the default Dockerfile copies in the distribution
+ * built by this build instead of downloading and verifying the published one, so building an image locally does not
+ * require the distribution tarballs of all architectures.
+ */
+CopySpec dockerBuildContext(DockerVariant variant, String publicationContext = '', boolean localDistribution = false) {
   DockerBase base = variant.base()
   return copySpec {
-    final Map<String, Object> varExpansions = dockerTemplateExpansions(variant, publicationContext)
+    final Map<String, Object> varExpansions = dockerTemplateExpansions(variant, publicationContext) + [local_distribution: localDistribution]
     final Path projectDir = project.projectDir.toPath()
 
     if (base == DockerBase.IRON_BANK) {
@@ -203,6 +209,10 @@ CopySpec dockerBuildContext(DockerVariant variant, String publicationContext = '
     from(projectDir.resolve("src/docker/${base.dockerfile}")) {
       expand(varExpansions)
       filter SquashNewlinesFilter
+      if (base == DockerBase.DEFAULT && localDistribution == false) {
+        // The Dockerfile verifies the downloaded distribution against the checksums of these tarballs
+        filter(DistributionChecksumFilter, tarballs: linuxTarballs())
+      }
       rename base.dockerfile, "Dockerfile"
     }
   }
@@ -244,6 +254,15 @@ def exportDockerImages = tasks.register("exportDockerImages")
 def exportCompressedDockerImages = tasks.register("exportCompressedDockerImages")
 def exportDockerContexts = tasks.register("exportDockerContexts")
 
+/**
+ * The Linux tarballs of all architectures. The default Dockerfile of the published build contexts downloads the
+ * published tarballs, which the DRA build publishes from the same Gradle invocation, and verifies them against these
+ * tarballs' checksums.
+ */
+FileCollection linuxTarballs() {
+  return configurations.dockerSourceTar + configurations.aarch64DockerSourceTar
+}
+
 void addBuildDockerContextTask(Architecture architecture, DockerBase base, String taskSuffix = 'DockerContext', String classifier = "docker-build-context") {
   DockerVariant variant = new DockerVariant(architecture, base)
 
@@ -254,6 +273,10 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
       archiveClassifier = "${classifier}${variant.architectureSuffix()}"
       archiveBaseName = variant.imageName()
       with dockerBuildContext(variant, classifier)
+      if (base == DockerBase.DEFAULT) {
+        // Rebuild the context when the tarballs, and so the checksums in the Dockerfile, change
+        inputs.files(linuxTarballs()).withPropertyName('linuxTarballs').withPathSensitivity(PathSensitivity.NAME_ONLY)
+      }
 
       into(variant.configDirectory()) {
         from(configurations.log4jConfig) {
@@ -310,31 +333,29 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
 void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   DockerVariant variant = new DockerVariant(architecture, base)
   def transformTask = tasks.register(variant.camelName("transform", "DockerContext"), Sync) {
-    TaskProvider<Tar> buildContextTask = tasks.named(variant.camelName("build", "DockerContext"))
-    dependsOn(buildContextTask)
-
     String archiveName = variant.buildContextName(VersionProperties.elasticsearch)
     String distributionFolderName = "elasticsearch-${VersionProperties.elasticsearch}"
 
-    from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
-      if (base != DockerBase.IRON_BANK && base != DockerBase.DEFAULT) {
-        // iron bank always needs a COPY with the tarball file path
-        eachFile { FileCopyDetails details ->
-          if (details.name.equals("Dockerfile")) {
-            filter { String contents ->
-              return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
-                .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1$', "")
-            }
-          }
+    if (base == DockerBase.DEFAULT) {
+      // Render the context directly rather than transforming the published one: the published Dockerfile verifies the
+      // downloaded distribution against the checksums of the tarballs of all architectures, which would all have to be built.
+      with dockerBuildContext(variant, 'docker-build-context', true)
+      into(variant.configDirectory()) {
+        from(configurations.log4jConfig) {
+          filter TransformLog4jConfigFilter
         }
       }
-      if (base == DockerBase.DEFAULT) {
-        // iron bank always needs a COPY with the tarball file path
-        eachFile { FileCopyDetails details ->
-          if (details.name.equals("Dockerfile")) {
-            filter { String contents ->
-              return contents.replaceAll('^RUN *.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
-                .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 &&', "RUN ")
+    } else {
+      dependsOn(tasks.named(variant.camelName("build", "DockerContext")))
+      from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
+        if (base != DockerBase.IRON_BANK) {
+          // iron bank always needs a COPY with the tarball file path
+          eachFile { FileCopyDetails details ->
+            if (details.name.equals("Dockerfile")) {
+              filter { String contents ->
+                return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
+                  .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1$', "")
+              }
             }
           }
         }

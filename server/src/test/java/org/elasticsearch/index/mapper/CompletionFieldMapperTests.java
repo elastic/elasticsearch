@@ -726,6 +726,67 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("field"));
     }
 
+    /**
+     * Context names containing a dot, such as {@code place.kind}, must be kept verbatim regardless of whether the
+     * object enclosing the completion field has subobjects enabled.
+     */
+    public void testDottedContextNameAcceptedRegardlessOfSubobjects() throws Exception {
+        for (boolean subobjects : new boolean[] { true, false }) {
+            DocumentMapper mapper = createDocumentMapper(dottedContextsMapping(subobjects));
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("obj");
+                b.startObject("field");
+                b.field("input", "starbucks");
+                b.startObject("contexts").field("place.kind", "cafe").endObject();
+                b.endObject();
+                b.endObject();
+            }));
+            assertThat(
+                "subobjects: " + subobjects,
+                doc.rootDoc().getFields("obj.field"),
+                containsInAnyOrder(contextSuggestField("starbucks"))
+            );
+        }
+    }
+
+    /**
+     * The completion object format only knows {@code input}, {@code weight} and {@code contexts}; a dotted key such as
+     * {@code contexts.place_type} must be rejected rather than expanded, regardless of whether the object enclosing the
+     * completion field has subobjects enabled.
+     */
+    public void testDottedContextsKeyRejectedRegardlessOfSubobjects() throws Exception {
+        for (boolean subobjects : new boolean[] { true, false }) {
+            DocumentMapper mapper = createDocumentMapper(dottedContextsMapping(subobjects));
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+                b.startObject("obj");
+                b.startObject("field");
+                b.field("input", "starbucks");
+                b.field("contexts.place_type", "cafe");
+                b.endObject();
+                b.endObject();
+            })));
+            assertThat("subobjects: " + subobjects, e.getCause().getMessage(), containsString("unknown field name [contexts.place_type]"));
+        }
+    }
+
+    private static XContentBuilder dottedContextsMapping(boolean subobjects) throws IOException {
+        return mapping(b -> {
+            b.startObject("obj");
+            b.field("type", "object");
+            b.field("subobjects", subobjects);
+            b.startObject("properties");
+            b.startObject("field");
+            b.field("type", "completion");
+            b.startArray("contexts");
+            b.startObject().field("name", "place_type").field("type", "category").endObject();
+            b.startObject().field("name", "place.kind").field("type", "category").endObject();
+            b.endArray();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+    }
+
     public void testFieldValueValidation() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         CharsRefBuilder charsRefBuilder = new CharsRefBuilder();

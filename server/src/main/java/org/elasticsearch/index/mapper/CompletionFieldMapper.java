@@ -390,12 +390,20 @@ public class CompletionFieldMapper extends FieldMapper {
 
         if (token == Token.VALUE_NULL) { // ignore null values
             return ParseResult.INDEXED;
-        } else if (token == Token.START_ARRAY) {
-            while ((token = parser.nextToken()) != Token.END_ARRAY) {
+        }
+        final boolean isWithinLeaf = context.path().isWithinLeafObject();
+        try {
+            // keep keys such as context names verbatim, independent of the enclosing object's subobjects setting
+            context.path().setWithinLeafObject(true);
+            if (token == Token.START_ARRAY) {
+                while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                    parse(context, token, parser, inputMap);
+                }
+            } else {
                 parse(context, token, parser, inputMap);
             }
-        } else {
-            parse(context, token, parser, inputMap);
+        } finally {
+            context.path().setWithinLeafObject(isWithinLeaf);
         }
 
         // index

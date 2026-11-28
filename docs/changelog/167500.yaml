@@ -1,0 +1,6 @@
+area: Suggesters
+issues:
+ - 167500
+pr: 167500
+summary: Don't expand dots in `completion` values
+type: bug

@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -133,7 +134,11 @@ class FetchSearchPhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         long phaseStartTimeInNanos
     ) {
-        FetchSearchPhaseResults fetchResults = new FetchSearchPhaseResults(numShards, context.circuitBreaker());
+        FetchSearchPhaseResults fetchResults = new FetchSearchPhaseResults(
+            numShards,
+            context.circuitBreaker(),
+            context.getTask().getFetchedHitsCheck()
+        );
         final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRankScores(context.getRequest())
             ? null
             : splitRankDocsPerShard(scoreDocs, numShards);
@@ -145,7 +150,20 @@ class FetchSearchPhase extends SearchPhase {
         final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-            () -> moveToNextPhase(fetchResults.getAtomicArray(), fetchResults::transferCharge, reducedQueryPhase, phaseStartTimeInNanos),
+            () -> context.getTask().getFetchedHitsCheck().onFetchDone(ActionListener.wrap(ignored -> {
+                // A late chunk of a shard whose fetch failed can trip while the check finishes, and the trip fails the search.
+                if (context.failedOnCoordinatorTrip()) {
+                    return;
+                }
+                try {
+                    moveToNextPhase(fetchResults.getAtomicArray(), fetchResults::transferCharge, reducedQueryPhase, phaseStartTimeInNanos);
+                } catch (Exception e) {
+                    context.onPhaseFailure(NAME, "", e);
+                }
+            },
+                // The check failed the search. Failing through the trip means a later trip from a late chunk doesn't fail it again.
+                e -> context.failOnCoordinatorTrip(NAME, e)
+            )),
             context
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -224,7 +242,8 @@ class FetchSearchPhase extends SearchPhase {
                 try {
                     try {
                         fetchResults.reserve(result);
-                    } catch (CircuitBreakingException e) {
+                    } catch (CircuitBreakingException | IllegalArgumentException e) {
+                        // A breaker trip, or a rejection by the task's FetchedHitsCheck. Failing through the trip keeps its deferral.
                         // The shard did the IO even though we cannot hold what it sent back.
                         context.accumulateDirectoryMetrics(result.getDirectoryMetrics());
                         context.failOnCoordinatorTrip(NAME, e);

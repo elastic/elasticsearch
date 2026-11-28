@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.requestBreaker;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,7 +33,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
     public void testChargeIsHeldUntilTheResultsAreReleased() {
         CircuitBreaker breaker = requestBreaker("1gb");
         FetchSearchResult result = fetchResult(0, 3);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, FetchedHitsCheck.NOOP)) {
             long expected = hitBytes(result);
             assertThat(expected, greaterThan(0L));
 
@@ -51,7 +52,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         CircuitBreaker breaker = requestBreaker("1gb");
         int numShards = randomIntBetween(2, 5);
         List<FetchSearchResult> shardResults = new ArrayList<>(numShards);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(numShards, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(numShards, breaker, FetchedHitsCheck.NOOP)) {
             long expected = 0L;
             for (int i = 0; i < numShards; i++) {
                 FetchSearchResult result = fetchResult(i, randomIntBetween(1, 4));
@@ -72,7 +73,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         CircuitBreaker breaker = requestBreaker("2kb");
         FetchSearchResult first = fetchResult(0, 1);
         FetchSearchResult second = fetchResult(1, 4);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker, FetchedHitsCheck.NOOP)) {
             results.reserve(first);
             long afterFirst = breaker.getUsed();
             assertThat(afterFirst, greaterThan(0L));
@@ -95,7 +96,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         long charged = 4096L;
         breaker.addWithoutBreaking(charged);
         handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, FetchedHitsCheck.NOOP)) {
             results.reserve(handedOver);
             assertThat("reserve must not estimate these hits a second time", breaker.getUsed(), equalTo(charged));
             assertFalse("the collection owns the charge now", handedOver.isChargedOnCoordinator());
@@ -115,7 +116,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         long charged = 4096L;
         breaker.addWithoutBreaking(charged);
         handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, FetchedHitsCheck.NOOP)) {
             results.reserve(handedOver);
 
             Releasable charge = results.transferCharge();
@@ -138,7 +139,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         breaker.addWithoutBreaking(charged);
         handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
         FetchSearchResult estimated = fetchResult(1, 2);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker, FetchedHitsCheck.NOOP)) {
             results.reserve(handedOver);
             results.reserve(estimated);
             long expected = charged + hitBytes(estimated);
@@ -162,7 +163,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         long charged = 4096L;
         breaker.addWithoutBreaking(charged);
         inFlight.setCoordinatorSearchHitsSizeBytes(charged, breaker);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, FetchedHitsCheck.NOOP)) {
             // A phase failure released the collection while this shard was still in flight.
             results.close();
 
@@ -179,7 +180,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         CircuitBreaker breaker = requestBreaker("1gb");
         FetchSearchResult early = fetchResult(0, 2);
         FetchSearchResult inFlight = fetchResult(1, 2);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker, FetchedHitsCheck.NOOP)) {
             results.reserve(early);
             // A phase failure releases the collection while the second shard is still in flight.
             results.close();
@@ -196,7 +197,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
     public void testTransferHandsTheChargeToTheCallerAndClosesBecomeNoOps() {
         CircuitBreaker breaker = requestBreaker("1gb");
         FetchSearchResult result = fetchResult(0, 3);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, FetchedHitsCheck.NOOP)) {
             long expected = hitBytes(result);
             results.reserve(result);
 
@@ -216,7 +217,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
 
     public void testTransferWithNothingReservedReturnsNull() {
         CircuitBreaker breaker = requestBreaker("1gb");
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, FetchedHitsCheck.NOOP)) {
             assertThat(results.transferCharge(), nullValue());
             results.close();
             assertThat(breaker.getUsed(), equalTo(0L));
@@ -227,7 +228,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         CircuitBreaker breaker = requestBreaker("1gb");
         FetchSearchResult early = fetchResult(0, 2);
         FetchSearchResult inFlight = fetchResult(1, 2);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(2, breaker, FetchedHitsCheck.NOOP)) {
             long expected = hitBytes(early);
             results.reserve(early);
             Releasable charge = results.transferCharge();
@@ -247,7 +248,7 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
     public void testResultWithoutHitsChargesNothing() {
         CircuitBreaker breaker = requestBreaker("1gb");
         FetchSearchResult result = fetchResult(0, 0);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, FetchedHitsCheck.NOOP)) {
             results.reserve(result);
             assertThat(breaker.getUsed(), equalTo(0L));
             results.close();
@@ -257,10 +258,85 @@ public class FetchSearchPhaseResultsTests extends ESTestCase {
         }
     }
 
+    public void testCheckGetsTheHitsAndTheirCharge() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult result = fetchResult(0, randomIntBetween(1, 4));
+        List<SearchHit> checkedHits = new ArrayList<>();
+        AtomicLong checkedBytes = new AtomicLong();
+        FetchedHitsCheck check = (hits, bytes) -> {
+            checkedHits.addAll(hits);
+            checkedBytes.addAndGet(bytes);
+        };
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, check)) {
+            results.reserve(result);
+            assertThat(checkedHits, equalTo(List.of(result.hits().getHits())));
+            assertThat(checkedBytes.get(), equalTo(hitBytes(result)));
+        } finally {
+            result.decRef();
+        }
+    }
+
+    public void testRejectedHitsStayChargedUntilTheResultsAreReleased() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult result = fetchResult(0, 2);
+        IllegalArgumentException rejection = new IllegalArgumentException("too large");
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, (hits, bytes) -> { throw rejection; })) {
+            assertSame(rejection, expectThrows(IllegalArgumentException.class, () -> results.reserve(result)));
+            // The search fails and releases the results, which gives back the charge.
+            assertThat(breaker.getUsed(), equalTo(hitBytes(result)));
+            results.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            result.decRef();
+        }
+    }
+
+    public void testChargeHandedOverByTheChunkedPathIsNotCheckedAgain() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult handedOver = fetchResult(0, 1);
+        long charged = 4096L;
+        breaker.addWithoutBreaking(charged);
+        handedOver.setCoordinatorSearchHitsSizeBytes(charged, breaker);
+        FetchedHitsCheck check = (hits, bytes) -> fail("the chunked path checks its hits per chunk");
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, check)) {
+            results.reserve(handedOver);
+            assertThat(breaker.getUsed(), equalTo(charged));
+        } finally {
+            handedOver.decRef();
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testShardArrivingAfterReleaseIsNotChecked() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult inFlight = fetchResult(0, 2);
+        FetchedHitsCheck check = (hits, bytes) -> fail("the search has already failed");
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, check)) {
+            // A phase failure releases the collection while the shard is still in flight.
+            results.close();
+            results.reserve(inFlight);
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            inFlight.decRef();
+        }
+    }
+
+    public void testResultWithoutHitsIsNotChecked() {
+        CircuitBreaker breaker = requestBreaker("1gb");
+        FetchSearchResult result = fetchResult(0, 0);
+        FetchedHitsCheck check = (hits, bytes) -> fail("there are no hits to check");
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, check)) {
+            results.reserve(result);
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            result.decRef();
+        }
+    }
+
     public void testCloseIsIdempotent() {
         CircuitBreaker breaker = requestBreaker("1gb");
         FetchSearchResult result = fetchResult(0, 2);
-        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker)) {
+        try (FetchSearchPhaseResults results = new FetchSearchPhaseResults(1, breaker, FetchedHitsCheck.NOOP)) {
             results.reserve(result);
             results.close();
             results.close();

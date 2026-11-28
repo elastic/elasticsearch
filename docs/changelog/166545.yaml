@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166545
+summary: Fail async search early when its hits are too large to store
+type: enhancement

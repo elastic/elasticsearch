@@ -19,6 +19,9 @@ import org.gradle.api.services.BuildServiceParameters;
 public abstract class CiPartsBuildService implements BuildService<CiPartsBuildService.Params> {
 
     public interface Params extends BuildServiceParameters {
+        /** Path of the assignment file relative to the root of the build, for error messages. */
+        Property<String> getAssignmentFile();
+
         /** Contents of the assignment file; absent when the file does not exist. */
         Property<String> getAssignmentJson();
     }
@@ -28,7 +31,7 @@ public abstract class CiPartsBuildService implements BuildService<CiPartsBuildSe
     public synchronized CiPartAssignment assignment() {
         if (assignment == null) {
             if (getParameters().getAssignmentJson().isPresent() == false) {
-                throw new IllegalStateException("CI part assignment " + CiPartsPlugin.ASSIGNMENT_FILE + " is missing");
+                throw new IllegalStateException("CI part assignment " + getParameters().getAssignmentFile().get() + " is missing");
             }
             assignment = CiPartAssignment.parse(getParameters().getAssignmentJson().get());
         }

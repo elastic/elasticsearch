@@ -17,9 +17,19 @@ keep the parts balanced, never to keep them correct.
 
 When the part count changes, every pipeline that runs `checkPartN` must list all parts.
 
+## bcUpgradeTest parts
+
+`bc-upgrade/` holds the same three files for `bcUpgradeTestPart1..N`, which split the `bcUpgradeTest`
+tasks of all projects across the `pr-upgrade` and `bc-upgrade` jobs (`.buildkite/scripts/run-pr-upgrade-tests.sh`,
+`run-bc-upgrade-tests.sh`). The long suites are split by test class; each upgrade test class starts and
+upgrades its own cluster, so a class never spans shards. Durations come from `pr-upgrade-part-*` jobs, and the
+planner's per-part estimate excludes the fixed cost of each job (about 5 minutes, mostly building the base
+version from source). Regenerate with `./gradlew generateBcUpgradeTestPartAssignment`.
+
 ## Refreshing
 
 1. Export durations from the CI stats cluster (median executed duration of each Gradle task in
    `elasticsearch-pull-request` `part-*` jobs over the last 7 days) into `durations.json`.
-2. Run `./gradlew generateCiPartAssignment`; it prints the planner's per-part estimate.
+2. Run `./gradlew generateCiPartAssignment` (or `generateBcUpgradeTestPartAssignment`); it prints the
+   planner's per-part estimate.
 3. Review the diff of `assignment.json`.

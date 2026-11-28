@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.GatewayKeys;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption.WrappedKey;
 
@@ -18,7 +19,8 @@ class TestPekEncryption {
     /**
      * Pass-through encryption: {@link PekEncryption#wrap} returns a defensive copy of the plaintext keyed under
      * {@link #PASSWORD_ID}; {@link PekEncryption#unwrap} returns a defensive copy of whatever bytes it receives.
-     * Suitable for any unit test that needs a valid {@link PekEncryption} but does not exercise the cryptographic path.
+     * Suitable for any unit test that needs a valid {@link PekEncryption} but does not exercise the cryptographic path. Tracks no
+     * on-disk copy: {@link PekEncryption#gatewayKeys} returns new, empty {@link GatewayKeys} on every call, so tests share no state.
      */
     static final PekEncryption NO_OP = new PekEncryption() {
         @Override
@@ -35,7 +37,37 @@ class TestPekEncryption {
         public byte[] unwrap(byte[] wrappedPek, String passwordId) {
             return wrappedPek.clone();
         }
+
+        @Override
+        public GatewayKeys gatewayKeys() {
+            return new GatewayKeys();
+        }
     };
+
+    /** Returns {@code delegate} with its own {@link GatewayKeys}, like one node's {@link PasswordPekEncryption}. */
+    static PekEncryption onNode(PekEncryption delegate, GatewayKeys gatewayKeys) {
+        return new PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                return delegate.activePasswordId();
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintextPek) {
+                return delegate.wrap(plaintextPek);
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrappedPek, String passwordId) {
+                return delegate.unwrap(wrappedPek, passwordId);
+            }
+
+            @Override
+            public GatewayKeys gatewayKeys() {
+                return gatewayKeys;
+            }
+        };
+    }
 
     private TestPekEncryption() {}
 }

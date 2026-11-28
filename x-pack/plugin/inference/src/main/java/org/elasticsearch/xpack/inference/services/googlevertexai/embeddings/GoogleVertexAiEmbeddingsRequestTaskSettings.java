@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE;
@@ -38,7 +40,7 @@ public record GoogleVertexAiEmbeddingsRequestTaskSettings(@Nullable Boolean auto
             INPUT_TYPE,
             TASK_SETTINGS,
             InputType::fromString,
-            VALID_INPUT_TYPE_VALUES,
+            getValidTaskSettingsInputTypes(VALID_INPUT_TYPE_VALUES, ConfigurationParseContext.REQUEST),
             validationException
         );
 

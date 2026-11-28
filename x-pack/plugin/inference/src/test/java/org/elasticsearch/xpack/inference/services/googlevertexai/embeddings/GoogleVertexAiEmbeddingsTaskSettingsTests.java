@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -28,12 +29,19 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE;
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<GoogleVertexAiEmbeddingsTaskSettings> {
+
+    private static final EnumSet<InputType> VALID_REQUEST_INPUT_TYPE_VALUES = getValidTaskSettingsInputTypes(
+        VALID_INPUT_TYPE_VALUES,
+        ConfigurationParseContext.REQUEST
+    );
+
     public void testIsEmpty() {
         var randomSettings = createRandom();
         var stringRep = Strings.toString(randomSettings);
@@ -42,7 +50,10 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
 
     public void testUpdatedTaskSettings() {
         var initialSettings = createRandom();
-        var newSettings = createRandom();
+        var newSettings = new GoogleVertexAiEmbeddingsTaskSettings(
+            randomOptionalBoolean(),
+            randomBoolean() ? randomFrom(VALID_REQUEST_INPUT_TYPE_VALUES) : null
+        );
         Map<String, Object> newSettingsMap = new HashMap<>();
         if (newSettings.autoTruncate() != null) {
             newSettingsMap.put(GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE, newSettings.autoTruncate());
@@ -67,26 +78,26 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
         MatcherAssert.assertThat(
-            GoogleVertexAiEmbeddingsTaskSettings.fromMap(new HashMap<>()),
+            GoogleVertexAiEmbeddingsTaskSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST),
             is(new GoogleVertexAiEmbeddingsTaskSettings(null, null))
         );
-        assertNull(GoogleVertexAiEmbeddingsTaskSettings.fromMap(new HashMap<>()).autoTruncate());
-        assertNull(GoogleVertexAiEmbeddingsTaskSettings.fromMap(new HashMap<>()).getInputType());
+        assertNull(GoogleVertexAiEmbeddingsTaskSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST).autoTruncate());
+        assertNull(GoogleVertexAiEmbeddingsTaskSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST).getInputType());
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {
         MatcherAssert.assertThat(
-            GoogleVertexAiEmbeddingsTaskSettings.fromMap(null),
+            GoogleVertexAiEmbeddingsTaskSettings.fromMap(null, ConfigurationParseContext.REQUEST),
             is(new GoogleVertexAiEmbeddingsTaskSettings(null, null))
         );
-        assertNull(GoogleVertexAiEmbeddingsTaskSettings.fromMap(null).autoTruncate());
-        assertNull(GoogleVertexAiEmbeddingsTaskSettings.fromMap(null).getInputType());
+        assertNull(GoogleVertexAiEmbeddingsTaskSettings.fromMap(null, ConfigurationParseContext.REQUEST).autoTruncate());
+        assertNull(GoogleVertexAiEmbeddingsTaskSettings.fromMap(null, ConfigurationParseContext.REQUEST).getInputType());
     }
 
     public void testFromMap_AutoTruncateIsSet() {
         var autoTruncate = true;
         var taskSettingsMap = getTaskSettingsMap(autoTruncate, null);
-        var taskSettings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(taskSettings, is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, null)));
     }
@@ -94,12 +105,15 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
     public void testFromMap_ThrowsValidationException_IfAutoTruncateIsInvalidValue() {
         var taskSettings = getTaskSettingsMap("invalid", null);
 
-        expectThrows(ValidationException.class, () -> GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings));
+        expectThrows(
+            ValidationException.class,
+            () -> GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings, ConfigurationParseContext.REQUEST)
+        );
     }
 
     public void testFromMap_AutoTruncateIsNull() {
         var taskSettingsMap = getTaskSettingsMap(null, null);
-        var taskSettings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettingsMap, ConfigurationParseContext.REQUEST);
         // needed, because of constructors being ambiguous otherwise
         Boolean nullBoolean = null;
 
@@ -110,7 +124,8 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         var exception = expectThrows(
             ValidationException.class,
             () -> GoogleVertexAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, "abc"))
+                new HashMap<>(Map.of(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, "abc")),
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -119,7 +134,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                    getValidValuesSortedAndCombined(VALID_REQUEST_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -129,7 +144,8 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         var exception = expectThrows(
             ValidationException.class,
             () -> GoogleVertexAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
+                new HashMap<>(Map.of(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString())),
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -138,7 +154,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                    getValidValuesSortedAndCombined(VALID_REQUEST_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -173,7 +189,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
     }
 
     public void testToXContent_WritesAutoTruncateIfNotNull() throws IOException {
-        var settings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(getTaskSettingsMap(true, null));
+        var settings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(getTaskSettingsMap(true, null), ConfigurationParseContext.REQUEST);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
@@ -184,7 +200,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
     }
 
     public void testToXContent_DoesNotWriteAutoTruncateIfNull() throws IOException {
-        var settings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(getTaskSettingsMap(null, null));
+        var settings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(getTaskSettingsMap(null, null), ConfigurationParseContext.REQUEST);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
@@ -195,7 +211,10 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
     }
 
     public void testToXContent_WritesInputTypeIfNotNull() throws IOException {
-        var settings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(getTaskSettingsMap(true, InputType.INGEST));
+        var settings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(
+            getTaskSettingsMap(true, InputType.INGEST),
+            ConfigurationParseContext.REQUEST
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
@@ -267,5 +286,47 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         }
 
         return map;
+    }
+
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsInternal_InRequestContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> GoogleVertexAiEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(INPUT_TYPE, inputType.toString())),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [%s] received. "
+                        + "[input_type] must be one of [classification, clustering, ingest, search];",
+                    inputType
+                )
+            )
+        );
+    }
+
+    public void testFromMap_CreatesSettings_WhenInputTypeIsInternal_InPersistentContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var settings = GoogleVertexAiEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(INPUT_TYPE, inputType.toString())),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(settings.getInputType(), is(inputType));
+    }
+
+    public void testUpdatedTaskSettings_ReturnsFailure_WhenInputTypeIsInternal() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        expectThrows(
+            ValidationException.class,
+            () -> GoogleVertexAiEmbeddingsTaskSettings.EMPTY_SETTINGS.updatedTaskSettings(
+                new HashMap<>(Map.of(INPUT_TYPE, inputType.toString()))
+            )
+        );
     }
 }

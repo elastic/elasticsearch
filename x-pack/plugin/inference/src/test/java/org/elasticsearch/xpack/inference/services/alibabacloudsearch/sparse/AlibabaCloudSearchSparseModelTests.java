@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests;
@@ -49,7 +50,7 @@ public class AlibabaCloudSearchSparseModelTests extends ESTestCase {
             taskSettings,
             null,
             secrets,
-            null
+            ConfigurationParseContext.PERSISTENT
         );
     }
 

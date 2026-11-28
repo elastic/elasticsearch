@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.INPUT_TYPE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.TRUNCATE_FIELD_NAME;
@@ -30,6 +32,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class NvidiaEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<NvidiaEmbeddingsTaskSettings> {
+
+    private static final EnumSet<InputType> VALID_REQUEST_INPUT_TYPE_VALUES = getValidTaskSettingsInputTypes(
+        VALID_INPUT_TYPE_VALUES,
+        ConfigurationParseContext.REQUEST
+    );
+
     private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.INGEST;
     private static final Truncation TRUNCATE_INITIAL_VALUE = Truncation.START;
     private static final InputType INPUT_TYPE_OVERRIDDEN_VALUE = InputType.SEARCH;
@@ -109,18 +117,24 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
         assertThat(
-            NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(null, null)),
+            NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(null, null), ConfigurationParseContext.REQUEST),
             is(sameInstance(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS))
         );
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {
-        assertThat(NvidiaEmbeddingsTaskSettings.fromMap(null), is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS));
+        assertThat(
+            NvidiaEmbeddingsTaskSettings.fromMap(null, ConfigurationParseContext.REQUEST),
+            is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS)
+        );
     }
 
     public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
         assertThat(
-            NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE)),
+            NvidiaEmbeddingsTaskSettings.fromMap(
+                buildTaskSettingsMap(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE),
+                ConfigurationParseContext.REQUEST
+            ),
             is(new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE))
         );
     }
@@ -128,7 +142,10 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
     public void testFromMap_ReturnsFailure_WhenInputTypeIsInvalid() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(INPUT_TYPE_INVALID_VALUE, null))
+            () -> NvidiaEmbeddingsTaskSettings.fromMap(
+                buildTaskSettingsMap(INPUT_TYPE_INVALID_VALUE, null),
+                ConfigurationParseContext.REQUEST
+            )
         );
 
         assertThat(
@@ -137,7 +154,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [%s] received. [input_type] must be one of [%s];",
                     INPUT_TYPE_INVALID_VALUE,
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                    getValidValuesSortedAndCombined(VALID_REQUEST_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -146,7 +163,10 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
     public void testFromMap_ReturnsFailure_WhenTruncationIsInvalid() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> NvidiaEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(TRUNCATE_FIELD_NAME, TRUNCATE_INVALID_VALUE)))
+            () -> NvidiaEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(TRUNCATE_FIELD_NAME, TRUNCATE_INVALID_VALUE)),
+                ConfigurationParseContext.REQUEST
+            )
         );
 
         assertThat(
@@ -233,5 +253,46 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
     @Override
     protected NvidiaEmbeddingsTaskSettings mutateInstanceForVersion(NvidiaEmbeddingsTaskSettings instance, TransportVersion version) {
         return instance;
+    }
+
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsInternal_InRequestContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> NvidiaEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(INPUT_TYPE_FIELD_NAME, inputType.toString())),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [%s] received. [input_type] must be one of [ingest, search];",
+                    inputType
+                )
+            )
+        );
+    }
+
+    public void testFromMap_CreatesSettings_WhenInputTypeIsInternal_InPersistentContext() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        var settings = NvidiaEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(INPUT_TYPE_FIELD_NAME, inputType.toString())),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(settings.getInputType(), is(inputType));
+    }
+
+    public void testUpdatedTaskSettings_ReturnsFailure_WhenInputTypeIsInternal() {
+        var inputType = randomFrom(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+        expectThrows(
+            ValidationException.class,
+            () -> NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS.updatedTaskSettings(
+                new HashMap<>(Map.of(INPUT_TYPE_FIELD_NAME, inputType.toString()))
+            )
+        );
     }
 }

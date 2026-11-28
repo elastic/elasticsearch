@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValues;
@@ -1242,6 +1243,27 @@ public class ServiceUtilsTests extends ESTestCase {
             case COMPLETION, CHAT_COMPLETION, DOCUMENT_EXTRACTION -> TimeValue.timeValueSeconds(120);
             default -> throw new IllegalArgumentException("Invalid task type " + taskType);
         };
+    }
+
+    public void testGetValidTaskSettingsInputTypes_RemovesInternalValues_InRequestContext() {
+        var serviceInputTypes = EnumSet.of(InputType.INGEST, InputType.SEARCH, InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+
+        var validInputTypes = getValidTaskSettingsInputTypes(serviceInputTypes, ConfigurationParseContext.REQUEST);
+
+        assertThat(validInputTypes, is(EnumSet.of(InputType.INGEST, InputType.SEARCH)));
+        // the service's set must not be modified, since it is still used to validate internally supplied input types
+        assertThat(
+            serviceInputTypes,
+            is(EnumSet.of(InputType.INGEST, InputType.SEARCH, InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH))
+        );
+    }
+
+    public void testGetValidTaskSettingsInputTypes_KeepsInternalValues_InPersistentContext() {
+        var serviceInputTypes = EnumSet.of(InputType.INGEST, InputType.SEARCH, InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
+
+        var validInputTypes = getValidTaskSettingsInputTypes(serviceInputTypes, ConfigurationParseContext.PERSISTENT);
+
+        assertThat(validInputTypes, is(serviceInputTypes));
     }
 
     public void testRemoveFromMap_GivenValueThatIsNotAMap() {

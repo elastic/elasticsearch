@@ -30,6 +30,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
@@ -47,10 +48,19 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     public static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
 
-    private static final ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> REQUEST_PARSER = createParser(false);
-    private static final ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> PERSISTENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> REQUEST_PARSER = createParser(
+        false,
+        getValidTaskSettingsInputTypes(VALID_INPUT_TYPE_VALUES, ConfigurationParseContext.REQUEST)
+    );
+    private static final ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> PERSISTENT_PARSER = createParser(
+        true,
+        getValidTaskSettingsInputTypes(VALID_INPUT_TYPE_VALUES, ConfigurationParseContext.PERSISTENT)
+    );
 
-    static ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> createParser(boolean ignoreUnknownFields) {
+    static ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> createParser(
+        boolean ignoreUnknownFields,
+        EnumSet<InputType> validInputTypes
+    ) {
         ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> parser = new ConstructingObjectParser<>(
             TASK_SETTINGS.toString(),
             ignoreUnknownFields,
@@ -58,7 +68,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
                 InputType inputType = EnumParser.parseFromStringInObjectParserContext(
                     (String) args[0],
                     InputType::fromString,
-                    VALID_INPUT_TYPE_VALUES,
+                    validInputTypes,
                     EnumSet.of(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH)
                 );
                 Truncation truncation = args[1] == null ? null : Truncation.fromString((String) args[1]);

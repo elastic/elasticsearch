@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,6 +24,7 @@ import java.util.Objects;
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService.VALID_INPUT_TYPE_VALUES;
 
@@ -41,7 +43,7 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
     static final String INPUT_TYPE = "input_type";
     static final String RETURN_TOKEN = "return_token";
 
-    public static AlibabaCloudSearchSparseTaskSettings fromMap(Map<String, Object> map) {
+    public static AlibabaCloudSearchSparseTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
@@ -53,7 +55,7 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
             INPUT_TYPE,
             TASK_SETTINGS,
             InputType::fromString,
-            VALID_INPUT_TYPE_VALUES,
+            getValidTaskSettingsInputTypes(VALID_INPUT_TYPE_VALUES, context),
             validationException
         );
 
@@ -178,7 +180,7 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
 
     @Override
     public AlibabaCloudSearchSparseTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AlibabaCloudSearchSparseTaskSettings updatedSettings = fromMap(newSettings);
+        AlibabaCloudSearchSparseTaskSettings updatedSettings = fromMap(newSettings, ConfigurationParseContext.REQUEST);
         return of(this, updatedSettings);
     }
 }

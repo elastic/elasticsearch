@@ -34,7 +34,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         .setPathSegments(JinaAIUtils.VERSION_1, JinaAIUtils.EMBEDDINGS_PATH);
 
     public static JinaAIEmbeddingsModel of(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = JinaAIEmbeddingsTaskSettings.fromMap(taskSettings);
+        var requestTaskSettings = JinaAIEmbeddingsTaskSettings.fromMap(taskSettings, ConfigurationParseContext.REQUEST);
         if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
             return model;
         }
@@ -53,7 +53,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         this(
             inferenceId,
             createServiceSettings(serviceSettings, taskType, context),
-            JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
+            JinaAIEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets, context),
             null,

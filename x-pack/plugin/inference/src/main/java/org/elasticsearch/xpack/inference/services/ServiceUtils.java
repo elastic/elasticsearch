@@ -1177,6 +1177,34 @@ public final class ServiceUtils {
         InputType.INTERNAL_SEARCH
     );
 
+    /**
+     * Returns the {@link InputType} values that may be specified in the {@code input_type} field of a service's task settings.
+     * <p>
+     * A service's set of supported input types includes {@link InputType#INTERNAL_INGEST} and {@link InputType#INTERNAL_SEARCH}
+     * because Elasticsearch itself (e.g. {@code semantic_text}) passes them as the request-level input type. Those values are
+     * not part of the public API, so they are rejected when task settings are supplied by a user
+     * ({@link ConfigurationParseContext#REQUEST}), consistent with how the top-level {@code input_type} field is handled. They are
+     * still accepted when parsing {@link ConfigurationParseContext#PERSISTENT} configurations so that endpoints that were stored
+     * with an internal value before this validation was added can continue to be loaded.
+     *
+     * @param serviceInputTypes the input types supported by the service, which may include internal values
+     * @param context the context in which the task settings are being parsed
+     * @return the input types that are valid in task settings for the given context
+     */
+    public static EnumSet<InputType> getValidTaskSettingsInputTypes(
+        EnumSet<InputType> serviceInputTypes,
+        ConfigurationParseContext context
+    ) {
+        return switch (context) {
+            case REQUEST -> {
+                var validInputTypes = EnumSet.copyOf(serviceInputTypes);
+                validInputTypes.removeAll(VALID_INTERNAL_INPUT_TYPE_VALUES);
+                yield validInputTypes;
+            }
+            case PERSISTENT -> serviceInputTypes;
+        };
+    }
+
     public static void validateInputTypeIsUnspecifiedOrInternal(InputType inputType, ValidationException validationException) {
         if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
             validationException.addValidationError(

@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 139573
+pr: 164911
+summary: Reject internal input types in task_settings
+type: bug

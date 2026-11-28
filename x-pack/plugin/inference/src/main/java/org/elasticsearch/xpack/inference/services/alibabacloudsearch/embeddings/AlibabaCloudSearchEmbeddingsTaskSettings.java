@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,6 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.getValidTaskSettingsInputTypes;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService.VALID_INPUT_TYPE_VALUES;
 
@@ -41,7 +43,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettings implements TaskSettings {
     );
     static final String INPUT_TYPE = "input_type";
 
-    public static AlibabaCloudSearchEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
+    public static AlibabaCloudSearchEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
@@ -53,7 +55,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettings implements TaskSettings {
             INPUT_TYPE,
             TASK_SETTINGS,
             InputType::fromString,
-            VALID_INPUT_TYPE_VALUES,
+            getValidTaskSettingsInputTypes(VALID_INPUT_TYPE_VALUES, context),
             validationException
         );
 
@@ -164,7 +166,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AlibabaCloudSearchEmbeddingsTaskSettings newSettingsOnly = fromMap(newSettings);
+        AlibabaCloudSearchEmbeddingsTaskSettings newSettingsOnly = fromMap(newSettings, ConfigurationParseContext.REQUEST);
         return of(this, newSettingsOnly);
     }
 }

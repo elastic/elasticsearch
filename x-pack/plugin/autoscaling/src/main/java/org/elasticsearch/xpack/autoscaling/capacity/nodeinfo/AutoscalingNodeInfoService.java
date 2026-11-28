@@ -127,15 +127,40 @@ public class AutoscalingNodeInfoService {
         nodesInfoRequest.setTimeout(timeout);
         return nodesInfoRequest;
     }
+    private void retryOrRecordFailure(
+    Function<String, DiscoveryNode> nodeLookup,
+    Set<DiscoveryNode> missingNodes,
+    Exception e) {
+    final boolean shouldRetry;
+    synchronized (mutex) {
+        shouldRetry = missingNodes.stream()
+            .allMatch(node -> nodeToMemory.get(node.getEphemeralId()) == FETCHING_SENTINEL);
+    }
 
-    private void sendToMissingNodes(Function<String, DiscoveryNode> nodeLookup, Set<DiscoveryNode> missingNodes) {
-        final Runnable onError = () -> {
-            synchronized (mutex) {
-                var builder = new HashMap<>(nodeToMemory);
-                missingNodes.stream().map(DiscoveryNode::getEphemeralId).forEach(builder::remove);
-                nodeToMemory = Collections.unmodifiableMap(builder);
+    if (shouldRetry) {
+        logger.debug(() -> String.format(Locale.ROOT, "Retrying node info fetch for [%s]", missingNodes), e);
+        client.threadPool().scheduleUnlessShuttingDown(
+            TimeValue.timeValueSeconds(1),
+            org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            () -> {
+                final Set<DiscoveryNode> nodesToRetry;
+                synchronized (mutex) {
+                    nodesToRetry = missingNodes.stream()
+                        .filter(node -> nodeToMemory.get(node.getEphemeralId()) == FETCHING_SENTINEL)
+                        .collect(Collectors.toSet());
+                }
+                if (nodesToRetry.isEmpty() == false) {
+                    sendToMissingNodes(nodeLookup, nodesToRetry);
+                }
             }
-        };
+        );
+    } else {
+        logger.warn(() -> String.format(Locale.ROOT, "Unable to fetch node info for [%s]", missingNodes), e);
+    }
+    }
+    
+    private void sendToMissingNodes(Function<String, DiscoveryNode> nodeLookup, Set<DiscoveryNode> missingNodes) {
+        
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(
             missingNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new)
         ).clear().addMetric(NodesStatsRequestParameters.Metric.OS);
@@ -185,14 +210,8 @@ public class AutoscalingNodeInfoService {
                                 });
                                 nodeToMemory = Collections.unmodifiableMap(builder);
                             }
-                        }, e -> {
-                            onError.run();
-                            logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain processor info from [%s]", missingNodes), e);
-                        })),
-                    e -> {
-                        onError.run();
-                        logger.warn(() -> String.format(Locale.ROOT, "Unable to obtain memory info from [%s]", missingNodes), e);
-                    }
+                        }, e -> retryOrRecordFailure(nodeLookup, missingNodes, e))),
+                    e -> retryOrRecordFailure(nodeLookup, missingNodes, e)
                 )
             );
     }

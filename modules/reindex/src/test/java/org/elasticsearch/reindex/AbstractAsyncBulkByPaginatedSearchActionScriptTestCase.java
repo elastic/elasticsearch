@@ -44,9 +44,12 @@ public abstract class AbstractAsyncBulkByPaginatedSearchActionScriptTestCase<
         scriptService = mock(ScriptService.class);
     }
 
-    @SuppressWarnings("unchecked")
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
-        IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
+        return applyScript(new IndexRequest("index").id("1").source(singletonMap("foo", "bar")), scriptBody);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected <T extends ActionRequest> T applyScript(IndexRequest index, Consumer<Map<String, Object>> scriptBody) {
         PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0);
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(
             (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {

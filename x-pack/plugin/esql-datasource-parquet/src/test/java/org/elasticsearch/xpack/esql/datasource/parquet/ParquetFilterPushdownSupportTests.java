@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -52,6 +53,33 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     private final ParquetFilterPushdownSupport support = new ParquetFilterPushdownSupport();
 
     // --- Equality tests ---
+
+    public void testAnArithmeticComparisonIsAResidualBesideARecheck() {
+        Attribute sku = attr("sku", DataType.KEYWORD);
+        Attribute qty = attr("qty", DataType.LONG);
+        Attribute price = attr("price", DataType.LONG);
+        Expression skuEquals = new Equals(Source.EMPTY, sku, new Literal(Source.EMPTY, new BytesRef("a"), DataType.KEYWORD), null);
+        Expression product = new GreaterThan(Source.EMPTY, new Mul(Source.EMPTY, qty, price), longLit(100L), null);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(skuEquals, product));
+
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
+        ParquetPushedExpressions pushed = (ParquetPushedExpressions) result.pushedFilter();
+        assertEquals(List.of(product), pushed.sourceResidual());
+        assertEquals(List.of(skuEquals), result.remainder());
+        assertEquals(List.of(skuEquals), result.pushedExpressions());
+    }
+
+    public void testAnArithmeticComparisonAloneStaysInTheRemainder() {
+        Attribute qty = attr("qty", DataType.LONG);
+        Attribute price = attr("price", DataType.LONG);
+        Expression product = new GreaterThan(Source.EMPTY, new Mul(Source.EMPTY, qty, price), longLit(100L), null);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(product));
+
+        assertFalse(result.hasPushedFilter());
+        assertEquals(List.of(product), result.remainder());
+    }
 
     public void testEqualsIntegerPushed() {
         Attribute col = attr("salary", DataType.INTEGER);

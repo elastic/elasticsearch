@@ -16,32 +16,47 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 
 /**
  * Evaluates a {@link NestedPredicate} for each parent of a page by reading the parent's child documents through
  * {@link NestedChildren}, running the body over each child, and ORing the results per parent. A parent stops being read once
  * a page of its children has matched it.
+ * <p>
+ * This is the production child cursor. The predicate prototype describes the same shape and stays unused here: the batch
+ * is this page, and the body is the expression evaluator a {@code FilterExec} would run.
  */
 final class NestedPredicateEvaluator implements ExpressionEvaluator {
     private final DriverContext context;
     private final NestedChildren children;
     private final ExpressionEvaluator predicate;
     private final int[] fieldChannels;
+    @Nullable
+    private final IndexedByShardId<ShardConfig> matchingChildren;
 
-    NestedPredicateEvaluator(DriverContext context, NestedChildren children, ExpressionEvaluator predicate, int[] fieldChannels) {
+    NestedPredicateEvaluator(
+        DriverContext context,
+        NestedChildren children,
+        ExpressionEvaluator predicate,
+        int[] fieldChannels,
+        @Nullable IndexedByShardId<ShardConfig> matchingChildren
+    ) {
         this.context = context;
         this.children = children;
         this.predicate = predicate;
         this.fieldChannels = fieldChannels;
+        this.matchingChildren = matchingChildren;
     }
 
     @Override
     public Block eval(Page page) {
         DocVector docs = docs(page);
         boolean[] matched = new boolean[docs.getPositionCount()];
-        children.read(docs, position -> true, position -> matched[position] == false, loaded -> accept(loaded, matched));
+        children.read(docs, position -> true, position -> matched[position] == false, matchingChildren, loaded -> accept(loaded, matched));
         BooleanBlock.Builder builder = context.blockFactory().newBooleanBlockBuilder(matched.length);
         Block result = null;
         try {

@@ -15,6 +15,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware.FinishedTranslatable;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware.Translatable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -47,7 +49,9 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * leave the index. Every shard must accept nested queries, which {@code search.allow_expensive_queries: false} refuses. Each shard
  * mapping must allow Lucene to compare the child values as their block loaders read them, including
  * having searchable doc values and no keyword normalizer that changes query literals. An exact translation replaces the
- * predicate; one that needs a recheck is pushed and still evaluated; anything else stays in memory. A {@code true} predicate, as
+ * predicate; one that needs a recheck is pushed and still evaluated. When the whole predicate does not translate, its exact
+ * conjuncts are pushed as a nested query that keeps every parent with a child matching them, and the predicate is still
+ * evaluated; with no exact conjunct it stays in memory. A {@code true} predicate, as
  * in {@code NESTED_ANY(items, true)}, matches any child document. {@code NOT NESTED_ANY(<predicate>)} is pushed as
  * {@code NOT nested(<predicate>)} only when the translation is exact: negating a superset would drop parents that match.
  */
@@ -87,7 +91,7 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
     static Pushed push(NestedPredicate predicate, boolean negated, LucenePushdownPredicates children, SearchStats stats) {
         Translation translation = translate(predicate, children, stats);
         if (translation == null) {
-            return null;
+            return negated ? null : parentPrefilter(predicate, children, stats);
         }
         if (negated && translation.exact() == false) {
             return null;
@@ -118,6 +122,96 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         Query child = matchAll ? new MatchAll(predicate.source()) : TRANSLATOR_HANDLER.asQuery(children, childPredicate);
         QueryBuilder nested = new NestedQuery(predicate.source(), predicate.path(), child, ScoreMode.None).toQueryBuilder();
         return new Translation(nested, translatable);
+    }
+
+    /**
+     * The parents that have a child matching every exact conjunct of {@code predicate}, or {@code null} when no conjunct is exact.
+     * A parent the predicate matches has such a child, so this keeps every match and may keep more: it never replaces the
+     * predicate. A negated predicate cannot use it, because negating a superset drops parents that match.
+     */
+    private static Pushed parentPrefilter(NestedPredicate predicate, LucenePushdownPredicates children, SearchStats stats) {
+        ChildSplit split = splitExactChildren(predicate, children, stats);
+        if (split == null) {
+            return null;
+        }
+        QueryBuilder nested = QueryBuilders.nestedQuery(predicate.path(), must(split.filters()), ScoreMode.None)
+            .ignoreUnmapped(true)
+            .boost(Query.NO_SCORE_BOOST);
+        return new Pushed(nested, false);
+    }
+
+    /**
+     * Keeps an exact conjunct as a query over child documents and leaves every other conjunct to be evaluated.
+     * A negated, approximate, or unqueryable conjunct stays in the residual. When nothing can be separated, or the
+     * whole predicate is the exact part, {@code predicate} is returned unchanged: the exact whole is a nested query.
+     */
+    static NestedPredicate exactChildFilter(NestedPredicate predicate, LucenePushdownPredicates children, SearchStats stats) {
+        ChildSplit split = splitExactChildren(predicate, children, stats);
+        if (split == null || split.residual().isEmpty()) {
+            return predicate;
+        }
+        return predicate.withChildFilter(must(split.filters()), Predicates.combineAnd(split.residual()));
+    }
+
+    /** The exact conjuncts of a predicate as queries over child documents, and the conjuncts that are left to evaluate. */
+    private record ChildSplit(List<QueryBuilder> filters, List<Expression> residual) {}
+
+    /** The split of {@code predicate}, or {@code null} when nested queries are refused or no conjunct is exact. */
+    private static ChildSplit splitExactChildren(NestedPredicate predicate, LucenePushdownPredicates children, SearchStats stats) {
+        if (stats.nestedQueriesAllowed() == false) {
+            return null;
+        }
+        Expression rewritten = predicate.childPredicate();
+        if (rewritten == null) {
+            return null;
+        }
+        List<Expression> original = Predicates.splitAnd(predicate.body());
+        List<Expression> translated = Predicates.splitAnd(rewritten);
+        if (original.size() != translated.size()) {
+            return null;
+        }
+        List<QueryBuilder> filters = new ArrayList<>();
+        List<Expression> residual = new ArrayList<>();
+        for (int i = 0; i < original.size(); i++) {
+            Expression conjunct = translated.get(i);
+            if (exactChildConjunct(conjunct, children, stats)) {
+                filters.add(TRANSLATOR_HANDLER.asQuery(children, conjunct).toQueryBuilder());
+            } else {
+                residual.add(original.get(i));
+            }
+        }
+        return filters.isEmpty() ? null : new ChildSplit(filters, residual);
+    }
+
+    private static boolean exactChildConjunct(Expression conjunct, LucenePushdownPredicates children, SearchStats stats) {
+        if (conjunct instanceof Not) {
+            return false;
+        }
+        AttributeSet referenced = conjunct.references();
+        if (referenced.isEmpty()) {
+            return false;
+        }
+        for (Attribute attribute : referenced) {
+            if (attribute instanceof FieldAttribute field) {
+                if (stats.nestedFieldIsQueryable(field.fieldName(), field.dataType()) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return translatable(conjunct, children) == Translatable.YES;
+    }
+
+    private static QueryBuilder must(List<QueryBuilder> filters) {
+        if (filters.size() == 1) {
+            return filters.getFirst();
+        }
+        var bool = QueryBuilders.boolQuery();
+        for (QueryBuilder filter : filters) {
+            bool.must(filter);
+        }
+        return bool;
     }
 
     record Translation(QueryBuilder query, Translatable translatable) {

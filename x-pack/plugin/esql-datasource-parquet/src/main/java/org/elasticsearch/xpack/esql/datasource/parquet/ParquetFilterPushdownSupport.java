@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
@@ -30,6 +32,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -96,10 +100,15 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         // TVL-correct by the late-mat evaluator and can be dropped from the plan entirely
         // (see canPush for the per-expression rule and the class-level Javadoc for the
         // motivation: avoiding double LIKE evaluation on every surviving row).
+        // A comparison Parquet cannot represent, such as a product of two columns, is exact when the
+        // expression evaluator runs it on the page. It leaves FilterExec only beside a native conjunct:
+        // on its own there is no selection to decode against.
         List<Expression> remainder = new ArrayList<>();
+        List<Expression> sourceResidual = new ArrayList<>();
         for (Expression filter : filters) {
             // Rewrite only the pushed side so late-mat / FilterPredicate see column-typed bounds.
-            // Remainder keeps the original expression — FilterExec re-checks the user's predicate.
+            // Remainder and the source residual keep the original expression — FilterExec and the page
+            // evaluator re-check the user's predicate.
             Expression rewritten = PushdownLiteralConversion.rewrite(filter);
             Pushability p = pushabilityOfRewritten(rewritten);
             if (p == Pushability.YES) {
@@ -107,6 +116,8 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             } else if (p == Pushability.RECHECK) {
                 pushed.add(rewritten);
                 remainder.add(filter);
+            } else if (isSourceExact(filter)) {
+                sourceResidual.add(filter);
             } else {
                 remainder.add(filter);
             }
@@ -122,7 +133,49 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             filters.size(),
             remainder.size()
         );
-        return new PushdownResult(new ParquetPushedExpressions(pushed), pushed, remainder);
+        return new PushdownResult(new ParquetPushedExpressions(pushed, sourceResidual), pushed, remainder);
+    }
+
+    /**
+     * A comparison that contains arithmetic over columns and literals, such as {@code qty * price > 100}. The
+     * expression evaluator answers it exactly, including a null column. A comparison Parquet declines for another
+     * reason, such as two datetime columns of different resolutions, stays in {@code FilterExec}.
+     */
+    static boolean isSourceExact(Expression expr) {
+        if (expr instanceof EsqlBinaryComparison comparison && containsArithmetic(comparison)) {
+            return isColumnLiteralOrArithmetic(comparison.left()) && isColumnLiteralOrArithmetic(comparison.right());
+        }
+        return false;
+    }
+
+    private static boolean containsArithmetic(Expression expr) {
+        if (expr instanceof ArithmeticOperation || expr instanceof Neg) {
+            return true;
+        }
+        for (Expression child : expr.children()) {
+            if (containsArithmetic(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isColumnLiteralOrArithmetic(Expression expr) {
+        if (expr instanceof Literal) {
+            return true;
+        }
+        if (expr instanceof Attribute attribute) {
+            return PushdownPredicates.isVirtualColumn(attribute) == false
+                && attribute.dataType() != DataType.UNSUPPORTED
+                && attribute.dataType() != DataType.NULL;
+        }
+        if (expr instanceof ArithmeticOperation arithmetic) {
+            return isColumnLiteralOrArithmetic(arithmetic.left()) && isColumnLiteralOrArithmetic(arithmetic.right());
+        }
+        if (expr instanceof Neg neg) {
+            return isColumnLiteralOrArithmetic(neg.field());
+        }
+        return false;
     }
 
     @Override

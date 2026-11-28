@@ -16,9 +16,10 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 /**
  * Lets Lucene evaluate a {@code NESTED_ANY} predicate that {@link PushNestedPredicateToSource} could not remove from the plan,
- * as in {@code EVAL} or beside a parent condition in a disjunction. It matches the parent against a nested query, which stops
- * at the parent's first matching child and never reads the children. Only an exact translation can replace the evaluator,
- * because one that needs a recheck would match parents the predicate does not.
+ * as in {@code EVAL} or beside a parent condition in a disjunction. An exact translation matches the parent against a nested
+ * query, which stops at the parent's first matching child and never reads the children. One that needs a recheck cannot
+ * replace the evaluator, because it would match parents the predicate does not. An exact conjunct of a predicate that is
+ * not itself exact is applied as a filter over child documents, and the remaining conjuncts are still evaluated.
  */
 public final class EvaluateNestedPredicateInLucene extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     PhysicalPlan,
@@ -38,7 +39,10 @@ public final class EvaluateNestedPredicateInLucene extends PhysicalOptimizerRule
                 children,
                 context.searchStats()
             );
-            return translation != null && translation.exact() ? predicate.withQueryBuilder(translation.query()) : predicate;
+            if (translation != null && translation.exact()) {
+                return predicate.withQueryBuilder(translation.query());
+            }
+            return PushNestedPredicateToSource.exactChildFilter(predicate, children, context.searchStats());
         });
     }
 }

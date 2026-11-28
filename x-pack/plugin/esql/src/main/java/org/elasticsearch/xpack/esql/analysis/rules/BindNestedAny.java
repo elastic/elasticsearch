@@ -121,7 +121,16 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
         }
         Inputs inputs = inputs(nested, input, reads, schema);
         Expression bound = body.transformUp(Attribute.class, attribute -> inputs.replacement().getOrDefault(attribute.id(), attribute));
-        return new NestedPredicate(nested.source(), reads.path(), bound, inputs.channels(), inputs.relativePaths(), null, configuration);
+        return new NestedPredicate(
+            nested.source(),
+            reads.path(),
+            bound,
+            inputs.channels(),
+            inputs.relativePaths(),
+            null,
+            null,
+            configuration
+        );
     }
 
     /** The private nested schema in the plan's output, by name, and the paths of the nested objects it describes. */

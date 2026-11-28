@@ -13,11 +13,15 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
+import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
@@ -57,7 +61,7 @@ import java.util.stream.IntStream;
  */
 public final class NestedChildren implements Releasable {
     /** Children per page, so a parent with many objects does not need them all in memory at once. */
-    static final int PAGE_SIZE = 1024;
+    public static final int PAGE_SIZE = 1024;
 
     /**
      * One shard's filters selecting parents and the children of this nested field, both {@code null} where it is not mapped.
@@ -244,12 +248,29 @@ public final class NestedChildren implements Releasable {
      * children fit in one page is read whole.
      */
     void read(DocVector parents, IntPredicate included, IntPredicate keepReading, Consumer<Page> consumer) {
+        read(parents, included, keepReading, null, consumer);
+    }
+
+    /**
+     * As {@link #read(DocVector, IntPredicate, IntPredicate, Consumer)}, but a child that does not match
+     * {@code matchingChildren} is omitted before its fields are loaded, and its parent position is omitted with it.
+     * {@code matchingChildren} holds the query built for each shard with the searcher that runs it, or is {@code null} when every child is read. A page
+     * whose children all miss is not delivered.
+     */
+    void read(
+        DocVector parents,
+        IntPredicate included,
+        IntPredicate keepReading,
+        @Nullable IndexedByShardId<ShardConfig> matchingChildren,
+        Consumer<Page> consumer
+    ) {
         parents.ensureAttached("NESTED");
         int[] shardIds = new int[PAGE_SIZE];
         int[] segments = new int[PAGE_SIZE];
         int[] docs = new int[PAGE_SIZE];
         int[] positions = new int[PAGE_SIZE];
         int count = 0;
+        ChildMatcher matches = matchingChildren == null ? null : new ChildMatcher(context, matchingChildren);
         try {
             for (int p = 0; p < parents.getPositionCount(); p++) {
                 if (included.test(p) == false) {
@@ -275,17 +296,76 @@ public final class NestedChildren implements Releasable {
                     docs[count] = child;
                     positions[count] = p;
                     if (++count == PAGE_SIZE) {
-                        emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
+                        emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), matches, consumer);
                         count = 0;
                     }
                     child = children.nextSetBit(child + 1);
                 }
             }
             if (count > 0) {
-                emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
+                emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), matches, consumer);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            Releasables.close(matches);
+        }
+    }
+
+    /**
+     * Selects the children of a batch that match each shard's own query. The batch is scored as one page of doc ids by
+     * {@link LuceneQueryExpressionEvaluator}, which keeps a scorer per segment across batches and builds a new one only when
+     * a batch starts behind it. The buffers are compacted to the matching children.
+     */
+    private static final class ChildMatcher implements Releasable {
+        private final DriverContext context;
+        private final ExpressionEvaluator evaluator;
+
+        private ChildMatcher(DriverContext context, IndexedByShardId<ShardConfig> queries) {
+            this.context = context;
+            this.evaluator = new LuceneQueryExpressionEvaluator.Factory(queries).get(context);
+        }
+
+        /** Keeps the matching prefix of the buffers and returns how many children remain. */
+        private int retain(int[] shardIds, int[] segments, int[] docs, int[] positions, int count, boolean mayContainDuplicates) {
+            BlockFactory blockFactory = context.blockFactory();
+            IntVector shardVector = null;
+            IntVector segmentVector = null;
+            IntVector docVector = null;
+            DocVector batch = null;
+            try {
+                shardVector = blockFactory.newIntArrayVector(Arrays.copyOf(shardIds, count), count);
+                segmentVector = blockFactory.newIntArrayVector(Arrays.copyOf(segments, count), count);
+                docVector = blockFactory.newIntArrayVector(Arrays.copyOf(docs, count), count);
+                batch = new DocVector(
+                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                    shardVector,
+                    segmentVector,
+                    docVector,
+                    DocVector.config().mayContainDuplicates(mayContainDuplicates)
+                );
+                shardVector = segmentVector = docVector = null;
+                int write = 0;
+                try (BooleanBlock matches = (BooleanBlock) evaluator.eval(new Page(batch.asBlock()))) {
+                    for (int i = 0; i < count; i++) {
+                        if (matches.getBoolean(matches.getFirstValueIndex(i))) {
+                            shardIds[write] = shardIds[i];
+                            segments[write] = segments[i];
+                            docs[write] = docs[i];
+                            positions[write] = positions[i];
+                            write++;
+                        }
+                    }
+                }
+                return write;
+            } finally {
+                Releasables.closeExpectNoException(shardVector, segmentVector, docVector, batch);
+            }
+        }
+
+        @Override
+        public void close() {
+            evaluator.close();
         }
     }
 
@@ -296,8 +376,15 @@ public final class NestedChildren implements Releasable {
         int[] positions,
         int count,
         boolean mayContainDuplicates,
+        @Nullable ChildMatcher matchingChildren,
         Consumer<Page> consumer
-    ) {
+    ) throws IOException {
+        if (matchingChildren != null) {
+            count = matchingChildren.retain(shardIds, segments, docs, positions, count, mayContainDuplicates);
+            if (count == 0) {
+                return;
+            }
+        }
         context.checkForEarlyTermination();
         BlockFactory blockFactory = context.blockFactory();
         IntVector shardVector = null;

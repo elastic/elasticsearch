@@ -41,6 +41,7 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             randomInputs(size),
             randomRelativePaths(size),
             null,
+            null,
             configuration()
         );
     }
@@ -63,7 +64,7 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             case 4 -> relativePaths = randomValueOtherThan(relativePaths, () -> randomRelativePaths(size));
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, null, instance.configuration());
+        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, null, null, instance.configuration());
     }
 
     public void testWriteToRefusesNodesWithoutNestedPredicates() throws IOException {
@@ -91,6 +92,22 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             in -> in.readNamedWriteable(Expression.class)
         );
         assertThat(copy.queryBuilder(), is(nullValue()));
+        assertThat(copy.path(), equalTo(predicate.path()));
+        assertThat(copy.inputs().size(), equalTo(predicate.inputs().size()));
+        assertThat(copy.relativePaths(), equalTo(predicate.relativePaths()));
+    }
+
+    public void testAChildFilterOfTheNodeThatPlansItIsNotSerialized() throws IOException {
+        NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == \"a\") | LIMIT 10").withChildFilter(
+            QueryBuilders.matchAllQuery()
+        );
+        assertThat(predicate.childFilter(), is(notNullValue()));
+        NestedPredicate copy = (NestedPredicate) SerializationTestUtils.serializeDeserialize(
+            (Expression) predicate,
+            PlanStreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(Expression.class)
+        );
+        assertThat(copy.childFilter(), is(nullValue()));
         assertThat(copy.path(), equalTo(predicate.path()));
         assertThat(copy.inputs().size(), equalTo(predicate.inputs().size()));
         assertThat(copy.relativePaths(), equalTo(predicate.relativePaths()));

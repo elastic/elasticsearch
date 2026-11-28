@@ -1,0 +1,13 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.predicate;
+
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
+/** A column the engine asks a source to load, as a block of {@code type}. The source decides how the values are read. */
+public record FieldRef(String name, DataType type) {}

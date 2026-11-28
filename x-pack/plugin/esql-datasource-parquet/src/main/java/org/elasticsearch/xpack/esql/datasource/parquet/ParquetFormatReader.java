@@ -2922,8 +2922,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             String createdBy = fileMetaData.getCreatedBy();
             boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
             recordPerColumnMaterialization(projectedAttributes, useOptimized, counters);
+            CloseableIterator<Page> pages;
             if (useOptimized) {
-                return createOptimizedIterator(
+                pages = createOptimizedIterator(
                     reader,
                     projectedSchema,
                     projectedAttributes,
@@ -2941,26 +2942,28 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     sharedErrorBudget,
                     counters
                 );
+            } else {
+                pages = new ParquetColumnIterator(
+                    reader,
+                    projectedSchema,
+                    projectedAttributes,
+                    batchSize,
+                    blockFactory,
+                    rowLimit,
+                    createdBy,
+                    // Messages and logs are the only readers of the iterator's location, so it is redacted here.
+                    safeObjectName(object.path()),
+                    hasRecordFilter,
+                    rangeBlockGlobalOffsets,
+                    counters,
+                    declaredDateFormats,
+                    declaredTypeColumns,
+                    errorPolicy,
+                    warningSink,
+                    sharedErrorBudget
+                );
             }
-            return new ParquetColumnIterator(
-                reader,
-                projectedSchema,
-                projectedAttributes,
-                batchSize,
-                blockFactory,
-                rowLimit,
-                createdBy,
-                // Messages and logs are the only readers of the iterator's location, so it is redacted here.
-                safeObjectName(object.path()),
-                hasRecordFilter,
-                rangeBlockGlobalOffsets,
-                counters,
-                declaredDateFormats,
-                declaredTypeColumns,
-                errorPolicy,
-                warningSink,
-                sharedErrorBudget
-            );
+            return SourceResidualPages.wrap(pages, pushedExpressions, projectedAttributes, blockFactory);
         } catch (Throwable t) {
             reader.close();
             throw t;
@@ -3793,6 +3796,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 if (included.contains(predCol) == false && attributeMap.containsKey(predCol)) {
                     result.add(attributeMap.get(predCol));
                     included.add(predCol);
+                }
+            }
+            // Residual columns stay out of the predicate set, so late materialization decodes them for survivors only.
+            for (String residualCol : pushedExpressions.residualColumnNames()) {
+                if (included.contains(residualCol) == false && attributeMap.containsKey(residualCol)) {
+                    result.add(attributeMap.get(residualCol));
+                    included.add(residualCol);
                 }
             }
         }

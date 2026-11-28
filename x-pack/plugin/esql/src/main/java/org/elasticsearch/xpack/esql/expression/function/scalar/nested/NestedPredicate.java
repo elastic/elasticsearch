@@ -7,16 +7,23 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -37,6 +44,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +76,12 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
      */
     @Nullable
     private final QueryBuilder queryBuilder;
+    /**
+     * An exact query over child documents, applied before {@link #body} is evaluated, or {@code null}. Children that miss
+     * it are not loaded. Unlike {@link #queryBuilder} it does not decide the parent by itself. It is not serialized.
+     */
+    @Nullable
+    private final QueryBuilder childFilter;
 
     public NestedPredicate(
         Source source,
@@ -76,6 +90,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         List<Attribute> inputs,
         List<String> relativePaths,
         @Nullable QueryBuilder queryBuilder,
+        @Nullable QueryBuilder childFilter,
         Configuration configuration
     ) {
         super(source, List.of(body), configuration);
@@ -84,6 +99,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         this.inputs = List.copyOf(inputs);
         this.relativePaths = List.copyOf(relativePaths);
         this.queryBuilder = queryBuilder;
+        this.childFilter = childFilter;
     }
 
     private NestedPredicate(StreamInput in) throws IOException {
@@ -93,6 +109,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
+            null,
             null,
             ((PlanStreamInput) in).configuration()
         );
@@ -148,7 +165,33 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     }
 
     public NestedPredicate withQueryBuilder(QueryBuilder queryBuilder) {
-        return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, configuration());
+        return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, childFilter, configuration());
+    }
+
+    @Nullable
+    public QueryBuilder childFilter() {
+        return childFilter;
+    }
+
+    public NestedPredicate withChildFilter(QueryBuilder childFilter) {
+        return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, childFilter, configuration());
+    }
+
+    /**
+     * Applies {@code childFilter} and replaces the body with the conjuncts it does not cover. Inputs the new body does
+     * not read are dropped, so those fields are not loaded.
+     */
+    public NestedPredicate withChildFilter(QueryBuilder childFilter, Expression body) {
+        AttributeSet used = body.references();
+        List<Attribute> keptInputs = new ArrayList<>();
+        List<String> keptPaths = new ArrayList<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            if (used.contains(inputs.get(i))) {
+                keptInputs.add(inputs.get(i));
+                keptPaths.add(relativePaths.get(i));
+            }
+        }
+        return new NestedPredicate(source(), path, body, keptInputs, keptPaths, queryBuilder, childFilter, configuration());
     }
 
     /** The full names of the child fields this predicate reads. */
@@ -200,12 +243,21 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     @Override
     protected NodeInfo<NestedPredicate> info() {
-        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, queryBuilder, configuration());
+        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, queryBuilder, childFilter, configuration());
     }
 
     @Override
     public NestedPredicate replaceChildren(List<Expression> newChildren) {
-        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths, queryBuilder, configuration());
+        return new NestedPredicate(
+            source(),
+            path,
+            newChildren.getFirst(),
+            inputs,
+            relativePaths,
+            queryBuilder,
+            childFilter,
+            configuration()
+        );
     }
 
     /** The inputs are loaded from the child documents by {@link NestedChildren}, so they are not columns of the parent row. */
@@ -222,12 +274,13 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             && body.equals(other.body)
             && inputs.equals(other.inputs)
             && relativePaths.equals(other.relativePaths)
-            && Objects.equals(queryBuilder, other.queryBuilder);
+            && Objects.equals(queryBuilder, other.queryBuilder)
+            && Objects.equals(childFilter, other.childFilter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, queryBuilder);
+        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, queryBuilder, childFilter);
     }
 
     @Override
@@ -237,6 +290,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
                 toEvaluator.shardContexts().map(shard -> new ShardConfig(shard.toQuery(queryBuilder), shard.searcher()))
             );
         }
+        IndexedByShardId<ShardConfig> matchingChildren = childFilter == null ? null : luceneChildFilter(toEvaluator);
         Layout layout = new Layout.Builder().append(inputs).build();
         ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluatorContext(layout, toEvaluator).apply(body);
         List<DataType> types = inputs.stream().map(Attribute::dataType).toList();
@@ -258,8 +312,45 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             public ExpressionEvaluator get(DriverContext context) {
                 NestedChildren read = children.get(context);
                 ExpressionEvaluator eval = predicate.get(context);
-                return new NestedPredicateEvaluator(context, read, eval, fieldChannels);
+                return new NestedPredicateEvaluator(context, read, eval, fieldChannels, matchingChildren);
             }
         };
+    }
+
+    /**
+     * The child filter as a query over each shard's child documents. Each shard builds its own query, because a query built
+     * for one mapping is not a match against another. {@link EsPhysicalOperationProviders.ShardContext#toQuery} would add
+     * the non-nested filter, which drops the children this query has to match.
+     */
+    private IndexedByShardId<ShardConfig> luceneChildFilter(EvaluatorMapper.ToEvaluator toEvaluator) {
+        return toEvaluator.shardContexts().map(shard -> {
+            if (shard instanceof EsPhysicalOperationProviders.DefaultShardContext context) {
+                return new ShardConfig(childQuery(context.executionContext()), shard.searcher());
+            }
+            throw new IllegalStateException("NESTED_ANY child filter needs a shard to build its query");
+        });
+    }
+
+    /**
+     * Builds the child filter inside this nested field's scope. A single-value check treats a nested field as missing
+     * until the scope says the query is matching that field's child documents.
+     * <p>
+     * {@link SearchExecutionContext#toQuery} replaces the nested scope before it rewrites, so the scope has to be set
+     * around {@link Rewriteable#rewrite} and {@link QueryBuilder#toQuery} directly.
+     */
+    private Query childQuery(SearchExecutionContext context) {
+        NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
+        if (mapper == null) {
+            return new MatchNoDocsQuery("unmapped nested field [" + path + "]");
+        }
+        context.nestedScope().nextLevel(mapper);
+        try {
+            Query query = Rewriteable.rewrite(childFilter, context, true).toQuery(context);
+            return query == null ? new MatchNoDocsQuery("No query left after rewrite.") : query;
+        } catch (IOException e) {
+            throw new QueryShardException(context, "failed to create nested child query: {}", e, e.getMessage());
+        } finally {
+            context.nestedScope().previousLevel();
+        }
     }
 }

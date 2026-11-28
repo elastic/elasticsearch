@@ -48,11 +48,81 @@ public record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluato
         try (Block lhs = leftEval.eval(page); Block rhs = rightEval.eval(page)) {
             Vector lhsVector = lhs.asVector();
             Vector rhsVector = rhs.asVector();
+            // Empty array vectors are vacuously allTrue() and allFalse(); skip the short-cut.
+            if (lhs.getPositionCount() != 0) {
+                // Absorb both sides before identity. true AND (all-false vector) must
+                // become a constant, not an incRef of the n-sized array.
+                if (lhsVector != null) {
+                    Block absorb = tryAbsorb((BooleanVector) lhsVector, rhs);
+                    if (absorb != null) {
+                        return absorb;
+                    }
+                }
+                if (rhsVector != null) {
+                    Block absorb = tryAbsorb((BooleanVector) rhsVector, lhs);
+                    if (absorb != null) {
+                        return absorb;
+                    }
+                }
+                if (lhsVector != null) {
+                    Block identity = tryIdentity((BooleanVector) lhsVector, rhs);
+                    if (identity != null) {
+                        return identity;
+                    }
+                }
+                if (rhsVector != null) {
+                    Block identity = tryIdentity((BooleanVector) rhsVector, lhs);
+                    if (identity != null) {
+                        return identity;
+                    }
+                }
+            }
             if (lhsVector != null && rhsVector != null) {
                 return eval((BooleanVector) lhsVector, (BooleanVector) rhsVector);
             }
             return eval(lhs, rhs);
         }
+    }
+
+    /**
+     * Absorbing short-cut: {@code false AND *} / {@code true OR *}. MV-guard is here
+     * so {@code false AND MV} / {@code true OR MV} stay null.
+     */
+    private Block tryAbsorb(BooleanVector vector, Block other) {
+        if (other.mayHaveMultivaluedFields()) {
+            return null;
+        }
+        return switch (bl.function()) {
+            case AND -> vector.allFalse() ? vector.blockFactory().newConstantBooleanBlockWith(false, vector.getPositionCount()) : null;
+            case OR -> vector.allTrue() ? vector.blockFactory().newConstantBooleanBlockWith(true, vector.getPositionCount()) : null;
+        };
+    }
+
+    /**
+     * Identity short-cut: {@code true AND x} / {@code false OR x} returns the eval
+     * {@link Block} {@code other}, never {@code vector.asBlock()} — a second wrapper
+     * would double-close. Same MV-guard as {@link #tryAbsorb}.
+     */
+    private Block tryIdentity(BooleanVector vector, Block other) {
+        if (other.mayHaveMultivaluedFields()) {
+            return null;
+        }
+        return switch (bl.function()) {
+            case AND -> {
+                if (vector.allTrue()) {
+                    other.incRef();
+                    yield other;
+                }
+                yield null;
+            }
+            case OR -> {
+                if (vector.allFalse()) {
+                    other.incRef();
+                    yield other;
+                }
+                yield null;
+            }
+        };
     }
 
     @Override
@@ -61,10 +131,9 @@ public record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluato
     }
 
     /**
-     * Eval blocks, handling {@code null}. This takes {@link Block} instead of
-     * {@link BooleanBlock} because blocks that <strong>only</strong> contain
-     * {@code null} can't be cast to {@link BooleanBlock}. So we check for
-     * {@code null} first and don't cast at all if the value is {@code null}.
+     * Eval blocks, handling {@code null} and multi-values. Takes {@link Block}
+     * because {@code ConstantNullBlock} implements {@link BooleanBlock} but
+     * still has no boolean values to read; check {@code isNull} first.
      */
     private Block eval(Block lhs, Block rhs) {
         int positionCount = lhs.getPositionCount();
@@ -96,10 +165,32 @@ public record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluato
     private Block eval(BooleanVector lhs, BooleanVector rhs) {
         int positionCount = lhs.getPositionCount();
         try (var result = lhs.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
-            for (int p = 0; p < positionCount; p++) {
-                result.appendBoolean(p, bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
-            }
-            return result.build().asBlock();
+            return switch (bl.function()) {
+                case AND -> {
+                    andVectors(lhs, rhs, result);
+                    yield result.build().asBlock();
+                }
+                case OR -> {
+                    orVectors(lhs, rhs, result);
+                    yield result.build().asBlock();
+                }
+            };
+        }
+    }
+
+    // 2VL only: vectors have no nulls and no multi-values. Do not reuse on the block path.
+    private static void andVectors(BooleanVector lhs, BooleanVector rhs, BooleanVector.FixedBuilder result) {
+        int positionCount = lhs.getPositionCount();
+        for (int p = 0; p < positionCount; p++) {
+            result.appendBoolean(p, lhs.getBoolean(p) & rhs.getBoolean(p));
+        }
+    }
+
+    // 2VL only: vectors have no nulls and no multi-values. Do not reuse on the block path.
+    private static void orVectors(BooleanVector lhs, BooleanVector rhs, BooleanVector.FixedBuilder result) {
+        int positionCount = lhs.getPositionCount();
+        for (int p = 0; p < positionCount; p++) {
+            result.appendBoolean(p, lhs.getBoolean(p) | rhs.getBoolean(p));
         }
     }
 

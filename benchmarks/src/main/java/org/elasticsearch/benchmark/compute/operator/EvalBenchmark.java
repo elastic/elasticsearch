@@ -68,6 +68,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -151,6 +154,17 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkAddDoubleExpected(this, actual);
+            }
+        },
+        AND_BOOLEAN("and_boolean") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return andBooleanEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAndBooleanExpected(this, actual);
             }
         },
         CASE_1_EAGER("case_1_eager") {
@@ -306,6 +320,17 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkJsonExtractVarExpected(this, actual);
+            }
+        },
+        OR_BOOLEAN("or_boolean") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return orBooleanEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkOrBooleanExpected(this, actual);
             }
         },
         LONG_EQUAL_TO_LONG("long_equal_to_long") {
@@ -818,6 +843,17 @@ public class EvalBenchmark {
             void checkExpected(Page actual) {
                 checkTimeGroupingExpected(this, actual);
             }
+        },
+        OR_OF_ANDS_16("or_of_ands_16") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return orOfAnds16Evaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkOrOfAnds16Expected(this, actual);
+            }
         };
 
         private final String id;
@@ -1045,6 +1081,39 @@ public class EvalBenchmark {
             );
         }
         return evaluator;
+    }
+
+    private static ExpressionEvaluator andBooleanEvaluator() {
+        FieldAttribute lhs = booleanField("lhs");
+        FieldAttribute rhs = booleanField("rhs");
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new And(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator orBooleanEvaluator() {
+        FieldAttribute lhs = booleanField("lhs");
+        FieldAttribute rhs = booleanField("rhs");
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new Or(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+    }
+
+    /**
+     * Pyramid of 16 ANDs of distinct equality pairs, combined with {@link Predicates#combineOr}.
+     * Page values never match the constants, so most inner ANDs are all-false arrays.
+     */
+    private static ExpressionEvaluator orOfAnds16Evaluator() {
+        FieldAttribute a = longField("a");
+        FieldAttribute b = longField("b");
+        List<Expression> ands = new ArrayList<>(16);
+        for (int i = 0; i < 16; i++) {
+            long v = -1L - i;
+            ands.add(
+                new And(
+                    Source.EMPTY,
+                    new Equals(Source.EMPTY, a, new Literal(Source.EMPTY, v, DataType.LONG)),
+                    new Equals(Source.EMPTY, b, new Literal(Source.EMPTY, v, DataType.LONG))
+                )
+            );
+        }
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, Predicates.combineOr(ands), layout(a, b)).get(driverContext);
     }
 
     private static ExpressionEvaluator longEqualToLongEvaluator() {
@@ -1360,12 +1429,20 @@ public class EvalBenchmark {
         };
     }
 
-    private static FieldAttribute longField() {
+    private static FieldAttribute booleanField(String name) {
         return new FieldAttribute(
             Source.EMPTY,
-            "long",
-            new EsField("long", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            name,
+            new EsField(name, DataType.BOOLEAN, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
+    }
+
+    private static FieldAttribute longField() {
+        return longField("long");
+    }
+
+    private static FieldAttribute longField(String name) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static FieldAttribute doubleField() {
@@ -1545,6 +1622,35 @@ public class EvalBenchmark {
         BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
         for (int i = 0; i < BLOCK_LENGTH; i++) {
             boolean expected = i == 1;
+            if (v.getBoolean(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+            }
+        }
+    }
+
+    private static void checkAndBooleanExpected(Operation operation, Page actual) {
+        BooleanVector v = actual.<BooleanBlock>getBlock(2).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            boolean expected = ((i & 1) == 0) & ((i % 3) == 0);
+            if (v.getBoolean(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+            }
+        }
+    }
+
+    private static void checkOrOfAnds16Expected(Operation operation, Page actual) {
+        BooleanVector v = actual.<BooleanBlock>getBlock(2).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (v.getBoolean(i)) {
+                throw new AssertionError("[" + operation + "] expected [false] but was [true]");
+            }
+        }
+    }
+
+    private static void checkOrBooleanExpected(Operation operation, Page actual) {
+        BooleanVector v = actual.<BooleanBlock>getBlock(2).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            boolean expected = ((i & 1) == 0) | ((i % 3) == 0);
             if (v.getBoolean(i) != expected) {
                 throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
             }
@@ -1869,6 +1975,24 @@ public class EvalBenchmark {
                     builder.appendBytesRef(GEO.asWkb(new Point(i * 0.001, 45)));
                 }
                 yield new Page(builder.build());
+            }
+            case AND_BOOLEAN, OR_BOOLEAN -> {
+                var lhs = blockFactory.newBooleanVectorFixedBuilder(BLOCK_LENGTH);
+                var rhs = blockFactory.newBooleanVectorFixedBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    lhs.appendBoolean(i, (i & 1) == 0);
+                    rhs.appendBoolean(i, i % 3 == 0);
+                }
+                yield new Page(lhs.build().asBlock(), rhs.build().asBlock());
+            }
+            case OR_OF_ANDS_16 -> {
+                var a = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var b = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    a.appendLong(i);
+                    b.appendLong(i);
+                }
+                yield new Page(a.build(), b.build());
             }
             case CASE_1_EAGER, CASE_1_LAZY, COALESCE_2_NOOP -> {
                 var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);

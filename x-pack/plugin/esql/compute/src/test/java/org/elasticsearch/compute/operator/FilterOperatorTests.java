@@ -7,8 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBigArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -23,11 +25,15 @@ import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class FilterOperatorTests extends OperatorTestCase {
@@ -144,5 +150,172 @@ public class FilterOperatorTests extends OperatorTestCase {
         assertThat(found, equalTo(List.of(true, true)));
         results.forEach(Page::releaseBlocks);
         assertThat(runner.context().breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testAllTrueArrayVector() {
+        assertAllTrueVector(false);
+    }
+
+    public void testAllTrueBigArrayVector() {
+        assertAllTrueVector(true);
+    }
+
+    public void testAllFalseArrayVector() {
+        assertAllFalseVector(false);
+    }
+
+    public void testAllFalseBigArrayVector() {
+        assertAllFalseVector(true);
+    }
+
+    public void testConstantTrueVector() {
+        DriverContext ctx = driverContext();
+        int positions = between(1, 1000);
+        List<Long> found = filter(ctx, positions, ctx.blockFactory().newConstantBooleanBlockWith(true, positions), true);
+        assertThat(found, equalTo(LongStream.range(0, positions).boxed().toList()));
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testConstantFalseVector() {
+        DriverContext ctx = driverContext();
+        int positions = between(1, 1000);
+        assertThat(filter(ctx, positions, ctx.blockFactory().newConstantBooleanBlockWith(false, positions), false), nullValue());
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testAllNull() {
+        DriverContext ctx = driverContext();
+        int positions = between(1, 1000);
+        assertThat(filter(ctx, positions, ctx.blockFactory().newConstantNullBlock(positions), false), nullValue());
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testMixedVector() {
+        DriverContext ctx = driverContext();
+        int positions = between(2, 1000);
+        boolean[] values = new boolean[positions];
+        for (int p = 0; p < positions; p++) {
+            values[p] = randomBoolean();
+        }
+        // Make sure the vector is really mixed so neither fast path applies.
+        int forcedTrue = between(0, positions - 1);
+        values[forcedTrue] = true;
+        values[randomValueOtherThan(forcedTrue, () -> between(0, positions - 1))] = false;
+        List<Long> expected = new ArrayList<>();
+        for (int p = 0; p < positions; p++) {
+            if (values[p]) {
+                expected.add((long) p);
+            }
+        }
+        List<Long> found = filter(ctx, positions, booleanVector(ctx.blockFactory(), values, randomBoolean()).asBlock(), false);
+        assertThat(found, equalTo(expected));
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testMixedBlockWithNulls() {
+        DriverContext ctx = driverContext();
+        int positions = between(1, 1000);
+        List<Long> expected = new ArrayList<>();
+        BooleanBlock predicate;
+        try (BooleanBlock.Builder builder = ctx.blockFactory().newBooleanBlockBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                // Only non-null true values are selected; null is like false.
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    boolean v = randomBoolean();
+                    builder.appendBoolean(v);
+                    if (v) {
+                        expected.add((long) p);
+                    }
+                }
+            }
+            predicate = builder.build();
+        }
+        List<Long> found = filter(ctx, positions, predicate, false);
+        assertThat(found, expected.isEmpty() ? nullValue() : equalTo(expected));
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Empty pages never reach {@link FilterOperator#process}: {@link AbstractPageMappingOperator} passes them through.
+     */
+    public void testEmptyPage() {
+        DriverContext ctx = driverContext();
+        BooleanBlock predicate = randomBoolean()
+            ? ctx.blockFactory().newConstantBooleanBlockWith(randomBoolean(), 0)
+            : booleanVector(ctx.blockFactory(), new boolean[0], randomBoolean()).asBlock();
+        Page page = new Page(ctx.blockFactory().newLongArrayVector(new long[0], 0).asBlock(), predicate);
+        try (FilterOperator op = new FilterOperator(new EvalOperatorTests.LoadFromPage(1))) {
+            op.addInput(page);
+            assertThat(op.getOutput(), sameInstance(page));
+        } finally {
+            page.releaseBlocks();
+        }
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    private void assertAllTrueVector(boolean bigArray) {
+        DriverContext ctx = driverContext();
+        int positions = between(1, 1000);
+        boolean[] values = new boolean[positions];
+        Arrays.fill(values, true);
+        List<Long> found = filter(ctx, positions, booleanVector(ctx.blockFactory(), values, bigArray).asBlock(), true);
+        assertThat(found, equalTo(LongStream.range(0, positions).boxed().toList()));
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    private void assertAllFalseVector(boolean bigArray) {
+        DriverContext ctx = driverContext();
+        int positions = between(1, 1000);
+        assertThat(
+            filter(ctx, positions, booleanVector(ctx.blockFactory(), new boolean[positions], bigArray).asBlock(), false),
+            nullValue()
+        );
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
+    }
+
+    private static BooleanVector booleanVector(BlockFactory blockFactory, boolean[] values, boolean bigArray) {
+        if (bigArray == false) {
+            return blockFactory.newBooleanArrayVector(values, values.length);
+        }
+        BitArray bits = new BitArray(values.length, blockFactory.bigArrays());
+        for (int p = 0; p < values.length; p++) {
+            if (values[p]) {
+                bits.set(p);
+            }
+        }
+        return new BooleanBigArrayVector(bits, values.length, blockFactory);
+    }
+
+    /**
+     * Runs a {@link FilterOperator} over a page of {@code [payload, predicate]} where the payload holds
+     * the row numbers. Returns the selected payload values, or {@code null} if the page was dropped.
+     * When {@code expectSameBlocks} the output must share the input blocks (a shallow copy).
+     */
+    private static List<Long> filter(DriverContext ctx, int positions, Block predicate, boolean expectSameBlocks) {
+        LongBlock payload = ctx.blockFactory().newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock();
+        Page page = new Page(payload, predicate);
+        try (FilterOperator op = new FilterOperator(new EvalOperatorTests.LoadFromPage(1))) {
+            op.addInput(page);
+            Page output = op.getOutput();
+            if (output == null) {
+                return null;
+            }
+            try {
+                if (expectSameBlocks) {
+                    assertThat(output.getBlock(0), sameInstance(payload));
+                }
+                LongBlock selected = output.getBlock(0);
+                List<Long> found = new ArrayList<>();
+                for (int p = 0; p < selected.getPositionCount(); p++) {
+                    found.add(selected.getLong(p));
+                }
+                assertThat(found, not(empty()));
+                return found;
+            } finally {
+                output.releaseBlocks();
+            }
+        }
     }
 }

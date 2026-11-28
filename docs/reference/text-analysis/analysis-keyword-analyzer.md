@@ -2,6 +2,9 @@
 navigation_title: "Keyword"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-keyword-analyzer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Keyword analyzer [analysis-keyword-analyzer]

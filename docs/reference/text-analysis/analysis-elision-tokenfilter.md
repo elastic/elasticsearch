@@ -2,6 +2,9 @@
 navigation_title: "Elision"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-elision-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Elision token filter [analysis-elision-tokenfilter]
@@ -75,7 +78,7 @@ To be removed, the elision must be at the beginning of a token and be immediatel
 For custom `elision` filters, either this parameter or `articles_path` must be specified.
 
 
-`articles_path`
+`articles_path` {applies_to}`serverless: unavailable`
 :   (Required*, string) Path to a file that contains a list of elisions to remove.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each elision in the file must be separated by a line break.

@@ -2,6 +2,9 @@
 navigation_title: "N-gram"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-ngram-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # N-gram tokenizer [analysis-ngram-tokenizer]
@@ -62,7 +65,9 @@ It usually makes sense to set `min_gram` and `max_gram` to the same value. The s
 ::::
 
 
-The index level setting `index.max_ngram_diff` controls the maximum allowed difference between `max_gram` and `min_gram`.
+The default maximum difference between `max_gram` and `min_gram` is `1`.
+
+{applies_to}`serverless: unavailable` To change the maximum difference, set [`index.max_ngram_diff`](/reference/elasticsearch/index-settings/index-modules.md#index-max-ngram-diff).
 
 
 ## Example configuration [_example_configuration_8]

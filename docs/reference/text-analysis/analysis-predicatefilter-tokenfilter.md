@@ -2,6 +2,9 @@
 navigation_title: "Predicate script"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-predicatefilter-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Predicate script token filter [analysis-predicatefilter-tokenfilter]

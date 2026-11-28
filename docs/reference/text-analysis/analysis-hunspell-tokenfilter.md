@@ -2,6 +2,9 @@
 navigation_title: "Hunspell"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-hunspell-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: unavailable
 ---
 
 # Hunspell token filter [analysis-hunspell-tokenfilter]

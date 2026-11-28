@@ -2,6 +2,9 @@
 navigation_title: "Keyword repeat"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-keyword-repeat-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Keyword repeat token filter [analysis-keyword-repeat-tokenfilter]

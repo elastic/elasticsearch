@@ -2,6 +2,9 @@
 navigation_title: "Mapping"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-mapping-charfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Mapping character filter [analysis-mapping-charfilter]
@@ -57,7 +60,7 @@ The filter produces the following text:
     Either this or the `mappings_path` parameter must be specified.
 
 
-`mappings_path`
+`mappings_path` {applies_to}`serverless: unavailable`
 :   (Required*, string) Path to a file containing `key => value` mappings.
 
     This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each mapping in the file must be separated by a line break.

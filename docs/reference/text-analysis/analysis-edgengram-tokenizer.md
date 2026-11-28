@@ -2,6 +2,9 @@
 navigation_title: "Edge n-gram"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-edgengram-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Edge n-gram tokenizer [analysis-edgengram-tokenizer]

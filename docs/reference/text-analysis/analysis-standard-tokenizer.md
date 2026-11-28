@@ -2,6 +2,9 @@
 navigation_title: "Standard"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-standard-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Standard tokenizer [analysis-standard-tokenizer]

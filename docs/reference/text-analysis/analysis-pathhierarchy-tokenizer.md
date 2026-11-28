@@ -2,6 +2,9 @@
 navigation_title: "Path hierarchy"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-pathhierarchy-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Path hierarchy tokenizer [analysis-pathhierarchy-tokenizer]

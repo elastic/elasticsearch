@@ -2,6 +2,9 @@
 navigation_title: "KStem"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-kstem-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # KStem token filter [analysis-kstem-tokenfilter]

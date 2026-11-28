@@ -2,6 +2,9 @@
 navigation_title: "Shingle"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-shingle-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Shingle token filter [analysis-shingle-tokenfilter]
@@ -111,42 +114,35 @@ PUT /my-index-000001
 
 ## Configurable parameters [analysis-shingle-tokenfilter-configure-parms]
 
-`max_shingle_size`
-:   (Optional, integer) Maximum number of tokens to concatenate when creating shingles. Defaults to `2`.
+To set these parameters, [create a custom `shingle` filter](#analysis-shingle-tokenfilter-customize).
 
-    ::::{note}
-    This value cannot be lower than the `min_shingle_size` argument, which defaults to `2`. The difference between this value and the `min_shingle_size` argument cannot exceed the [`index.max_shingle_diff`](/reference/elasticsearch/index-settings/index-modules.md#index-max-shingle-diff) index-level setting, which defaults to `3`.
-    ::::
-
+### Shingle sizes and unigrams [analysis-shingle-tokenfilter-size-limits]
 
 `min_shingle_size`
-:   (Optional, integer) Minimum number of tokens to concatenate when creating shingles. Defaults to `2`.
+:   (Optional, integer) Minimum number of tokens in a shingle. Defaults to `2`.
 
-    ::::{note}
-    This value cannot exceed the `max_shingle_size` argument, which defaults to `2`. The difference between the `max_shingle_size` argument and this value cannot exceed the [`index.max_shingle_diff`](/reference/elasticsearch/index-settings/index-modules.md#index-max-shingle-diff) index-level setting, which defaults to `3`.
-    ::::
-
+`max_shingle_size`
+:   (Optional, integer) Maximum number of tokens in a shingle. Defaults to `2`. Must be at least `min_shingle_size`.
 
 `output_unigrams`
-:   (Optional, Boolean) If `true`, the output includes the original input tokens. If `false`, the output only includes shingles; the original input tokens are removed. Defaults to `true`.
+:   (Optional, Boolean) Whether to include the original input tokens alongside the shingles. Defaults to `true`.
 
 `output_unigrams_if_no_shingles`
-:   If `true`, the output includes the original input tokens only if no shingles are produced; if shingles are produced, the output only includes shingles. Defaults to `false`.
+:   (Optional, Boolean) Whether to output the original input tokens when the filter produces no shingles. Applies when `output_unigrams` is `false`. Defaults to `false`.
 
-    ::::{important}
-    If both this and the `output_unigrams` parameter are `true`, only the `output_unigrams` argument is used.
-    ::::
+The filter subtracts `min_shingle_size` from `max_shingle_size` and adds `1` if `output_unigrams` is `true`. The result must be at most the size limit, which defaults to `3`. With that default, the largest size difference is `2` with unigrams and `3` without them.
 
+{applies_to}`serverless: unavailable` To change the limit, set [`index.max_shingle_diff`](/reference/elasticsearch/index-settings/index-modules.md#index-max-shingle-diff).
+
+### Token separator and filler
 
 `token_separator`
-:   (Optional, string) Separator used to concatenate adjacent tokens to form a shingle. Defaults to a space (`" "`).
+:   (Optional, string) Separator between tokens in a shingle. Defaults to a space (`" "`).
 
 `filler_token`
-:   (Optional, string) String used in shingles as a replacement for empty positions that do not contain a token. This filler token is only used in shingles, not original unigrams. Defaults to an underscore (`_`).
+:   (Optional, string) String used to fill gaps when building shingles. A position increment greater than `1` indicates a gap, which can occur when the `stop` filter removes a stop word. The filler appears only in shingles. Defaults to an underscore (`_`).
 
-Some token filters, such as the `stop` filter, create empty positions when removing stop words with a position increment greater than one.
-
-::::{dropdown} Example
+::::{dropdown} Filler token example
 In the following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request, the `stop` filter removes the stop word `a` from `fox jumps a lazy dog`, creating an empty position. The subsequent `shingle` filter replaces this empty position with a plus sign (`+`) in shingles.
 
 ```console
@@ -176,15 +172,13 @@ The filter produces the following tokens:
 ::::
 
 
-
-
 ## Customize [analysis-shingle-tokenfilter-customize]
 
 To customize the `shingle` filter, duplicate it to create the basis for a new custom token filter. You can modify the filter using its configurable parameters.
 
 For example, the following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses a custom `shingle` filter, `my_shingle_filter`, to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md).
 
-The `my_shingle_filter` filter uses a `min_shingle_size` of `2` and a `max_shingle_size` of `5`, meaning it produces shingles of 2-5 words. The filter also includes a `output_unigrams` argument of `false`, meaning that only shingles are included in the output.
+The filter produces shingles of two to five tokens. It sets `output_unigrams` to `false`, so the size difference of `3` fits the default limit.
 
 ```console
 PUT /my-index-000001

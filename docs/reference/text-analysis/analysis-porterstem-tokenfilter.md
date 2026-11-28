@@ -2,6 +2,9 @@
 navigation_title: "Porter stem"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-porterstem-tokenfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Porter stem token filter [analysis-porterstem-tokenfilter]

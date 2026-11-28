@@ -2,6 +2,9 @@
 navigation_title: "Simple pattern"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-simplepattern-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Simple pattern tokenizer [analysis-simplepattern-tokenizer]

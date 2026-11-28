@@ -2,6 +2,9 @@
 navigation_title: "Letter"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-letter-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Letter tokenizer [analysis-letter-tokenizer]

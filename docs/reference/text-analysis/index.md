@@ -1,3 +1,9 @@
+---
+applies_to:
+  stack: ga
+  serverless: ga
+---
+
 # Text analysis components
 
 % TO-DO: Add links to "Data analysis basics"%

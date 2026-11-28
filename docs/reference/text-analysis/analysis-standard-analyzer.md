@@ -2,6 +2,9 @@
 navigation_title: "Standard"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-standard-analyzer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Standard analyzer [analysis-standard-analyzer]
@@ -37,7 +40,7 @@ The `standard` analyzer accepts the following parameters:
 `stopwords`
 :   A pre-defined stop words list like `_english_` or an array containing a list of stop words. Defaults to `_none_`.
 
-`stopwords_path`
+`stopwords_path` {applies_to}`serverless: unavailable`
 :   The path to a file containing stop words.
 
 See the [Stop Token Filter](/reference/text-analysis/analysis-stop-tokenfilter.md) for more information about stop word configuration.

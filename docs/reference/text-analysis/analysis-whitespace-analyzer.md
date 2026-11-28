@@ -2,6 +2,9 @@
 navigation_title: "Whitespace"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-whitespace-analyzer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Whitespace analyzer [analysis-whitespace-analyzer]

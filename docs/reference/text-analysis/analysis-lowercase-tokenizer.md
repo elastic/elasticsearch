@@ -2,6 +2,9 @@
 navigation_title: "Lowercase"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-lowercase-tokenizer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Lowercase tokenizer [analysis-lowercase-tokenizer]

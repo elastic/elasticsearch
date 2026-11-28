@@ -2,6 +2,9 @@
 navigation_title: "Stop"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-stop-analyzer.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Stop analyzer [analysis-stop-analyzer]
@@ -34,7 +37,7 @@ The `stop` analyzer accepts the following parameters:
 `stopwords`
 :   A pre-defined stop words list like `_english_` or an array containing a list of stop words. Defaults to `_english_`.
 
-`stopwords_path`
+`stopwords_path` {applies_to}`serverless: unavailable`
 :   The path to a file containing stop words. This path is relative to the Elasticsearch `config` directory.
 
 See the [Stop Token Filter](/reference/text-analysis/analysis-stop-tokenfilter.md) for more information about stop word configuration.
@@ -112,7 +115,7 @@ PUT /stop_example
 ```
 % TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: stop_example, first: stop, second: rebuilt_stop}\nendyaml\n/]
 
-1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
+1. Use `stopwords` to override the default stop words.
 2. You’d add any token filters after `english_stop`.
 
 

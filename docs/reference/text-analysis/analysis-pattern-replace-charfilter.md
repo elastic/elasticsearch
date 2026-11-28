@@ -2,6 +2,9 @@
 navigation_title: "Pattern replace"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-pattern-replace-charfilter.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Pattern replace character filter [analysis-pattern-replace-charfilter]

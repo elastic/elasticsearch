@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
@@ -228,7 +230,15 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                                 anomalyDetectionAuditor.info(jobId, "Datafeed [" + datafeedParams.getDatafeedId() + "] relocating.");
                             }
                         } else {
-                            logger.warn(
+                            // Relocation explanations occur on routine node drain/autoscale; stuck jobs are still
+                            // reported by logLongTimeUnassigned.
+                            Level level = DatafeedNodeSelector.isJobRelocationExplanation(
+                                datafeedParams.getDatafeedId(),
+                                jobId,
+                                currentAssignment.getExplanation()
+                            ) ? Level.DEBUG : Level.WARN;
+                            logger.log(
+                                level,
                                 "[{}] No node found to start datafeed [{}]. Reasons [{}]",
                                 jobId,
                                 datafeedParams.getDatafeedId(),

@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,12 +18,16 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
@@ -272,6 +278,75 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             )
             .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
+    }
+
+    public void testUnassignedDatafeedAfterRelocationIsLoggedAtDebug() {
+        String explanation = randomFrom(
+            DatafeedNodeSelector.AWAITING_JOB_ASSIGNMENT.getExplanation(),
+            DatafeedNodeSelector.AWAITING_JOB_RELOCATION.getExplanation(),
+            "cannot start datafeed [df_id], because the job's [job_id] state is stale"
+        );
+        assertUnassignedDatafeedLog(explanation, Level.DEBUG, Level.WARN);
+    }
+
+    public void testUnassignedDatafeedWithUnexpectedExplanationIsLoggedAtWarn() {
+        String explanation = randomFrom(
+            "cannot start datafeed [df_id] because index [foo] does not have all primary shards active yet.",
+            "cannot start datafeed [df_id], because the job's [job_id] state is [closed] while state [opened] is required",
+            "some other reason"
+        );
+        assertUnassignedDatafeedLog(explanation, Level.WARN, Level.DEBUG);
+    }
+
+    private void assertUnassignedDatafeedLog(String explanation, Level expectedLevel, Level unexpectedLevel) {
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(
+            anomalyDetectionAuditor,
+            dataFrameAnalyticsAuditor,
+            threadPool,
+            clusterService
+        );
+
+        ClusterState previous = ClusterState.builder(new ClusterName("_name"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0L, Collections.emptyMap()))
+            )
+            .build();
+
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("df_id", 0L);
+        params.setJobId("job_id");
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder.addTask(
+            MlTasks.datafeedTaskId("df_id"),
+            MlTasks.DATAFEED_TASK_NAME,
+            params,
+            new PersistentTasksCustomMetadata.Assignment(null, explanation)
+        );
+        ClusterState newState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
+                    .localNodeId("_node_id")
+                    .masterNodeId("_node_id")
+            )
+            .build();
+
+        Logger notifierLogger = LogManager.getLogger(MlAssignmentNotifier.class);
+        Level oldLevel = notifierLogger.getLevel();
+        Loggers.setLevel(notifierLogger, Level.DEBUG);
+        try (MockLog log = MockLog.capture(MlAssignmentNotifier.class)) {
+            String logger = MlAssignmentNotifier.class.getName();
+            String message = Pattern.quote("[job_id] No node found to start datafeed [df_id]. Reasons [" + explanation + "]");
+            log.addExpectation(new MockLog.PatternSeenEventExpectation("expected-level", logger, expectedLevel, message));
+            log.addExpectation(new MockLog.PatternNotSeenEventExpectation("unexpected-level", logger, unexpectedLevel, message));
+
+            notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
+
+            log.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(notifierLogger, oldLevel);
+        }
     }
 
     public void testAuditUnassignedMlTasks() {

@@ -7,71 +7,72 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.testclusters.RunTask
+import org.elasticsearch.gradle.internal.run.InternalRunPlugin
+import org.elasticsearch.gradle.internal.run.RunLifecycleTask
+import org.elasticsearch.gradle.internal.run.RunTask
+
+project.pluginManager.apply(InternalRunPlugin)
 
 boolean proxyMode = Boolean.valueOf(providers.systemProperty('proxyMode').getOrElse('true'))
 boolean basicSecurityMode = Boolean.valueOf(providers.systemProperty('basicSecurityMode').getOrElse('true'))
 
-def fulfillingCluster = testClusters.register('fulfilling-cluster') {
-  testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+// Both clusters use fixed ports, so the querying cluster can be pointed at the fulfilling cluster up front and the two clusters
+// can be started independently (and concurrently).
+int fulfillingTransportPort = 9300
+int fulfillingRemoteClusterPort = 9443
+String remoteAddress = "127.0.0.1:" + (basicSecurityMode ? fulfillingTransportPort : fulfillingRemoteClusterPort)
 
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
+def runCcs = tasks.register('run-ccs', RunLifecycleTask) {
+  description = 'Runs a querying cluster connected to a fulfilling cluster for cross-cluster search'
+  group = 'Verification'
+  impliesSubProjects = true
+  dependsOn 'run-ccs-fulfilling', 'run-ccs-querying'
+}
+
+def commonClusterConfig = { RunTask task ->
+  task.inheritOptionsFrom(runCcs)
+  task.setting 'xpack.security.enabled', 'true'
+  task.setting 'xpack.watcher.enabled', 'false'
+  task.setting 'xpack.ml.enabled', 'false'
+  task.setting 'xpack.license.self_generated.type', 'trial'
+  task.user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+}
+
+tasks.register('run-ccs-fulfilling', RunTask) {
+  description = 'Runs the fulfilling cluster of run-ccs'
+  impliesSubProjects = true
+  commonClusterConfig(it)
+  clusterName = 'fulfilling-cluster'
+  httpPort = 9200
+  transportPort = fulfillingTransportPort
   if (false == basicSecurityMode) {
+    remoteClusterPort = fulfillingRemoteClusterPort
     setting 'remote_cluster_server.enabled', 'true'
     setting 'xpack.security.authc.api_key.enabled', 'true'
     setting 'xpack.security.remote_cluster_server.ssl.enabled', 'false'
   }
-
-  user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
 }
 
-def queryingCluster = testClusters.register('querying-cluster') {
-  testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
-
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.connections_per_cluster', "1"
+tasks.register('run-ccs-querying', RunTask) {
+  description = 'Runs the querying cluster of run-ccs'
+  impliesSubProjects = true
+  commonClusterConfig(it)
+  clusterName = 'querying-cluster'
+  httpPort = 9201
+  transportPort = 9301
+  debugServerPort = 5008
+  debugCliPort = 5108
+  setting 'cluster.remote.connections_per_cluster', '1'
   if (false == basicSecurityMode) {
     setting 'xpack.security.remote_cluster_client.ssl.enabled', 'false'
+    doFirst {
+      logger.lifecycle("** NOTE: you must manually configure a cross cluster access API key on the two clusters to run cross cluster operations")
+    }
   }
-  user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
-}
-
-
-tasks.register("run-ccs", RunTask) {
-  useCluster fulfillingCluster
-  useCluster queryingCluster
-  doFirst {
-    queryingCluster.get().getNodes().each { node ->
-      if (proxyMode) {
-        node.setting('cluster.remote.my_remote_cluster.mode', 'proxy')
-        if (basicSecurityMode) {
-          node.setting('cluster.remote.my_remote_cluster.proxy_address', "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\"")
-        } else {
-          node.setting('cluster.remote.my_remote_cluster.proxy_address', "\"${fulfillingCluster.get().getAllRemoteAccessPortURI().get(0)}\"")
-        }
-      } else {
-        if (basicSecurityMode) {
-          node.setting('cluster.remote.my_remote_cluster.seeds', fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString())
-        } else {
-          node.setting('cluster.remote.my_remote_cluster.seeds', fulfillingCluster.get().getAllRemoteAccessPortURI().collect { "\"$it\"" }.toString())
-        }
-      }
-    }
-    queryingCluster.get().restart() //updates the on-disk config
-
-    println "** Querying cluster HTTP endpoints are: ${-> queryingCluster.get().allHttpSocketURI.join(",")}"
-    println "** Querying cluster transport endpoints are: ${-> queryingCluster.get().getAllTransportPortURI().join(",")}"
-    println "** Fulfilling cluster HTTP endpoints are: ${-> fulfillingCluster.get().allHttpSocketURI.join(",")}"
-    println "** Fulfilling cluster transport endpoints are: ${-> fulfillingCluster.get().getAllTransportPortURI().join(",")}"
-    if (false == basicSecurityMode) {
-      println "** Fulfilling cluster remote access endpoints are: ${-> fulfillingCluster.get().getAllRemoteAccessPortURI().join(",")}"
-      println "** NOTE: you must manually configure a cross cluster access API key on the two clusters to run cross cluster operations"
-    }
+  if (proxyMode) {
+    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+    setting 'cluster.remote.my_remote_cluster.proxy_address', "\"${remoteAddress}\""
+  } else {
+    setting 'cluster.remote.my_remote_cluster.seeds', "[\"${remoteAddress}\"]"
   }
 }

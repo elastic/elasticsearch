@@ -16,7 +16,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.configureEach {
+tasks.named('run').configure {
   setting 'xpack.security.enabled', 'false'
 }
 

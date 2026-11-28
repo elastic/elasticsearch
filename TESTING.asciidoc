@@ -43,6 +43,10 @@ run it using Gradle:
 ./gradlew run
 -------------------------------------
 
+The cluster is started with the same test-clusters library used by the Java and YAML REST integration tests, and node
+output is streamed to the console. Each node's working directory, including its `logs`, `data` and `config` directories,
+is located at `build/testclusters/<node name>` (e.g. `build/testclusters/runTask-0`) of the project the task belongs to.
+
 ==== Launching and debugging from an IDE
 
 If you want to run and debug Elasticsearch from your IDE, the `./gradlew run` task
@@ -91,49 +95,107 @@ default. To disable them, add the following command line option:
 
 ==== Distribution
 
-By default a node is started with the zip distribution.
-In order to start with a different distribution use the `-Drun.distribution` argument.
-
-To for example start the open source distribution:
-
--------------------------------------
-./gradlew run -Drun.distribution=oss
--------------------------------------
+A node is started with the default distribution, with security enabled and a superuser with the username
+`elastic-admin` and password `elastic-password`. Plugin and module `run` tasks use the minimal integration test
+distribution instead. The distribution can't be changed from the command line; a task defined in a build script can set
+its `distribution` property to `DEFAULT` or `INTEG_TEST`.
 
 ==== License type
 
 By default a node is started with the `basic` license type.
-In order to start with a different license type use the `-Drun.license_type` argument.
+In order to start with a different license type use the `--license` option, which requires the default distribution.
 
-In order to start a node with a trial license execute the following command:
+In order to start a node with a trial license, which enables paid features, execute the following command:
 
 -------------------------------------
-./gradlew run -Drun.license_type=trial
+./gradlew run --license=trial
 -------------------------------------
 
-This enables security and other paid features and adds a superuser with the username: `elastic-admin` and
-password: `elastic-password`.
+The `-Drun.license_type` system property is also supported by every run task, including both `run-ccs` clusters.
+
+==== Command line options
+
+The `run` task (and the `run` task of each plugin or module project) accepts the following options. Gradle also lists
+them, along with the task's description, when you run `./gradlew help --task run`.
+
+[cols="2,5"]
+|===
+|Option |Description
+
+|`--license=<type>`
+|Self-generated license type, `basic` or `trial`. Requires the default distribution. See <<_license_type>>.
+
+|`--nodes=<N>`
+|Number of nodes to start in the cluster. Defaults to 1.
+
+|`--setting=<key>=<value>`
+|Set an Elasticsearch setting on every node, e.g. `--setting=logger.org.elasticsearch.indices=debug`. Repeat the option
+for each setting. These settings take precedence over all others.
+
+|`--system-property=<key>=<value>`
+|Set a system property on every node's server and CLI launcher JVMs. Repeat the option for each property.
+
+|`--jvm-arg=<arg>`
+|Pass an argument to every node's server and CLI launcher JVMs, e.g. `--jvm-arg=-XX:+UseZGC`. Repeat the option for each
+argument. Use the `=` form so the value is not mistaken for another option. To change the heap size use
+`-Dtests.heap.size` instead, as it only applies to the server JVM.
+
+|`--debug-jvm`
+|Connect each node's server process to a listening debugger, starting at port 5007. See <<_launching_and_debugging_from_an_ide>>.
+
+|`--debug-cli-jvm`
+|Connect each node's CLI launcher process to a listening debugger, starting at port 5107. See <<_debugging_the_cli_launcher>>.
+
+|`--data-dir=<path>`
+|Use a custom data directory, e.g. `--data-dir=/tmp/foo`. A subdirectory per node is used for multi-node clusters. This
+directory is always preserved between executions.
+
+|`--preserve-data`
+|Keep the contents of the data directory between executions. Everything else in the node working directory is recreated.
+
+|`--keystore-password=<password>`
+|Protect the Elasticsearch keystore with the given password. By default the keystore has no password.
+
+|`--https`
+|Enable HTTPS using the self-signed certificates in `build-tools-internal/src/main/resources/run.ssl`. Can not be
+combined with explicit `xpack.security.http.ssl.*` settings.
+
+|`--transport-tls`
+|Enable TLS on the transport port using the same certificates as `--https`. Can not be combined with explicit
+`xpack.security.transport.ssl.*` settings.
+
+|`--with-plugins=<names>`
+|Comma-separated list of additional plugins from the `plugins` directory to install, e.g.
+`--with-plugins=analysis-icu,analysis-kuromoji`.
+
+|`--with-apm-server`
+|Start a mock APM server that logs the telemetry the cluster exports, and configure the cluster to send metrics and
+traces to it. Requires the default distribution.
+
+|`--apm-metrics=<wildcard>`
+|Only log metrics matching the given wildcard. Used together with `--with-apm-server`.
+|===
+
+The `run-ccs` task accepts `--debug-jvm`, `--debug-cli-jvm` and `--preserve-data`, and applies them to both clusters.
 
 ==== Other useful arguments
 
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
-- In order to use a custom data directory: `--data-dir=/tmp/foo`
-- In order to preserve data in between executions: `--preserve-data`
-- In order to remotely attach a debugger to the server process: `--debug-jvm`
-- In order to remotely attach a debugger to the CLI launcher process: `--debug-cli-jvm`
-- In order to set a different keystore password: `--keystore-password`
-- In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
+- As an alternative to `--setting`, provide a setting with the following prefix: `-Dtests.es.`
 - In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
-- In order to use HTTPS: ./gradlew run --https
-- In order to start a mock logging APM server on port 9999 and configure ES cluster to connect to it,
-use `./gradlew run --with-apm-server`
+
+Ports are assigned from fixed starting ports: the first node uses HTTP port 9200 and transport port 9300, and each
+additional node uses the next port (9201/9301, 9202/9302, and so on). The same applies to the debug ports used by
+`--debug-jvm` (5007, 5008, ...) and `--debug-cli-jvm` (5107, 5108, ...).
 
 ==== Customizing the test cluster for ./gradlew run
 
 You may need to customize the cluster configuration for the ./gradlew run task.
 The settings can be set via the command line, but other options require updating the task itself.
 You can simply find the task in the source code and configure it there.
-(The task is currently defined in build-tools-internal/src/main/groovy/elasticsearch.run.gradle)
+(The task is currently defined in build-tools-internal/src/main/groovy/elasticsearch.run.gradle and is of type
+`org.elasticsearch.gradle.internal.run.RunTask`, which provides methods such as `setting`, `nodeSetting`, `systemProperty`,
+`jvmArgs`, `keystore`, `user` and `extraConfigFile`.)
 However, this requires modifying a source controlled file and is subject to accidental commits.
 Alternatively, you can use a Gradle init script to inject custom build logic with the -I flag to configure this task locally.
 
@@ -145,7 +207,7 @@ Create a file (for example ~/custom-run.gradle) with the following contents:
 rootProject {
   if(project.name == 'elasticsearch') {
     afterEvaluate {
-        testClusters.matching { it.name == "runTask"}.configureEach {
+        tasks.named("run").configure {
           extraConfigFile 'http.p12', file("<path/to/file>/http.p12")
         }
     }
@@ -168,19 +230,17 @@ of accidentally committing your local configurations.
 Another desired customization for ./gradlew run might be to run multiple
 nodes with different setting for each node. For example, you may want to debug a coordinating only node that fans out
 to one or more data nodes. To do this, increase the numberOfNodes and add specific configuration for each
-of the nodes.  For example, the following will instruct the first node (:9200) to be a coordinating only node,
-and all other nodes to be master, data_hot, data_content nodes.
+of the nodes using `nodeSetting`, which takes the (0-based) index of the node. Nodes are named `runTask-0`, `runTask-1`
+and so on. For example, the following will instruct the first node (:9200) to be a coordinating only node,
+and the second node (:9201) to be a master, data_hot, data_content node.
 -------------------------------------
-testClusters.register("runTask") {
-     ...
+tasks.named("run").configure {
+    ...
     numberOfNodes = 2
-    def cluster = testClusters.named("runTask").get()
-    cluster.getNodes().each { node ->
-      node.setting('cluster.initial_master_nodes', cluster.getLastNode().getName())
-      node.setting('node.roles', '[master,data_hot,data_content]')
-    }
-    cluster.getFirstNode().setting('node.roles', '[]')
-   ...
+    setting 'cluster.initial_master_nodes', '[runTask-1]'
+    nodeSetting 0, 'node.roles', '[]'
+    nodeSetting 1, 'node.roles', '[master,data_hot,data_content]'
+    ...
 }
 -------------------------------------
 
@@ -196,11 +256,13 @@ for each node listening at port 5007, 5008, 5009, and so on. Ensure that each re
 ==== Manually testing cross cluster search
 
 Use ./gradlew run-ccs to launch 2 clusters wired together for the purposes of cross cluster search.
-For example send a search request "my_remote_cluster:*/_search" to the querying cluster (:9200) to query data
-in the fulfilling cluster.
+The fulfilling cluster listens on port 9200 (transport 9300) and the querying cluster on port 9201 (transport 9301).
+For example send a search request "my_remote_cluster:*/_search" to the querying cluster (:9201) to query data
+in the fulfilling cluster. Each cluster is run by its own task (`run-ccs-fulfilling` and `run-ccs-querying`), which
+can also be run on its own.
 
-If you are passing in the --debug-jvm flag, you will need two remote debuggers running. One at port 5007 and another
-one at port 5008. Ensure that each remote debugger has auto restart enabled.
+If you are passing in the --debug-jvm flag, you will need two remote debuggers running. One at port 5007 (fulfilling
+cluster) and another one at port 5008 (querying cluster). Ensure that each remote debugger has auto restart enabled.
 
 === Test case filtering.
 

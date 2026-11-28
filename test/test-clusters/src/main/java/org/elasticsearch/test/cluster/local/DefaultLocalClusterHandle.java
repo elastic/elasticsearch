@@ -39,6 +39,7 @@ import java.util.stream.Stream;
 
 public class DefaultLocalClusterHandle implements LocalClusterHandle {
     public static final AtomicInteger NEXT_DEBUG_PORT = new AtomicInteger(5007);
+    public static final AtomicInteger NEXT_CLI_DEBUG_PORT = new AtomicInteger(5107);
 
     private static final Logger LOGGER = LogManager.getLogger(DefaultLocalClusterHandle.class);
     private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofMinutes(5);
@@ -107,6 +108,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     public void close() {
         stop(true);
         NEXT_DEBUG_PORT.getAndUpdate(i -> i - nodes.size());
+        NEXT_CLI_DEBUG_PORT.getAndUpdate(i -> i - nodes.size());
 
         executor.shutdownNow();
         try {

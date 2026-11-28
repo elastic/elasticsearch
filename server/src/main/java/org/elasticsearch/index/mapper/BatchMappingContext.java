@@ -373,11 +373,24 @@ public final class BatchMappingContext implements Releasable {
      * drained by {@link IgnoredFieldMapper#postColumnarParse}.
      */
     public void addIgnoredFieldColumnar(int doc, String field) {
+        addIgnoredFieldColumnar(doc, new BytesRef(field));
+    }
+
+    /** As {@link #addIgnoredFieldColumnar(int, String)}, for a caller that encodes the name once; it is kept, so it must not change. */
+    void addIgnoredFieldColumnar(int doc, BytesRef field) {
         assert frozen == false;
         if (ignoredFields == null) {
             ignoredFields = new DeduplicatingStringColumnAccumulator(batch.docCount());
         }
-        ignoredFields.record(doc, new BytesRef(field));
+        ignoredFields.record(doc, field);
+    }
+
+    /**
+     * Returns a helper that applies {@code ignore_malformed} to {@code mapper}'s field as its row path does; the mapper must not record
+     * offsets. {@code storeMalformed} is whether that row path stores malformed values for synthetic source, which the batch must match.
+     */
+    public BatchMalformedValues malformedValues(FieldMapper mapper, boolean storeMalformed) {
+        return new BatchMalformedValues(this, mapper, storeMalformed);
     }
 
     /**

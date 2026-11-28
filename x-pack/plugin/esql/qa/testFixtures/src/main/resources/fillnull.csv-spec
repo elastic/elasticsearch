@@ -557,16 +557,20 @@ emp_no:integer | _index:keyword | gender:keyword
 fillNullOnMVField
 required_capability: fillnull
 
+// tag::onColumnForDocs[]
 FROM employees
 | WHERE emp_no IN (10001, 10003)
 | FILLNULL "None" ON job_positions
 | KEEP emp_no, job_positions
 | SORT emp_no
+// end::onColumnForDocs[]
 ;
 
+// tag::onColumnForDocs-result[]
 emp_no:integer | job_positions:keyword
 10001          | [Accountant, Senior Python Developer]
 10003          | None
+// end::onColumnForDocs-result[]
 ;
 
 fillNullAllFieldsModePreservesMV
@@ -772,13 +776,17 @@ first
 fillNullAllFieldsMixedTypeDefaults
 required_capability: fillnull
 
+// tag::defaultAllForDocs[]
 ROW i = null, l = null, d = null, k = null, b = null
 | EVAL i = i::integer, l = l::long, d = d::double, k = k::keyword, b = b::boolean
 | FILLNULL DEFAULT ON *
+// end::defaultAllForDocs[]
 ;
 
+// tag::defaultAllForDocs-result[]
 i:integer | l:long | d:double | k:keyword | b:boolean
 0         | 0      | 0.0      |           | false
+// end::defaultAllForDocs-result[]
 ;
 
 fillNullDottedFieldNameAfterColumnNarrowing

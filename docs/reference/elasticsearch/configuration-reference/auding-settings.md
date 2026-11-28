@@ -20,11 +20,11 @@ Audit logs are only available on certain subscription levels. For more informati
 
 If configured, auditing settings must be set on every node in the cluster. For dynamic auditing settings, use the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) to ensure the setting is the same on all nodes.
 
-    :::{note}
-    :applies_to: stack: ga 9.0-9.4
+:::{note}
+:applies_to: stack: ga 9.0-9.4
 
-    In {{stack}} versions 9.4 and earlier, `xpack.security.audit.enabled` is a static setting, and must be configured in `elasticsearch.yml` on each node.
-    :::
+In {{stack}} versions 9.4 and earlier, `xpack.security.audit.enabled` is a static setting, and must be configured in `elasticsearch.yml` on each node.
+:::
 
 ## General Auditing Settings [general-audit-settings]
 
@@ -70,6 +70,7 @@ $$$xpack-sa-lf-events-emit-request$$$
     Be advised that sensitive data may be audited in plain text when including the request body in audit events, even though all the security APIs, such as those that change the user’s password, have the credentials filtered out when audited.
 
     When `Content-Type` is `application/x-protobuf` (for example OTLP or Prometheus remote-write), the payload is captured verbatim as `request.raw_body`. Base64 encoding is a transport format rather than obfuscation, and such payloads commonly contain tenant identifiers, request headers, or other application-layer data.
+
     ::::
 
 $$$xpack-sa-lf-events-emit-security-config-change-actor$$$

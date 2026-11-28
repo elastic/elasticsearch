@@ -123,14 +123,29 @@ Follow these steps to generate a GitLab personal access token:
 
 ### Compatibility [es-connectors-gitlab-client-compatibility]
 
-This connector supports GitLab Cloud (gitlab.com) only. GitLab Self-Managed instances are not currently supported.
+This connector supports GitLab Cloud (gitlab.com). It also supports GitLab Self-Managed instances: set `host` to your instance URL. Only HTTPS URLs are accepted.
+
+GitLab Self-Managed support is available in 9.7.0, 9.6.1, and 9.5.8 and later. Earlier releases support gitlab.com only.
 
 
 ### Configuration [es-connectors-gitlab-client-configuration]
 
-The following configuration fields are required:
+The following configuration fields are available:
 
-`token`
+`host`
+:   URL of the GitLab instance, for example `https://gitlab.example.com`. Must start with `https://`. A trailing slash is ignored, and a sub-path such as `https://example.com/gitlab` is supported.
+
+    Default value is `https://gitlab.com`.
+
+`ssl_enabled`
+:   Whether to use a custom CA certificate to verify the GitLab server. Use this for instances with an internal or self-signed certificate.
+
+    Default value is `false`.
+
+`ssl_ca`
+:   The CA certificate, in PEM format. Only available when `ssl_enabled` is on.
+
+`token` (required)
 :   GitLab personal access token to authenticate with the GitLab instance. The token must have `api`, `read_api`, and `read_repository` scopes.
 
 `projects`

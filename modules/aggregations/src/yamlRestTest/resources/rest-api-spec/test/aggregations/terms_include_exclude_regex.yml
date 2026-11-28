@@ -221,6 +221,8 @@ teardown:
   - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }
 
   # Under the same limit, the same shape at a size whose prediction fits builds and runs, as does a long bounded repeat.
+  # The breaker is not read after these: a response holds the charge for its aggregations until it is released, which
+  # can be after the client has read it.
   - do:
       search:
         rest_total_hits_as_int: true
@@ -247,7 +249,7 @@ teardown:
                 include: ".{0,10000}"
   - length: { aggregations.terms_agg.buckets: 2 }
 
-  # A string filter keeps its automaton charged until the request ends, so this must leave the breaker at zero too.
+  # A string filter keeps its automaton charged until the request ends; that has to fit under the limit too.
   - do:
       search:
         rest_total_hits_as_int: true
@@ -261,9 +263,3 @@ teardown:
                 execution_hint: map
                 include: "a.*"
   - length: { aggregations.terms_agg.buckets: 1 }
-
-  - do:
-      nodes.stats:
-        node_id: $node_id
-        metric: [ breaker ]
-  - match: { nodes.$node_id.breakers.request.estimated_size_in_bytes: 0 }

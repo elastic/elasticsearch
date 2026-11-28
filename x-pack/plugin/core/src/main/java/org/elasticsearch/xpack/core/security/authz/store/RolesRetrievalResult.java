@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public final class RolesRetrievalResult {
@@ -24,6 +25,7 @@ public final class RolesRetrievalResult {
     }
 
     private final Set<RoleDescriptor> roleDescriptors = new HashSet<>();
+    private List<RoleDeprecation> roleDeprecations = List.of();
     private Set<String> missingRoles = Collections.emptySet();
     private boolean success = true;
 
@@ -34,6 +36,19 @@ public final class RolesRetrievalResult {
     public Set<RoleDescriptor> getRoleDescriptors() {
         return roleDescriptors;
     }
+
+    /** Returns deprecations separately from effective descriptors so license filtering does not suppress warnings. */
+    public List<RoleDeprecation> getRoleDeprecations() {
+        return roleDeprecations;
+    }
+
+    /** Carries deprecation metadata to callers so they can generate warnings in their own request contexts. */
+    public void setRoleDeprecations(List<RoleDeprecation> roleDeprecations) {
+        this.roleDeprecations = List.copyOf(roleDeprecations);
+    }
+
+    /** Retains only the metadata needed to warn about a deprecated role after role resolution. */
+    public record RoleDeprecation(String name, String reason) {}
 
     public void setFailure() {
         success = false;

@@ -1,0 +1,5 @@
+area: Authentication
+issues: []
+pr: 166934
+summary: Coalesce role lookups in `CompositeRolesStore`
+type: bug

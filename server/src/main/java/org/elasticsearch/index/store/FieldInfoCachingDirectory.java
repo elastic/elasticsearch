@@ -16,7 +16,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.FeatureFlag;
 
-import java.io.IOException;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
@@ -42,7 +41,7 @@ import java.util.function.Supplier;
  * {@code CachingFieldInfosFormat} (delegating to global utilities) so that nodes hosting many shards from the same data
  * stream still share canonical attribute maps and name strings across shards.
  */
-public final class FieldInfoCachingDirectory extends ByteSizeDirectory implements Accountable {
+public final class FieldInfoCachingDirectory extends DelegatingByteSizeDirectory implements Accountable {
 
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("field_info_caching_directory");
 
@@ -76,18 +75,7 @@ public final class FieldInfoCachingDirectory extends ByteSizeDirectory implement
      * none is present.
      */
     public static FieldInfoCachingDirectory unwrap(Directory directory) {
-        Directory d = directory;
-        while (d != null) {
-            if (d instanceof FieldInfoCachingDirectory cd) {
-                return cd;
-            }
-            if (d instanceof FilterDirectory fd) {
-                d = fd.getDelegate();
-            } else {
-                return null;
-            }
-        }
-        return null;
+        return unwrap(directory, FieldInfoCachingDirectory.class);
     }
 
     /**
@@ -135,24 +123,6 @@ public final class FieldInfoCachingDirectory extends ByteSizeDirectory implement
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + (long) fieldInfoCache.size() * PER_ENTRY_RAM_BYTES_USED;
-    }
-
-    @Override
-    public long estimateSizeInBytes() throws IOException {
-        Directory delegate = getDelegate();
-        if (delegate instanceof ByteSizeDirectory bsd) {
-            return bsd.estimateSizeInBytes();
-        }
-        return estimateSizeInBytes(delegate);
-    }
-
-    @Override
-    public long estimateDataSetSizeInBytes() throws IOException {
-        Directory delegate = getDelegate();
-        if (delegate instanceof ByteSizeDirectory bsd) {
-            return bsd.estimateDataSetSizeInBytes();
-        }
-        return estimateSizeInBytes(delegate);
     }
 
     private void drainDeadRefs() {

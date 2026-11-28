@@ -13,10 +13,14 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -28,6 +32,7 @@ import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.engine.Engine.SearcherSupplier;
 import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ShardCodecStateDirectory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
@@ -65,6 +70,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -125,6 +132,67 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the breaking changes documentation for the next major version."
         );
+    }
+
+    /**
+     * The index and search engines of a shard each have their own {@link Store}, the search engine's built on a
+     * {@link SearchDirectory}, and their segments reach that Store's {@link ShardCodecStateDirectory} through
+     * {@code SegmentInfo.dir}.
+     */
+    public void testSegmentsReachShardCodecStateOfTheirOwnStore() throws IOException {
+        assumeTrue("requires the per-shard codec state feature flag", ShardCodecStateDirectory.FEATURE_FLAG.isEnabled());
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            int flushes = between(1, 5);
+            for (int i = 0; i < flushes; i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+                indexEngine.flush();
+            }
+            indexEngine.refresh("test");
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            Store indexStore = indexEngine.config().getStore();
+            Store searchStore = searchEngine.config().getStore();
+            assertThat(SearchDirectory.unwrapDirectory(searchStore.directory()), notNullValue());
+            State indexState = ShardCodecStateDirectory.getOrCreate(indexStore.directory(), State.class, State::new);
+            State searchState = ShardCodecStateDirectory.getOrCreate(searchStore.directory(), State.class, State::new);
+            assertThat(searchState, not(sameInstance(indexState)));
+
+            assertSegmentsReachState(indexEngine, indexState);
+            assertSegmentsReachState(searchEngine, searchState);
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    private static void assertSegmentsReachState(Engine engine, State expected) {
+        try (Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            List<LeafReaderContext> leaves = searcher.getDirectoryReader().leaves();
+            assertThat(leaves, not(empty()));
+            for (LeafReaderContext leaf : leaves) {
+                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
+                assertThat(segmentReader, notNullValue());
+                State state = ShardCodecStateDirectory.getOrCreate(segmentReader.getSegmentInfo().info.dir, State.class, () -> {
+                    throw new AssertionError("state must already exist");
+                });
+                assertThat(state, sameInstance(expected));
+            }
+        }
+    }
+
+    private static final class State implements Accountable {
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
     }
 
     public void testShardFieldStatsComputedFromCurrentReader() throws IOException {

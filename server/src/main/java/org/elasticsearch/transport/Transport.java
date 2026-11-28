@@ -97,6 +97,15 @@ public interface Transport extends LifecycleComponent {
     RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker);
 
     /**
+     * @return the breaker that guards the memory taken by messages in flight, or {@code null} if this transport has none, as in tests which
+     * do not use a real network transport.
+     */
+    @Nullable
+    default CircuitBreaker inFlightRequestsBreaker() {
+        return null;
+    }
+
+    /**
      * A unidirectional connection to a {@link DiscoveryNode}
      */
     interface Connection extends Closeable, RefCounted {

@@ -10,6 +10,10 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -34,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -58,7 +63,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -80,14 +88,18 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     }
 
     public void setupTestNodes(Settings settings) {
-        nodesCount = randomIntBetween(2, 10);
+        setupTestNodes(randomIntBetween(2, 10), settings, i -> new NoneCircuitBreakerService());
+    }
+
+    public void setupTestNodes(int nodesCount, Settings settings, IntFunction<CircuitBreakerService> circuitBreakerServices) {
+        this.nodesCount = nodesCount;
         testNodes = new TestNode[nodesCount];
         final Settings reservedPortRangeSettings = Settings.builder()
             .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(settings)
             .build();
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, reservedPortRangeSettings);
+            testNodes[i] = new TestNode("node" + i, threadPool, reservedPortRangeSettings, circuitBreakerServices.apply(i));
         }
     }
 
@@ -174,6 +186,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
+            this(name, threadPool, settings, new NoneCircuitBreakerService());
+        }
+
+        public TestNode(String name, ThreadPool threadPool, Settings settings, CircuitBreakerService circuitBreakerService) {
             final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
                 discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
@@ -188,7 +204,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NoneCircuitBreakerService(),
+                    circuitBreakerService,
                     new SharedGroupFactory(settings)
                 ),
                 threadPool,
@@ -202,7 +218,21 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
             ActionFilters actionFilters = ActionFilters.EMPTY;
-            final Client client = new NoOpClient(threadPool);
+            final Client client = new NoOpClient(threadPool) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    final BiConsumer<ActionRequest, ActionListener<?>> behaviour = clientBehaviour.get();
+                    if (behaviour == null) {
+                        super.doExecute(action, request, listener);
+                    } else {
+                        behaviour.accept(request, listener);
+                    }
+                }
+            };
             transportListTasksAction = new TransportListTasksAction(
                 clusterService,
                 transportService,
@@ -214,6 +244,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             transportService.acceptIncomingRequests();
         }
 
+        public final AtomicReference<BiConsumer<ActionRequest, ActionListener<?>>> clientBehaviour = new AtomicReference<>();
         public final ClusterService clusterService;
         public final TransportService transportService;
         private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();

@@ -209,7 +209,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     public Supplier<CircuitBreaker> getInflightBreaker() {
-        return () -> circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        return this::inFlightRequestsBreaker;
+    }
+
+    @Override
+    public CircuitBreaker inFlightRequestsBreaker() {
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
     }
 
     @Override

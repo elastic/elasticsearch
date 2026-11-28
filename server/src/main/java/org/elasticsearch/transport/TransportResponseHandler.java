@@ -53,6 +53,8 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      * @throws org.elasticsearch.common.breaker.CircuitBreakingException to reject the response: the rest is dropped unread, and
      *         {@link #handleException} gets the exception on {@link #executor()}, wrapped in a {@link RemoteTransportException} like a trip
      *         on the remote node. A handler that needs to tell them apart records its own.
+     * @throws org.elasticsearch.tasks.TaskCancelledException to reject the response because nobody is waiting for it any more, which is
+     *         handled in the same way as a {@link org.elasticsearch.common.breaker.CircuitBreakingException}.
      */
     default Releasable reserveResponseBytes(int bytes) {
         return NO_RESERVATION;

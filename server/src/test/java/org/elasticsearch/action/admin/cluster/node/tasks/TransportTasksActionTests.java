@@ -8,7 +8,9 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -18,6 +20,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -29,29 +33,50 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.action.admin.cluster.RestListTasksAction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.InboundHandler;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,16 +87,22 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -267,6 +298,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     }
 
+    private final List<CountDownLatch> latchesToRelease = new ArrayList<>();
+
+    @After
+    public void releaseBlockedTasks() {
+        latchesToRelease.forEach(CountDownLatch::countDown);
+    }
+
     private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws Exception {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"));
     }
@@ -283,6 +321,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     private Task startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request, ActionListener<NodesResponse> listener)
         throws Exception {
+        latchesToRelease.add(checkLatch);
         CountDownLatch actionLatch = new CountDownLatch(nodesCount);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
@@ -895,6 +934,999 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         checkLatch.countDown();
         NodesResponse responses = future.get();
         assertEquals(0, responses.failureCount());
+    }
+
+    private static final ByteSizeValue IN_FLIGHT_LIMIT = ByteSizeValue.ofKb(64);
+
+    private HierarchyCircuitBreakerService[] setupNodesWithInFlightLimit() {
+        final Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), IN_FLIGHT_LIMIT)
+            .build();
+        final HierarchyCircuitBreakerService[] breakerServices = new HierarchyCircuitBreakerService[3];
+        setupTestNodes(3, Settings.EMPTY, i -> {
+            breakerServices[i] = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
+                settings,
+                List.of(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            return breakerServices[i];
+        });
+        connectNodes(testNodes);
+        return breakerServices;
+    }
+
+    private TestTasksAction[] newTasksActions(int bigReplyNode, int smallReplyLength) {
+        return newTasksActions(bigReplyNode, Math.toIntExact(IN_FLIGHT_LIMIT.getBytes()) * 4, smallReplyLength);
+    }
+
+    private TestTasksAction[] newTasksActions(int bigReplyNode, int bigReplyLength, int smallReplyLength) {
+        final TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
+        for (int i = 0; i < testNodes.length; i++) {
+            final int node = i;
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected boolean nodeRepliesCanTripCircuitBreaker() {
+                    return true;
+                }
+
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    final int length = node == bigReplyNode ? bigReplyLength : smallReplyLength;
+                    listener.onResponse(new TestTaskResponse("x".repeat(length)));
+                }
+            };
+        }
+        return tasksActions;
+    }
+
+    public void testNodeReplyTrippingInFlightBreakerFailsOnlyThatNode() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch checkLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        final int bigReplyNode = 2;
+        final TestTasksAction[] tasksActions = newTasksActions(bigReplyNode, 16);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final long trippedBefore = breaker.getTrippedCount();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], request);
+
+        assertThat(response.tasks, hasSize(nodesCount - 1));
+        assertThat(response.getNodeFailures(), hasSize(1));
+        final FailedNodeException nodeFailure = (FailedNodeException) response.getNodeFailures().get(0);
+        assertThat(nodeFailure.nodeId(), equalTo(testNodes[bigReplyNode].getNodeId()));
+        assertNotNull(ExceptionsHelper.unwrap(nodeFailure, CircuitBreakingException.class));
+        assertThat(breaker.getTrippedCount(), equalTo(trippedBefore + 1));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+        checkLatch.countDown();
+        assertEquals(0, future.get().failureCount());
+    }
+
+    public void testNodeRepliesAreNotChargedUnlessTheActionOptsIn() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch checkLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        final TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
+        for (int i = 0; i < testNodes.length; i++) {
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    listener.onResponse(new TestTaskResponse("x".repeat(Math.toIntExact(IN_FLIGHT_LIMIT.getBytes()) * 4)));
+                }
+            };
+        }
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], request);
+
+        assertThat(response.tasks, hasSize(nodesCount));
+        assertThat(response.getNodeFailures(), hasSize(0));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+
+        checkLatch.countDown();
+        assertEquals(0, future.get().failureCount());
+    }
+
+    private Task registerTaskWithDescription(TestNode node, int descriptionLength) {
+        return registerTaskWithDescription(node, descriptionLength, () -> {});
+    }
+
+    private static long highestNodeListingTaskId(TestNode node) {
+        return node.transportService.getTaskManager()
+            .getTasks()
+            .values()
+            .stream()
+            .filter(t -> t.getAction().equals(TransportListTasksAction.TYPE.name() + "[n]"))
+            .mapToLong(Task::getId)
+            .max()
+            .orElse(-1);
+    }
+
+    private Task registerTaskWithDescription(TestNode node, int descriptionLength, Runnable onTaskInfo) {
+        return registerTask(node, "internal:test/described", descriptionLength, onTaskInfo, () -> {});
+    }
+
+    private Task registerTask(TestNode node, String taskAction, int descriptionLength, Runnable onTaskInfo, Runnable onMatch) {
+        final String description = "x".repeat(descriptionLength);
+        return node.transportService.getTaskManager().register("test", taskAction, new TaskAwareRequest() {
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new Task(id, type, action, description, parentTaskId, headers) {
+                    private final ThreadLocal<Boolean> inMatchHook = ThreadLocal.withInitial(() -> false);
+
+                    @Override
+                    public String getDescription() {
+                        onTaskInfo.run();
+                        return super.getDescription();
+                    }
+
+                    @Override
+                    public String getAction() {
+                        if (inMatchHook.get() == false) {
+                            inMatchHook.set(true);
+                            try {
+                                onMatch.run();
+                            } finally {
+                                inMatchHook.set(false);
+                            }
+                        }
+                        return super.getAction();
+                    }
+                };
+            }
+
+            private TaskId parentTask = TaskId.EMPTY_TASK_ID;
+
+            @Override
+            public void setParentTask(TaskId taskId) {
+                parentTask = taskId;
+            }
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return parentTask;
+            }
+
+            @Override
+            public String getDescription() {
+                return description;
+            }
+        });
+    }
+
+    private static ListTasksRequest doubleListRequest() {
+        final ListTasksRequest request = new ListTasksRequest();
+        request.setDetailed(true);
+        request.setActions("internal:test/described", TransportListTasksAction.RELOCATABLE_ACTIONS.iterator().next());
+        return request;
+    }
+
+    public void testSecondListingPassIsCheckedAgainstTheFirstPass() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final Task task1 = registerTaskWithDescription(testNodes[1], 12_000);
+        final Task task2 = registerTaskWithDescription(testNodes[2], 12_000);
+        try {
+            final ListTasksResponse response = ActionTestUtils.executeBlockingWithTask(
+                testNodes[0].transportService.getTaskManager(),
+                testNodes[0].transportService.getLocalNodeConnection(),
+                testNodes[0].transportListTasksAction,
+                doubleListRequest()
+            );
+
+            assertThat(response.getNodeFailures().size(), greaterThan(0));
+            assertNotNull(ExceptionsHelper.unwrap(response.getNodeFailures().get(0), CircuitBreakingException.class));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    public void testFirstListingPassStaysChargedWhileTheSecondOneWaits() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final AtomicLong firstPassTaskIdOnNode1 = new AtomicLong(-1);
+        final AtomicLong firstPassTaskIdOnNode2 = new AtomicLong(-1);
+        final Task task1 = registerTaskWithDescription(
+            testNodes[1],
+            descriptionLength,
+            () -> firstPassTaskIdOnNode1.compareAndSet(-1, highestNodeListingTaskId(testNodes[1]))
+        );
+        final Task task2 = registerTaskWithDescription(
+            testNodes[2],
+            descriptionLength,
+            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2]))
+        );
+        final AtomicBoolean unregistered = new AtomicBoolean();
+        try {
+            final ListTasksRequest request = doubleListRequest();
+            request.setWaitForCompletion(true);
+            request.setTimeout(TimeValue.timeValueSeconds(30));
+            final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    request,
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    future
+                );
+
+            assertBusy(() -> {
+                assertThat(firstPassTaskIdOnNode1.get(), greaterThanOrEqualTo(0L));
+                assertThat(firstPassTaskIdOnNode2.get(), greaterThanOrEqualTo(0L));
+                assertThat(highestNodeListingTaskId(testNodes[1]), greaterThan(firstPassTaskIdOnNode1.get()));
+                assertThat(highestNodeListingTaskId(testNodes[2]), greaterThan(firstPassTaskIdOnNode2.get()));
+            });
+            assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
+            assertFalse(future.isDone());
+
+            unregistered.set(true);
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+            safeGet(future);
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            if (unregistered.get() == false) {
+                testNodes[1].transportService.getTaskManager().unregister(task1);
+                testNodes[2].transportService.getTaskManager().unregister(task2);
+            }
+        }
+    }
+
+    public void testUnfilteredListingKeepsTheFirstPassChargedWhileTheSecondPassIsBlocked() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final CountDownLatch secondPassReachedBothNodes = new CountDownLatch(2);
+        final CountDownLatch releaseSecondPass = new CountDownLatch(1);
+        final Task task1 = registerTaskWithDescription(
+            testNodes[1],
+            descriptionLength,
+            blockFromTheSecondListing(secondPassReachedBothNodes, releaseSecondPass)
+        );
+        final Task task2 = registerTaskWithDescription(
+            testNodes[2],
+            descriptionLength,
+            blockFromTheSecondListing(secondPassReachedBothNodes, releaseSecondPass)
+        );
+        try {
+            final ListTasksRequest request = new ListTasksRequest();
+            request.setDetailed(true);
+            final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    request,
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    future
+                );
+
+            safeAwait(secondPassReachedBothNodes);
+            assertFalse(future.isDone());
+            assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 2L * descriptionLength));
+
+            releaseSecondPass.countDown();
+            assertThat(safeGet(future).getNodeFailures(), hasSize(0));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            releaseSecondPass.countDown();
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    private static Runnable blockFromTheSecondListing(CountDownLatch secondPassReached, CountDownLatch release) {
+        final AtomicInteger listings = new AtomicInteger();
+        return () -> {
+            if (listings.incrementAndGet() > 1) {
+                secondPassReached.countDown();
+                safeAwait(release);
+            }
+        };
+    }
+
+    public void testCancellingAListingReleasesBothPassesWhileASecondPassReplyIsHeld() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final AtomicLong firstPassTaskIdOnNode2 = new AtomicLong(-1);
+        final Task heldTask = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final AtomicLong latestMatchingNodeTaskIdOnNode2 = new AtomicLong(-1);
+        final Task answeringTask = registerTask(
+            testNodes[2],
+            "internal:test/described",
+            descriptionLength,
+            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2])),
+            () -> latestMatchingNodeTaskIdOnNode2.accumulateAndGet(highestNodeListingTaskId(testNodes[2]), Math::max)
+        );
+        final AtomicBoolean answeringTaskUnregistered = new AtomicBoolean();
+        final AtomicBoolean heldTaskUnregistered = new AtomicBoolean();
+        try {
+            final ListTasksRequest request = doubleListRequest();
+            request.setWaitForCompletion(true);
+            request.setTimeout(TimeValue.timeValueSeconds(30));
+            final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
+            final CancellableTask listTask = (CancellableTask) testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    request,
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    future
+                );
+            assertBusy(() -> {
+                assertThat(firstPassTaskIdOnNode2.get(), greaterThanOrEqualTo(0L));
+                assertThat(latestMatchingNodeTaskIdOnNode2.get(), greaterThan(firstPassTaskIdOnNode2.get()));
+            });
+
+            answeringTaskUnregistered.set(true);
+            testNodes[2].transportService.getTaskManager().unregister(answeringTask);
+            assertBusy(() -> assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 3L * descriptionLength)));
+            assertFalse(future.isDone());
+
+            testNodes[0].transportService.getTaskManager().cancel(listTask, "test", () -> {});
+
+            assertTrue(listTask.isCancelled());
+            assertThat(breaker.getUsed(), equalTo(usedBefore));
+            assertFalse(future.isDone());
+
+            heldTaskUnregistered.set(true);
+            testNodes[1].transportService.getTaskManager().unregister(heldTask);
+            expectThrows(TaskCancelledException.class, future);
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            if (heldTaskUnregistered.get() == false) {
+                testNodes[1].transportService.getTaskManager().unregister(heldTask);
+            }
+            if (answeringTaskUnregistered.get() == false) {
+                testNodes[2].transportService.getTaskManager().unregister(answeringTask);
+            }
+        }
+    }
+
+    public void testBothListingPassesStayChargedWhenTheMergedResponseIsDelivered() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        try {
+            final PlainActionFuture<Long> usedWhileDelivering = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    doubleListRequest(),
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    ActionListener.wrap(r -> usedWhileDelivering.onResponse(breaker.getUsed()), usedWhileDelivering::onFailure)
+                );
+
+            final long usedAtDelivery = safeGet(usedWhileDelivering);
+            assertThat(usedAtDelivery, greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    public void testListResponseKeepsTheChargeWhileTheRestLayerRetainsIt() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        try {
+            final PlainActionFuture<Releasable> retained = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    doubleListRequest(),
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    ActionListener.wrap(r -> retained.onResponse(r.retainNodeReplies()), retained::onFailure)
+                );
+            final Releasable retention = safeGet(retained);
+            try {
+                assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
+            } finally {
+                retention.close();
+            }
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    private static final class VanishingTask {
+        private final AtomicReference<Task> task = new AtomicReference<>();
+        private final AtomicBoolean unregistered = new AtomicBoolean();
+        private final TestNode node;
+
+        private VanishingTask(TestNode node) {
+            this.node = node;
+        }
+
+        private void unregisterWhenListed() {
+            if (task.get() != null) {
+                unregisterOnce();
+            }
+        }
+
+        private void unregisterOnce() {
+            final Task registered = task.get();
+            if (registered != null && unregistered.compareAndSet(false, true)) {
+                node.transportService.getTaskManager().unregister(registered);
+            }
+        }
+    }
+
+    private VanishingTask registerRelocatableTaskThatVanishesWhenFirstListed(TestNode node, int descriptionLength) {
+        final VanishingTask vanishing = new VanishingTask(node);
+        vanishing.task.set(
+            registerTask(
+                node,
+                TransportListTasksAction.RELOCATABLE_ACTIONS.iterator().next(),
+                descriptionLength,
+                vanishing::unregisterWhenListed,
+                () -> {}
+            )
+        );
+        return vanishing;
+    }
+
+    private static ListTasksRequest requestThatMissesARelocatedTask() {
+        final ListTasksRequest request = doubleListRequest();
+        request.setWaitForCompletion(true);
+        request.setTimeout(TimeValue.timeValueSeconds(30));
+        return request;
+    }
+
+    private static void respondWithFailedLookup(ActionListener<?> listener) {
+        @SuppressWarnings("unchecked")
+        final ActionListener<MultiGetResponse> multiGetListener = (ActionListener<MultiGetResponse>) listener;
+        multiGetListener.onResponse(
+            new MultiGetResponse(
+                new MultiGetItemResponse[] {
+                    new MultiGetItemResponse(
+                        null,
+                        new MultiGetResponse.Failure(TaskResultsService.TASK_INDEX, "id", new ElasticsearchException("not found"))
+                    ) }
+            )
+        );
+    }
+
+    public void testListingThatReconcilesAMissedRelocationKeepsBothPassesChargedUntilDelivered() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final VanishingTask relocating = registerRelocatableTaskThatVanishesWhenFirstListed(testNodes[1], descriptionLength);
+        final AtomicLong firstPassTaskIdOnNode2 = new AtomicLong(-1);
+        final AtomicLong latestMatchingNodeTaskIdOnNode2 = new AtomicLong(-1);
+        final Task answering = registerTask(
+            testNodes[2],
+            "internal:test/described",
+            descriptionLength,
+            () -> firstPassTaskIdOnNode2.compareAndSet(-1, highestNodeListingTaskId(testNodes[2])),
+            () -> latestMatchingNodeTaskIdOnNode2.accumulateAndGet(highestNodeListingTaskId(testNodes[2]), Math::max)
+        );
+        final AtomicBoolean answeringUnregistered = new AtomicBoolean();
+        final AtomicInteger lookups = new AtomicInteger();
+        testNodes[0].clientBehaviour.set((request, listener) -> {
+            lookups.incrementAndGet();
+            respondWithFailedLookup(listener);
+        });
+        try {
+            final AtomicLong usedAtDelivery = new AtomicLong(-1);
+            final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    requestThatMissesARelocatedTask(),
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    ActionListener.wrap(r -> {
+                        usedAtDelivery.set(breaker.getUsed());
+                        future.onResponse(r);
+                    }, future::onFailure)
+                );
+
+            assertBusy(() -> {
+                assertThat(firstPassTaskIdOnNode2.get(), greaterThanOrEqualTo(0L));
+                assertThat(latestMatchingNodeTaskIdOnNode2.get(), greaterThan(firstPassTaskIdOnNode2.get()));
+            });
+            assertFalse(future.isDone());
+            answeringUnregistered.set(true);
+            testNodes[2].transportService.getTaskManager().unregister(answering);
+
+            final ListTasksResponse response = safeGet(future);
+            assertThat(lookups.get(), equalTo(1));
+            assertThat(response.getNodeFailures(), hasSize(0));
+            assertTrue(
+                response.getTasks()
+                    .stream()
+                    .anyMatch(t -> t.action().equals(TransportListTasksAction.RELOCATABLE_ACTIONS.iterator().next()))
+            );
+            assertThat(usedAtDelivery.get(), greaterThanOrEqualTo(usedBefore + 3L * descriptionLength));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            relocating.unregisterOnce();
+            if (answeringUnregistered.get() == false) {
+                testNodes[2].transportService.getTaskManager().unregister(answering);
+            }
+        }
+    }
+
+    @TestLogging(
+        reason = "task registration reads the description for its trace message",
+        value = "org.elasticsearch.tasks.TaskManager:TRACE"
+    )
+    public void testFailureWhileReconcilingAMissedRelocationReleasesBothPasses() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final VanishingTask relocating = registerRelocatableTaskThatVanishesWhenFirstListed(testNodes[1], 5_000);
+        final AtomicLong usedWhenLookupFails = new AtomicLong(-1);
+        testNodes[0].clientBehaviour.set((request, listener) -> {
+            usedWhenLookupFails.set(breaker.getUsed());
+            listener.onFailure(new ElasticsearchException("lookup failed"));
+        });
+        try {
+            final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    requestThatMissesARelocatedTask(),
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    future
+                );
+
+            final ElasticsearchException e = expectThrows(ElasticsearchException.class, future);
+            assertThat(e.getMessage(), containsString("lookup failed"));
+            assertThat(usedWhenLookupFails.get(), greaterThan(usedBefore));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            relocating.unregisterOnce();
+        }
+    }
+
+    public void testCancellationAfterTheLastPassCompletedFailsTheHandOverAndReleasesBothPasses() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final VanishingTask relocating = registerRelocatableTaskThatVanishesWhenFirstListed(testNodes[1], 5_000);
+        final AtomicReference<CancellableTask> listTask = new AtomicReference<>();
+        final CountDownLatch listTaskKnown = new CountDownLatch(1);
+        testNodes[0].clientBehaviour.set((request, listener) -> {
+            safeAwait(listTaskKnown);
+            testNodes[0].transportService.getTaskManager().cancel(listTask.get(), "test", () -> {});
+            respondWithFailedLookup(listener);
+        });
+        try {
+            final PlainActionFuture<ListTasksResponse> future = new PlainActionFuture<>();
+            listTask.set(
+                (CancellableTask) testNodes[0].transportService.getTaskManager()
+                    .registerAndExecute(
+                        "direct",
+                        testNodes[0].transportListTasksAction,
+                        requestThatMissesARelocatedTask(),
+                        testNodes[0].transportService.getLocalNodeConnection(),
+                        future
+                    )
+            );
+            listTaskKnown.countDown();
+
+            final TaskCancelledException e = expectThrows(TaskCancelledException.class, future);
+            assertThat(e.getMessage(), containsString("before the response was handed over"));
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            listTaskKnown.countDown();
+            relocating.unregisterOnce();
+        }
+    }
+
+    public void testNodeThatAnswersAfterTheTimeoutIsReportedAsFailedAndLeavesNoBytesCharged() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final CountDownLatch answer = new CountDownLatch(1);
+        final Task slowTask = registerTaskWithDescription(testNodes[1], 5_000, () -> safeAwait(answer));
+        try {
+            final ListTasksRequest request = new ListTasksRequest();
+            request.setDetailed(true);
+            request.setActions("internal:test/described");
+            request.setTimeout(TimeValue.timeValueSeconds(2));
+
+            final ListTasksResponse response = ActionTestUtils.executeBlockingWithTask(
+                testNodes[0].transportService.getTaskManager(),
+                testNodes[0].transportService.getLocalNodeConnection(),
+                testNodes[0].transportListTasksAction,
+                request
+            );
+
+            assertTrue(
+                response.getNodeFailures()
+                    .stream()
+                    .anyMatch(
+                        f -> f instanceof FailedNodeException fne
+                            && fne.nodeId().equals(testNodes[1].getNodeId())
+                            && ExceptionsHelper.unwrap(f, ReceiveTimeoutTransportException.class) != null
+                    )
+            );
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+            MockLog.awaitLogger(
+                answer::countDown,
+                TransportService.class,
+                new MockLog.SeenEventExpectation(
+                    "late reply reaches the coordinating node",
+                    TransportService.class.getCanonicalName(),
+                    Level.WARN,
+                    "Received response for a request that has timed out*node [*" + testNodes[1].getNodeId() + "*"
+                )
+            );
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            answer.countDown();
+            testNodes[1].transportService.getTaskManager().unregister(slowTask);
+        }
+    }
+
+    public void testRestResponseHeldOpenKeepsTheChargeUntilItIsClosed() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+        final int descriptionLength = 5_000;
+        final Task task1 = registerTaskWithDescription(testNodes[1], descriptionLength);
+        final Task task2 = registerTaskWithDescription(testNodes[2], descriptionLength);
+        try {
+            final FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), randomBoolean());
+            testNodes[0].transportService.getTaskManager()
+                .registerAndExecute(
+                    "direct",
+                    testNodes[0].transportListTasksAction,
+                    doubleListRequest(),
+                    testNodes[0].transportService.getLocalNodeConnection(),
+                    RestListTasksAction.listTasksResponseListener(
+                        () -> DiscoveryNodes.EMPTY_NODES,
+                        randomFrom("nodes", "parents", "none"),
+                        channel
+                    )
+                );
+
+            assertBusy(() -> assertThat(channel.responses().get(), equalTo(1)));
+            assertThat(breaker.getUsed(), greaterThanOrEqualTo(usedBefore + 4L * descriptionLength));
+
+            channel.capturedResponse().close();
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        } finally {
+            testNodes[1].transportService.getTaskManager().unregister(task1);
+            testNodes[2].transportService.getTaskManager().unregister(task2);
+        }
+    }
+
+    public void testNodeReplyReservationReleasedAfterSuccessfulReply() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch checkLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        final TestTasksAction[] tasksActions = newTasksActions(-1, 16);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], request);
+
+        assertThat(response.tasks, hasSize(nodesCount));
+        assertThat(response.getNodeFailures(), hasSize(0));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+        checkLatch.countDown();
+        assertEquals(0, future.get().failureCount());
+    }
+
+    public void testNodeReplyBytesStayChargedUntilResponseIsDelivered() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch checkLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        final TestTasksAction[] tasksActions = newTasksActions(-1, Math.toIntExact(IN_FLIGHT_LIMIT.getBytes()) / 8);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final PlainActionFuture<Long> usedWhileDelivering = new PlainActionFuture<>();
+        ActionTestUtils.execute(
+            tasksActions[0],
+            request,
+            ActionListener.wrap(r -> usedWhileDelivering.onResponse(breaker.getUsed()), usedWhileDelivering::onFailure)
+        );
+
+        assertThat(safeGet(usedWhileDelivering), greaterThanOrEqualTo(usedBefore + 2L * (IN_FLIGHT_LIMIT.getBytes() / 8)));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+        checkLatch.countDown();
+        assertEquals(0, future.get().failureCount());
+    }
+
+    private TestTasksAction[] newTasksActionsBlockingOnNode(
+        int blockedNode,
+        SubscribableListener<ActionListener<TestTaskResponse>> blockedListener,
+        int replyLength
+    ) {
+        final TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
+        for (int i = 0; i < testNodes.length; i++) {
+            final int node = i;
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
+                @Override
+                protected boolean nodeRepliesCanTripCircuitBreaker() {
+                    return true;
+                }
+
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    if (node == blockedNode) {
+                        blockedListener.onResponse(listener);
+                    } else {
+                        listener.onResponse(new TestTaskResponse("x".repeat(replyLength)));
+                    }
+                }
+            };
+        }
+        return tasksActions;
+    }
+
+    public void testRetainedNodeReplyBytesReleasedOnCancellation() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch blockedActionLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(blockedActionLatch);
+        final int blockedNode = 2;
+        final SubscribableListener<ActionListener<TestTaskResponse>> blockedListener = new SubscribableListener<>();
+        final int replyLength = Math.toIntExact(IN_FLIGHT_LIMIT.getBytes()) / 8;
+        final TestTasksAction[] tasksActions = newTasksActionsBlockingOnNode(blockedNode, blockedListener, replyLength);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
+        final CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute("direct", tasksActions[0], request, testNodes[0].transportService.getLocalNodeConnection(), taskFuture);
+        final ActionListener<TestTaskResponse> blocked = safeAwait(blockedListener);
+        assertBusy(() -> assertThat(breaker.getUsed(), greaterThan(usedBefore)));
+
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
+        );
+
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        assertFalse(taskFuture.isDone());
+
+        blocked.onResponse(new TestTaskResponse("x".repeat(replyLength)));
+        expectThrows(TaskCancelledException.class, taskFuture);
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+
+        blockedActionLatch.countDown();
+        assertEquals(0, future.get(10, TimeUnit.SECONDS).failureCount());
+    }
+
+    @TestLogging(reason = "asserts a debug message", value = "org.elasticsearch.transport.InboundHandler:DEBUG")
+    public void testNodeReplyArrivingAfterCancellationIsRejected() throws Exception {
+        final HierarchyCircuitBreakerService[] breakerServices = setupNodesWithInFlightLimit();
+        final CountDownLatch blockedActionLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(blockedActionLatch);
+        final SubscribableListener<ActionListener<TestTaskResponse>> blockedListener = new SubscribableListener<>();
+        final TestTasksAction[] tasksActions = newTasksActionsBlockingOnNode(2, blockedListener, 16);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
+        final CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute("direct", tasksActions[0], request, testNodes[0].transportService.getLocalNodeConnection(), taskFuture);
+        final ActionListener<TestTaskResponse> blocked = safeAwait(blockedListener);
+
+        // Only the coordinating task is cancelled, so the remote node does not know and still sends a successful reply
+        testNodes[0].transportService.getTaskManager().cancel(task, "test", () -> {});
+        assertTrue(task.isCancelled());
+        assertFalse(taskFuture.isDone());
+
+        MockLog.awaitLogger(
+            () -> blocked.onResponse(new TestTaskResponse("x")),
+            InboundHandler.class,
+            new MockLog.SeenEventExpectation(
+                "reply rejected as it arrives",
+                InboundHandler.class.getCanonicalName(),
+                Level.DEBUG,
+                "Task cancelled while response from * arrived"
+            )
+        );
+        expectThrows(TaskCancelledException.class, taskFuture);
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+
+        blockedActionLatch.countDown();
+        assertEquals(0, future.get(10, TimeUnit.SECONDS).failureCount());
+    }
+
+    private static final class CancellingBreakerService extends CircuitBreakerService {
+        private final CircuitBreakerService delegate;
+        private final CircuitBreaker inFlightBreaker;
+
+        CancellingBreakerService(CircuitBreakerService delegate, long cancelAfterBytes, Runnable cancel, LongAdder reservedBytes) {
+            this.delegate = delegate;
+            final CircuitBreaker breaker = delegate.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+            this.inFlightBreaker = new CircuitBreaker() {
+                private final AtomicBoolean cancelled = new AtomicBoolean();
+
+                @Override
+                public void circuitBreak(String fieldName, long bytesNeeded) {
+                    breaker.circuitBreak(fieldName, bytesNeeded);
+                }
+
+                @Override
+                public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                    breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+                    if (reservedBytes.sum() + bytes >= cancelAfterBytes && cancelled.compareAndSet(false, true)) {
+                        reservedBytes.add(bytes);
+                        cancel.run();
+                    } else {
+                        reservedBytes.add(bytes);
+                    }
+                }
+
+                @Override
+                public void addWithoutBreaking(long bytes) {
+                    breaker.addWithoutBreaking(bytes);
+                }
+
+                @Override
+                public long getUsed() {
+                    return breaker.getUsed();
+                }
+
+                @Override
+                public long getLimit() {
+                    return breaker.getLimit();
+                }
+
+                @Override
+                public double getOverhead() {
+                    return breaker.getOverhead();
+                }
+
+                @Override
+                public long getTrippedCount() {
+                    return breaker.getTrippedCount();
+                }
+
+                @Override
+                public String getName() {
+                    return breaker.getName();
+                }
+
+                @Override
+                public Durability getDurability() {
+                    return breaker.getDurability();
+                }
+
+                @Override
+                public void setLimitAndOverhead(long limit, double overhead) {
+                    breaker.setLimitAndOverhead(limit, overhead);
+                }
+            };
+        }
+
+        @Override
+        public CircuitBreaker getBreaker(String name) {
+            return CircuitBreaker.IN_FLIGHT_REQUESTS.equals(name) ? inFlightBreaker : delegate.getBreaker(name);
+        }
+
+        @Override
+        public AllCircuitBreakerStats stats() {
+            return delegate.stats();
+        }
+
+        @Override
+        public CircuitBreakerStats stats(String name) {
+            return delegate.stats(name);
+        }
+    }
+
+    public void testCancellationWhileReplyIsArrivingDropsTheRestOfIt() throws Exception {
+        final int bigReplyLength = Math.toIntExact(ByteSizeValue.ofMb(4).getBytes());
+        final long cancelAfterBytes = ByteSizeValue.ofKb(128).getBytes();
+        final Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), ByteSizeValue.ofMb(64))
+            .build();
+        final HierarchyCircuitBreakerService[] breakerServices = new HierarchyCircuitBreakerService[3];
+        final SubscribableListener<CancellableTask> taskListener = new SubscribableListener<>();
+        final LongAdder reservedBytes = new LongAdder();
+        final AtomicBoolean cancelled = new AtomicBoolean();
+        setupTestNodes(3, Settings.EMPTY, i -> {
+            breakerServices[i] = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
+                settings,
+                List.of(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            if (i != 0) {
+                return breakerServices[i];
+            }
+            return new CancellingBreakerService(
+                breakerServices[i],
+                cancelAfterBytes,
+                () -> taskListener.addListener(ActionTestUtils.assertNoFailureListener(task -> {
+                    testNodes[0].transportService.getTaskManager().cancel(task, "test", () -> {});
+                    cancelled.set(task.isCancelled());
+                })),
+                reservedBytes
+            );
+        });
+        connectNodes(testNodes);
+        final CountDownLatch blockedActionLatch = new CountDownLatch(1);
+        final ActionFuture<NodesResponse> future = startBlockingTestNodesAction(blockedActionLatch);
+        final TestTasksAction[] tasksActions = newTasksActions(2, bigReplyLength, 16);
+        final CircuitBreaker breaker = breakerServices[0].getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        final long usedBefore = breaker.getUsed();
+
+        final TestTasksRequest request = new TestTasksRequest();
+        request.setActions("internal:testAction[n]");
+        final PlainActionFuture<TestTasksResponse> taskFuture = new PlainActionFuture<>();
+        final CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute("direct", tasksActions[0], request, testNodes[0].transportService.getLocalNodeConnection(), taskFuture);
+        taskListener.onResponse(task);
+
+        expectThrows(TaskCancelledException.class, taskFuture);
+        assertTrue(cancelled.get());
+        assertThat(reservedBytes.sum(), greaterThanOrEqualTo(cancelAfterBytes));
+        assertThat(reservedBytes.sum(), lessThan((long) bigReplyLength));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
+
+        blockedActionLatch.countDown();
+        assertEquals(0, future.get(10, TimeUnit.SECONDS).failureCount());
     }
 
     @SuppressWarnings("unchecked")

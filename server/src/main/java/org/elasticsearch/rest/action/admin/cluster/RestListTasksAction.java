@@ -15,18 +15,23 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -103,14 +108,26 @@ public class RestListTasksAction extends BaseRestHandler {
         String groupBy,
         RestChannel channel
     ) {
-        final var listener = new RestChunkedToXContentListener<>(channel);
-        return switch (groupBy) {
-            case "nodes" -> listener.map(response -> response.groupedByNode(nodesInCluster));
-            case "parents" -> listener.map(response -> response.groupedByParent());
-            case "none" -> listener.map(response -> response.groupedByNone());
+        final Function<ListTasksResponse, ChunkedToXContent> grouping = switch (groupBy) {
+            case "nodes" -> response -> response.groupedByNode(nodesInCluster);
+            case "parents" -> ListTasksResponse::groupedByParent;
+            case "none" -> ListTasksResponse::groupedByNone;
             default -> throw new IllegalArgumentException(
                 "[group_by] must be one of [nodes], [parents] or [none] but was [" + groupBy + "]"
             );
+        };
+        return new RestActionListener<T>(channel) {
+            @Override
+            protected void processResponse(T response) throws IOException {
+                final ChunkedToXContent body = grouping.apply(response);
+                channel.sendResponse(
+                    RestResponse.chunked(
+                        RestStatus.OK,
+                        ChunkedRestResponseBodyPart.fromXContent(body, channel.request(), channel),
+                        response.retainNodeReplies()
+                    )
+                );
+            }
         };
     }
 

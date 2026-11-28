@@ -1,0 +1,5 @@
+area: Task Management
+issues: []
+pr: 167535
+summary: "`GET _tasks` now accounts for in-flight requests in the circuit breaker"
+type: enhancement

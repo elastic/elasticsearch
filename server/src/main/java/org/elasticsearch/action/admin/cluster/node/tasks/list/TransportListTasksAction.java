@@ -30,6 +30,8 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -104,6 +106,11 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
+    protected boolean nodeRepliesCanTripCircuitBreaker() {
+        return true;
+    }
+
+    @Override
     protected ListTasksResponse newResponse(
         ListTasksRequest request,
         List<TaskInfo> tasks,
@@ -121,30 +128,82 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Override
     protected void doExecute(final Task task, final ListTasksRequest request, final ActionListener<ListTasksResponse> listener) {
         assert task instanceof CancellableTask;
+        final NodeReplyCharge firstPassCharge = newNodeReplyCharge(task);
         // Double-list is only needed for relocatable tasks (problem description further down in function comment).
         if (RELOCATABLE_ACTIONS.stream().noneMatch(request::canMatchAction)) {
-            super.doExecute(task, request, listener);
+            executeCharged(task, request, firstPassCharge, handOver(listener, firstPassCharge));
             return;
         }
         // relocatable tasks might've relocated during listing, and depending on list fan-out response timing in realtime, might be missed.
         // example: Tasks are captured from the destination node before the relocation and from the source node after, so we miss both.
         // therefore, we double-list and de-dupe, which will ensure we see a task *at least* once.
         // elsewhere, we also prevent quick back-to-back relocations during shutdown, to make hitting the race twice vanishingly unlikely.
+        // both passes stay charged until the response is released, because the merged response may keep data of either of them.
+        final NodeReplyCharge secondPassCharge = newNodeReplyCharge(task);
+        final ActionListener<ListTasksResponse> handingOver = handOver(listener, firstPassCharge, secondPassCharge);
         if (request.getWaitForCompletion()) {
-            executeDoubleListWithWaitForCompletion(task, request, listener);
+            executeDoubleListWithWaitForCompletion(task, request, firstPassCharge, secondPassCharge, handingOver);
         } else {
-            executeDoubleListWithoutWaitForCompletion(task, request, listener);
+            executeDoubleListWithoutWaitForCompletion(task, request, firstPassCharge, secondPassCharge, handingOver);
         }
+    }
+
+    private static ActionListener<ListTasksResponse> handOver(ActionListener<ListTasksResponse> listener, NodeReplyCharge... charges) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(ListTasksResponse response) {
+                final Releasable[] retentions = retainAll(charges);
+                if (retentions == null) {
+                    closeAll(charges);
+                    listener.onFailure(new TaskCancelledException("task cancelled before the response was handed over"));
+                    return;
+                }
+                response.setNodeRepliesRetainer(() -> {
+                    final Releasable[] retainedByTheCaller = retainAll(charges);
+                    return retainedByTheCaller == null ? () -> {} : () -> Releasables.close(retainedByTheCaller);
+                });
+                try {
+                    listener.onResponse(response);
+                } finally {
+                    Releasables.close(retentions);
+                    closeAll(charges);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                closeAll(charges);
+                listener.onFailure(e);
+            }
+        };
+    }
+
+    private static Releasable[] retainAll(NodeReplyCharge[] charges) {
+        final Releasable[] retentions = new Releasable[charges.length];
+        for (int i = 0; i < charges.length; i++) {
+            retentions[i] = charges[i].retain();
+            if (retentions[i] == null) {
+                Releasables.close(retentions);
+                return null;
+            }
+        }
+        return retentions;
+    }
+
+    private static void closeAll(NodeReplyCharge[] charges) {
+        Releasables.close(charges);
     }
 
     /// `WFC=false` path: two quick lists, the second response takes precedence in de-duplication.
     private void executeDoubleListWithoutWaitForCompletion(
         final Task task,
         final ListTasksRequest request,
+        final NodeReplyCharge firstPassCharge,
+        final NodeReplyCharge secondPassCharge,
         final ActionListener<ListTasksResponse> listener
     ) {
-        super.doExecute(task, request, listener.delegateFailureAndWrap((l1, firstResponse) -> {
-            super.doExecute(task, request, l1.delegateFailureAndWrap((l2, secondResponse) -> {
+        executeCharged(task, request, firstPassCharge, listener.delegateFailureAndWrap((l1, firstResponse) -> {
+            executeCharged(task, request, secondPassCharge, l1.delegateFailureAndWrap((l2, secondResponse) -> {
                 l2.onResponse(deduplicateAndMerge(firstResponse, secondResponse));
             }));
         }));
@@ -155,11 +214,13 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     private void executeDoubleListWithWaitForCompletion(
         final Task task,
         final ListTasksRequest request,
+        final NodeReplyCharge firstPassCharge,
+        final NodeReplyCharge secondPassCharge,
         final ActionListener<ListTasksResponse> listener
     ) {
         final ListTasksRequest firstPassRequest = copyWithoutWaitForCompletion(request);
-        super.doExecute(task, firstPassRequest, listener.delegateFailureAndWrap((l1, firstPass) -> {
-            super.doExecute(task, request, l1.delegateFailureAndWrap((l2, secondPass) -> {
+        executeCharged(task, firstPassRequest, firstPassCharge, listener.delegateFailureAndWrap((l1, firstPass) -> {
+            executeCharged(task, request, secondPassCharge, l1.delegateFailureAndWrap((l2, secondPass) -> {
                 reconcileMissedRelocations(task, firstPass, secondPass, l2);
             }));
         }));

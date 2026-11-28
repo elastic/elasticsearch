@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
@@ -43,6 +44,8 @@ public class ListTasksResponse extends BaseTasksResponse {
 
     private List<TaskGroup> groups;
 
+    private volatile Supplier<Releasable> nodeRepliesRetainer;
+
     public ListTasksResponse(
         List<TaskInfo> tasks,
         List<TaskOperationFailure> taskFailures,
@@ -56,6 +59,19 @@ public class ListTasksResponse extends BaseTasksResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeCollection(tasks);
+    }
+
+    /**
+     * Lets the REST layer keep what accounts for the memory of this response charged while it streams the response, which outlasts the
+     * call that hands the response over. The returned {@link Releasable} is closed when the response has been sent.
+     */
+    public Releasable retainNodeReplies() {
+        final Supplier<Releasable> retainer = nodeRepliesRetainer;
+        return retainer == null ? () -> {} : retainer.get();
+    }
+
+    public void setNodeRepliesRetainer(Supplier<Releasable> retainer) {
+        nodeRepliesRetainer = retainer;
     }
 
     /**

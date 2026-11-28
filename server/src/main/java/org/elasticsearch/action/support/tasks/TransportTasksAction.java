@@ -11,10 +11,10 @@ package org.elasticsearch.action.support.tasks;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.search.ReservingResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -22,11 +22,18 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -44,6 +51,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
@@ -60,6 +69,8 @@ public abstract class TransportTasksAction<
     protected final Writeable.Reader<TaskResponse> responseReader;
 
     protected final String transportNodeAction;
+
+    private static final String NODE_RESPONSE_BREAKER_LABEL = "<node_tasks_response>";
 
     @SuppressWarnings("this-escape") // registers a NodeTransportHandler bound to this action; the handler is only invoked after
                                      // construction.
@@ -83,10 +94,39 @@ public abstract class TransportTasksAction<
         transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
     }
 
+    /**
+     * Whether the replies of the other nodes are charged to the in-flight requests breaker, and so can fail a node when there is no room
+     * for them. Off by default. An action whose replies can be large, such as listing tasks, opts in.
+     */
+    protected boolean nodeRepliesCanTripCircuitBreaker() {
+        return false;
+    }
+
     @Override
     protected void doExecute(Task task, TasksRequest request, ActionListener<TasksResponse> listener) {
+        final NodeReplyCharge charge = newNodeReplyCharge(task);
+        executeCharged(task, request, charge, ActionListener.runAfter(listener, charge::close));
+    }
+
+    /**
+     * Creates the charge for the replies of the other nodes, released when its owner closes it, which a cancellation of the task does too,
+     * unless somebody retained it. An action that lists more than once creates one charge for each pass.
+     */
+    protected final NodeReplyCharge newNodeReplyCharge(Task task) {
+        final NodeReplyCharge charge = new NodeReplyCharge(nodeReplyBreaker());
+        if (task instanceof CancellableTask cancellableTask) {
+            cancellableTask.addListener(charge::close);
+        }
+        return charge;
+    }
+
+    /**
+     * Fans out to the nodes and charges their replies to {@code charge}, which the caller closes.
+     */
+    protected final void executeCharged(Task task, TasksRequest request, NodeReplyCharge charge, ActionListener<TasksResponse> listener) {
         final var discoveryNodes = clusterService.state().nodes();
         final String[] nodeIds = resolveNodes(request, discoveryNodes);
+        final CircuitBreaker breaker = charge.breaker;
 
         new CancellableFanOut<String, NodeTasksResponse, TasksResponse>() {
             final ArrayList<TaskResponse> taskResponses = new ArrayList<>();
@@ -110,7 +150,7 @@ public abstract class TransportTasksAction<
                         nodeTaskRequest,
                         task,
                         transportRequestOptions,
-                        new ActionListenerResponseHandler<>(listener, nodeResponseReader, TransportResponseHandler.TRANSPORT_WORKER)
+                        newNodeResponseHandler(listener, breaker, task)
                     );
                 } finally {
                     nodeTaskRequest.decRef();
@@ -119,6 +159,12 @@ public abstract class TransportTasksAction<
 
             @Override
             protected void onItemResponse(String nodeId, NodeTasksResponse nodeTasksResponse) {
+                try {
+                    charge.charge(nodeTasksResponse.arrivedBytes);
+                } catch (CircuitBreakingException e) {
+                    onItemFailure(nodeId, e);
+                    return;
+                }
                 addAllSynchronized(taskResponses, nodeTasksResponse.results);
                 addAllSynchronized(taskOperationFailures, nodeTasksResponse.exceptions);
             }
@@ -151,6 +197,98 @@ public abstract class TransportTasksAction<
                 return actionName;
             }
         }.run(task, Iterators.forArray(nodeIds), listener);
+    }
+
+    private CircuitBreaker nodeReplyBreaker() {
+        final CircuitBreaker inFlightBreaker = nodeRepliesCanTripCircuitBreaker() ? transportService.getInFlightRequestsBreaker() : null;
+        return inFlightBreaker != null ? inFlightBreaker : new NoopCircuitBreaker(NODE_RESPONSE_BREAKER_LABEL);
+    }
+
+    private TransportResponseHandler<NodeTasksResponse> newNodeResponseHandler(
+        ActionListener<NodeTasksResponse> listener,
+        CircuitBreaker breaker,
+        Task task
+    ) {
+        final CancellableTask cancellableTask = task instanceof CancellableTask ct ? ct : null;
+        return new ReservingResponseHandler<>(
+            listener,
+            nodeResponseReader,
+            TransportResponseHandler.TRANSPORT_WORKER,
+            breaker,
+            NODE_RESPONSE_BREAKER_LABEL
+        ) {
+            @Override
+            public Releasable reserveResponseBytes(int bytes) {
+                if (cancellableTask != null) {
+                    cancellableTask.ensureNotCancelled();
+                }
+                return super.reserveResponseBytes(bytes);
+            }
+
+            @Override
+            public void handleResponse(NodeTasksResponse response) {
+                response.arrivedBytes = reservation.reservedTotal();
+                super.handleResponse(response);
+            }
+        };
+    }
+
+    protected static final class NodeReplyCharge implements Releasable {
+        private final CircuitBreaker breaker;
+        private static final long RELEASED = Long.MIN_VALUE;
+
+        private final AbstractRefCounted refs = AbstractRefCounted.of(this::release);
+        private final AtomicBoolean ownerReleased = new AtomicBoolean();
+        private final AtomicLong retained = new AtomicLong();
+
+        NodeReplyCharge(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        void charge(long bytes) {
+            if (bytes == 0 || retained.get() == RELEASED) {
+                return;
+            }
+            breaker.addEstimateBytesAndMaybeBreak(bytes, NODE_RESPONSE_BREAKER_LABEL);
+            long current;
+            do {
+                current = retained.get();
+                if (current == RELEASED) {
+                    breaker.addWithoutBreaking(-bytes);
+                    return;
+                }
+            } while (retained.compareAndSet(current, current + bytes) == false);
+        }
+
+        /**
+         * Keeps the charge until the returned {@link Releasable} is closed, even after the owner has closed this charge.
+         *
+         * @return the {@link Releasable}, or {@code null} if the charge has already been released, for instance by a cancellation
+         */
+        @Nullable
+        public Releasable retain() {
+            if (refs.tryIncRef() == false) {
+                return null;
+            }
+            return Releasables.releaseOnce(refs::decRef);
+        }
+
+        /**
+         * Releases the reference of the owner, which releases the charge unless somebody retained it.
+         */
+        @Override
+        public void close() {
+            if (ownerReleased.compareAndSet(false, true)) {
+                refs.decRef();
+            }
+        }
+
+        void release() {
+            final long bytes = retained.getAndSet(RELEASED);
+            if (bytes != RELEASED) {
+                breaker.addWithoutBreaking(-bytes);
+            }
+        }
     }
 
     // not an inline method reference to avoid capturing CancellableFanOut.this.
@@ -335,6 +473,7 @@ public abstract class TransportTasksAction<
         protected String nodeId;
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
+        long arrivedBytes;
 
         NodeTasksResponse(StreamInput in) throws IOException {
             nodeId = in.readString();

@@ -10,6 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -98,7 +99,11 @@ public class InboundPipelineTests extends ESTestCase {
         final Predicate<String> canTripBreaker = breakThisAction::equals;
         final TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         circuitBreaker.startBreaking();
-        final InboundAggregator aggregator = new InboundAggregator(() -> circuitBreaker, canTripBreaker);
+        final InboundAggregator aggregator = new InboundAggregator(
+            () -> circuitBreaker,
+            canTripBreaker,
+            id -> TransportResponseHandler.empty(TransportResponseHandler.TRANSPORT_WORKER, ActionListener.noop())
+        );
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
         final FakeTcpChannel channel = new FakeTcpChannel();
 
@@ -225,7 +230,11 @@ public class InboundPipelineTests extends ESTestCase {
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(recycler);
         final Supplier<CircuitBreaker> breaker = () -> NoopCircuitBreaker.INSTANCE;
-        final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
+        final InboundAggregator aggregator = new InboundAggregator(
+            breaker,
+            (Predicate<String>) action -> true,
+            id -> TransportResponseHandler.empty(TransportResponseHandler.TRANSPORT_WORKER, ActionListener.noop())
+        );
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
@@ -267,7 +276,11 @@ public class InboundPipelineTests extends ESTestCase {
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(recycler);
         final Supplier<CircuitBreaker> breaker = () -> NoopCircuitBreaker.INSTANCE;
-        final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
+        final InboundAggregator aggregator = new InboundAggregator(
+            breaker,
+            (Predicate<String>) action -> true,
+            id -> TransportResponseHandler.empty(TransportResponseHandler.TRANSPORT_WORKER, ActionListener.noop())
+        );
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {

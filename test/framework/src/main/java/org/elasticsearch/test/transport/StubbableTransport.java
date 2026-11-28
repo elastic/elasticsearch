@@ -348,4 +348,9 @@ public class StubbableTransport implements Transport {
     public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
         return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler), circuitBreaker);
     }
+
+    @Override
+    public CircuitBreaker inFlightRequestsBreaker() {
+        return delegate.inFlightRequestsBreaker();
+    }
 }

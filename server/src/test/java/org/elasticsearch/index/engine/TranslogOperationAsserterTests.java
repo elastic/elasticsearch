@@ -46,6 +46,8 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
                     "other": { "type": "keyword" },
                     "point": { "type": "geo_point" },
                     "range": { "type": "integer_range" },
+                    "disabled": { "type": "object", "enabled": false },
+                    "sparse": { "type": "sparse_vector" },
                     "obj": {
                         "properties": {
                             "a": { "type": "keyword" },
@@ -365,6 +367,108 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
                 """);
             assertTrue(asserter.assertSameIndexOperation(o1, o2));
             assertTrue(asserter.assertSameIndexOperation(o2, o1));
+        }
+    }
+
+    /**
+     * A disabled object accepts names that are empty before or after a dot. They have no prefix that
+     * is an object in the mapping, so they are compared as written.
+     */
+    public void testFieldNamesMadeOfDots() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        var o1 = toIndexOp("""
+            { "disabled": { ".": "x", "a.": "v" } }
+            """);
+        var o2 = toIndexOp("""
+            { "disabled": { ".": "y", "a.": "v" } }
+            """);
+        assertFalse(asserter.assertSameIndexOperation(o1, o2));
+        assertFalse(asserter.assertSameIndexOperation(o2, o1));
+    }
+
+    /**
+     * The content of a disabled object is not parsed, so its field names are compared as written.
+     */
+    public void testDisabledObject() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        {
+            var o1 = toIndexOp("""
+                { "disabled": { "a.b": 1 } }
+                """);
+            var o2 = toIndexOp("""
+                { "disabled": { "a": { "b": 1 } } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            // the same content in another key order
+            var o1 = toIndexOp("""
+                { "value": "v", "disabled": { "bd": 1, "bd.x": 2 } }
+                """);
+            var o2 = toIndexOp("""
+                { "value": [ "v" ], "disabled": { "bd.x": 2, "bd": 1 } }
+                """);
+            assertTrue(asserter.assertSameIndexOperation(o1, o2));
+            assertTrue(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            // the disabled object named with a dotted key
+            var o1 = toIndexOp("""
+                { "value": "v", "disabled.k": "x" }
+                """);
+            var o2 = toIndexOp("""
+                { "value": [ "v" ], "disabled": { "k": "x" } }
+                """);
+            assertTrue(asserter.assertSameIndexOperation(o1, o2));
+            assertTrue(asserter.assertSameIndexOperation(o2, o1));
+        }
+    }
+
+    /**
+     * A source can give one path twice, with a dotted name and inside an object. Two values that are
+     * not mapped objects stay two values, whatever their shape.
+     */
+    public void testPathGivenTwiceWithObjectValues() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        var o1 = toIndexOp("""
+            { "disabled.k": { "x": 1 }, "disabled": { "k": { "y": 2 } } }
+            """);
+        var o2 = toIndexOp("""
+            { "disabled.k": { "x": 1, "y": 2 }, "disabled": { "k": {} } }
+            """);
+        assertFalse(asserter.assertSameIndexOperation(o1, o2));
+        assertFalse(asserter.assertSameIndexOperation(o2, o1));
+    }
+
+    /**
+     * The tokens of a sparse vector are one field value.
+     */
+    public void testSparseVector() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        var o1 = toIndexOp("""
+            { "sparse": { "a": 1.0, "b": 2.0 } }
+            """);
+        {
+            var o2 = toIndexOp("""
+                { "sparse": { "b": 2.0, "a": 1.0 } }
+                """);
+            assertTrue(asserter.assertSameIndexOperation(o1, o2));
+            assertTrue(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            var o2 = toIndexOp("""
+                { "sparse": { "a": 1.0, "b": 3.0 } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            var o2 = toIndexOp("""
+                { "sparse": { "a": 1.0 } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
         }
     }
 

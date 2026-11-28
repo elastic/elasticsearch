@@ -70,6 +70,15 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
     private static final String BASE64_RECOVERED_SOURCE = """
         {"vec_bfloat16_dv":"P8BAAMBQ","vec_bfloat16_indexed":[1.4975724,2.0021021,-3.2514138]}""";
 
+    /** The indexed vector7 of {@link #ORIGINAL_SOURCE}. */
+    private static final String RAW7 = "[230.0,300.33,-34.8988,15.555,-200.0]";
+
+    /** {@link #RAW7} as an older node synthesizes it. */
+    private static final String SYNTHESIZED7 = "[229.90425,300.38586,-34.821266,15.522733,-199.69786]";
+
+    /** The non-indexed vector8 of {@link #ORIGINAL_SOURCE}, which an older node sends unchanged. */
+    private static final String RAW8 = "[130.0,115.0,-1.02,15.555,-100.0]";
+
     @Override
     protected String defaultMapping() {
         return """
@@ -117,10 +126,125 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
                       "index": false
                     }
                   }
+                },
+                "nst": {
+                  "type": "nested",
+                  "properties": {
+                    "vector7": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": true
+                    },
+                    "vector8": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": false
+                    }
+                  }
+                },
+                "flat": {
+                  "subobjects": false,
+                  "properties": {
+                    "v.vector7": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": true
+                    },
+                    "v.vector8": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": false
+                    }
+                  }
                 }
               }
             }
             """;
+    }
+
+    /**
+     * Each element of a nested array holds an indexed and a non-indexed vector, so the array differs in
+     * every pairing of whole forms and has to be compared element by element. An older node synthesizes
+     * the indexed vector of each element in place.
+     */
+    public void testTranslogOperationAsserterAcceptsRecoveredSourceWithVectorsInNestedArray() throws IOException {
+        assertSameOperation(
+            "{\"nst\":[{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}]}",
+            "{\"nst\":[{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}]}"
+        );
+        // a nested field given as a single object
+        assertSameOperation(
+            "{\"nst\":{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}}",
+            "{\"nst\":{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}}"
+        );
+        assertSameOperation(
+            "{\"nst\":[{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "},{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}]}",
+            "{\"nst\":[{\"vector8\":"
+                + RAW8
+                + ",\"vector7\":"
+                + SYNTHESIZED7
+                + "},{\"vector8\":"
+                + RAW8
+                + ",\"vector7\":"
+                + SYNTHESIZED7
+                + "}]}"
+        );
+    }
+
+    public void testTranslogOperationAsserterRejectsDifferentVectorInNestedArray() throws IOException {
+        String replicated = "{\"nst\":[{\"vector7\":"
+            + RAW7
+            + ",\"vector8\":"
+            + RAW8
+            + "},{\"vector7\":"
+            + RAW7
+            + ",\"vector8\":"
+            + RAW8
+            + "}]}";
+        // the second element has a different vector8
+        assertDifferentOperation(
+            replicated,
+            "{\"nst\":[{\"vector8\":"
+                + RAW8
+                + ",\"vector7\":"
+                + SYNTHESIZED7
+                + "},{\"vector8\":[131.0,115.0,-1.02,15.555,-100.0],\"vector7\":"
+                + SYNTHESIZED7
+                + "}]}"
+        );
+        // one element fewer
+        assertDifferentOperation(replicated, "{\"nst\":[{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}]}");
+    }
+
+    /**
+     * Under an object without subobjects the vectors have dotted names, and the client can also send
+     * them inside an object. An older node keeps the spelling it received.
+     */
+    public void testTranslogOperationAsserterAcceptsRecoveredSourceWithoutSubobjects() throws IOException {
+        assertSameOperation(
+            "{\"flat\":{\"v.vector7\":" + RAW7 + ",\"v.vector8\":" + RAW8 + "}}",
+            "{\"flat\":{\"v.vector8\":" + RAW8 + ",\"v.vector7\":" + SYNTHESIZED7 + "}}"
+        );
+        assertSameOperation(
+            "{\"flat\":{\"v\":{\"vector7\":" + RAW7 + ",\"vector8\":" + RAW8 + "}}}",
+            "{\"flat\":{\"v\":{\"vector8\":" + RAW8 + ",\"vector7\":" + SYNTHESIZED7 + "}}}"
+        );
+    }
+
+    /**
+     * Recovery synthesizes all indexed vectors of a document together. A copy with one vector
+     * synthesized and the other not, against a copy with the opposite, is not what recovery produces
+     * from either of them.
+     */
+    public void testTranslogOperationAsserterRejectsVectorsSynthesizedInOppositeCopies() throws IOException {
+        assertDifferentOperation(
+            "{\"vector7\":" + RAW7 + ",\"obj\":{\"vector7\":" + SYNTHESIZED7 + "}}",
+            "{\"vector7\":" + SYNTHESIZED7 + ",\"obj\":{\"vector7\":" + RAW7 + "}}"
+        );
     }
 
     public void testTranslogOperationAsserterAcceptsRecoveredSourceFromOlderNode() throws IOException {
@@ -143,6 +267,17 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
         // "P8BAAMBQ" is [1.5, 2.0, -3.25]
         assertDifferentOperation(BASE64_ORIGINAL_SOURCE, """
             {"vec_bfloat16_dv":"P8BAAMBQ","vec_bfloat16_indexed":[2.5,2.0,-3.25]}""");
+    }
+
+    /**
+     * The indexed vector has a dotted name and the non-indexed one is inside the object. The older node
+     * puts the vector it synthesizes inside the object.
+     */
+    public void testTranslogOperationAsserterAcceptsRecoveredSourceWithDottedVectorName() throws IOException {
+        assertSameOperation("""
+            {"obj.vector7":[230.0,300.33,-34.8988,15.555,-200.0],"obj":{"vector8":[130.0,115.0,-1.02,15.555,-100.0]}}""", """
+            {"obj":{"vector8":[130.0,115.0,-1.02,15.555,-100.0],\
+            "vector7":[229.90425,300.38586,-34.821266,15.522733,-199.69786]}}""");
     }
 
     public void testTranslogOperationAsserterRejectsDifferentVector() throws IOException {

@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
@@ -69,6 +72,17 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
+        // Internal callers, including ingest, use this action with TaskType.ANY.
+        if (model.getTaskType() == TaskType.EMBEDDING) {
+            var embeddingRequest = new EmbeddingRequest(
+                request.getInput().stream().map(InferenceStringGroup::new).toList(),
+                request.getInputType(),
+                request.getTaskSettings()
+            );
+            service.embeddingInfer(model, embeddingRequest, request.getInferenceTimeout(), taskId, listener);
+            return;
+        }
+
         service.infer(
             model,
             request.getInput(),

@@ -297,7 +297,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 addToCluster(bucketOrd, val);
                 collectExistingBucket(sub, doc, bucketOrd);
                 if (bucketOrd == 0 || bucketOrd == numClusters - 1) {
-                    // Only update average distance if the centroid of one of the end buckets is modifed.
+                    // Only update average distance if the centroid of one of the end buckets is modified.
                     updateAvgBucketDistance();
                 }
             }

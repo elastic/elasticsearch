@@ -401,7 +401,7 @@ public class DynamicTemplate implements ToXContentObject {
                 }
             }
         } else {
-            // to preserve backwards compatability for single-valued matches, we convert whatever the user provided to a string
+            // to preserve backwards compatibility for single-valued matches, we convert whatever the user provided to a string
             matchList.add(entry.getValue().toString());
         }
     }

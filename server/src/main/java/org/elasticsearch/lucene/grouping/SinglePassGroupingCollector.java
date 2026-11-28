@@ -58,7 +58,7 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  *
  * This collector optionally supports searching after a previous result through the 'after' parameter.
  *
- * TODO: If the sort is based on score we should propagate the mininum competitive score when <code>orderedGroups</code>
+ * TODO: If the sort is based on score we should propagate the minimum competitive score when <code>orderedGroups</code>
  *       is full. This is safe for grouping since the group sort is the same as the query sort.
  */
 public class SinglePassGroupingCollector<T> extends SimpleCollector {

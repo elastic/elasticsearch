@@ -35,10 +35,10 @@ public interface DocumentSizeAccumulator {
     void add(long size);
 
     /**
-     * Returns a map with an entry being the current state of the accumulator + previously commited value for that key
+     * Returns a map with an entry being the current state of the accumulator + previously committed value for that key
      * Then resets the accumulator.
      *
-     * @param segmentInfos a shard's previously comited SegmentInfos
+     * @param segmentInfos a shard's previously committed SegmentInfos
      * @return an map with a new value of size
      */
     Map<String, String> getAsCommitUserData(SegmentInfos segmentInfos);

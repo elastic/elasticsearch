@@ -81,7 +81,7 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
     }
 
     /**
-     * A representative of the buckets used to acess the key.
+     * A representative of the buckets used to access the key.
      */
     private B representativeBucket() {
         return reduced == null ? toReduce.get(0) : reduced;

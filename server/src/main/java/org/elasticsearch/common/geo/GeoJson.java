@@ -490,7 +490,7 @@ public final class GeoJson {
     }
 
     /**
-     * Parser a singe set of 2 or 3 coordinates
+     * Parser a single set of 2 or 3 coordinates
      */
     private static Point parseCoordinate(XContentParser parser) throws IOException {
         // Add support for coerce here

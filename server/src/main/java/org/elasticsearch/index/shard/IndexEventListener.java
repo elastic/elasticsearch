@@ -18,7 +18,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 
 /**
- * An index event listener is the primary extension point for plugins and build-in services
+ * An index event listener is the primary extension point for plugins and built-in services
  * to react / listen to per-index and per-shard events. These listeners are registered per-index
  * via {@link org.elasticsearch.index.IndexModule#addIndexEventListener(IndexEventListener)}. All listeners have the same
  * lifecycle as the {@link IndexService} they are created for.

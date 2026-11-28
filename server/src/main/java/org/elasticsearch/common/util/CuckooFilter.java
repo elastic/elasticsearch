@@ -295,7 +295,7 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Low-level insert method. Attempts to write the fingerprint into an empty entry
-     * at this bucket's position.  Returns true if that was sucessful, false if all entries
+     * at this bucket's position.  Returns true if that was successful, false if all entries
      * were occupied.
      *
      * If the fingerprint already exists in one of the entries, it will not duplicate the

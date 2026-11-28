@@ -15,7 +15,7 @@ import org.elasticsearch.search.profile.query.CollectorResult;
 
 /**
  * Includes result returned by a search operation as part of the query phase.
- * @param topDocsAndMaxScore the {@link org.apache.lucene.search.TopDocs} as wel as the optional maximum score
+ * @param topDocsAndMaxScore the {@link org.apache.lucene.search.TopDocs} as well as the optional maximum score
  * @param sortValueFormats the fields that the request was sorted on
  * @param terminatedAfter whether the request was early terminated, based on the <code>terminate_after</code> functionality
  * @param collectorResult the profile result (when profiling was enabled)

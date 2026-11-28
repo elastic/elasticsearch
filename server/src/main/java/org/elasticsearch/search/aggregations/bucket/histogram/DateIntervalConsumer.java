@@ -13,7 +13,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
  * A shared interface for aggregations that parse and use "interval" parameters.
  *
  * Provides definitions for the new fixed and calendar intervals, and deprecated
- * defintions for the old interval/dateHisto interval parameters
+ * definitions for the old interval/dateHisto interval parameters
  */
 public interface DateIntervalConsumer<T> {
     T calendarInterval(DateHistogramInterval interval);

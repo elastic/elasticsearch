@@ -162,7 +162,7 @@ final class SnapshotDeletionStartBatcher {
         ItemCompletionHandler itemCompletionHandler;
 
         /**
-         * If the item targets only snapshots that are already targetted by a STARTED deletion on this repository, it should be subscribed
+         * If the item targets only snapshots that are already targeted by a STARTED deletion on this repository, it should be subscribed
          * to this UUID rather than the one that the batch creates.
          */
         @Nullable

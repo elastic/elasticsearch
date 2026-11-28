@@ -45,7 +45,7 @@ public class HierarchicalKMeans<V> {
     // degenerate, clusterByConcatenation bails out and re-runs the full hierarchical rebuild.
     // Z_THRESHOLD: max cluster size's z-score above which we flag as a catastrophic outlier.
     // EMPTY_FRACTION: fraction of empty clusters above which we bail (duplicate seeds).
-    // PRIOR_ZERO_FRACTION: fraction of prior clusterSizes equal to zero above which we bail pre-emptively.
+    // PRIOR_ZERO_FRACTION: fraction of prior clusterSizes equal to zero above which we bail preemptively.
     static final float Z_THRESHOLD = 3.0f;
     static final float EMPTY_FRACTION = 0.1f;
     static final float PRIOR_ZERO_FRACTION = 0.5f;

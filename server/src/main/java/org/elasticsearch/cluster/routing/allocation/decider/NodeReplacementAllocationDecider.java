@@ -49,7 +49,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             );
         } else if (isReplacementSource(allocation, shardRouting.currentNodeId())) {
             if (allocation.isReconciling()) {
-                // We permit moving shards off the source node during reconcilation so that they can go onto their desired nodes even if
+                // We permit moving shards off the source node during reconciliation so that they can go onto their desired nodes even if
                 // the desired node is different from the replacement target.
                 return YES__RECONCILING;
             }
@@ -72,7 +72,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             );
         } else if (isReplacementTargetName(allocation, node.node().getName())) {
             if (allocation.isReconciling() && shardRouting.unassigned() == false) {
-                // We permit moving _existing_ shards onto the target during reconcilation so that they stay out of the way of other shards
+                // We permit moving _existing_ shards onto the target during reconciliation so that they stay out of the way of other shards
                 // moving off the source node. But we don't allow any unassigned shards to be assigned to the target since this could
                 // prevent the node from being vacated.
                 return YES__RECONCILING;

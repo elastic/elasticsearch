@@ -69,6 +69,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -681,6 +682,73 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                     assertThat("seekCeil status for " + probe, termsEnum.seekCeil(probe), equalTo(expectedStatus));
                     if (expectedStatus != TermsEnum.SeekStatus.END) {
                         assertThat("seekCeil landed on the wrong term for " + probe, termsEnum.term(), equalTo(expectedTerm));
+                    }
+                }
+            }
+        });
+    }
+
+    public void testSeekCeilMatchesLinearScanWithTimestampGapsAndBlockEncodedOrdinals() throws IOException {
+        // Many short series keep the _tsid ordinals block encoded, so their bisection uses random access reads.
+        final var layout = new int[2 + 300];
+        layout[0] = 4_095;
+        layout[1] = 1;
+        for (int i = 2; i < layout.length; i++) {
+            layout[i] = randomIntBetween(1, 5);
+        }
+        doTestSeekCeilWithTimestampGaps(layout);
+    }
+
+    public void testSeekCeilMatchesLinearScanWithTimestampGapsAndRangeEncodedOrdinals() throws IOException {
+        // A few long series make the _tsid ordinals range encoded, which stores the first document of every ordinal.
+        doTestSeekCeilWithTimestampGaps(new int[] { randomIntBetween(3_500, 4_000), 1, randomIntBetween(8_500, 9_000) });
+    }
+
+    /** Seeks to timestamps inside gaps of an existing series, at its edges and in its neighbours, comparing with a linear scan. */
+    private void doTestSeekCeilWithTimestampGaps(int[] docsPerSeries) throws IOException {
+        // We rely on skippers being enabled
+        runTest(false, (writer, parser) -> {
+            writer.getConfig().setRAMBufferSizeMB(64);
+            final int routing = randomNonNegativeInt();
+            final long baseTimestamp = Instant.now().toEpochMilli();
+            final var probes = new ArrayList<BytesRef>();
+            for (int series = 0; series < docsPerSeries.length; series++) {
+                final var host = String.format(Locale.ROOT, "vm-gap-%04d", series);
+                // Every other timestamp is missing, so seeking the one in between has to land on the next document.
+                for (int i = 0; i < docsPerSeries[series]; i++) {
+                    var doc = new Doc(baseTimestamp + 2L * i, host, "cpu-load", randomInt(), 1, routing);
+                    writer.addDocument(parser.parse(doc));
+                    if (series < 2 || rarely()) {
+                        probes.add(uidEncodedSyntheticId(new Doc(doc.timestamp() + 1, host, "cpu-load", randomInt(), 1, routing)));
+                        probes.add(uidEncodedSyntheticId(doc));
+                    }
+                }
+                probes.add(uidEncodedSyntheticId(new Doc(baseTimestamp - 1, host, "cpu-load", randomInt(), 1, routing)));
+            }
+            writer.flush();
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                final var leaf = reader.leaves().getFirst().reader();
+                final var ordinals = leaf.getSortedDocValues(TSDBSyntheticIdPostingsFormat.TS_ID);
+                assertThat(ordinals, instanceOf(RandomAccessNumericValues.Provider.class));
+                assertThat(((RandomAccessNumericValues.Provider) ordinals).tryRandomAccess(), notNullValue());
+
+                final var terms = new ArrayList<BytesRef>();
+                final var allTerms = leaf.terms(IdFieldMapper.NAME).iterator();
+                for (BytesRef t = allTerms.next(); t != null; t = allTerms.next()) {
+                    terms.add(BytesRef.deepCopyOf(t));
+                }
+                Collections.shuffle(probes, random());
+                final var termsEnum = leaf.terms(IdFieldMapper.NAME).iterator();
+                for (var probe : probes) {
+                    final int index = Collections.binarySearch(terms, probe);
+                    final int ceiling = index >= 0 ? index : -index - 1;
+                    final var expectedStatus = index >= 0
+                        ? TermsEnum.SeekStatus.FOUND
+                        : (ceiling < terms.size() ? TermsEnum.SeekStatus.NOT_FOUND : TermsEnum.SeekStatus.END);
+                    assertThat("seekCeil status for " + probe, termsEnum.seekCeil(probe), equalTo(expectedStatus));
+                    if (expectedStatus != TermsEnum.SeekStatus.END) {
+                        assertThat("seekCeil landed on the wrong term for " + probe, termsEnum.term(), equalTo(terms.get(ceiling)));
                     }
                 }
             }

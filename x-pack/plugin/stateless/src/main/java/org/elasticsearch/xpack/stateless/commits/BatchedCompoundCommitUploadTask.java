@@ -13,11 +13,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RetryableAction;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.Map;
@@ -142,8 +144,21 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
 
         final long generationQueueWaitMs = threadPool.relativeTimeInMillis() - attemptStartMillis;
         final int attempt = uploadTryNumber;
-        final long enqueuedAtNanos = threadPool.relativeTimeInNanos();
         final var attemptTiming = new AtomicReference<BccUploadResult.BccUploadAttemptTiming>();
+        final BlobContainer blobContainer;
+        try {
+            // TODO: The Directory is used to get the blobContainer which can be obtained by using
+            // objectStoreService, shardId and primary term. So there is no need to depend on StatelessCommitRef which gets
+            // awkward when there are multiple of them.
+            // For now we sill use StatelessCommitRef since VBCC can only have a single CC
+            // In multi-project that lookup reads the cluster state, where the index may not be applied yet.
+            blobContainer = BlobStoreCacheDirectory.unwrapDirectory(
+                virtualBcc.getPendingCompoundCommits().getFirst().getCommitReference().getDirectory()
+            ).getBlobContainer(virtualBcc.getPrimaryTermAndGeneration().primaryTerm());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         try (RefCountingListener refCountingListener = new RefCountingListener(listener.delegateFailureAndWrap((l, unused) -> {
             BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
             assert uploadedBcc.lastCompoundCommit() != null;
@@ -159,13 +174,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
                 }));
             }
             objectStoreService.uploadBatchedCompoundCommitFile(
-                virtualBcc.getPrimaryTermAndGeneration().primaryTerm(),
-                // TODO: The Directory is used to get the blobContainer which can be obtained by using
-                // objectStoreService, shardId and primary term. So there is no need to depend on StatelessCommitRef which gets
-                // awkward when there are multiple of them.
-                // For now we sill use StatelessCommitRef since VBCC can only have a single CC
-                virtualBcc.getPendingCompoundCommits().getFirst().getCommitReference().getDirectory(),
-                enqueuedAtNanos,
+                blobContainer,
                 virtualBcc,
                 refCountingListener.acquire().delegateFailure((l, objectStoreTiming) -> {
                     final var timing = new BccUploadResult.BccUploadAttemptTiming(

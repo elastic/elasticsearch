@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless;
 
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.mockfile.FilterFileStore;
 import org.apache.lucene.tests.mockfile.FilterFileSystem;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
@@ -22,6 +21,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -419,7 +419,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
      */
     public static class TestObjectStoreService extends ObjectStoreService {
 
-        private final List<BlockedListener<BccUploadObjectStoreTiming>> blockedListeners = new ArrayList<>();
+        private final List<BlockedListener<UploadTiming>> blockedListeners = new ArrayList<>();
         private boolean blocked;
 
         public TestObjectStoreService(
@@ -452,11 +452,9 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
 
         @Override
         public void uploadBatchedCompoundCommitFile(
-            long primaryTerm,
-            Directory directory,
-            long commitStartNanos,
+            BlobContainer blobContainer,
             VirtualBatchedCompoundCommit pendingCommit,
-            ActionListener<BccUploadObjectStoreTiming> listener
+            ActionListener<UploadTiming> listener
         ) {
             synchronized (this) {
                 if (blocked) {
@@ -466,7 +464,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessPluginIntegTestCa
                 }
             }
 
-            super.uploadBatchedCompoundCommitFile(primaryTerm, directory, commitStartNanos, pendingCommit, listener);
+            super.uploadBatchedCompoundCommitFile(blobContainer, pendingCommit, listener);
         }
     }
 

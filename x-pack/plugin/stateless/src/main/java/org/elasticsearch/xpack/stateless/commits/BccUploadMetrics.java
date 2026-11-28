@@ -36,7 +36,6 @@ public class BccUploadMetrics {
     static final String BCC_UPLOAD_GENERATION_QUEUE_DURATION_HISTOGRAM_METRIC = "es.bcc.upload.generation_queue.duration.histogram";
     public static final String BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC = "es.bcc.upload.object_store.duration.histogram";
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
-    public static final String BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY = "es_upload_success";
 
     private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccHeadersSizeInBytesHistogram;

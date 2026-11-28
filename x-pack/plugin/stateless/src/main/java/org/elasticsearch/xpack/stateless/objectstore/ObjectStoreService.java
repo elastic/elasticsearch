@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.objectstore;
 
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -42,7 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -81,6 +80,7 @@ import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.UploadableBlob;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -412,8 +412,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final Settings settings;
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
-    private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
-    private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
+    private final ThrottledTaskRunner uploadTranslogTaskRunner;
+    private final InstrumentedThrottledTaskRunner<ActionListener<Releasable>> uploadTaskRunner;
+    private final Map<ShardId, PrimaryTermAndGeneration> lastRequestedCommitUploads = Assertions.ENABLED
+        ? ConcurrentCollections.newConcurrentMap()
+        : null;
     private final ConcurrentLinkedQueue<String> translogBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<StaleCompoundCommit> commitBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final Map<ShardId, Set<StaleCompoundCommit>> commitBlobsDeletionsInProgress = ConcurrentCollections.newConcurrentMap();
@@ -452,12 +455,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
+        this.uploadTranslogTaskRunner = new ThrottledTaskRunner(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
             threadPool.info(StatelessThreadPools.TRANSLOG_THREAD_POOL).getMax(),
             threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL)
         );
-        this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
+        this.uploadTaskRunner = new InstrumentedThrottledTaskRunner<>(
             "upload_task_runner",
             threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax(),
             threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL),
@@ -916,28 +919,57 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     ) {
         enqueueTask(
             listener,
-            uploadTranslogTaskRunner,
+            uploadTranslogTaskRunner::enqueueTask,
             l -> new TranslogFileUploadTask(fileName, reference, isAlreadyUploaded, onBeforeUpload, l)
         );
     }
 
+    /**
+     * Uploads a batched compound commit to the object store. The uploads run in the order they are requested, so the commits of a shard
+     * are expected to be requested in generation order.
+     *
+     * @param blobContainer the container of the shard for the primary term of the commit
+     */
     public void uploadBatchedCompoundCommitFile(
-        long primaryTerm,
-        Directory directory,
-        long enqueuedAtNanos,
+        BlobContainer blobContainer,
         VirtualBatchedCompoundCommit pendingCommit,
-        ActionListener<BccUploadObjectStoreTiming> listener
+        ActionListener<UploadTiming> listener
     ) {
-        enqueueTask(
-            listener,
-            uploadTaskRunner,
-            l -> new BatchedCommitFileUploadTask(
-                enqueuedAtNanos,
-                pendingCommit,
-                BlobStoreCacheDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm),
-                l
-            )
+        assert assertRequestedInGenerationOrder(pendingCommit);
+        uploadBlob(
+            blobContainer,
+            pendingCommit,
+            Map.of(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(pendingCommit.getTotalSizeInBytes())),
+            listener
         );
+    }
+
+    private boolean assertRequestedInGenerationOrder(VirtualBatchedCompoundCommit commit) {
+        final var requested = commit.getPrimaryTermAndGeneration();
+        final var previous = lastRequestedCommitUploads.put(commit.getShardId(), requested);
+        assert previous == null || previous.primaryTerm() != requested.primaryTerm() || previous.generation() <= requested.generation()
+            : commit.getShardId() + " upload of commit " + requested + " requested after the upload of " + previous;
+        return true;
+    }
+
+    // package private for tests
+    /**
+     * Uploads a blob of any kind. Uploads run in the order they are requested.
+     *
+     * @param blobContainer  the container the blob is written to, which must be the one of the shard and of the primary term of the blob
+     * @param blobAttributes the attributes that describe the blob in the upload duration metric
+     */
+    void uploadBlob(
+        BlobContainer blobContainer,
+        UploadableBlob blob,
+        Map<String, Object> blobAttributes,
+        ActionListener<UploadTiming> listener
+    ) {
+        assert blobContainer.path().parts().isEmpty() == false
+            && blobContainer.path().parts().getLast().equals(String.valueOf(blob.blob().primaryTerm()))
+            : "container " + blobContainer.path() + " is not the one of " + blob.blob();
+        final long enqueuedAtNanos = threadPool.relativeTimeInNanos();
+        enqueueTask(listener, uploadTaskRunner::enqueueTask, l -> new UploadTask(enqueuedAtNanos, blobContainer, blob, blobAttributes, l));
     }
 
     public void asyncDeleteTranslogFile(String fileToDelete) {
@@ -968,10 +1000,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    private <R, T extends AbstractRunnable & Comparable<T>> void enqueueTask(
+    private <R> void enqueueTask(
         ActionListener<R> listener,
-        PrioritizedThrottledTaskRunner<T> runner,
-        Function<ActionListener<R>, T> task
+        Consumer<ActionListener<Releasable>> runner,
+        Function<ActionListener<R>, AbstractRunnable> task
     ) {
         try {
             ensureRunning();
@@ -981,7 +1013,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             final var releasable = Releasables.releaseOnce(permits::release);
             boolean enqueued = false;
             try {
-                runner.enqueueTask(task.apply(ActionListener.releaseAfter(listener, releasable)));
+                runner.accept(asRunnerTask(task.apply(ActionListener.releaseAfter(listener, releasable))));
                 enqueued = true;
             } finally {
                 if (enqueued == false) {
@@ -993,6 +1025,32 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             // release the references they hold (e.g. commit refs) rather than leaking them.
             listener.onFailure(e);
         }
+    }
+
+    private static ActionListener<Releasable> asRunnerTask(AbstractRunnable task) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    task.run();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert e instanceof EsRejectedExecutionException : e;
+                try {
+                    task.onRejection(e);
+                } finally {
+                    task.onAfter();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return task.toString();
+            }
+        };
     }
 
     /**
@@ -1582,45 +1640,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private record ReferencedFilesAndMaxBlobOffset(long maxBlobOffset, Set<String> files) {}
 
     /**
-     * Abstract class for commit and files upload tasks.
-     *
-     * Tasks belonging to the same shard are ordered by commit generation. Tasks belonging to different shards are ordered by the commit
-     * enqueue time.
-     */
-    private abstract static class ObjectStoreTask extends AbstractRunnable implements Comparable<ObjectStoreTask> {
-
-        protected final ShardId shardId;
-        protected final long generation;
-        protected final long timeInNanos;
-
-        ObjectStoreTask(ShardId shardId, long generation, long timeInNanos) {
-            this.shardId = Objects.requireNonNull(shardId);
-            this.generation = generation;
-            this.timeInNanos = timeInNanos;
-        }
-
-        @Override
-        public final int compareTo(ObjectStoreTask other) {
-            if (shardId.equals(other.shardId)) {
-                return Long.compare(generation, other.generation);
-            }
-
-            // Nano time requires relative comparisons
-            long diff = timeInNanos - other.timeInNanos;
-            if (diff == 0) {
-                return 0;
-            } else if (diff > 0) {
-                return 1;
-            } else {
-                return -1;
-            }
-        }
-    }
-
-    /**
      * {@link TranslogFileUploadTask} uploads the compound translog file to the object store
      */
-    private class TranslogFileUploadTask extends AbstractRunnable implements Comparable<TranslogFileUploadTask> {
+    private class TranslogFileUploadTask extends AbstractRunnable {
 
         private final String fileName;
         private final BytesReference reference;
@@ -1677,15 +1699,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
             listener.onResponse(null);
         }
-
-        @Override
-        public int compareTo(TranslogFileUploadTask o) {
-            // TODO: Implement
-            return 0;
-        }
     }
 
-    // The upload task wraps IOExceptions generated by reading the VBCC input stream in LocalIOException
+    // The upload task wraps IOExceptions generated by reading the stream of the blob in LocalIOException
     // so that they can be distinguished from IOExceptions produced by the blob store itself when uploading.
     // This way we can retry indefinitely on blob store exceptions but bound retries for local errors.
     public static class LocalIOException extends IOException {
@@ -1845,25 +1861,34 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    private class BatchedCommitFileUploadTask extends ObjectStoreTask {
-        private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
+    /**
+     * Attribute of the upload duration histogram telling whether the attempt succeeded.
+     */
+    static final String UPLOAD_SUCCESS_ATTRIBUTE_KEY = "es_upload_success";
+
+    /**
+     * Uploads an {@link UploadableBlob}, whatever its kind. The listener is completed successfully only if the upload did not fail, which
+     * is critical since completing the listener successfully for a failed write can lead to erroneously deleted files.
+     */
+    private class UploadTask extends AbstractRunnable {
+        private final long enqueuedAtNanos;
         private final BlobContainer blobContainer;
-        private final ActionListener<BccUploadObjectStoreTiming> listener;
+        private final UploadableBlob blob;
+        private final Map<String, Object> blobAttributes;
+        private final ActionListener<UploadTiming> listener;
         private final boolean isDebugEnabled;
 
-        BatchedCommitFileUploadTask(
-            long timeInNanos,
-            VirtualBatchedCompoundCommit virtualBatchedCompoundCommit,
+        UploadTask(
+            long enqueuedAtNanos,
             BlobContainer blobContainer,
-            ActionListener<BccUploadObjectStoreTiming> listener
+            UploadableBlob blob,
+            Map<String, Object> blobAttributes,
+            ActionListener<UploadTiming> listener
         ) {
-            super(
-                virtualBatchedCompoundCommit.getShardId(),
-                virtualBatchedCompoundCommit.getPrimaryTermAndGeneration().generation(),
-                timeInNanos
-            );
-            this.virtualBatchedCompoundCommit = Objects.requireNonNull(virtualBatchedCompoundCommit);
+            this.enqueuedAtNanos = enqueuedAtNanos;
             this.blobContainer = Objects.requireNonNull(blobContainer);
+            this.blob = Objects.requireNonNull(blob);
+            this.blobAttributes = Objects.requireNonNull(blobAttributes);
             this.listener = Objects.requireNonNull(listener);
             this.isDebugEnabled = logger.isDebugEnabled();
         }
@@ -1876,53 +1901,52 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         protected void doRun() {
             boolean success = false;
-            final long objectStoreQueueWaitMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - timeInNanos);
+            final long objectStoreQueueWaitMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - enqueuedAtNanos);
             final long uploadIoStartMillis = threadPool.relativeTimeInMillis();
             try {
-                final long totalSizeInBytes = virtualBatchedCompoundCommit.getTotalSizeInBytes();
-                if (concurrentMultipartUploads == false || blobContainer.supportsConcurrentMultipartUploads() == false) {
-                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
-                        blobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            new LocalIOInputStream(vbccInputStream),
-                            totalSizeInBytes,
-                            false
-                        );
-                    }
-                } else {
-                    virtualBatchedCompoundCommit.mustIncRef();
-                    try {
+                final String blobName = blob.blob().blobName();
+                final long totalSizeInBytes = blob.length();
+                blob.mustIncRef();
+                try {
+                    if (concurrentMultipartUploads == false
+                        || blobContainer.supportsConcurrentMultipartUploads() == false
+                        || blob.supportsPartialStreams() == false) {
+                        try (var inputStream = blob.openStream()) {
+                            blobContainer.writeBlobAtomic(
+                                OperationPurpose.INDICES,
+                                blobName,
+                                new LocalIOInputStream(inputStream),
+                                totalSizeInBytes,
+                                false
+                            );
+                        }
+                    } else {
                         final Set<Long> recordedOffsets = ConcurrentHashMap.newKeySet();
                         final long uploadStartNanos = threadPool.relativeTimeInNanos();
-                        blobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            totalSizeInBytes,
-                            (offset, length) -> {
+                        blobContainer.writeBlobAtomic(OperationPurpose.INDICES, blobName, totalSizeInBytes, (offset, length) -> {
 
-                                // The repository records the following metric before it starts uploading a part during a BCC-upload
-                                // attempt. Because Azure underlying retries might call the provider more than once we track the
-                                // `recordedOffsets` to avoid recording the metric during retries that would have tainted the metric
-                                // if we did (i.e., we could see long latency times but due to Azure retries and not due to queueing).
-                                // Note that a high-level retry to upload the BCC in `BatchedCompoundCommitUploadTask` will end up
-                                // recording again for the same part, but this applies across all CSPs.
-                                if (recordedOffsets.add(offset)) {
-                                    bccMultipartUploadPartStartLatencyHistogram.record(
-                                        TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos),
-                                        Map.of("multipart", length < totalSizeInBytes)
-                                    );
-                                }
-
-                                final long partOpenedNanos = threadPool.relativeTimeInNanos();
-                                return new OnCloseLocalIOInputStream(
-                                    virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length),
-                                    () -> bccMultipartUploadPartDurationHistogram.record(
-                                        TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - partOpenedNanos),
-                                        Map.of("multipart", length < totalSizeInBytes)
-                                    )
+                            // The repository records the following metric before it starts uploading a part during an upload
+                            // attempt. Because Azure underlying retries might call the provider more than once we track the
+                            // `recordedOffsets` to avoid recording the metric during retries that would have tainted the metric
+                            // if we did (i.e., we could see long latency times but due to Azure retries and not due to queueing).
+                            // Note that a high-level retry of the upload will end up recording again for the same part, but this
+                            // applies across all CSPs.
+                            if (recordedOffsets.add(offset)) {
+                                bccMultipartUploadPartStartLatencyHistogram.record(
+                                    TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadStartNanos),
+                                    Map.of("multipart", length < totalSizeInBytes)
                                 );
-                            },
+                            }
+
+                            final long partOpenedNanos = threadPool.relativeTimeInNanos();
+                            return new OnCloseLocalIOInputStream(
+                                blob.openStream(offset, length),
+                                () -> bccMultipartUploadPartDurationHistogram.record(
+                                    TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - partOpenedNanos),
+                                    Map.of("multipart", length < totalSizeInBytes)
+                                )
+                            );
+                        },
                             false,
                             // Ensure that one large upload doesn't starve other uploads
                             new ThrottledTaskRunner(
@@ -1931,20 +1955,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                 threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
                             ).asExecutor()
                         );
-                    } finally {
-                        virtualBatchedCompoundCommit.decRef();
                     }
+                } finally {
+                    blob.decRef();
                 }
                 if (isDebugEnabled) {
                     final long uploadIoMs = threadPool.relativeTimeInMillis() - uploadIoStartMillis;
                     logger.debug(
                         () -> format(
-                            "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms"
-                                + " (object store queue [%s] ms)",
-                            shardId,
-                            blobContainer.path().add(virtualBatchedCompoundCommit.getBlobName()),
+                            "%s file %s of size [%s] bytes uploaded in [%s] ms (object store queue [%s] ms)",
+                            blob.shardId(),
+                            blobContainer.path().add(blobName),
                             totalSizeInBytes,
-                            generation,
                             uploadIoMs,
                             objectStoreQueueWaitMs
                         )
@@ -1959,17 +1981,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 onFailure(e);
             } finally {
                 final long uploadIoMs = threadPool.relativeTimeInMillis() - uploadIoStartMillis;
-                bccObjectStoreUploadDurationHistogram.record(
-                    uploadIoMs,
-                    Map.of(
-                        BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY,
-                        BccUploadMetrics.bccSizeBucket(virtualBatchedCompoundCommit.getTotalSizeInBytes()),
-                        BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY,
-                        success
-                    )
-                );
+                final Map<String, Object> attributes = new HashMap<>(blobAttributes);
+                attributes.put(UPLOAD_SUCCESS_ATTRIBUTE_KEY, success);
+                bccObjectStoreUploadDurationHistogram.record(uploadIoMs, attributes);
                 if (success) {
-                    listener.onResponse(new BccUploadObjectStoreTiming(objectStoreQueueWaitMs, uploadIoMs));
+                    listener.onResponse(new UploadTiming(objectStoreQueueWaitMs, uploadIoMs));
                 }
             }
         }
@@ -2127,7 +2143,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     /**
-     * Phase timings measured inside {@link ObjectStoreService} for a batched compound commit upload.
+     * Phase timings measured inside {@link ObjectStoreService} for one blob upload attempt.
      */
-    public record BccUploadObjectStoreTiming(long objectStoreQueueWaitMs, long uploadIoMs) {}
+    public record UploadTiming(long objectStoreQueueWaitMs, long uploadIoMs) {}
 }

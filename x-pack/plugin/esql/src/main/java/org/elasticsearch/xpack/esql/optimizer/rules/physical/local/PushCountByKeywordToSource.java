@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FlattenedKeyEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -110,7 +111,8 @@ public class PushCountByKeywordToSource extends PhysicalOptimizerRules.Parameter
      */
     private static boolean isPlainKeyword(FieldAttribute field) {
         Class<? extends EsField> fieldClass = field.field().getClass();
-        return field.dataType() == DataType.KEYWORD && (fieldClass == EsField.class || fieldClass == KeywordEsField.class);
+        return field.dataType() == DataType.KEYWORD
+            && (fieldClass == EsField.class || fieldClass == KeywordEsField.class || fieldClass == FlattenedKeyEsField.class);
     }
 
     /**

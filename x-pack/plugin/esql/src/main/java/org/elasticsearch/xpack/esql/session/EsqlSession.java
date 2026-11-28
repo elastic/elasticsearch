@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.LetResolver;
+import org.elasticsearch.xpack.esql.analysis.MapKeys;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -612,6 +613,10 @@ public class EsqlSession {
         )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
         }
+        if (boundaryPreservation == ViewBoundaryPreservation.NONE && flattenedKeys(request)) {
+            // A view provides the children of the maps it outputs at its boundary (MapKeys), which needs the view branches.
+            boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
+        }
         viewResolver.replaceViews(
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
@@ -727,7 +732,7 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             resolved,
             viewResolution.viewQueries()
-        ).withFlattenedKeys(EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled() && indexResolver.flattenedDataTypeEnabled());
+        ).withFlattenedKeys(flattenedKeys(request));
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into BranchPlan. ViewShadowRelation siblings and nested
@@ -2172,7 +2177,8 @@ public class EsqlSession {
         // mirroring the decision in execute(): ViewCompaction (an analyzer rule reading AnalyzerContext.preserveViewBoundaries()) must not
         // collapse the lone-view wrappers that ResolveUnmapped null-fills outer references on. esql-planning#2273.
         boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
-            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings);
+            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings)
+            || mapTypes(configuration);
 
         resolveIndicesAndAnalyze(
             parsed,
@@ -2239,13 +2245,69 @@ public class EsqlSession {
         boolean includePrefixFields = configuration.flattenedKeys()
             || unmappedResolution.loadsUnmappedFields()
             || viewSettings.values().stream().anyMatch(settings -> settings.unmappedFields().loadsUnmappedFields());
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false, includePrefixFields);
+        PreAnalysisResult result = withChildrenOfRenamedColumns(
+            parsed,
+            configuration,
+            FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false, includePrefixFields)
+        );
         boolean filterAppliesToViewOutput = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
             && parsed.anyMatch(p -> p instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty() == false);
         if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
             return result;
         }
         return addFilterFieldNames(result, requestFilter, configuration);
+    }
+
+    private static boolean mapTypes(Configuration configuration) {
+        return configuration.flattenedKeys();
+    }
+
+    /**
+     * Whether names under a {@code flattened} field are its keys for this request. The pragma turns them off for one query, which
+     * is how a test compares a query with the released behavior on the same node.
+     */
+    private boolean flattenedKeys(EsqlQueryRequest request) {
+        return EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled()
+            && indexResolver.flattenedDataTypeEnabled()
+            && request.pragmas().flattenedKeys();
+    }
+
+    /**
+     * With map types, renaming a map renames its child columns with it, so a query that says {@code a.foo} after
+     * {@code RENAME attrs AS a} reads the field {@code attrs.foo} where an index maps it. Field caps is asked by the name the
+     * field has in the index: everything under a renamed column. Whether the column is a map is not known yet.
+     */
+    private static PreAnalysisResult withChildrenOfRenamedColumns(
+        LogicalPlan parsed,
+        Configuration configuration,
+        PreAnalysisResult result
+    ) {
+        if (mapTypes(configuration) == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
+            return result;
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        // exact names only: columns keep their names through a rename, so nothing under the renamed column is needed but what
+        // the query reads under its new name
+        fieldNames.addAll(MapKeys.namesAskedOfAllSources(parsed));
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), result.nestedScope(), result.wildcardJoinIndices());
+    }
+
+    /**
+     * The names that the index resolver turns into key fields of the indices: the names the query uses.
+     * <p>
+     * With map types, a name of the caller's query is also asked for under the name it had before each {@code RENAME} above it:
+     * for {@code RENAME attrs AS a | WHERE a.foo == "x"} the shards answer {@code attrs.foo}, and the rename carries that child
+     * column to {@code a.foo}, see {@code MapKeys}. This only adds names. A name that is added without need is a child that
+     * nothing reads, and it is hidden.
+     */
+    private static Set<String> namesOfKeyFields(LogicalPlan parsed, Configuration configuration) {
+        Set<String> names = FieldNameUtils.namedFields(parsed);
+        if (mapTypes(configuration) == false) {
+            return names;
+        }
+        Set<String> result = new HashSet<>(names);
+        result.addAll(MapKeys.namesAskedOfAllSources(parsed));
+        return result;
     }
 
     static PreAnalysisResult addFilterFieldNames(PreAnalysisResult result, QueryBuilder requestFilter, Configuration configuration) {
@@ -2299,6 +2361,9 @@ public class EsqlSession {
         // view does not count here: the view's own settings nullify its body (ViewQuerySettings#from), and must not
         // change how the caller's query resolves.
         boolean nullify = exemplars || callerScopeHasPromql(parsed);
+        // With map types a lookup index and an enrich policy are sources like FROM: they answer the names the query uses, so that a
+        // join loads the key and not the whole map (MapKeys, rule 1)
+        Set<String> mapChildNames = configuration.flattenedKeys() ? MapKeys.namesAskedOfAllSources(parsed) : null;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,
@@ -2306,7 +2371,7 @@ public class EsqlSession {
                 executionInfo,
                 trackedUnmappedFieldIndices,
                 configuration.flattenedKeys()
-                    ? new IndexResolver.NamedFields(FieldNameUtils.namedFields(parsed), result.parentPaths())
+                    ? new IndexResolver.NamedFields(namesOfKeyFields(parsed, configuration), result.parentPaths())
                     : null,
                 result,
                 requestFilter,
@@ -2371,6 +2436,7 @@ public class EsqlSession {
                     preAnalysis.lookupIndices().iterator(),
                     parsed,
                     preAnalysis.needsFieldSemantics(),
+                    mapChildNames,
                     r,
                     executionInfo,
                     l
@@ -2407,6 +2473,9 @@ public class EsqlSession {
                     r.minimumTransportVersion(),
                     planningCpu.meteredCpu(l.delegateFailureAndWrap((ll, enrichResolution) -> {
                         executionInfo.queryProfile().enrichResolutionMarker().stop();
+                        if (mapChildNames != null) {
+                            enrichResolution.namedFields(mapChildNames);
+                        }
                         ll.onResponse(r.withEnrichResolution(enrichResolution));
                     }))
                 );
@@ -2449,6 +2518,7 @@ public class EsqlSession {
         Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
         boolean needsFieldSemantics,
+        @Nullable Set<String> mapChildNames,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2456,7 +2526,7 @@ public class EsqlSession {
         forAll(
             lookupIndices,
             preAnalysisResult,
-            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, r, executionInfo, l),
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, mapChildNames, r, executionInfo, l),
             listener
         );
     }
@@ -2465,6 +2535,7 @@ public class EsqlSession {
         PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
         boolean needsFieldSemantics,
+        @Nullable Set<String> mapChildNames,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2525,6 +2596,7 @@ public class EsqlSession {
             qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             needsFieldSemantics,
+            mapChildNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should

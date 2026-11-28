@@ -265,6 +265,12 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Boolean> FETCH_PHASE = Setting.boolSetting("fetch_phase", false);
 
+    /**
+     * Whether names under a {@code flattened} field are its keys. Turning it off gives one query the behavior from before keys
+     * existed, so that a test can compare the two on the same data.
+     */
+    public static final Setting<Boolean> FLATTENED_KEYS = Setting.boolSetting("flattened_keys", true);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -298,7 +304,8 @@ public final class QueryPragmas implements Writeable {
         SINGLE_NODE_OPTIMIZATIONS,
         TIME_SERIES_SINGLE_PASS,
         TIME_SERIES_REDUCE_PER_INDEX,
-        FETCH_PHASE
+        FETCH_PHASE,
+        FLATTENED_KEYS
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -644,6 +651,10 @@ public final class QueryPragmas implements Writeable {
     @Nullable
     public Boolean fetchPhase() {
         return settings.hasValue(FETCH_PHASE.getKey()) ? FETCH_PHASE.get(settings) : null;
+    }
+
+    public boolean flattenedKeys() {
+        return FLATTENED_KEYS.get(settings);
     }
 
     public boolean isEmpty() {

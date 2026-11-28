@@ -450,8 +450,8 @@ FROM flattened_paths_mapped
 ;
 
 id:keyword | attributes.host:keyword
-f1         | a
-f2         | c
+f1         | L
+f2         | null
 ;
 
 keyOnlyTheLookupIndexHolds
@@ -465,6 +465,6 @@ FROM flattened_paths_mapped
 ;
 
 id:keyword | attributes.zone:keyword
-f1         | null
+f1         | L
 f2         | null
 ;

@@ -628,6 +628,12 @@ public class EsqlCapabilities {
         PARENT_PATHS_ARE_NOT_FIELDS(FLATTENED_KEYS.isEnabled()),
 
         /**
+         * A {@code flattened} field is a map whose keys are read with {@code field.key} wherever the field is in scope, and that
+         * follow the field through {@code RENAME}, joins and views. A column of that name wins over a key.
+         */
+        FLATTENED_KEYS_FOLLOW_MAPS(Build.current().isSnapshot() && FLATTENED_KEYS.isEnabled()),
+
+        /**
          * Support for requesting the "_ignored" metadata field.
          */
         METADATA_IGNORED_FIELD,

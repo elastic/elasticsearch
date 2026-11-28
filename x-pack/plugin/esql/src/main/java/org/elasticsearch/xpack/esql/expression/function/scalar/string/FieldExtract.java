@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,8 +84,15 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         .capabilities("returns_multi_value")
         .name("field_extract");
 
+    /**
+     * The transport version that adds {@link #silentMissingKey} to the wire. It is the version of the flattened keys feature, which is not
+     * released yet; the GA rollout needs a version of its own that follows this change.
+     */
+    private static final TransportVersion SILENT_MISSING_KEY = TransportVersion.fromName("esql_flattened_keys");
+
     private final Expression field;
     private final Expression path;
+    private final boolean silentMissingKey;
 
     @FunctionInfo(
         returnType = "keyword",
@@ -150,13 +158,28 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
                 + "Brackets and array indices are not supported. If `null`, the function returns `null`."
         ) Expression path
     ) {
+        this(source, field, path, false);
+    }
+
+    /**
+     * @param silentMissingKey whether a key that the value does not hold is {@code null} without a warning. The analyzer sets it where
+     *                         a query names a key of a {@code flattened} field: a key that some rows lack is not an error, and the fused
+     *                         field load, which is silent, must give the same result as this evaluator.
+     */
+    public FieldExtract(Source source, Expression field, Expression path, boolean silentMissingKey) {
         super(source, List.of(field, path));
         this.field = field;
         this.path = path;
+        this.silentMissingKey = silentMissingKey;
     }
 
     private FieldExtract(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(SILENT_MISSING_KEY) && in.readBoolean()
+        );
     }
 
     @Override
@@ -164,6 +187,9 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(path);
+        if (out.getTransportVersion().supports(SILENT_MISSING_KEY)) {
+            out.writeBoolean(silentMissingKey);
+        }
     }
 
     @Override
@@ -226,25 +252,31 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
     }
 
     @Evaluator(warnExceptions = IllegalArgumentException.class)
-    public static void process(BytesRefBlock.Builder builder, BytesRef flattenedJson, BytesRef path) {
+    public static void process(BytesRefBlock.Builder builder, BytesRef flattenedJson, BytesRef path, @Fixed boolean silentMissingKey) {
         String key = path.utf8ToString();
         validateFieldExtractPath(key);
-        extractTopLevelKey(builder, flattenedJson, key);
+        extractTopLevelKey(builder, flattenedJson, key, silentMissingKey);
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static void processConstant(BytesRefBlock.Builder builder, BytesRef flattenedJson, @Fixed String path) {
+    static void processConstant(
+        BytesRefBlock.Builder builder,
+        BytesRef flattenedJson,
+        @Fixed String path,
+        @Fixed boolean silentMissingKey
+    ) {
         // path was validated at plan time, no need to re-check per row.
-        extractTopLevelKey(builder, flattenedJson, path);
+        extractTopLevelKey(builder, flattenedJson, path, silentMissingKey);
     }
 
-    private static void extractTopLevelKey(BytesRefBlock.Builder builder, BytesRef str, String key) {
+    private static void extractTopLevelKey(BytesRefBlock.Builder builder, BytesRef str, String key, boolean silentMissingKey) {
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("path [" + key + "] does not exist");
+                missingKey(builder, key, silentMissingKey);
+                return;
             }
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -258,10 +290,18 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
                     parser.skipChildren();
                 }
             }
-            throw new IllegalArgumentException("path [" + key + "] does not exist");
+            missingKey(builder, key, silentMissingKey);
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
         }
+    }
+
+    private static void missingKey(BytesRefBlock.Builder builder, String key, boolean silentMissingKey) {
+        if (silentMissingKey) {
+            builder.appendNull();
+            return;
+        }
+        throw new IllegalArgumentException("path [" + key + "] does not exist");
     }
 
     /**
@@ -356,12 +396,12 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new FieldExtract(source(), newChildren.get(0), newChildren.get(1));
+        return new FieldExtract(source(), newChildren.get(0), newChildren.get(1), silentMissingKey);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, FieldExtract::new, field, path);
+        return NodeInfo.create(this, FieldExtract::new, field, path, silentMissingKey);
     }
 
     @Override
@@ -370,10 +410,10 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         if (path.foldable()) {
             String pathString = ((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString();
             validateFieldExtractPath(pathString);
-            return new FieldExtractConstantEvaluator.Factory(source(), fieldEval, pathString);
+            return new FieldExtractConstantEvaluator.Factory(source(), fieldEval, pathString, silentMissingKey);
         }
         ExpressionEvaluator.Factory pathEval = toEvaluator.apply(path);
-        return new FieldExtractEvaluator.Factory(source(), fieldEval, pathEval);
+        return new FieldExtractEvaluator.Factory(source(), fieldEval, pathEval, silentMissingKey);
     }
 
     Expression field() {

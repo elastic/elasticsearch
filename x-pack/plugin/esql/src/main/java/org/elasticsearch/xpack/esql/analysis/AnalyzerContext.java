@@ -64,6 +64,7 @@ public class AnalyzerContext {
     private final Map<String, ViewQuerySettings> viewSettings;
     private final EsqlFlags flags;
     private final Set<String> fieldNames;
+    private final boolean mapTypes;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -138,6 +139,7 @@ public class AnalyzerContext {
     ) {
         this.fieldNames = fieldNames;
         this.configuration = configuration;
+        this.mapTypes = configuration != null && configuration.flattenedKeys();
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.analysisRegistry = analysisRegistry;
@@ -171,10 +173,23 @@ public class AnalyzerContext {
      * Warnings recorded while resolving a view branch stay visible on the context that started analysis.
      */
     AnalyzerContext withUnmappedResolution(UnmappedResolution unmappedResolution) {
-        return new AnalyzerContext(this, unmappedResolution);
+        return new AnalyzerContext(this, unmappedResolution, mapTypes);
     }
 
-    private AnalyzerContext(AnalyzerContext other, UnmappedResolution unmappedResolution) {
+    /**
+     * The context for the body of a view, which resolves names with the {@code unmapped_fields} of the view's own definition.
+     */
+    AnalyzerContext forViewBody(UnmappedResolution unmappedResolution) {
+        return new AnalyzerContext(this, unmappedResolution, mapTypes);
+    }
+
+    /** Whether fields with keys are maps in this scope, see {@code MapKeys} for the rules. */
+    public boolean mapTypes() {
+        return mapTypes;
+    }
+
+    private AnalyzerContext(AnalyzerContext other, UnmappedResolution unmappedResolution, boolean mapTypes) {
+        this.mapTypes = mapTypes;
         this.configuration = other.configuration;
         this.functionRegistry = other.functionRegistry;
         this.promqlFunctionRegistry = other.promqlFunctionRegistry;

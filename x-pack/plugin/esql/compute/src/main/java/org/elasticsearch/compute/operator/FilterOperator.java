@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -102,8 +103,17 @@ public class FilterOperator extends AbstractPageMappingOperator {
                 // All results are null which is like false. No values selected.
                 return null;
             }
-            // TODO we can detect constant true or false from the type
-            // TODO or we could make a new method in bool-valued evaluators that returns a list of numbers
+            BooleanVector vector = test.asVector();
+            if (vector != null) {
+                // Check allFalse first: an empty vector is both all-true and all-false, and the loop below returns null for it.
+                if (vector.allFalse()) {
+                    return null;
+                }
+                if (vector.allTrue()) {
+                    return page.shallowCopy();
+                }
+            }
+            // TODO we could make a new method in bool-valued evaluators that returns a list of numbers
             for (int p = 0; p < page.getPositionCount(); p++) {
                 if (test.isNull(p) || test.getValueCount(p) != 1) {
                     // Null is like false

@@ -47,9 +47,11 @@ teardown:
           query: 'ROW k = ["a", "b", "c"], n = 1 | MV_EXPAND k | INTO into-dest'
   - match: { columns.0.name: total }
   - match: { columns.1.name: created }
-  - match: { columns.2.name: failures }
-  - match: { columns.3.name: failure_details }
-  - match: { values.0: [3, 3, 0, null] }
+  - match: { columns.2.name: updated }
+  - match: { columns.3.name: version_conflicts }
+  - match: { columns.4.name: failures }
+  - match: { columns.5.name: failure_details }
+  - match: { values.0: [3, 3, 0, 0, 0, null] }
 
   - do:
       esql.query:

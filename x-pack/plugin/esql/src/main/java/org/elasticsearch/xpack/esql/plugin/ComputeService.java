@@ -139,6 +139,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
@@ -147,6 +148,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
+import org.elasticsearch.xpack.esql.planner.TimeSeriesSplitPlanner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -290,6 +292,7 @@ public class ComputeService {
     private final ExternalWorkerReadiness externalWorkerReadiness;
     private final BatchIndexingEnabled batchIndexingEnabled;
     private final EscfBulkService escfBulkService;
+    private final TimeSeriesSplitPlanner timeSeriesSplitPlanner;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -366,6 +369,7 @@ public class ComputeService {
         );
         this.fetchService.registerHandlers();
         this.searchTransportService = searchTransportService;
+        this.timeSeriesSplitPlanner = new TimeSeriesSplitPlanner(transportService);
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -1252,6 +1256,7 @@ public class ComputeService {
         CancellableTask rootTask,
         EsqlFlags flags,
         PhysicalPlan physicalPlan,
+        TransportVersion minimumVersion,
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
@@ -1267,27 +1272,20 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
-        final SubPlan executionPlan;
-        final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
-        final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
-        try {
-            executionPlan = PlannerUtils.buildSubPlan(physicalPlan);
-            // take a snapshot of the initial cluster statuses, this is the status after index resolutions,
-            // and it will be checked before executing data node plan on remote clusters
-            initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
-            for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
-                initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-
         final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(listener);
         if (completeIfStopped(execInfo, physicalPlan, configuration, null, dispatchListener)) {
             return;
         }
-        try {
+        final ActionListener<SubPlan> onPlan = dispatchListener.delegateFailureAndWrap((inner, executionPlan) -> {
+            if (completeIfStopped(execInfo, physicalPlan, configuration, null, inner)) {
+                return;
+            }
+            // Preserve the statuses from index resolution for the checks before data-node execution.
+            final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
+            for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
+                initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
+            }
+            final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
             switch (executionPlan) {
                 case SubPlan.Leaf leaf -> executePlan(
                     sessionId,
@@ -1298,7 +1296,7 @@ public class ComputeService {
                     foldContext,
                     execInfo,
                     null,
-                    dispatchListener,
+                    inner,
                     null,
                     initialClusterStatuses,
                     planTimeProfile,
@@ -1320,13 +1318,17 @@ public class ComputeService {
                     planTimeProfile,
                     merge,
                     maxResultSize,
-                    dispatchListener
+                    inner
                 ).executePlan();
             }
+        });
+        try {
+            if (physicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec)) {
+                timeSeriesSplitPlanner.buildSubPlan(rootTask, physicalPlan, minimumVersion, configuration, flags, onPlan);
+            } else {
+                onPlan.onResponse(PlannerUtils.buildSubPlan(physicalPlan));
+            }
         } catch (Exception e) {
-            // executePlan does planning work outside its own try/catch (breakPlanBetweenCoordinatorAndDataNode, getIndices), so a
-            // legitimate planning error lands here. SubPlansExecutor can also settle the listener from a finally and then throw out
-            // of that same finally; notifyOnce drops that second completion.
             dispatchListener.onFailure(e);
         }
     }

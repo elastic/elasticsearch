@@ -1,0 +1,2 @@
+TS k8s
+| STATS rate = SUM(RATE(network.total_bytes_in)) BY cluster, bucket = TBUCKET(1 hour)

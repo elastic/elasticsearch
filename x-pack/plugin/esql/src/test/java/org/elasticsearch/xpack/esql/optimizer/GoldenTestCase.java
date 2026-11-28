@@ -265,6 +265,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private String sinceName;
         private final List<Label> labels = new ArrayList<>();
         private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
+        private Function<PhysicalOptimizerContext, PhysicalPlanOptimizer> physicalOptimizerFactory;
         private AliasFilter aliasFilter;
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
@@ -295,6 +296,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public TestBuilder optimizer(Function<LogicalOptimizerContext, LogicalPlanOptimizer> factory) {
             this.optimizerFactory = factory;
+            return this;
+        }
+
+        public TestBuilder physicalOptimizer(Function<PhysicalOptimizerContext, PhysicalPlanOptimizer> factory) {
+            this.physicalOptimizerFactory = factory;
             return this;
         }
 
@@ -641,6 +647,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 version,
                 writeReference,
                 optimizerFactory,
+                physicalOptimizerFactory,
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
@@ -791,6 +798,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         TransportVersion transportVersion,
         boolean writeReference,
         Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
+        Function<PhysicalOptimizerContext, PhysicalPlanOptimizer> physicalOptimizerFactory,
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
@@ -904,7 +912,10 @@ public abstract class GoldenTestCase extends ESTestCase {
                 // optimization. Since subplan execution is not done in the golden tests,
                 // manually replace the placeholders instead by a fixed value.
                 logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, SAMPLE_PROBABILITY);
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
+                var physicalOptimizerContext = new PhysicalOptimizerContext(configuration, transportVersion);
+                var physicalPlanOptimizer = physicalOptimizerFactory != null
+                    ? physicalOptimizerFactory.apply(physicalOptimizerContext)
+                    : new PhysicalPlanOptimizer(physicalOptimizerContext);
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
                 );

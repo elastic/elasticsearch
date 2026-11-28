@@ -260,10 +260,12 @@ public class EsqlSession {
          *                      {@code null} for no limit. The run should fail as soon as the pages exceed it, instead of
          *                      reading its whole input first. A runner that ignores it still fails the query, because the session
          *                      checks the complete result against the same limit.
+         * @param minimumVersion the minimum transport version of every cluster the plan can reach
          */
         void run(
             Role role,
             PhysicalPlan plan,
+            TransportVersion minimumVersion,
             Configuration configuration,
             FoldContext foldContext,
             PlanTimeProfile planTimeProfile,
@@ -975,13 +977,21 @@ public class EsqlSession {
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
         listener = explainContext != null
-            ? createExplainListener(listener, optimizedPlan, planTimeProfile, configuration, planRunner)
+            ? createExplainListener(
+                listener,
+                optimizedPlan,
+                planTimeProfile,
+                configuration,
+                physicalPlanOptimizer.context().minimumVersion(),
+                planRunner
+            )
             : listener;
 
         PlanRunner executionRunner = explainContext != null
-            ? (role, plan, cfg, foldCtx, profile, maxResultSize, l) -> planRunner.run(
+            ? (role, plan, minimumVersion, cfg, foldCtx, profile, maxResultSize, l) -> planRunner.run(
                 PlanRunner.Role.INTERMEDIATE,
                 plan,
+                minimumVersion,
                 cfg,
                 foldCtx,
                 profile,
@@ -1143,6 +1153,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         PlanTimeProfile planTimeProfile,
         Configuration configuration,
+        TransportVersion minimumVersion,
         PlanRunner planRunner
     ) {
         // optimizedPlan may be mutated by later phases (plan substitution), so capture its string
@@ -1218,13 +1229,14 @@ public class EsqlSession {
             }
 
             // Build and return the EXPLAIN table
-            finishExplain(values, configuration, configuration.newFoldContext(), planTimeProfile, planRunner, next);
+            finishExplain(values, configuration, minimumVersion, configuration.newFoldContext(), planTimeProfile, planRunner, next);
         });
     }
 
     private void finishExplain(
         List<List<Object>> values,
         Configuration configuration,
+        TransportVersion minimumVersion,
         FoldContext foldContext,
         PlanTimeProfile planTimeProfile,
         PlanRunner planRunner,
@@ -1232,7 +1244,7 @@ public class EsqlSession {
     ) {
         var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
         PhysicalPlan resultPlan = new LocalSourceExec(Source.EMPTY, Explain.OUTPUT_ATTRIBUTES, LocalSupplier.of(new Page(blocks)));
-        planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, null, listener);
+        planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, minimumVersion, configuration, foldContext, planTimeProfile, null, listener);
     }
 
     private void executeSubPlans(
@@ -1290,6 +1302,7 @@ public class EsqlSession {
             runner.run(
                 PlanRunner.Role.OUTPUT,
                 physicalPlan,
+                physicalPlanOptimizer.context().minimumVersion(),
                 configuration,
                 foldContext,
                 planTimeProfile,
@@ -1679,6 +1692,7 @@ public class EsqlSession {
         runner.run(
             PlanRunner.Role.INTERMEDIATE,
             physicalSubPlan,
+            physicalPlanOptimizer.context().minimumVersion(),
             configuration,
             foldContext,
             planTimeProfile,
@@ -1725,6 +1739,7 @@ public class EsqlSession {
                         runner.run(
                             PlanRunner.Role.OUTPUT,
                             newPhysicalPlan,
+                            physicalPlanOptimizer.context().minimumVersion(),
                             configuration,
                             foldContext,
                             planTimeProfile,

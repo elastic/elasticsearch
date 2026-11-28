@@ -25,3 +25,7 @@ dependencies {
   // the yaml tests index into a bbq_disk field, which only the diskbbq plugin can serve
   clusterModules project(':x-pack:plugin:diskbbq')
 }
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

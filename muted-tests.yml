@@ -850,3 +850,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testBalancedOperatorTreeFailsMaxLeftParentheses
   issue: https://github.com/elastic/elasticsearch/issues/167941
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap
+  issue: https://github.com/elastic/elasticsearch/issues/164484

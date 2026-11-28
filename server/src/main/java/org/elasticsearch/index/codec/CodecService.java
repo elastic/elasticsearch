@@ -40,7 +40,17 @@ public class CodecService implements CodecProvider {
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public static Codec createESDefaultCodec(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+    private static ElasticsearchCodec.FormatWrapper wrapper;
+
+    public static void setCodecWrapper(ElasticsearchCodec.FormatWrapper wrapper) {
+        CodecService.wrapper = wrapper;
+    }
+
+    public static ElasticsearchCodec createESDefaultCodec(
+        @Nullable MapperService mapperService,
+        BigArrays bigArrays,
+        @Nullable ThreadPool threadPool
+    ) {
         return new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_SPEED,
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
@@ -55,9 +65,12 @@ public class CodecService implements CodecProvider {
         final var codecs = new HashMap<String, Codec>();
 
         var bestSpeedCodec = createESDefaultCodec(mapperService, bigArrays, threadPool);
+        if (wrapper != null) {
+            bestSpeedCodec.setWrapper(wrapper);
+        }
         codecs.put(DEFAULT_CODEC, bestSpeedCodec);
         // We can't remove this now
-        codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);
+        codecs.put(LEGACY_DEFAULT_CODEC, createESDefaultCodec(mapperService, bigArrays, threadPool));
 
         // best_compression compresses stored fields with Zstd and leaves the rest of the Lucene codec on its default settings.
         // legacy_best_compression is what the name meant before Zstd: Lucene's own high compression stored fields.
@@ -70,7 +83,11 @@ public class CodecService implements CodecProvider {
             bigArrays,
             threadPool
         );
+        if (wrapper != null) {
+            bestCompressionCodec.setWrapper(wrapper);
+        }
         codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
+
         Codec legacyBestCompressionCodec = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_COMPRESSION,
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,

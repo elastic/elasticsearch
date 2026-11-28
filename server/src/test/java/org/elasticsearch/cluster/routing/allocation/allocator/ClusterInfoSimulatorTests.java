@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndPath;
+import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
 import org.elasticsearch.cluster.ClusterInfo.ReservedSpace;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.ClusterName;
@@ -38,7 +39,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -53,8 +53,6 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -67,16 +65,11 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
@@ -170,7 +163,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
         final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(index)
+            .add(IndexRoutingTable.builder(index.getIndex()).addShard(existingPrimary))
             .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
@@ -214,6 +207,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withNode(nodeId0, new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
             .withNode(nodeId1, new DiskUsageBuilder("/data", 1000, 1000 - recoveredSize))
             .withShard(existingPrimary, totalShardSize)
+            .withRecoveringShard(newReplica)
             .withReservedSpace(nodeId1, "/data", remainingSize, newReplica.shardId())
             .build();
 
@@ -237,9 +231,72 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     .withNode(nodeId1, new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
                     .withShard(existingPrimary, totalShardSize)
                     .withShard(newReplica, totalShardSize)
+                    .withRecoveringShard(newReplica)
                     .build()
             )
         );
+    }
+
+    /**
+     * A shard that is already on disk when it starts adds no space, so an entry for it in the polled data path must not take any away.
+     */
+    public void testInitializePrimaryFromExistingStoreAlreadyOnDisk() {
+
+        var nodeId = "node-0";
+
+        var indexMetadata = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var restartedPrimary = shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), nodeId, true, INITIALIZING).withRecoverySource(
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        ).build();
+
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(nodeId, new DiskUsageBuilder("/data", 1000, 900))
+            .withShard(restartedPrimary, 100)
+            .withRecoveringShard(restartedPrimary)
+            .build();
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(restartedPrimary)))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId)).build())
+            .build();
+        var simulator = new ClusterInfoSimulator(createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY));
+        simulator.simulateShardStarted(restartedPrimary);
+
+        assertThat(simulator.getClusterInfo(), equalTo(initialClusterInfo));
+    }
+
+    /**
+     * Without a data path in the polled ClusterInfo (indices stats were not collected, or the request failed) nothing is known about
+     * where the polled node values came from, so the shards in the routing table must not be added on top of them.
+     */
+    public void testShardsInRoutingTableAreNotAddedWhenThePollHasNoDataPath() {
+
+        var nodeId0 = "node-0";
+        var nodeId1 = "node-1";
+
+        var indexMetadata = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var shard0 = newShardRouting(new ShardId(indexMetadata.getIndex(), 0), nodeId0, true, STARTED);
+        var shard1 = newShardRouting(new ShardId(indexMetadata.getIndex(), 1), nodeId0, true, STARTED);
+
+        // the polled commitment on node-0 already includes both shards
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(nodeId0, new DiskUsageBuilder("/data", 1000, 900))
+            .withNode(nodeId1, new DiskUsageBuilder("/data", 1000, 1000))
+            .withNodeCacheSizeAndCommitments(nodeId0, 1000, 70, 700)
+            .withNodeCacheSizeAndCommitments(nodeId1, 1000, 0, 0)
+            .withShardCacheRequirement(shard0, 30, 300)
+            .withShardCacheRequirement(shard1, 40, 400)
+            .build();
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shard0).addShard(shard1)))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId0)).add(DiscoveryNodeUtils.create(nodeId1)).build())
+            .build();
+        var simulator = new ClusterInfoSimulator(createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY));
+
+        assertThat(simulator.getClusterInfo(), equalTo(initialClusterInfo));
     }
 
     public void testRelocateShard() {
@@ -745,49 +802,6 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         );
     }
 
-    public void testSimulateAlreadyStartedShard() {
-        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
-        doCallRealMethod().when(clusterInfoSimulator).simulateAlreadyStartedShard(any(), any());
-
-        final ShardRouting startedShard = ShardRouting.newUnassigned(
-            new ShardId(randomIdentifier(), randomUUID(), between(0, 5)),
-            true,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(REINITIALIZED, "simulation"),
-            ShardRouting.Role.DEFAULT,
-            RecoveryPriority.UNASSIGNED_UNEXPECTED
-        ).initialize(randomIdentifier(), null, randomLongBetween(100, 999)).moveToStarted(randomLongBetween(100, 999));
-
-        // New shard without relocation
-        {
-            final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
-            clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, null);
-            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
-            final var captureShard = shardCaptor.getValue();
-            assertTrue(captureShard.initializing());
-            assertNull(captureShard.relocatingNodeId());
-            assertThat(captureShard.shardId(), equalTo(startedShard.shardId()));
-            assertThat(captureShard.currentNodeId(), equalTo(startedShard.currentNodeId()));
-            assertThat(captureShard.getExpectedShardSize(), equalTo(startedShard.getExpectedShardSize()));
-        }
-
-        // Relocation
-        {
-            Mockito.clearInvocations(clusterInfoSimulator);
-            final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
-            final String sourceNodeId = randomIdentifier();
-            clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
-            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
-            final var captureShard = shardCaptor.getValue();
-            assertTrue(captureShard.initializing());
-            assertThat(captureShard.relocatingNodeId(), equalTo(sourceNodeId));
-            assertThat(captureShard.shardId(), equalTo(startedShard.shardId()));
-            assertThat(captureShard.currentNodeId(), equalTo(startedShard.currentNodeId()));
-            assertThat(captureShard.getExpectedShardSize(), equalTo(startedShard.getExpectedShardSize()));
-        }
-
-    }
-
     /**
      * Node heap is derived from the routing table and the shard-heap snapshot. Totals stored on the node-heap snapshot are not a baseline:
      * that snapshot can disagree with where shards actually sit.
@@ -1181,6 +1195,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         private final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = new HashMap<>();
         private Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of();
         private Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of();
+        private final Map<NodeAndShard, String> dataPath = new HashMap<>();
 
         public ClusterInfoTestBuilder withNode(String name, DiskUsageBuilder diskUsageBuilderBuilder) {
             leastAvailableSpaceUsage.put(name, diskUsageBuilderBuilder.toDiskUsage(name));
@@ -1194,8 +1209,18 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             return this;
         }
 
+        /** A shard the poll saw on its node. An initializing shard was not on disk then, see {@link #withRecoveringShard}. */
         public ClusterInfoTestBuilder withShard(ShardRouting shard, long size) {
             shardSizes.put(shardIdentifierFromRouting(shard), size);
+            if (shard.started() || shard.relocating()) {
+                dataPath.put(NodeAndShard.from(shard), shard.currentNodeId() + "/data");
+            }
+            return this;
+        }
+
+        /** An initializing shard that was already partly on disk when the poll was taken. */
+        public ClusterInfoTestBuilder withRecoveringShard(ShardRouting shard) {
+            dataPath.put(NodeAndShard.from(shard), shard.currentNodeId() + "/data");
             return this;
         }
 
@@ -1249,6 +1274,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 .shardCacheRequirements(shardCacheRequirements)
                 .searchCopyDemands(searchCopyDemands)
                 .nodeSearchCapacities(nodeSearchCapacities)
+                .dataPath(dataPath)
                 .build();
         }
     }

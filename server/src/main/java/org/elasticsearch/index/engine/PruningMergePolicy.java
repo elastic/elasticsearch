@@ -359,7 +359,7 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
      * If the stored fields reader cannot be unwrapped (e.g. when wrapped by an intermediate layer), we fall back to a reader that
      * skips the _id field via a {@link FilterStoredFieldVisitor} to prevent materialization on merge threads.
      */
-    private static CodecReader unwrapSyntheticIdStoredFieldsReader(CodecReader reader) {
+    static CodecReader unwrapSyntheticIdStoredFieldsReader(CodecReader reader) {
         return new FilterCodecReader(reader) {
             @Override
             public StoredFieldsReader getFieldsReader() {

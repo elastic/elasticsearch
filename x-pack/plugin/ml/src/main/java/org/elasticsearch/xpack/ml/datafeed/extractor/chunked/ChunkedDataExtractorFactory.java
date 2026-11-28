@@ -76,7 +76,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
      * most one frequency, so the summary would only cost a second query.
      */
     private long singleChunkSpan() {
-        return datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry).millis();
+        return datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry, timeBucketMillis()).millis();
     }
 
     @Override
@@ -103,10 +103,11 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             // dropping or duplicating data.
             return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis(xContentRegistry));
         }
-        if (dataExtractorFactory.timeBucketMillis() > 0) {
+        long timeBucketMillis = dataExtractorFactory.timeBucketMillis();
+        if (timeBucketMillis > 0) {
             // ES|QL stamps rows with the bucket start when DESCRIBE reports a bucket interval for the time column. Raw rows keep source
             // timestamps, so their windows need no grid, and flooring a resume start would re-read posted rows.
-            return newIntervalTimeAligner(datafeedConfig.getGroupingInterval().millis());
+            return newIntervalTimeAligner(timeBucketMillis);
         }
         return newIdentityTimeAligner();
     }

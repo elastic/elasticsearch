@@ -59,16 +59,12 @@ public class DelayedDataDetectorFactory {
                         Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD)
                     );
                 }
-                long groupingInterval = datafeedConfig.getGroupingInterval().millis();
-                // DatafeedJobValidator rejects grouping_interval != bucket_span for ES|QL datafeeds.
-                assert groupingInterval == bucketSpan : "grouping_interval must equal bucket_span";
                 BucketEventCounter esqlCounter = new EsqlBucketEventCounter(
                     job.getId(),
                     bucketSpan,
                     job.getDataDescription().getTimeField(),
                     summaryCountField,
                     datafeedConfig.getEsqlQuery(),
-                    datafeedConfig.getSourceTimeField(),
                     datafeedConfig.getHeaders(),
                     datafeedConfig.getProjectRouting(),
                     client

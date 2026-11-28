@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 167846
+summary: Charge CCS minimize-roundtrips responses to the query breaker
+type: enhancement

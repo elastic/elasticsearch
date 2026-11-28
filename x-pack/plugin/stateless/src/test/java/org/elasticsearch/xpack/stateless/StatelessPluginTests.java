@@ -73,7 +73,7 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     private static StatelessPlugin createStatelessPluginWithMergeBlobs(boolean mergeBlobsEnabled) {
-        return new StatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build()) {
+        return new StatelessPlugin(statelessEnabledSettings().build()) {
             @Override
             protected boolean mergeBlobsEnabled() {
                 return mergeBlobsEnabled;

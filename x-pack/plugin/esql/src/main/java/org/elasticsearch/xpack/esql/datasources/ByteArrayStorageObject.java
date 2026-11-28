@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ByteRegionInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
@@ -62,7 +62,7 @@ final class ByteArrayStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() {
-        return new ByteArrayInputStream(data, offset, length);
+        return new ByteRegionInputStream(data, offset, length);
     }
 
     @Override
@@ -77,7 +77,7 @@ final class ByteArrayStorageObject implements StorageObject {
                 "Invalid sub-region: position=" + position + ", length=" + len + ", region length=" + length
             );
         }
-        return new ByteArrayInputStream(data, offset + pos, l);
+        return new ByteRegionInputStream(data, offset + pos, l);
     }
 
     @Override

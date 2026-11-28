@@ -18,24 +18,37 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * What {@code <query> | DESCRIBE} reports about an ES|QL query: the type of each output column, in output order, the bucket interval
- * and the bucket interval and time zone of each column that has one. Rows are read by column name, so extra columns are ignored.
+ * What {@code <query> | DESCRIBE} reports about an ES|QL query: the type of each output column, in output order, its origin (for
+ * example {@code mapped}, {@code renamed} or {@code computed}), its source field, and its bucket interval and time zone. Only
+ * columns that report a value appear in the maps after the first. Rows are read by column name, so extra columns are ignored.
  */
-record EsqlQueryDescription(Map<String, String> columnTypes, Map<String, String> columnIntervals, Map<String, String> columnTimeZones) {
+record EsqlQueryDescription(
+    Map<String, String> columnTypes,
+    Map<String, String> columnOrigins,
+    Map<String, String> columnFields,
+    Map<String, String> columnIntervals,
+    Map<String, String> columnTimeZones
+) {
 
     static EsqlQueryDescription from(EsqlResponse response) {
         List<? extends ColumnInfo> header = response.columns();
         int name = indexOf(header, "name");
         int type = indexOf(header, "type");
+        int origin = optionalIndexOf(header, "origin");
+        int field = optionalIndexOf(header, "field");
         int interval = optionalIndexOf(header, "interval");
         int timeZone = optionalIndexOf(header, "time_zone");
         Map<String, String> columnTypes = new LinkedHashMap<>();
+        Map<String, String> columnOrigins = new LinkedHashMap<>();
+        Map<String, String> columnFields = new LinkedHashMap<>();
         Map<String, String> columnIntervals = new LinkedHashMap<>();
         Map<String, String> columnTimeZones = new LinkedHashMap<>();
         for (Iterable<Object> row : response.rows()) {
             int position = 0;
             String columnName = null;
             String columnType = null;
+            String columnOrigin = null;
+            String columnField = null;
             String columnInterval = null;
             String columnTimeZone = null;
             for (Iterator<Object> it = row.iterator(); it.hasNext(); position++) {
@@ -44,6 +57,10 @@ record EsqlQueryDescription(Map<String, String> columnTypes, Map<String, String>
                     columnName = String.valueOf(value);
                 } else if (position == type) {
                     columnType = String.valueOf(value);
+                } else if (position == origin && value != null) {
+                    columnOrigin = String.valueOf(value);
+                } else if (position == field && value != null) {
+                    columnField = String.valueOf(value);
                 } else if (position == interval && value != null) {
                     columnInterval = String.valueOf(value);
                 } else if (position == timeZone && value != null) {
@@ -51,6 +68,12 @@ record EsqlQueryDescription(Map<String, String> columnTypes, Map<String, String>
                 }
             }
             columnTypes.put(columnName, columnType);
+            if (columnOrigin != null) {
+                columnOrigins.put(columnName, columnOrigin);
+            }
+            if (columnField != null) {
+                columnFields.put(columnName, columnField);
+            }
             if (columnInterval != null) {
                 columnIntervals.put(columnName, columnInterval);
             }
@@ -60,6 +83,8 @@ record EsqlQueryDescription(Map<String, String> columnTypes, Map<String, String>
         }
         return new EsqlQueryDescription(
             Collections.unmodifiableMap(columnTypes),
+            Collections.unmodifiableMap(columnOrigins),
+            Collections.unmodifiableMap(columnFields),
             Collections.unmodifiableMap(columnIntervals),
             Collections.unmodifiableMap(columnTimeZones)
         );

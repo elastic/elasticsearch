@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -31,6 +33,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
@@ -40,6 +43,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -48,12 +53,16 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class IntoIT extends AbstractEsqlIntegTestCase {
@@ -106,7 +115,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void createDestination() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         assumeTrue("INTO writes through batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         assertAcked(indicesAdmin().prepareCreate(DESTINATION).setSettings(batchIndexingSettings()).setMapping(MAPPING));
     }
@@ -164,7 +173,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("INTO destination [" + dateMathDest + "] is also read by the query, through [" + resolvedDest + "]")
+            containsString("INTO destination [" + resolvedDest + "] is also read by the query, through [" + resolvedDest + "]")
         );
     }
 
@@ -186,6 +195,16 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack(List.of());
     }
 
+    /** An EXPLAIN never writes, so a destination that is not there is fine, and the EXPLAIN does not create it. */
+    public void testExplainIntoMissingDestinationDoesNotCreateIt() {
+        String missing = "dest-into-missing";
+        try (EsqlQueryResponse response = run("EXPLAIN (ROW k = \"explained\" | INTO " + missing + ")")) {
+            List<String> plans = getValuesList(response).stream().map(row -> (String) row.getLast()).toList();
+            assertThat(plans, hasItem(containsString("IntoExec")));
+        }
+        assertFalse(indexExists(missing));
+    }
+
     public void testRefusedRowFailsTheQuery() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
@@ -193,6 +212,41 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), containsString("unmapped_col"));
+    }
+
+    public void testKeepGoingSkipsRefusedRows() {
+        String query = Strings.format("""
+            ROW k = ["ok1", "bad", "ok2"]
+            | MV_EXPAND k
+            | EVAL unmapped_col = CASE(k == "bad", "nope", null)
+            | INTO %s WITH {"keep_going": true}
+            """, DESTINATION);
+        try (EsqlQueryResponse response = run(query)) {
+            assertIntoColumns(response);
+            List<Object> summary = singleValue(getValuesList(response));
+            assertThat(summary.subList(0, 3), equalTo(List.of(3L, 2L, 1L)));
+            assertThat((String) summary.get(3), startsWith("[400] "));
+            assertThat((String) summary.get(3), containsString("unmapped_col"));
+        }
+        assertReadBack("KEEP k | SORT k", List.of(List.of("ok1"), List.of("ok2")));
+    }
+
+    public void testKeepGoingFromSourceCountsEveryRefusal() {
+        createSource();
+        try (
+            EsqlQueryResponse response = run(
+                "FROM " + SOURCE + " | EVAL unmapped_col = k | INTO " + DESTINATION + " WITH {\"keep_going\": true}"
+            )
+        ) {
+            List<Object> summary = getValuesList(response).getFirst();
+            assertThat(summary.subList(0, 3), equalTo(List.of(3L, 0L, 3L)));
+            List<?> details = (List<?>) summary.get(3);
+            assertThat(details, hasSize(3));
+            for (Object detail : details) {
+                assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
+            }
+        }
+        assertReadBack(List.of());
     }
 
     public void testFromSource() {
@@ -320,9 +374,55 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             true,
             IntStream.range(0, 2000).mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", wide + i)).collect(Collectors.toList())
         );
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION);
+        try (EsqlQueryResponse response = run(requestWithManyWriters("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION))) {
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(2000L, 2000L, 0L, null))));
+            assertThat(countWriters(response), greaterThan(1L));
+        }
+        assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
+    }
+
+    /**
+     * Writers on several nodes each create some rows and refuse others, which is where the stats of the writers meet: the counts add up
+     * exactly, the details stop at the cap however many each writer reports, and every accepted row is there.
+     */
+    public void testKeepGoingAddsUpTheStatsOfEveryWriter() {
+        int rows = 600;
+        // No node holds more than three of the five shards, so the source is spread over at least two nodes
+        assertAcked(
+            indicesAdmin().prepareCreate(SOURCE)
+                .setSettings(indexSettings(5, 0).put("index.routing.allocation.total_shards_per_node", 3))
+                .setMapping(MAPPING)
+        );
+        indexRandom(
+            true,
+            IntStream.range(0, rows)
+                .mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", "k" + i, "l", i))
+                .collect(Collectors.toList())
+        );
+        // The rows with an even l are refused, since the mapping of the destination has no unmapped_col
+        String query = "FROM "
+            + SOURCE
+            + " | KEEP k, l | EVAL unmapped_col = CASE(l % 2 == 0, \"nope\", null) | INTO "
+            + DESTINATION
+            + " WITH {\"keep_going\": true}";
+        try (EsqlQueryResponse response = run(requestWithManyWriters(query))) {
+            List<Object> summary = singleValue(getValuesList(response));
+            assertThat(summary.subList(0, 3), equalTo(List.of(600L, 300L, 300L)));
+            List<?> details = (List<?>) summary.get(3);
+            assertThat(details, hasSize(IntoStats.MAX_FAILURE_DETAILS));
+            for (Object detail : details) {
+                assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
+            }
+            // Writers on one node share their stats, so the stats of several nodes are only merged if writers ran on several nodes
+            assertThat(writerNodes(response), hasSize(greaterThan(1)));
+        }
+        assertReadBack("STATS c = COUNT(*), s = SUM(l)", List.of(List.of(300L, 90_000L)));
+    }
+
+    /** A request with several slices per shard and several drivers, instead of whatever the randomized pragmas pick. */
+    private static EsqlQueryRequest requestWithManyWriters(String query) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.profile(true);
-        // Several slices per shard and several drivers, instead of whatever the randomized pragmas pick
         request.pragmas(
             new QueryPragmas(
                 Settings.builder()
@@ -333,17 +433,26 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             )
         );
         request.acceptedPragmaRisks(true);
-        try (EsqlQueryResponse response = run(request)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(2000L, 2000L))));
-            long writers = response.profile()
-                .drivers()
-                .stream()
-                .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
-                .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
-                .count();
-            assertThat(writers, greaterThan(1L));
-        }
-        assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
+        return request;
+    }
+
+    private static Set<String> writerNodes(EsqlQueryResponse response) {
+        return response.profile()
+            .drivers()
+            .stream()
+            .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
+            .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
+            .map(driver -> driver.nodeName())
+            .collect(Collectors.toSet());
+    }
+
+    private static long countWriters(EsqlQueryResponse response) {
+        return response.profile()
+            .drivers()
+            .stream()
+            .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
+            .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
+            .count();
     }
 
     public void testDestinationCannotAlsoBeRead() {
@@ -448,6 +557,53 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack("STATS c = COUNT(*) BY k | STATS most = MAX(c)", List.of(List.of(1L)));
     }
 
+    /**
+     * The destination passes the coordinator's check and then gets an ingest pipeline, before a data node plans the write. The coordinator
+     * is the one that authorizes the caller, so the data node must not tell the caller what is wrong with the destination. A single shard
+     * means a single data node request, which is held until the destination has changed.
+     */
+    public void testDestinationThatChangesBeforeADataNodePlansTheWriteFailsWithoutSayingWhy() throws Exception {
+        createSource(indexSettings(1, 0), MAPPING);
+        indexRandom(true, client().prepareIndex(SOURCE).setSource("k", "a"));
+        CountDownLatch requestArrived = new CountDownLatch(1);
+        CountDownLatch destinationChanged = new CountDownLatch(1);
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                    requestArrived.countDown();
+                    destinationChanged.await();
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        try {
+            // The query is expected to fail. The listener only borrows a response, which the action releases afterwards.
+            PlainActionFuture<Exception> outcome = new PlainActionFuture<>();
+            client().execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION).pragmas(getPragmas()),
+                ActionListener.wrap(response -> outcome.onResponse(null), outcome::onResponse)
+            );
+            try {
+                safeAwait(requestArrived);
+                assertAcked(
+                    indicesAdmin().prepareUpdateSettings(DESTINATION)
+                        .setSettings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "some-pipeline"))
+                );
+            } finally {
+                destinationChanged.countDown();
+            }
+            Exception failure = safeGet(outcome);
+            assertNotNull("the query was expected to fail", failure);
+            ElasticsearchStatusException e = (ElasticsearchStatusException) ExceptionsHelper.unwrapCause(failure);
+            assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+            assertThat(e.getMessage(), not(containsString("pipeline")));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+    }
+
     public void testAllowPartialResultsDoesNotBypassRowFailure() {
         ElasticsearchStatusException failed = expectThrows(
             ElasticsearchStatusException.class,
@@ -509,7 +665,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     private void assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed(String producer) {
         try (EsqlQueryResponse response = run(producer + " | INTO " + DESTINATION + " WITH {\"refresh\": false}")) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(3L, 3L))));
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(3L, 3L, 0L, null))));
         }
         assertThat(countDestinationDocuments(), equalTo(0L));
         refresh(DESTINATION);
@@ -624,10 +780,14 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     private void assertIntoTarget(String producer, String target, long rows) {
         try (EsqlQueryResponse response = run(producer + " | INTO " + target)) {
-            assertColumnNames(response.columns(), List.of("total", "created"));
-            assertColumnTypes(response.columns(), List.of("long", "long"));
-            assertThat(getValuesList(response), equalTo(List.of(List.of(rows, rows))));
+            assertIntoColumns(response);
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(rows, rows, 0L, null))));
         }
+    }
+
+    private static void assertIntoColumns(EsqlQueryResponse response) {
+        assertColumnNames(response.columns(), List.of("total", "created", "failures", "failure_details"));
+        assertColumnTypes(response.columns(), List.of("long", "long", "long", "keyword"));
     }
 
     private void assertReadBack(List<List<Object>> expected) {

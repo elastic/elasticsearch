@@ -9,14 +9,34 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.escf.ColumnarOffsetsBuilder;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.escf.PresentDocIterator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -29,6 +49,7 @@ import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -60,9 +81,11 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -796,6 +819,184 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     static long encode(double value, double scalingFactor) {
         return Math.round(value * scalingFactor);
+    }
+
+    // The field types that NumberType.LONG.addFields emits on the row path.
+    private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
+    private static final IndexableFieldType LONG_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0L).fieldType();
+
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
+        // Without doc values the row path also writes _field_names. A non-finite null_value is malformed on the row path.
+        // ignore_malformed is not enforced by mapColumnBatch: a malformed value throws, and the chunk falls back to the row path.
+        return docValuesParameters.enabled() && (nullValue == null || Double.isFinite(nullValue));
+    }
+
+    @Override
+    protected boolean shouldEnforceSingleValueBatch() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    /**
+     * A BOOL or BINARY column takes the row path before any column is mapped.
+     */
+    @Override
+    public boolean supportsColumnKind(byte kind) {
+        return kind == EscfColumnKind.LONG
+            || kind == EscfColumnKind.DOUBLE
+            || kind == EscfColumnKind.STRING
+            || kind == EscfColumnKind.UNION
+            || kind == EscfColumnKind.ARRAY;
+    }
+
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        final boolean recordsOffsets = offsetsFieldName != null && indexSettings.getMode().isStrictColumnar();
+        final EscfColumnData outData = switch (source.kind()) {
+            case EscfColumnKind.LONG -> scaledFromLongs(source, ctx.recycler());
+            case EscfColumnKind.DOUBLE -> scaledFromDoubles(source, ctx.recycler());
+            case EscfColumnKind.STRING -> scaledFromStrings(source, ctx.recycler(), false);
+            case EscfColumnKind.UNION -> scaledFromUnion(source, ctx.recycler());
+            // The cursors of an ARRAY column return one value per element, so an array uses the loop of its element kind.
+            case EscfColumnKind.ARRAY -> switch (source.leafValueKind()) {
+                case EscfColumnKind.LONG -> scaledFromLongs(source, ctx.recycler());
+                case EscfColumnKind.DOUBLE -> scaledFromDoubles(source, ctx.recycler());
+                case EscfColumnKind.STRING -> scaledFromStrings(source, ctx.recycler(), recordsOffsets);
+                default -> throw new UnsupportedOperationException(
+                    Strings.format(
+                        "mapColumnBatch: ESCF array element kind [%s] is not yet supported for field [%s]",
+                        EscfColumnKind.name(source.leafValueKind()),
+                        fullPath()
+                    )
+                );
+            };
+            default -> throw new UnsupportedOperationException(
+                Strings.format(
+                    "mapColumnBatch: ESCF column kind [%s] is not yet supported for field [%s]",
+                    EscfColumnKind.name(source.kind()),
+                    fullPath()
+                )
+            );
+        };
+        // The scaled column owns its buffers; register it once even though several views may wrap it.
+        ctx.addResource(outData);
+        final String name = fieldType().name();
+        // Like parseCreateField, this never writes a doc values skipper.
+        ctx.addColumn(
+            LuceneLongColumn.of(outData, name, indexed ? LONG_FIELD_TYPE : SortedNumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
+        );
+        if (stored) {
+            ctx.addColumn(LuceneLongColumn.of(outData, name, LONG_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.LONG));
+        }
+        if (recordsOffsets && outData.kind() == EscfColumnKind.ARRAY) {
+            final LuceneBinaryColumn offsets = ColumnarOffsetsBuilder.build(
+                EscfColumn.from(outData),
+                offsetsFieldName,
+                ctx.recycler(),
+                ctx::addResource
+            );
+            if (offsets != null) {
+                ctx.addColumn(offsets);
+            }
+        }
+    }
+
+    private EscfColumnData scaledFromLongs(EscfColumn source, Recycler<BytesRef> recycler) {
+        try (EscfColumnBuilder builder = newLongColumn(recycler)) {
+            final LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                // (double) l matches the row path: Jackson uses l2d directly.
+                builder.setLong(doc, encodeFinite((double) cursor.longValue()));
+            }
+            return builder.finish(source.docCount());
+        }
+    }
+
+    private EscfColumnData scaledFromDoubles(EscfColumn source, Recycler<BytesRef> recycler) {
+        try (EscfColumnBuilder builder = newLongColumn(recycler)) {
+            final LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                builder.setLong(doc, encodeFinite(Double.longBitsToDouble(cursor.longValue())));
+            }
+            return builder.finish(source.docCount());
+        }
+    }
+
+    private EscfColumnData scaledFromStrings(EscfColumn source, Recycler<BytesRef> recycler, boolean rejectDroppedValues) {
+        try (EscfColumnBuilder builder = newLongColumn(recycler)) {
+            // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+            final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                setFromString(builder, doc, cursor.value(), rejectDroppedValues);
+            }
+            return builder.finish(source.docCount());
+        }
+    }
+
+    // A field that has more than one JSON value type in one batch, for example 0, 0.25 and "0.5", is a UNION column.
+    private EscfColumnData scaledFromUnion(EscfColumn source, Recycler<BytesRef> recycler) {
+        try (EscfColumnBuilder builder = newLongColumn(recycler)) {
+            final PresentDocIterator docs = source.presentDocs();
+            for (int doc = docs.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docs.nextDoc()) {
+                final byte type = source.getTypeByte(doc);
+                switch (type) {
+                    case SourceValueType.LONG -> builder.setLong(doc, encodeFinite((double) source.getLongValue(doc)));
+                    case SourceValueType.DOUBLE -> builder.setLong(doc, encodeFinite(source.getDoubleValue(doc)));
+                    case SourceValueType.STRING -> setFromString(builder, doc, source.getBinaryValue(doc), false);
+                    // Nulls, booleans and arrays in a UNION column stay on the row path.
+                    default -> throw new UnsupportedOperationException(
+                        Strings.format(
+                            "mapColumnBatch: ESCF value type [%s] is not yet supported for field [%s]",
+                            SourceValueType.name(type),
+                            fullPath()
+                        )
+                    );
+                }
+            }
+            return builder.finish(source.docCount());
+        }
+    }
+
+    // rejectDroppedValues: an array element without an output value is a null slot in the row path's offsets, which
+    // ColumnarOffsetsBuilder does not emit.
+    private void setFromString(EscfColumnBuilder builder, int doc, BytesRef value, boolean rejectDroppedValues) {
+        AbstractXContentParser.checkCoerceString(coerce.value(), Double.class);
+        if (value.length == 0) {
+            // An empty string is a null on the row path.
+            if (nullValue != null) {
+                builder.setLong(doc, encode(nullValue, scalingFactor));
+            } else if (rejectDroppedValues) {
+                throw new UnsupportedOperationException(
+                    Strings.format("mapColumnBatch: an empty string in an array of field [%s] records a null offsets slot", fullPath())
+                );
+            }
+            // else leave absent — no slot written, validity bit stays clear
+            return;
+        }
+        if (value.length > AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH) {
+            throw new IllegalArgumentException(
+                "Numeric value length ["
+                    + value.length
+                    + "] exceeds the maximum of ["
+                    + AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH
+                    + "]"
+            );
+        }
+        builder.setLong(doc, encodeFinite(Double.parseDouble(value.utf8ToString())));
+    }
+
+    private static EscfColumnBuilder newLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
+        builder.lockScalar(EscfColumnKind.LONG);
+        return builder;
+    }
+
+    private long encodeFinite(double value) {
+        if (Double.isFinite(value) == false) {
+            // since we encode to a long, we have no way to carry NaNs and infinities
+            throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + value + "]");
+        }
+        return encode(value, scalingFactor);
     }
 
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {

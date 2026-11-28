@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 166816
+summary: Avoid redundant text copies in attachment processor
+type: enhancement

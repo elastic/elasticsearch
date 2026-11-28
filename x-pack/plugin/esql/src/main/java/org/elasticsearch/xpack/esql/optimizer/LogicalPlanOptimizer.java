@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceChangePointByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceCountFieldWithCountStar;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceDeferredRegex;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceFullTextOnExpandedChildWithRuntimeSearch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
@@ -294,6 +295,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushLimitToKnn(),
             new PushLimitIntoEqlRelation(),
             new PushDownAndCombineFilters(),
+            new ReplaceFullTextOnExpandedChildWithRuntimeSearch(),
             new PushDownConjunctionsToKnnPrefilters(),
             new PushDownAndCombineSample(),
             new PushDownInferencePlan(),

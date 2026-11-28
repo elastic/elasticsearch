@@ -199,6 +199,7 @@ public class CsvTestsDataLoader {
         new TestDataset("nested_paths_mapped", "mapping-nested_paths_mapped.json", "nested_paths_mapped.csv"),
         new TestDataset("nested_paths_unmapped", "mapping-nested_paths_unmapped.json", "nested_paths_unmapped.csv"),
         new TestDataset("nested_orders", "mapping-nested_orders.json", "nested_orders.csv"),
+        new TestDataset("nested_notes", "mapping-nested_notes.json", "nested_notes.csv"),
         new TestDataset("mv_expand_mapped", "mapping-mv_expand_mapped.json", "mv_expand_mapped.csv"),
         new TestDataset("mv_expand_unmapped", "mapping-mv_expand_unmapped.json", "mv_expand_unmapped.csv"),
         new TestDataset("change_point_mapped", "mapping-change_point_mapped.json", "change_point_mapped.csv"),

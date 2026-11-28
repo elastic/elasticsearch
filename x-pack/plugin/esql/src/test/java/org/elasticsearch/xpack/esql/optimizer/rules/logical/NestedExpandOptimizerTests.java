@@ -10,15 +10,21 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -38,6 +44,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  * The logical rules that move other commands past {@code NESTED_EXPAND} or narrow it. The index is the one
@@ -179,6 +188,94 @@ public class NestedExpandOptimizerTests extends AbstractLogicalPlanOptimizerTest
         var project = as(plan, Project.class);
         var expand = as(asLimit(project.child(), 1000).child(), NestedExpand.class);
         assertThat(names(expand.expanded()), containsInAnyOrder("items.qty", "items.loc"));
+    }
+
+    /**
+     * A Lucene query would run on the parent of each child, so a search of a child column is made per row: the column is
+     * wrapped in {@code TO_TEXT} declaring the analyzer the field has, which turns the search into a runtime search.
+     */
+    public void testMatchOnKeywordChildSearchesPerRow() {
+        Filter filter = filterAboveExpansion("FROM ne | NESTED_EXPAND items | WHERE MATCH(items.sku, \"a\")" + KEEP);
+        Match match = as(filter.condition(), Match.class);
+        assertThat(as(match.field(), ToText.class).valuesAnalyzer(), equalTo("keyword"));
+        assertThat(match.isRuntimeSearch(), is(true));
+    }
+
+    public void testMatchOnTextChildSearchesPerRowWithTheMappedAnalyzer() {
+        Filter filter = filterAboveExpansion("FROM ne_text | NESTED_EXPAND items | WHERE MATCH(items.note, \"a\") | KEEP id, items.note");
+        Match match = as(filter.condition(), Match.class);
+        ToText field = as(match.field(), ToText.class);
+        assertThat(field.valuesAnalyzer(), equalTo("standard"));
+        assertThat(Expressions.name(field.field()), equalTo("items.note"));
+        assertThat(match.isRuntimeSearch(), is(true));
+    }
+
+    public void testMatchPhraseOnChildSearchesPerRow() {
+        Filter filter = filterAboveExpansion("FROM ne_text | NESTED_EXPAND items | WHERE MATCH_PHRASE(items.note, \"a b\") | KEEP id");
+        MatchPhrase match = as(filter.condition(), MatchPhrase.class);
+        assertThat(as(match.field(), ToText.class).valuesAnalyzer(), equalTo("standard"));
+        assertThat(match.isRuntimeSearch(), is(true));
+    }
+
+    public void testMatchOperatorOnChildSearchesPerRow() {
+        Filter filter = filterAboveExpansion("FROM ne_text | NESTED_EXPAND items | WHERE items.note : \"a\" | KEEP id");
+        MatchOperator match = as(filter.condition(), MatchOperator.class);
+        assertThat(as(match.field(), ToText.class).valuesAnalyzer(), equalTo("standard"));
+        assertThat(match.isRuntimeSearch(), is(true));
+    }
+
+    /** The rename is removed by the optimizer, which would turn the search of the alias into an index search of the child. */
+    public void testMatchOnRenamedChildSearchesPerRow() {
+        Filter filter = filterAboveExpansion(
+            "FROM ne_text | NESTED_EXPAND items | RENAME items.note AS note | WHERE MATCH(note, \"a\") | KEEP id, note"
+        );
+        Match match = as(filter.condition(), Match.class);
+        assertThat(as(match.field(), ToText.class).valuesAnalyzer(), equalTo("standard"));
+        assertThat(match.isRuntimeSearch(), is(true));
+    }
+
+    public void testMatchOnChildInADisjunctionSearchesPerRow() {
+        Filter filter = filterAboveExpansion("FROM ne | NESTED_EXPAND items | WHERE MATCH(items.sku, \"a\") OR id == \"1\"" + KEEP);
+        List<Match> matches = new ArrayList<>();
+        filter.condition().forEachDown(Match.class, matches::add);
+        assertThat(matches, hasSize(1));
+        assertThat(matches.getFirst().isRuntimeSearch(), is(true));
+    }
+
+    /** The parent document is the one the query runs on, so a search of a parent column stays an index search below the expansion. */
+    public void testMatchOnParentColumnStaysAnIndexSearchBelowTheExpansion() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | WHERE MATCH(id, \"1\")" + KEEP);
+        var limit = asLimit(as(plan, Project.class).child(), 1000, true, false);
+        var expand = as(limit.child(), NestedExpand.class);
+        var local = asLimit(expand.child(), 1000, null, true);
+        Match match = as(as(local.child(), Filter.class).condition(), Match.class);
+        assertThat(match.field(), instanceOf(FieldAttribute.class));
+        assertThat(match.isRuntimeSearch(), is(false));
+    }
+
+    /** The check after optimization catches a search of a child that no rule made per row, which would silently match nothing. */
+    public void testIndexSearchOfAChildLeftByTheOptimizerIsRejected() {
+        LogicalPlan analyzed = analyze("FROM ne | NESTED_EXPAND items | WHERE MATCH(items.sku, \"a\")" + KEEP);
+        Failures failures = LogicalVerifier.INSTANCE.verify(analyzed, analyzed.output());
+        assertThat(failures.toString(), containsString("Full-text matching on expanded nested fields is not supported yet"));
+    }
+
+    /** The filter of a {@code STATS ... WHERE} moves below the aggregation, where it is a filter of the expanded rows. */
+    public void testMatchOnChildInAStatsFilterSearchesPerRow() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | STATS c = COUNT(*) WHERE MATCH(items.sku, \"a\")");
+        List<Match> matches = new ArrayList<>();
+        plan.forEachExpressionDown(Match.class, matches::add);
+        assertThat(matches, hasSize(1));
+        assertThat(as(matches.getFirst().field(), ToText.class).valuesAnalyzer(), equalTo("keyword"));
+        assertThat(matches.getFirst().isRuntimeSearch(), is(true));
+    }
+
+    private Filter filterAboveExpansion(String query) {
+        LogicalPlan plan = nestedPlan(query);
+        var limit = asLimit(as(plan, Project.class).child(), 1000, false);
+        Filter filter = as(limit.child(), Filter.class);
+        as(filter.child(), NestedExpand.class);
+        return filter;
     }
 
     /** The filter on a child column keeps the limit from reaching the SORT, so nothing bounds it. */

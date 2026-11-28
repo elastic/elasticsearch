@@ -1,0 +1,12 @@
+{
+    "properties": {
+        "id": { "type": "keyword" },
+        "items": {
+            "type": "nested",
+            "properties": {
+                "note": { "type": "text" },
+                "tag": { "type": "keyword" }
+            }
+        }
+    }
+}

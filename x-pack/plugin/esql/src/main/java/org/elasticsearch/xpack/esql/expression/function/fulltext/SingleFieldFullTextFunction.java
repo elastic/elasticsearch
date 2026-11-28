@@ -281,6 +281,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         return (plan, failures) -> {
             super.postOptimizationPlanVerification().accept(plan, failures);
             fieldVerifier(plan, this, field, null, failures);
+            verifyExpandedChildSearchedPerRow(plan, field, failures);
             // Only a search predicate is checked. HIGHLIGHT also holds full-text functions, but it analyzes values
             // row by row through a MemoryIndex whether or not a FORK precedes it, so nothing about it is silently
             // substituted here - see mergedTextColumn.

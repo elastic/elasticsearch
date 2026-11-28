@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -258,7 +259,7 @@ public class ToText extends AbstractConvertFunction
      */
     private static boolean resolvesToMappedFieldAttribute(LogicalPlan plan, Expression input) {
         if (input instanceof FieldAttribute fa) {
-            return isMapped(fa);
+            return isMapped(plan, fa);
         }
         if (input instanceof Attribute == false) {
             return false;
@@ -285,7 +286,7 @@ public class ToText extends AbstractConvertFunction
             for (NamedExpression ne : aliases) {
                 if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {
                     if (alias.child() instanceof FieldAttribute fa) {
-                        mapped.set(isMapped(fa));
+                        mapped.set(isMapped(plan, fa));
                         breakEarly.set(true);
                     } else if (alias.child() instanceof Attribute next) {
                         current.set(next);
@@ -299,10 +300,11 @@ public class ToText extends AbstractConvertFunction
         return mapped.get();
     }
 
-    private static boolean isMapped(FieldAttribute fa) {
+    private static boolean isMapped(LogicalPlan plan, FieldAttribute fa) {
         // A potentially unmapped field cannot be pushed down and is matched at runtime, so it is a legitimate
-        // declaration site for the values analyzer.
-        return fa.isPotentiallyUnmapped() == false;
+        // declaration site for the values analyzer. So is a child column of NESTED_EXPAND: an index search would run on the
+        // parent document.
+        return fa.isPotentiallyUnmapped() == false && NestedExpand.expands(plan, fa) == false;
     }
 
     @Override

@@ -141,6 +141,15 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
         return docAttributes(child().output());
     }
 
+    /**
+     * Whether {@code attribute} is one of the child columns a {@link NestedExpand} in {@code plan} produces.
+     */
+    public static boolean expands(LogicalPlan plan, Attribute attribute) {
+        return plan.anyMatch(
+            p -> p instanceof NestedExpand expand && expand.expanded().stream().anyMatch(a -> a.id().equals(attribute.id()))
+        );
+    }
+
     public static AttributeSet docAttributes(List<Attribute> attributes) {
         List<Attribute> docs = new ArrayList<>();
         for (Attribute attribute : attributes) {

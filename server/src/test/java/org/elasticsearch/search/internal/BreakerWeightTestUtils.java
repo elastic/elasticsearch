@@ -13,23 +13,19 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -63,7 +59,7 @@ final class BreakerWeightTestUtils {
     static int runSearch(IndexReader reader, Query query, CircuitBreaker breaker) throws IOException {
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
-        return searcher.search(query, new CountingCollectorManager());
+        return searcher.search(query, DummyTotalHitCountCollector.createManager());
     }
 
     /** Builds a scorer for {@code ctx} outside of {@link ContextIndexSearcher#searchLeaf}, so its charge is not released per leaf. */
@@ -155,48 +151,6 @@ final class BreakerWeightTestUtils {
         /** Every reservation that was accepted, in the order it was made. */
         List<Long> charges() {
             return charges;
-        }
-    }
-
-    static final class CountingCollectorManager implements CollectorManager<CountingCollector, Integer> {
-        @Override
-        public CountingCollector newCollector() {
-            return new CountingCollector();
-        }
-
-        @Override
-        public Integer reduce(Collection<CountingCollector> collectors) {
-            int total = 0;
-            for (CountingCollector collector : collectors) {
-                total += collector.count();
-            }
-            return total;
-        }
-    }
-
-    static final class CountingCollector implements Collector {
-        private int count;
-
-        @Override
-        public LeafCollector getLeafCollector(LeafReaderContext context) {
-            return new LeafCollector() {
-                @Override
-                public void setScorer(Scorable scorer) {}
-
-                @Override
-                public void collect(int doc) {
-                    count++;
-                }
-            };
-        }
-
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES;
-        }
-
-        int count() {
-            return count;
         }
     }
 }

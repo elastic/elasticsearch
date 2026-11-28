@@ -17,7 +17,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -34,6 +33,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 
 /**
  * A query that matches documents whose numeric field value is present in a bitmap, for fields that
@@ -71,7 +71,7 @@ public class BitmapTermsQuery extends Query implements Accountable {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        return new ConstantScoreWeight(this, boost) {
+        return new ChargingConstantScoreWeight(this, boost, searcher) {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 if (values.isEmpty()) {
@@ -111,7 +111,7 @@ public class BitmapTermsQuery extends Query implements Accountable {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), terms);
-                        collectDocs(result, new TermMerge(terms.iterator()));
+                        collectDocs(result, new TermMerge(terms.iterator()), builderCharger(context));
                         return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }
 
@@ -176,6 +176,11 @@ public class BitmapTermsQuery extends Query implements Accountable {
      * precede {@code term(V2)}'s. Nor is the missing value visible to {@link StreamingDocIdIterator#skipTo}, which
      * reads doc values rather than the sort key: {@link NumericDocValues#advanceExact} simply reports
      * false for such a document and the skip is declined.
+     * <p>
+     * Only the collecting path's {@link DocIdSetBuilder} is charged to the breaker. The streaming path is charged nothing, although its
+     * scorer keeps a terms enum, a reused postings enum and a doc values iterator for its whole life. None of them exposes its size, and
+     * it is the same kind of per-clause state a term query keeps, which no query charges to the breaker: the clause limit bounds it
+     * instead ({@code SearchUtils#calculateMaxClauseValue}).
      */
     private boolean canStream(LeafReader reader, Terms terms) throws IOException {
         return SegmentSort.ascendingBy(reader, field) && singleValued(terms);
@@ -199,11 +204,13 @@ public class BitmapTermsQuery extends Query implements Accountable {
     }
 
     /** Collects every matching term's postings, which the builder then puts in doc order. */
-    private static void collectDocs(DocIdSetBuilder result, TermMerge merge) throws IOException {
+    private static void collectDocs(DocIdSetBuilder result, TermMerge merge, LongConsumer charger) throws IOException {
         PostingsEnum postings = null;
         while (merge.nextMatch()) {
+            int docFreq = merge.docFreq();
+            charger.accept(docFreq);
             postings = merge.postings(postings);
-            result.grow(merge.docFreq()).add(postings);
+            result.grow(docFreq).add(postings);
         }
     }
 

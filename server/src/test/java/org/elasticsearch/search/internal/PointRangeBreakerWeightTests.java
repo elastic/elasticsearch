@@ -43,13 +43,12 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollector;
-import org.elasticsearch.search.internal.BreakerWeightTestUtils.CountingCollectorManager;
 import org.elasticsearch.search.internal.BreakerWeightTestUtils.TrackingCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -206,7 +205,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     public void testPointRangeAccountingNotAllocatedWithoutPointRangeQuery() throws IOException {
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
-        int hits = searcher.search(new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)), new CountingCollectorManager());
+        int hits = searcher.search(new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)), DummyTotalHitCountCollector.createManager());
         assertThat("the term query must match documents so the search actually runs", hits, greaterThan(0));
         assertFalse(
             "a search whose query tree contains no PointRangeQuery must not allocate accounting",
@@ -218,7 +217,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         ContextIndexSearcher searcher = newContextIndexSearcher(reader);
         searcher.setCircuitBreaker(breaker);
         assertFalse("accounting must not be allocated before any query has run", searcher.hasLeafExecutionAccounting());
-        searcher.search(denseRangeQuery(), new CountingCollectorManager());
+        searcher.search(denseRangeQuery(), DummyTotalHitCountCollector.createManager());
         assertTrue("wrapping a PointRangeQuery must lazily allocate accounting", searcher.hasLeafExecutionAccounting());
     }
 
@@ -316,7 +315,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
             LeafReaderContext outerLeaf = multiSegmentReader.leaves().get(0);
             LeafReaderContext innerLeaf = multiSegmentReader.leaves().get(1);
-            CountingCollector innerCollector = new CountingCollector();
+            DummyTotalHitCountCollector innerCollector = new DummyTotalHitCountCollector();
 
             Collector outerCollector = new Collector() {
                 @Override
@@ -327,7 +326,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
                         breaker.getUsed(),
                         equalTo(0L)
                     );
-                    return new CountingCollector().getLeafCollector(context);
+                    return new DummyTotalHitCountCollector().getLeafCollector(context);
                 }
 
                 @Override
@@ -340,7 +339,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
             assertThat(
                 "the inner leaf must have matched documents for the accounting to be exercised",
-                innerCollector.count(),
+                innerCollector.getTotalHits(),
                 greaterThan(0)
             );
             assertThat("both leaves must have charged execution RAM at some point", breaker.peak(), greaterThan(0L));
@@ -369,7 +368,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
                     searcher.getSlices().length,
                     equalTo(leafCount)
                 );
-                int hits = searcher.search(denseRangeQuery(), new CountingCollectorManager());
+                int hits = searcher.search(denseRangeQuery(), DummyTotalHitCountCollector.createManager());
                 assertThat("the range must match documents across multiple concurrently searched leaves", hits, greaterThan(0));
                 assertThat("each leaf's scorer must charge execution RAM", breaker.peak(), greaterThan(0L));
                 assertThat("all per-leaf charges must be released once the concurrent search completes", breaker.getUsed(), equalTo(0L));
@@ -397,7 +396,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
             assertThat("the first partition must have charged before it blocks in collection", breaker.getUsed(), greaterThan(0L));
 
             Future<?> secondPartition = executor.submit(() -> {
-                searcher.searchLeaf(leaf, mid, leaf.reader().maxDoc(), weight, new CountingCollector());
+                searcher.searchLeaf(leaf, mid, leaf.reader().maxDoc(), weight, new DummyTotalHitCountCollector());
                 return null;
             });
             secondPartition.get();
@@ -475,7 +474,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
                 Query filter = denseRangeQuery();
                 KnnFloatVectorQuery knn = new KnnFloatVectorQuery(VECTOR_FIELD, new float[] { 0f, 0f, 0f }, 10, filter);
 
-                int hits = searcher.search(knn, new CountingCollectorManager());
+                int hits = searcher.search(knn, DummyTotalHitCountCollector.createManager());
                 assertThat("the filtered KNN search must return matches so the accounting is actually exercised", hits, greaterThan(0));
                 assertThat(
                     "the point-range filter bitset materialised out-of-band by KNN must charge execution RAM at some point",
@@ -681,11 +680,11 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         Query query = conjunction(denseRangeQuery(), new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)));
         try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, true)) {
             searcher.setCircuitBreaker(breaker);
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(RARE_DOCS));
             assertThat("filling the cache builds the result set", breaker.charges(), hasSize(1));
             assertThat(queryCache.getCacheCount(), equalTo(1L));
 
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(RARE_DOCS));
             assertThat(queryCache.getHitCount(), equalTo(1L));
             assertThat("a cached clause must not be charged", breaker.charges(), hasSize(1));
             assertThat(breaker.getUsed(), equalTo(0L));
@@ -724,8 +723,8 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         Query query = conjunction(denseRangeQuery(), new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)));
         try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, false)) {
             searcher.setCircuitBreaker(breaker);
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
-            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(RARE_DOCS));
+            assertThat(searcher.search(query, DummyTotalHitCountCollector.createManager()), equalTo(RARE_DOCS));
             assertThat(queryCache.getCacheCount(), equalTo(0L));
             assertThat(breaker.charges(), hasSize(2));
             assertThat(breaker.getUsed(), equalTo(0L));

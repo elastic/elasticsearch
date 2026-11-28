@@ -632,9 +632,6 @@ tests:
 - class: org.elasticsearch.join.heappressure.HasChildHeapPressureIT
   method: testHasChildClausesWithAvgScores
   issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.index.query.bitmapterms.heappressure.BitmapTermsHeapPressureIT
-  method: testBitmapTermsClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

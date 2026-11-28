@@ -18,7 +18,6 @@ import org.apache.lucene.index.PointValues.IntersectVisitor;
 import org.apache.lucene.index.PointValues.PointTree;
 import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -33,9 +32,11 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.bkd.BKDConfig;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 
 /**
  * A query that matches documents whose numeric field value is present in a bitmap, for fields
@@ -86,7 +87,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        return new ConstantScoreWeight(this, boost) {
+        return new ChargingConstantScoreWeight(this, boost, searcher) {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 LeafReader reader = context.reader();
@@ -121,7 +122,8 @@ public class BitmapBKDQuery extends Query implements Accountable {
                                 pointValues.getPointTree(),
                                 docValues,
                                 reader.maxDoc(),
-                                estimatedCost
+                                estimatedCost,
+                                leafCharger(context)
                             );
                             return new ConstantScoreScorer(score(), scoreMode, scan);
                         }
@@ -137,7 +139,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), pointValues);
-                        pointValues.intersect(new CollectingMergePointVisitor(result));
+                        pointValues.intersect(new CollectingMergePointVisitor(result, builderCharger(context)));
                         return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }
 
@@ -174,6 +176,11 @@ public class BitmapBKDQuery extends Query implements Accountable {
      * than collected. Under an ascending index sort they do; single-valued only, which is what
      * {@code size() == getDocCount()} says, since index sort places a multi-valued document by one of its
      * values and another of them can sit in a far later cell while the document sits early.
+     * <p>
+     * The streaming path's scorer keeps what it reads a leaf with for its whole life, and is charged for what of that scales with the
+     * leaf size: the buffer the matching doc ids are read into, as it grows, and the point tree cursor's leaf-sized arrays (see
+     * {@link StreamingDocIdIterator}), about 6.4 KB together at the default 512 points per leaf. The rest, such as the cursor's stacks
+     * and the doc values iterator, is fixed per-clause scorer state like a term query's, which no query charges to the breaker.
      */
     private boolean streams(LeafReader reader, PointValues pointValues) {
         return SegmentSort.ascendingBy(reader, field) && pointValues.size() == pointValues.getDocCount();
@@ -332,14 +339,17 @@ public class BitmapBKDQuery extends Query implements Accountable {
      */
     private class CollectingMergePointVisitor extends MergePointVisitor {
         private final DocIdSetBuilder result;
+        private final LongConsumer charger;
         private DocIdSetBuilder.BulkAdder adder;
 
-        CollectingMergePointVisitor(DocIdSetBuilder result) {
+        CollectingMergePointVisitor(DocIdSetBuilder result, LongConsumer charger) {
             this.result = result;
+            this.charger = charger;
         }
 
         @Override
         public void grow(int count) {
+            charger.accept(count);
             adder = result.grow(count);
         }
 
@@ -376,9 +386,16 @@ public class BitmapBKDQuery extends Query implements Accountable {
      * grows.
      */
     private final class BufferingMergePointVisitor extends MergePointVisitor {
+        private final LongConsumer charger;
         private int[] docs = new int[64];
         private int size;
         private int position;
+
+        /** @param charger charged for the buffer, and for whatever it grows by */
+        BufferingMergePointVisitor(LongConsumer charger) {
+            this.charger = charger;
+            charger.accept(RamUsageEstimator.sizeOf(docs));
+        }
 
         /** Empties the buffer, so it only ever holds the cell currently being visited. */
         void reset() {
@@ -407,15 +424,24 @@ public class BitmapBKDQuery extends Query implements Accountable {
 
         @Override
         public void grow(int count) {
-            docs = ArrayUtil.grow(docs, size + count);
+            ensureCapacity(size + count);
         }
 
         @Override
         public void visit(int docID) {
             if (size == docs.length) {
-                docs = ArrayUtil.grow(docs, size + 1);
+                ensureCapacity(size + 1);
             }
             docs[size++] = docID;
+        }
+
+        /** Charges only what the buffer grows by, since the array it replaces is garbage once copied. */
+        private void ensureCapacity(int minSize) {
+            if (docs.length < minSize) {
+                long before = RamUsageEstimator.sizeOf(docs);
+                docs = ArrayUtil.grow(docs, minSize);
+                charger.accept(RamUsageEstimator.sizeOf(docs) - before);
+            }
         }
 
         @Override
@@ -459,22 +485,50 @@ public class BitmapBKDQuery extends Query implements Accountable {
      * a buffer that {@link #nextDoc()} then hands out one at a time. Descending as far as the leaves rather
      * than bulk-reading an inner cell that matches in full is what keeps that buffer to one leaf's points,
      * however many documents an inner cell covers.
+     * <p>
+     * The cursor also keeps, from its creation, the doc ids of a leaf and the scratch they are decoded through, each an
+     * {@code int[maxPointsInLeafNode]}. {@link PointValues} does not expose that size, so they are charged for the default leaf size
+     * up front, and for a larger leaf once one is visited. The codec raises the leaf size only for fields with far more points than a
+     * leaf holds, and every leaf but the last is full, so visiting any other leaf corrects the charge. A scorer that visits no such
+     * leaf stays undercharged, by up to about 28 KB at the codec's 4096 cap. A codec with smaller leaves than the default is
+     * overcharged, by up to about 4 KB.
      */
     private final class StreamingDocIdIterator extends DocIdSetIterator {
         private final PointTree tree;
-        private final BufferingMergePointVisitor visitor = new BufferingMergePointVisitor();
+        private final BufferingMergePointVisitor visitor;
         private final NumericDocValues docValues;
         private final int maxDoc;
         private final long cost;
+        private final LongConsumer charger;
+        /** The leaf size the cursor's arrays are charged for so far. */
+        private long chargedLeafSize;
         /** Whether the walk has climbed back out of the root, leaving no cell left to visit. */
         private boolean finished;
         private int doc = -1;
 
-        StreamingDocIdIterator(PointTree tree, NumericDocValues docValues, int maxDoc, long cost) {
+        /** @param charger charged for the cursor's leaf-sized arrays, and for the buffer the matching doc ids are read into */
+        StreamingDocIdIterator(PointTree tree, NumericDocValues docValues, int maxDoc, long cost, LongConsumer charger) {
             this.tree = tree;
             this.docValues = docValues;
             this.maxDoc = maxDoc;
             this.cost = cost;
+            this.charger = charger;
+            chargeCursorFor(BKDConfig.DEFAULT_MAX_POINTS_IN_LEAF_NODE);
+            this.visitor = new BufferingMergePointVisitor(charger);
+        }
+
+        /** Raises the charge for the cursor's two {@code int[maxPointsInLeafNode]} to {@code leafSize}, if that is larger. */
+        private void chargeCursorFor(long leafSize) {
+            if (leafSize > chargedLeafSize) {
+                charger.accept(cursorBytes(leafSize) - cursorBytes(chargedLeafSize));
+                chargedLeafSize = leafSize;
+            }
+        }
+
+        private static long cursorBytes(long leafSize) {
+            return leafSize == 0
+                ? 0
+                : 2 * RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + Integer.BYTES * leafSize);
         }
 
         @Override
@@ -545,6 +599,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
                     // level, against a whole subtree's worth of documents held in memory at once.
                     continue;
                 }
+                chargeCursorFor(tree.size());
                 visitor.reset();
                 if (relation == Relation.CELL_INSIDE_QUERY) {
                     // Every point in the leaf matches, so its values need not be read back at all.

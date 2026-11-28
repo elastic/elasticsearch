@@ -212,6 +212,31 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
+     * Charges the request circuit breaker of {@code searcher} for the execution memory a weight's scorers allocate on a leaf, released
+     * when the leaf is done (see {@link #chargeLeaf}). Charges nothing when {@code searcher} is not a {@link ContextIndexSearcher} or
+     * has no breaker configured. Meant to be called from {@code Query#createWeight} by a query that learns what it allocates only while
+     * scoring. Every wrapper passes the searcher on to its child's {@code createWeight}, so this reaches the query however it is
+     * wrapped, which the charges this searcher applies itself do not.
+     */
+    public static LeafCharger getLeafCharger(IndexSearcher searcher) {
+        if (searcher instanceof ContextIndexSearcher cis && cis.executionAccounting.breaker() != null) {
+            // Created before any leaf is entered, so that each leaf is released when it is done rather than on close.
+            cis.executionAccounting.ensureCreated();
+            return cis::chargeLeaf;
+        }
+        return LeafCharger.NONE;
+    }
+
+    /** Charges execution memory to a leaf; see {@link #getLeafCharger}. */
+    @FunctionalInterface
+    public interface LeafCharger {
+        LeafCharger NONE = (ctx, bytes, label) -> {};
+
+        /** Reserves {@code bytes} more for {@code ctx} under {@code label}. May trip the breaker, in which case nothing is reserved. */
+        void charge(LeafReaderContext ctx, long bytes, String label);
+    }
+
+    /**
      * Returns a searcher over the same reader that uses {@code queryCache} and shares this searcher's request circuit breaker and
      * execution accounting. The execution memory its weights charge is released when this searcher is closed.
      */

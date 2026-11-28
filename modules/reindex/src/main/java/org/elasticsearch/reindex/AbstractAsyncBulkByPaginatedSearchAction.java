@@ -422,26 +422,37 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         return true;
     }
 
-    protected BulkRequest buildBulk(Iterable<? extends PaginatedHitSource.Hit> docs, AtomicLong reservedBytes) {
+    /**
+     * @param bulkReservedBytes bytes reserved on the breaker for the bulk being built, added to as the bulk grows. The caller
+     *                          releases them once the bulk completes or is abandoned.
+     * @param pageReserved whether the page the docs come from is reserved. If so, source bytes that a request shares with its doc
+     *                    (no script or conversion copied them) are already reserved, and are left out here.
+     */
+    protected BulkRequest buildBulk(Iterable<? extends PaginatedHitSource.Hit> docs, AtomicLong bulkReservedBytes, boolean pageReserved) {
         BulkRequest bulkRequest = new BulkRequest();
+        // Source bytes the requests reuse from a reserved page, which the page's reservation already covers
+        long sharedBytes = 0;
         for (PaginatedHitSource.Hit doc : docs) {
             if (accept(doc)) {
                 RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);
                 if (request != null) {
                     bulkRequest.add(request.self());
-                    long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
+                    if (pageReserved && request.self() instanceof IndexRequest index && index.source() == doc.getSource()) {
+                        sharedBytes += doc.getSource().length();
+                    }
+                    long delta = bulkRequest.estimatedSizeInBytes() - sharedBytes - bulkReservedBytes.get();
                     if (delta >= reindexSettings.getMemoryAccountingThresholdInBytes()) {
                         circuitBreaker.addEstimateBytesAndMaybeBreak(delta, bulkBreakerLabel);
-                        reservedBytes.addAndGet(delta);
+                        bulkReservedBytes.addAndGet(delta);
                     }
                 }
             }
         }
         // Reserve any bytes not yet covered by threshold checks above
-        long remaining = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
+        long remaining = bulkRequest.estimatedSizeInBytes() - sharedBytes - bulkReservedBytes.get();
         if (remaining > 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(remaining, bulkBreakerLabel);
-            reservedBytes.addAndGet(remaining);
+            bulkReservedBytes.addAndGet(remaining);
         }
         return bulkRequest;
     }
@@ -637,10 +648,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         // Reserve heap budget against the REQUEST breaker incrementally as docs are added in buildBulk,
         // so oversized batches are rejected before all their source bytes land in memory. The reservation
         // is released (via cleanup) when the bulk listener completes or if we return early for any reason.
-        final AtomicLong reservedBytes = new AtomicLong(0);
+        final AtomicLong bulkReservedBytes = new AtomicLong(0);
         final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
-            long r = reservedBytes.getAndSet(0);
+            long r = bulkReservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
             asyncResponse.releaseChargeIfConsumed();
         });
@@ -648,7 +659,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         try {
             final BulkRequest request;
             try {
-                request = buildBulk(hits, reservedBytes);
+                request = buildBulk(hits, bulkReservedBytes, asyncResponse.response().hasReservation());
             } catch (CircuitBreakingException e) {
                 finishHim(e);
                 return;

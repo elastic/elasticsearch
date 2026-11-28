@@ -65,7 +65,6 @@ import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -130,7 +129,6 @@ public class AllocationService {
             clusterInfoService,
             snapshotsInfoService,
             shardRoutingRoleStrategy,
-            MeterRegistry.NOOP,
             ClusterSettings.createBuiltInClusterSettings()
         );
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
@@ -142,7 +140,6 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        MeterRegistry meterRegistry,
         ClusterSettings clusterSettings
     ) {
         this(
@@ -151,7 +148,6 @@ public class AllocationService {
             clusterInfoService,
             snapshotsInfoService,
             shardRoutingRoleStrategy,
-            meterRegistry,
             clusterSettings,
             ShardMovementListener.NOOP
         );
@@ -163,7 +159,6 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        MeterRegistry meterRegistry,
         ClusterSettings clusterSettings,
         ShardMovementListener shardMovementListener
     ) {
@@ -172,7 +167,7 @@ public class AllocationService {
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
-        this.shardChangesObserver = new ShardChangesObserver(meterRegistry, shardMovementListener);
+        this.shardChangesObserver = new ShardChangesObserver(shardMovementListener);
         clusterSettings.initializeAndWatch(PRESERVE_DECISION_LABELS_SETTING, value -> this.preserveDecisionLabels = value);
     }
 

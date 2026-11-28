@@ -93,6 +93,12 @@ final class SortedSeparatorsWriter implements PlainSkipKind.Writer {
     }
 
     @Override
+    public void addRepeat(long address, int doc, int chunk) throws IOException {
+        assert hasPrevious : "only a value can be repeated";
+        add(address, doc, chunk, previous.get(), true);
+    }
+
+    @Override
     public boolean ascending() {
         return unordered == false && direction >= 0;
     }

@@ -255,6 +255,32 @@ public final class StringColumnWriter {
                         valueAddress++;
                     }
                 }
+            } else if (plan.skipsRepeatedValueReads()) {
+                // Kept apart from the loop below: with the repeat check inside that loop, a merge of values that rarely
+                // repeat ran about 4% slower.
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    slots.startDocument(valueAddress);
+                    for (int i = 0, count = values.valueCount(); i < count; i++) {
+                        values.nextValue();
+                        if (values.repeatsPrevious()) {
+                            stream.addRepeat();
+                            bounds.addRepeat(valueAddress, doc, stream.ownerChunk());
+                            valueAddress++;
+                            continue;
+                        }
+                        final BytesRef value = values.value();
+                        if (value == null) {
+                            sorted = false;
+                            nulls++;
+                            stream.addNull();
+                            bounds.add(valueAddress, doc, stream.ownerChunk(), null, false);
+                        } else {
+                            final boolean repeat = stream.add(value);
+                            bounds.add(valueAddress, doc, stream.ownerChunk(), value, repeat);
+                        }
+                        valueAddress++;
+                    }
+                }
             } else {
                 // Whether the values arrive in term order, which lets a search bisect them instead of comparing
                 // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.

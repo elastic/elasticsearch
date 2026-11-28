@@ -1,0 +1,5 @@
+area: Cluster Coordination
+issues: []
+pr: 167773
+summary: Preserve coordination state on coordinating nodes
+type: bug

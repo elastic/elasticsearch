@@ -44,6 +44,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -58,6 +59,7 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -371,6 +373,44 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                         .build()
                 );
             }
+        }
+    }
+
+    /**
+     * A master-eligible node that restarts without master or data roles uses an in-memory persisted state, but must leave its on-disk state
+     * alone so that it still has it if it is later restarted as master-eligible again.
+     */
+    public void testCoordinatingOnlyRestartRetainsOnDiskState() throws IOException {
+        final long term = randomLongBetween(1, 1000);
+        final CoordinationMetadata coordinationMetadata = createCoordinationMetadata(term);
+        final ClusterState state = createClusterState(
+            randomLongBetween(1, 1000),
+            Metadata.builder().coordinationMetadata(coordinationMetadata).clusterUUID(randomAlphaOfLength(10)).build()
+        );
+
+        try (var persistedState = newGatewayPersistedState()) {
+            persistedState.setCurrentTerm(term);
+            persistedState.setLastAcceptedState(state);
+        }
+
+        final DiscoveryNode coordinatingOnlyNode = DiscoveryNodeUtils.builder(localNode.getId()).roles(Set.of()).build();
+        final MockGatewayMetaState coordinatingOnlyGateway = new MockGatewayMetaState(coordinatingOnlyNode, null);
+        coordinatingOnlyGateway.start(
+            Settings.builder().put(settings).put(NodeRoles.noRoles()).build(),
+            nodeEnvironment,
+            xContentRegistry()
+        );
+        try (var coordinatingOnlyState = coordinatingOnlyGateway.getPersistedState()) {
+            assertThat(coordinatingOnlyState, not(instanceOf(GatewayMetaState.LucenePersistedState.class)));
+            assertThat(coordinatingOnlyState, not(instanceOf(GatewayMetaState.AsyncPersistedState.class)));
+            assertThat("starts with no state", coordinatingOnlyState.getCurrentTerm(), equalTo(0L));
+        }
+
+        try (var restartedState = newGatewayPersistedState()) {
+            assertThat(restartedState.getCurrentTerm(), equalTo(term));
+            assertThat(restartedState.getLastAcceptedState().version(), equalTo(state.version()));
+            assertThat(restartedState.getLastAcceptedState().metadata().coordinationMetadata(), equalTo(coordinationMetadata));
+            assertThat(restartedState.getLastAcceptedState().metadata().clusterUUID(), equalTo(state.metadata().clusterUUID()));
         }
     }
 

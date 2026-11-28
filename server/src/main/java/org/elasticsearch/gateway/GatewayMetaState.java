@@ -245,9 +245,7 @@ public class GatewayMetaState implements Closeable {
         if (persistedClusterStateService.getDataPaths().length > 0) {
             // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
             // cluster uuid as coordinating-only nodes do not snap into a cluster as they carry no state
-            try (PersistedClusterStateService.Writer persistenceWriter = persistedClusterStateService.createWriter()) {
-                persistenceWriter.writeFullStateAndCommit(currentTerm, clusterState);
-            }
+            persistedClusterStateService.persistNodeIdWithoutOverwritingState(currentTerm, clusterState);
             // delete legacy cluster state files
             metaStateService.deleteAll();
             // write legacy node metadata to prevent downgrades from spawning empty cluster state

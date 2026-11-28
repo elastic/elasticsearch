@@ -14,6 +14,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -164,6 +165,38 @@ public class SageMakerElasticTextEmbeddingServiceSettingsTests extends Inference
     @Override
     protected ElasticTextEmbeddingPayload.ApiServiceSettings createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected ElasticTextEmbeddingPayload.ApiServiceSettings mutateInstance(ElasticTextEmbeddingPayload.ApiServiceSettings instance)
+        throws IOException {
+        return switch (between(0, 3)) {
+            case 0 -> new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                randomValueOtherThan(instance.dimensions(), () -> randomIntBetween(1, 100)),
+                instance.dimensionsSetByUser(),
+                instance.similarity(),
+                instance.elementType()
+            );
+            case 1 -> new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                instance.dimensions(),
+                randomValueOtherThan(instance.dimensionsSetByUser(), () -> randomBoolean()),
+                instance.similarity(),
+                instance.elementType()
+            );
+            case 2 -> new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                instance.dimensions(),
+                instance.dimensionsSetByUser(),
+                randomValueOtherThan(instance.similarity(), () -> randomFrom(SimilarityMeasure.values())),
+                instance.elementType()
+            );
+            case 3 -> new ElasticTextEmbeddingPayload.ApiServiceSettings(
+                instance.dimensions(),
+                instance.dimensionsSetByUser(),
+                instance.similarity(),
+                randomValueOtherThan(instance.elementType(), () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        };
     }
 
     static ElasticTextEmbeddingPayload.ApiServiceSettings randomInstance() {

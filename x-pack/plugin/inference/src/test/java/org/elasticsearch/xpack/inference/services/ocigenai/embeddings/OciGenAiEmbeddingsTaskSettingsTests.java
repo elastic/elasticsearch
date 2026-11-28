@@ -121,7 +121,20 @@ public class OciGenAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializ
 
     @Override
     protected OciGenAiEmbeddingsTaskSettings mutateInstance(OciGenAiEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OciGenAiEmbeddingsTaskSettingsTests::createRandom);
+        return switch (between(0, 1)) {
+            case 0 -> new OciGenAiEmbeddingsTaskSettings(
+                randomValueOtherThan(
+                    instance.getInputType(),
+                    () -> randomBoolean() ? randomFrom(OciGenAiEmbeddingsTaskSettings.VALID_REQUEST_INPUT_TYPES) : null
+                ),
+                instance.getTruncation()
+            );
+            case 1 -> new OciGenAiEmbeddingsTaskSettings(
+                instance.getInputType(),
+                randomValueOtherThan(instance.getTruncation(), () -> randomBoolean() ? randomFrom(Truncation.values()) : null)
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        };
     }
 
     @Override

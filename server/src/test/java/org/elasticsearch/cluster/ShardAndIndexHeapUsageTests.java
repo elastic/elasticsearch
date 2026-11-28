@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -29,7 +30,43 @@ public class ShardAndIndexHeapUsageTests extends AbstractWireSerializingTestCase
 
     @Override
     protected ShardAndIndexHeapUsage mutateInstance(ShardAndIndexHeapUsage instance) {
-        return randomShardAndIndexHeapUsage();
+        long shardHeapUsageBytes = instance.shardHeapUsageBytes();
+        long indexHeapUsageBytes = instance.indexHeapUsageBytes();
+        long postingsHeapUsageBytes = instance.postingsHeapUsageBytes();
+        return switch (between(0, 2)) {
+            case 0 -> {
+                if (postingsHeapUsageBytes == Long.MAX_VALUE) {
+                    // postings <= shard forces the shard size to Long.MAX_VALUE as well, so this branch has no
+                    // other legal shard size. Change the index size instead of asking a supplier for a new one.
+                    final long newIndex = indexHeapUsageBytes == Long.MAX_VALUE ? 0L : indexHeapUsageBytes + 1L;
+                    yield new ShardAndIndexHeapUsage(shardHeapUsageBytes, newIndex, postingsHeapUsageBytes);
+                }
+                // Keep postings fixed; pick a different shard size that still satisfies postings <= shard.
+                final long newShard = randomValueOtherThan(
+                    shardHeapUsageBytes,
+                    () -> randomLongBetween(postingsHeapUsageBytes, Long.MAX_VALUE)
+                );
+                yield new ShardAndIndexHeapUsage(newShard, indexHeapUsageBytes, postingsHeapUsageBytes);
+            }
+            case 1 -> {
+                final long newIndex = randomValueOtherThan(indexHeapUsageBytes, ESTestCase::randomNonNegativeLong);
+                yield new ShardAndIndexHeapUsage(shardHeapUsageBytes, newIndex, postingsHeapUsageBytes);
+            }
+            case 2 -> {
+                if (shardHeapUsageBytes == 0L) {
+                    // postings must stay 0 when shard is 0; change shard alone instead
+                    yield new ShardAndIndexHeapUsage(
+                        randomValueOtherThan(0L, () -> randomLongBetween(1, Long.MAX_VALUE)),
+                        indexHeapUsageBytes,
+                        0L
+                    );
+                }
+                final long maxPostings = shardHeapUsageBytes;
+                final long newPostings = randomValueOtherThan(postingsHeapUsageBytes, () -> randomLongBetween(0, maxPostings));
+                yield new ShardAndIndexHeapUsage(shardHeapUsageBytes, indexHeapUsageBytes, newPostings);
+            }
+            default -> throw new AssertionError("failure, got illegal switch case");
+        };
     }
 
     public void testPostingsHeapUsageIsTransportVersionGated() throws Exception {

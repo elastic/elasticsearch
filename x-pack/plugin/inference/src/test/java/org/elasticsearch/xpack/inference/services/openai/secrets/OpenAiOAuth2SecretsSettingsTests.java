@@ -32,7 +32,11 @@ public class OpenAiOAuth2SecretsSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected OpenAiOAuth2SecretsSettings mutateInstance(OpenAiOAuth2SecretsSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OpenAiOAuth2SecretsSettingsTests::createRandom);
+        SecureString clientSecret = randomValueOtherThan(
+            instance.clientSecret(),
+            () -> new SecureString(randomAlphaOfLength(20).toCharArray())
+        );
+        return new OpenAiOAuth2SecretsSettings(clientSecret);
     }
 
     @Override

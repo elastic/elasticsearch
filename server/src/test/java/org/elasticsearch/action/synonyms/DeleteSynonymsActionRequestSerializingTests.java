@@ -11,6 +11,7 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -28,6 +29,6 @@ public class DeleteSynonymsActionRequestSerializingTests extends AbstractWireSer
 
     @Override
     protected DeleteSynonymsAction.Request mutateInstance(DeleteSynonymsAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new DeleteSynonymsAction.Request(randomValueOtherThan(instance.synonymsSetId(), ESTestCase::randomIdentifier));
     }
 }

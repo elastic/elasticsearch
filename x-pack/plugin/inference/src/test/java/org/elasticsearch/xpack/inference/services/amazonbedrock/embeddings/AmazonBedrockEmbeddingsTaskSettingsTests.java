@@ -19,9 +19,10 @@ import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TRUNCATE_FIELD;
@@ -40,10 +41,9 @@ public class AmazonBedrockEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
     }
 
     public static AmazonBedrockEmbeddingsTaskSettings mutateTaskSettings(AmazonBedrockEmbeddingsTaskSettings instance) {
-        return randomValueOtherThanMany(
-            v -> Objects.equals(instance, v) || (instance.truncation() != null && v.truncation() == null),
-            AmazonBedrockEmbeddingsTaskSettingsTests::randomTaskSettings
-        );
+        // AmazonBedrockEmbeddingsModelTests uses this as a task-settings override. A null truncation
+        // serializes to an empty map, and updatedTaskSettings then keeps the base truncation.
+        return new AmazonBedrockEmbeddingsTaskSettings(otherTruncation(instance.truncation(), false));
     }
 
     @Override
@@ -65,8 +65,26 @@ public class AmazonBedrockEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
     }
 
     @Override
-    protected AmazonBedrockEmbeddingsTaskSettings mutateInstance(AmazonBedrockEmbeddingsTaskSettings instance) throws IOException {
-        return mutateTaskSettings(instance);
+    protected AmazonBedrockEmbeddingsTaskSettings mutateInstance(AmazonBedrockEmbeddingsTaskSettings instance) {
+        return new AmazonBedrockEmbeddingsTaskSettings(otherTruncation(instance.truncation(), true));
+    }
+
+    /**
+     * Another truncation value. {@code allowNull} is only for {@link #mutateInstance}: the wire test needs a
+     * null mutant, but {@link #mutateTaskSettings} must not clear a non-null truncation. The candidate list
+     * never contains {@code current}, so this does not retry.
+     */
+    private static Truncation otherTruncation(Truncation current, boolean allowNull) {
+        List<Truncation> candidates = new ArrayList<>();
+        for (Truncation value : Truncation.values()) {
+            if (value != current) {
+                candidates.add(value);
+            }
+        }
+        if (allowNull && current != null) {
+            candidates.add(null);
+        }
+        return randomFrom(candidates);
     }
 
     public void testEmpty() {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationSettingsTests;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -320,7 +321,46 @@ public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchIn
 
     @Override
     protected ElasticRerankerServiceSettings mutateInstance(ElasticRerankerServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, ElasticRerankerServiceSettingsTests::createRandom);
+        // Chunking fields are not part of ElasticsearchInternalServiceSettings equality. The wire wrapper test
+        // covers them; this method only changes a field the inherited wire test can see.
+        return switch (between(0, 3)) {
+            case 0 -> new ElasticRerankerServiceSettings(
+                randomValueOtherThan(instance.getNumAllocations(), () -> randomFrom(randomIntBetween(1, 10), (Integer) null)),
+                instance.getNumThreads(),
+                instance.modelId(),
+                instance.getAdaptiveAllocationsSettings(),
+                instance.getLongDocumentStrategy(),
+                instance.getMaxChunksPerDoc()
+            );
+            case 1 -> new ElasticRerankerServiceSettings(
+                instance.getNumAllocations(),
+                randomValueOtherThan(instance.getNumThreads(), () -> randomIntBetween(1, 10)),
+                instance.modelId(),
+                instance.getAdaptiveAllocationsSettings(),
+                instance.getLongDocumentStrategy(),
+                instance.getMaxChunksPerDoc()
+            );
+            case 2 -> new ElasticRerankerServiceSettings(
+                instance.getNumAllocations(),
+                instance.getNumThreads(),
+                randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8)),
+                instance.getAdaptiveAllocationsSettings(),
+                instance.getLongDocumentStrategy(),
+                instance.getMaxChunksPerDoc()
+            );
+            case 3 -> new ElasticRerankerServiceSettings(
+                instance.getNumAllocations(),
+                instance.getNumThreads(),
+                instance.modelId(),
+                randomValueOtherThan(
+                    instance.getAdaptiveAllocationsSettings(),
+                    () -> randomFrom(AdaptiveAllocationSettingsTests.testInstance(), null)
+                ),
+                instance.getLongDocumentStrategy(),
+                instance.getMaxChunksPerDoc()
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        };
     }
 
     @Override

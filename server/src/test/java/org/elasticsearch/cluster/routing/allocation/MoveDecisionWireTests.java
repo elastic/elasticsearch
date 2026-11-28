@@ -60,7 +60,125 @@ public class MoveDecisionWireTests extends AbstractWireSerializingTestCase<MoveD
 
     @Override
     protected MoveDecision mutateInstance(MoveDecision instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        if (instance.getClusterRebalanceDecision() != null) {
+            return switch (between(0, 5)) {
+                case 0 -> MoveDecision.rebalance(
+                    instance.getCanRemainDecision(),
+                    instance.getClusterRebalanceDecision(),
+                    randomValueOtherThan(instance.getAllocationDecision(), () -> randomFrom(AllocationDecision.values())),
+                    instance.getTargetNode(),
+                    instance.getCurrentNodeRanking(),
+                    instance.getNodeDecisions()
+                );
+                case 1 -> MoveDecision.rebalance(
+                    randomValueOtherThan(
+                        instance.getCanRemainDecision(),
+                        () -> randomLabelledDecision(Decision.Type.YES, Decision.Type.NO, Decision.Type.NOT_PREFERRED)
+                    ),
+                    instance.getClusterRebalanceDecision(),
+                    instance.getAllocationDecision(),
+                    instance.getTargetNode(),
+                    instance.getCurrentNodeRanking(),
+                    instance.getNodeDecisions()
+                );
+                case 2 -> MoveDecision.rebalance(
+                    instance.getCanRemainDecision(),
+                    randomValueOtherThan(
+                        instance.getClusterRebalanceDecision(),
+                        () -> randomLabelledDecision(Decision.Type.YES, Decision.Type.NO)
+                    ),
+                    instance.getAllocationDecision(),
+                    instance.getTargetNode(),
+                    instance.getCurrentNodeRanking(),
+                    instance.getNodeDecisions()
+                );
+                case 3 -> MoveDecision.rebalance(
+                    instance.getCanRemainDecision(),
+                    instance.getClusterRebalanceDecision(),
+                    instance.getAllocationDecision(),
+                    instance.getTargetNode(),
+                    randomValueOtherThan(instance.getCurrentNodeRanking(), () -> randomIntBetween(0, 10)),
+                    instance.getNodeDecisions()
+                );
+                case 4 -> MoveDecision.rebalance(
+                    instance.getCanRemainDecision(),
+                    instance.getClusterRebalanceDecision(),
+                    instance.getAllocationDecision(),
+                    instance.getTargetNode() == null ? randomNode() : null,
+                    instance.getCurrentNodeRanking(),
+                    instance.getNodeDecisions()
+                );
+                default -> MoveDecision.rebalance(
+                    instance.getCanRemainDecision(),
+                    instance.getClusterRebalanceDecision(),
+                    instance.getAllocationDecision(),
+                    instance.getTargetNode(),
+                    instance.getCurrentNodeRanking(),
+                    randomValueOtherThan(instance.getNodeDecisions(), () -> randomBoolean() ? null : List.of())
+                );
+            };
+        }
+        // move() asserts allocationDecision/targetNode consistency — only mutate fields that stay valid alone.
+        return switch (between(0, 2)) {
+            case 0 -> MoveDecision.move(
+                instance.getCanRemainDecision(),
+                instance.getAllocationDecision(),
+                instance.getTargetNode(),
+                // Flip null <-> empty list so we never hang when the instance already has List.of().
+                randomValueOtherThan(instance.getNodeDecisions(), () -> instance.getNodeDecisions() == null ? List.of() : null),
+                instance.getCanAllocateDecision()
+            );
+            case 1 -> MoveDecision.move(
+                instance.getCanRemainDecision(),
+                instance.getAllocationDecision(),
+                instance.getTargetNode(),
+                instance.getNodeDecisions(),
+                randomValueOtherThan(
+                    instance.getCanAllocateDecision(),
+                    () -> instance.getCanAllocateDecision() == null
+                        ? randomLabelledDecision(Decision.Type.NO, Decision.Type.NOT_PREFERRED)
+                        : null
+                )
+            );
+            default -> {
+                // Change only canMoveDecision, staying consistent with the existing targetNode/canRemain.
+                DiscoveryNode target = instance.getTargetNode();
+                Decision.Type remainType = instance.getCanRemainDecision().type();
+                List<AllocationDecision> candidates = new java.util.ArrayList<>();
+                if (target != null) {
+                    candidates.add(AllocationDecision.YES);
+                    candidates.add(AllocationDecision.NOT_PREFERRED);
+                } else if (remainType == Decision.Type.NOT_PREFERRED) {
+                    candidates.add(AllocationDecision.NO);
+                    candidates.add(AllocationDecision.THROTTLED);
+                    candidates.add(AllocationDecision.NOT_PREFERRED);
+                } else {
+                    candidates.add(AllocationDecision.NO);
+                    candidates.add(AllocationDecision.THROTTLED);
+                }
+                candidates.removeIf(d -> d.equals(instance.getAllocationDecision()));
+                // null nodeDecisions + NO returns a cached singleton — skip that candidate.
+                if (instance.getNodeDecisions() == null) {
+                    candidates.removeIf(d -> d == AllocationDecision.NO);
+                }
+                if (candidates.isEmpty()) {
+                    yield MoveDecision.move(
+                        instance.getCanRemainDecision(),
+                        instance.getAllocationDecision(),
+                        instance.getTargetNode(),
+                        randomValueOtherThan(instance.getNodeDecisions(), () -> instance.getNodeDecisions() == null ? List.of() : null),
+                        instance.getCanAllocateDecision()
+                    );
+                }
+                yield MoveDecision.move(
+                    instance.getCanRemainDecision(),
+                    randomFrom(candidates),
+                    target,
+                    instance.getNodeDecisions(),
+                    instance.getCanAllocateDecision()
+                );
+            }
+        };
     }
 
     /**

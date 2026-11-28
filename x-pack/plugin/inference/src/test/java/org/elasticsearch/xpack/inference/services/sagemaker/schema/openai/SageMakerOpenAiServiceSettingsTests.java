@@ -45,6 +45,22 @@ public class SageMakerOpenAiServiceSettingsTests extends InferenceSettingsTestCa
         return randomApiServiceSettings();
     }
 
+    @Override
+    protected OpenAiTextEmbeddingPayload.ApiServiceSettings mutateInstance(OpenAiTextEmbeddingPayload.ApiServiceSettings instance)
+        throws IOException {
+        return switch (between(0, 1)) {
+            case 0 -> new OpenAiTextEmbeddingPayload.ApiServiceSettings(
+                randomValueOtherThan(instance.dimensions(), () -> randomBoolean() ? randomIntBetween(1, 100) : null),
+                instance.dimensionsSetByUser()
+            );
+            case 1 -> new OpenAiTextEmbeddingPayload.ApiServiceSettings(
+                instance.dimensions(),
+                randomValueOtherThan(instance.dimensionsSetByUser(), () -> randomBoolean())
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        };
+    }
+
     static OpenAiTextEmbeddingPayload.ApiServiceSettings randomApiServiceSettings() {
         var dimensions = randomBoolean() ? randomIntBetween(1, 100) : null;
         // When dimensions are present they may have been set by the user or auto-discovered, so exercise both.

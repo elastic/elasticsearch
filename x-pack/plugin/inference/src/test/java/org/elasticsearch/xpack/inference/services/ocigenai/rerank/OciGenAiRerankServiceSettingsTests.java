@@ -8,17 +8,20 @@
 package org.elasticsearch.xpack.inference.services.ocigenai.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -107,7 +110,88 @@ public class OciGenAiRerankServiceSettingsTests extends AbstractBWCWireSerializa
 
     @Override
     protected OciGenAiRerankServiceSettings mutateInstance(OciGenAiRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OciGenAiRerankServiceSettingsTests::createRandom);
+        var common = instance.common();
+        return switch (between(0, 5)) {
+            case 0 -> new OciGenAiRerankServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    randomValueOtherThan(common.modelId(), () -> randomAlphaOfLength(10)),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 1 -> new OciGenAiRerankServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    randomValueOtherThan(common.compartmentId(), () -> randomAlphaOfLength(10)),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 2 -> new OciGenAiRerankServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    randomValueOtherThan(common.endpointId(), () -> randomBoolean() ? randomAlphaOfLength(10) : null),
+                    common.uri(),
+                    common.apiVersion(),
+                    common.rateLimitSettings()
+                )
+            );
+            case 3 -> new OciGenAiRerankServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    randomValueOtherThan(common.apiVersion(), () -> Strings.format("%08d", randomIntBetween(20200101, 20301231))),
+                    common.rateLimitSettings()
+                )
+            );
+            case 4 -> new OciGenAiRerankServiceSettings(
+                new OciGenAiServiceSettings.CommonSettings(
+                    common.region(),
+                    common.compartmentId(),
+                    common.modelId(),
+                    common.endpointId(),
+                    common.uri(),
+                    common.apiVersion(),
+                    randomValueOtherThan(common.rateLimitSettings(), RateLimitSettingsTests::createRandom)
+                )
+            );
+            case 5 -> common.region() != null
+                ? new OciGenAiRerankServiceSettings(
+                    new OciGenAiServiceSettings.CommonSettings(
+                        randomValueOtherThan(common.region(), () -> randomAlphaOfLength(8)),
+                        common.compartmentId(),
+                        common.modelId(),
+                        common.endpointId(),
+                        common.uri(),
+                        common.apiVersion(),
+                        common.rateLimitSettings()
+                    )
+                )
+                : new OciGenAiRerankServiceSettings(
+                    new OciGenAiServiceSettings.CommonSettings(
+                        common.region(),
+                        common.compartmentId(),
+                        common.modelId(),
+                        common.endpointId(),
+                        randomValueOtherThan(common.uri(), () -> URI.create("https://" + randomAlphaOfLength(8) + ".example.com")),
+                        common.apiVersion(),
+                        common.rateLimitSettings()
+                    )
+                );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        };
     }
 
     @Override

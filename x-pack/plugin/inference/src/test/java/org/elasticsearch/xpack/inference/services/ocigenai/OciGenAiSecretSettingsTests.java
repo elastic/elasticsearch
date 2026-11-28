@@ -178,7 +178,33 @@ public class OciGenAiSecretSettingsTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected OciGenAiSecretSettings mutateInstance(OciGenAiSecretSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OciGenAiSecretSettingsTests::createRandom);
+        return switch (between(0, 3)) {
+            case 0 -> new OciGenAiSecretSettings(
+                randomValueOtherThan(instance.tenancyId(), () -> new SecureString(randomAlphaOfLength(20).toCharArray())),
+                instance.userId(),
+                instance.fingerprint(),
+                instance.privateKey()
+            );
+            case 1 -> new OciGenAiSecretSettings(
+                instance.tenancyId(),
+                randomValueOtherThan(instance.userId(), () -> new SecureString(randomAlphaOfLength(20).toCharArray())),
+                instance.fingerprint(),
+                instance.privateKey()
+            );
+            case 2 -> new OciGenAiSecretSettings(
+                instance.tenancyId(),
+                instance.userId(),
+                randomValueOtherThan(instance.fingerprint(), () -> new SecureString(randomAlphaOfLength(20).toCharArray())),
+                instance.privateKey()
+            );
+            case 3 -> new OciGenAiSecretSettings(
+                instance.tenancyId(),
+                instance.userId(),
+                instance.fingerprint(),
+                randomValueOtherThan(instance.privateKey(), () -> new SecureString(randomAlphaOfLength(47).toCharArray()))
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        };
     }
 
     @Override

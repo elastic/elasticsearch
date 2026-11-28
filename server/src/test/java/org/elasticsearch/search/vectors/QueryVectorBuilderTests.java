@@ -11,6 +11,8 @@ package org.elasticsearch.search.vectors;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.AbstractQueryVectorBuilderTestCase;
@@ -18,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -49,7 +52,15 @@ public class QueryVectorBuilderTests extends AbstractQueryVectorBuilderTestCase<
     protected TestQueryVectorBuilderPlugin.TestQueryVectorBuilder mutateInstance(
         TestQueryVectorBuilderPlugin.TestQueryVectorBuilder instance
     ) throws IOException {
-        return createTestInstance();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            instance.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                List<Float> vector = new ArrayList<>(in.readCollectionAsList(StreamInput::readFloat));
+                int index = randomIntBetween(0, vector.size() - 1);
+                vector.set(index, randomValueOtherThan(vector.get(index), ESTestCase::randomFloat));
+                return new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(vector);
+            }
+        }
     }
 
     @Override

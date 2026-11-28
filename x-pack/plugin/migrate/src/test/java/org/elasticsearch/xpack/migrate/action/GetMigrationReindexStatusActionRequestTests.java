@@ -26,6 +26,6 @@ public class GetMigrationReindexStatusActionRequestTests extends AbstractWireSer
 
     @Override
     protected Request mutateInstance(Request instance) throws IOException {
-        return createTestInstance(); // There's only one field
+        return new Request(randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLength(100)));
     }
 }

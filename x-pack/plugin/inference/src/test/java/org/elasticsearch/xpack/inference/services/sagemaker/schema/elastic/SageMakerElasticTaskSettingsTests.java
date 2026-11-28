@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public class SageMakerElasticTaskSettingsTests extends InferenceSettingsTestCase<SageMakerElasticTaskSettings> {
@@ -27,6 +29,23 @@ public class SageMakerElasticTaskSettingsTests extends InferenceSettingsTestCase
     @Override
     protected SageMakerElasticTaskSettings createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected SageMakerElasticTaskSettings mutateInstance(SageMakerElasticTaskSettings instance) throws IOException {
+        Map<String, Object> passthroughSettings = instance.passthroughSettings();
+        if (passthroughSettings == null || passthroughSettings.isEmpty()) {
+            return new SageMakerElasticTaskSettings(
+                randomMap(1, 3, () -> Tuple.tuple(randomAlphanumericOfLength(4), randomAlphanumericOfLength(4)))
+            );
+        }
+        var mutated = new HashMap<>(passthroughSettings);
+        String key = randomFrom(mutated.keySet());
+        mutated.put(
+            key,
+            randomValueOtherThan(String.valueOf(mutated.get(key)), () -> randomAlphanumericOfLength(4))
+        );
+        return new SageMakerElasticTaskSettings(mutated);
     }
 
     static SageMakerElasticTaskSettings randomInstance() {

@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -441,13 +443,247 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 randomBoolean() ? randomAlphaOfLengthBetween(10, 50) : null
             );
         }
+        // A managed response whose other equals fields are already the unmanaged defaults, so flipping
+        // managedByLifecycle is a one-field change. The random managed fixture usually sets those fields.
+        if (randomInt(4) == 0) {
+            return ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                randomAlphaOfLengthBetween(10, 30),
+                randomBoolean(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null
+            );
+        }
         return randomManagedIndexDataStreamLifecycleExplanation();
     }
 
     @Override
     protected ExplainIndexDataStreamLifecycle mutateInstance(ExplainIndexDataStreamLifecycle instance) throws IOException {
-        return randomManagedIndexDataStreamLifecycleExplanation();
+        if (instance.isManagedByLifecycle() == false) {
+            return switch (between(0, 2)) {
+                case 0 -> ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                    randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
+                    instance.getUnmanagedReason()
+                );
+                case 1 -> ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                    instance.getIndex(),
+                    randomValueOtherThan(instance.getUnmanagedReason(), () -> randomAlphaOfLengthBetween(10, 50))
+                );
+                case 2 -> unmanagedToManaged(instance);
+                default -> throw new AssertionError("illegal mutate branch");
+            };
+        }
+        // Neither value is part of equals/hashCode, but the managed fixture sets both. Copy them so each
+        // branch changes one equals/hashCode field. The internal flag still affects rendered retention.
+        final CopiedNonEqualityFields copied = copyNonEqualityFields(instance);
+        final boolean internalDataStream = copied.internalDataStream();
+        final TimeValue generationDate = copied.generationDate();
+        return switch (between(0, 8)) {
+            case 0 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
+                internalDataStream,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 1 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                internalDataStream,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                !instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 2 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                internalDataStream,
+                randomValueOtherThan(instance.getIndexCreationDate(), () -> randomNonNegativeLong()),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 3 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                internalDataStream,
+                instance.getIndexCreationDate(),
+                randomValueOtherThan(instance.getRolloverDate(), () -> randomNonNegativeLong()),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 4 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                internalDataStream,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                // Flip between null and DEFAULT — a supplier that always returns DEFAULT hangs when
+                // the instance already has DEFAULT_DATA_LIFECYCLE.
+                instance.getLifecycle() == null ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null,
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 5 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                internalDataStream,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                randomValueOtherThan(
+                    instance.getFrozenTransitionStatus(),
+                    ExplainIndexDataStreamLifecycleTests::randomFrozenTransitionStatusOrNull
+                ),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 6 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                internalDataStream,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                randomValueOtherThan(
+                    instance.getError(),
+                    () -> new ErrorEntry(
+                        randomNonNegativeLong(),
+                        randomAlphaOfLengthBetween(5, 20),
+                        randomNonNegativeLong(),
+                        randomIntBetween(0, 30)
+                    )
+                ),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                instance.getTailMergeDate()
+            );
+            case 7 -> ExplainIndexDataStreamLifecycle.managedIndexResponse(
+                instance.getIndex(),
+                internalDataStream,
+                instance.getIndexCreationDate(),
+                instance.getRolloverDate(),
+                generationDate,
+                instance.getLifecycle(),
+                instance.getError(),
+                instance.getFrozenTransitionStatus(),
+                instance.isMinimumLifecycleEnabled(),
+                randomValueOtherThan(instance.getTailMergeDate(), () -> randomNonNegativeLong())
+            );
+            case 8 -> managedToUnmanaged(instance, internalDataStream, generationDate);
+            default -> throw new AssertionError("illegal mutate branch");
+        };
     }
+
+    /**
+     * Flip an unmanaged response to managed, changing only {@code managedByLifecycle}.
+     * A managed response cannot keep a non-null {@code unmanagedReason} ({@code equals} includes that field),
+     * so when a reason is set this changes the reason instead.
+     */
+    private static ExplainIndexDataStreamLifecycle unmanagedToManaged(ExplainIndexDataStreamLifecycle instance) {
+        if (instance.getUnmanagedReason() != null) {
+            return ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(
+                instance.getIndex(),
+                randomValueOtherThan(instance.getUnmanagedReason(), () -> randomAlphaOfLengthBetween(10, 50))
+            );
+        }
+        return ExplainIndexDataStreamLifecycle.managedIndexResponse(
+            instance.getIndex(),
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            null
+        );
+    }
+
+    /**
+     * Flip a managed response to unmanaged when every other {@code equals} field is already the unmanaged
+     * default. {@code writeTo} drops managed-only fields for an unmanaged index, and the unmanaged factory
+     * clears them, so flipping a populated managed response would change more than {@code managedByLifecycle}.
+     */
+    private static ExplainIndexDataStreamLifecycle managedToUnmanaged(
+        ExplainIndexDataStreamLifecycle instance,
+        boolean internalDataStream,
+        TimeValue generationDate
+    ) {
+        if (instance.getIndexCreationDate() == null
+            && instance.getRolloverDate() == null
+            && instance.getLifecycle() == null
+            && instance.getError() == null
+            && instance.getFrozenTransitionStatus() == null
+            && instance.isMinimumLifecycleEnabled() == false
+            && instance.getTailMergeDate() == null) {
+            return ExplainIndexDataStreamLifecycle.unmanagedIndexResponse(instance.getIndex(), null);
+        }
+        return ExplainIndexDataStreamLifecycle.managedIndexResponse(
+            randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(10, 30)),
+            internalDataStream,
+            instance.getIndexCreationDate(),
+            instance.getRolloverDate(),
+            generationDate,
+            instance.getLifecycle(),
+            instance.getError(),
+            instance.getFrozenTransitionStatus(),
+            instance.isMinimumLifecycleEnabled(),
+            instance.getTailMergeDate()
+        );
+    }
+
+    /**
+     * {@code isInternalDataStream} and {@code generationDateMillis} have no getters. Read the prefix of
+     * {@link ExplainIndexDataStreamLifecycle#writeTo}: index, managed flag, internal flag, then for a managed
+     * index the creation date, rollover date, and generation date. Later fields are version-gated and unused here.
+     */
+    private static CopiedNonEqualityFields copyNonEqualityFields(ExplainIndexDataStreamLifecycle instance) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            instance.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.readString();
+                boolean managed = in.readBoolean();
+                boolean internalDataStream = in.readBoolean();
+                TimeValue generationDate = null;
+                if (managed) {
+                    in.readOptionalLong();
+                    in.readOptionalLong();
+                    Long generationDateMillis = in.readOptionalLong();
+                    if (generationDateMillis != null) {
+                        generationDate = TimeValue.timeValueMillis(generationDateMillis);
+                    }
+                }
+                return new CopiedNonEqualityFields(internalDataStream, generationDate);
+            }
+        }
+    }
+
+    private record CopiedNonEqualityFields(boolean internalDataStream, @Nullable TimeValue generationDate) {}
 
     private static ExplainIndexDataStreamLifecycle randomManagedIndexDataStreamLifecycleExplanation() {
         DataStreamLifecycle lifecycle = randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null;

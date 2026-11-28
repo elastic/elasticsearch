@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
+import java.io.IOException;
 import java.util.Map;
 
 public class SageMakerOpenAiTaskSettingsTests extends InferenceSettingsTestCase<SageMakerOpenAiTaskSettings> {
@@ -30,6 +31,12 @@ public class SageMakerOpenAiTaskSettingsTests extends InferenceSettingsTestCase<
     @Override
     protected SageMakerOpenAiTaskSettings createTestInstance() {
         return randomApiTaskSettings();
+    }
+
+    @Override
+    protected SageMakerOpenAiTaskSettings mutateInstance(SageMakerOpenAiTaskSettings instance) throws IOException {
+        String user = randomValueOtherThan(instance.user(), InferenceSettingsTestCase::randomOptionalString);
+        return new SageMakerOpenAiTaskSettings(user);
     }
 
     static SageMakerOpenAiTaskSettings randomApiTaskSettings() {

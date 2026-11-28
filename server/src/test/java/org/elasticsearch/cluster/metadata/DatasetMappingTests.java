@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -42,7 +43,29 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
 
     @Override
     protected DatasetMapping mutateInstance(DatasetMapping instance) {
-        return randomValueOtherThan(instance, DatasetTests::randomMapping);
+        DatasetMapping.Mappings mappings = instance.mappings();
+        if (mappings == null) {
+            // createTestInstance always builds non-null mappings; keep a one-field non-shortcut path if null appears.
+            return new DatasetMapping(
+                new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), Map.of("col_0", new DatasetFieldMapping("keyword", null)))
+            );
+        }
+        return switch (between(0, 1)) {
+            case 0 -> new DatasetMapping(
+                new DatasetMapping.Mappings(
+                    randomValueOtherThan(mappings.dynamic(), () -> randomFrom(DatasetMapping.Dynamic.values())),
+                    mappings.properties()
+                )
+            );
+            default -> {
+                Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>(mappings.properties());
+                properties.put(
+                    randomValueOtherThanMany(properties::containsKey, () -> randomAlphaOfLength(5).toLowerCase(Locale.ROOT)),
+                    new DatasetFieldMapping("keyword", null)
+                );
+                yield new DatasetMapping(new DatasetMapping.Mappings(mappings.dynamic(), properties));
+            }
+        };
     }
 
     /**

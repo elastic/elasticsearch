@@ -151,11 +151,73 @@ public class ScriptMetadataTests extends AbstractChunkedSerializingTestCase<Scri
 
     @Override
     protected ScriptMetadata mutateInstance(ScriptMetadata instance) throws IOException {
-        // ScriptMetadata doesn't allow us to see the scripts inside it so
-        // the best we can do here is create a new random instance and rely
-        // on the fact that the new instance is very unlikely to be equal to
-        // the old one
-        return randomScriptMetadata(randomFrom(XContentType.values()), 1);
+        ScriptMetadata.Builder builder = new ScriptMetadata.Builder(instance);
+        return switch (between(0, 2)) {
+            case 0 -> {
+                XContentType contentType = randomFrom(XContentType.values());
+                XContentBuilder sourceBuilder = XContentBuilder.builder(contentType.xContent());
+                sourceBuilder.startObject()
+                    .field("script")
+                    .startObject()
+                    .field("lang", randomAlphaOfLength(4))
+                    .field("source", randomAlphaOfLength(10))
+                    .endObject()
+                    .endObject();
+                builder.storeScript(
+                    randomValueOtherThanMany(id -> instance.getStoredScripts().containsKey(id), () -> randomAlphaOfLength(8)),
+                    StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType())
+                );
+                yield builder.build();
+            }
+            case 1 -> {
+                if (instance.getStoredScripts().isEmpty()) {
+                    // Empty map: delete/replace are impossible — fall back to adding one script via the builder.
+                    XContentType contentType = randomFrom(XContentType.values());
+                    XContentBuilder sourceBuilder = XContentBuilder.builder(contentType.xContent());
+                    sourceBuilder.startObject()
+                        .field("script")
+                        .startObject()
+                        .field("lang", randomAlphaOfLength(4))
+                        .field("source", randomAlphaOfLength(10))
+                        .endObject()
+                        .endObject();
+                    builder.storeScript(
+                        randomAlphaOfLength(8),
+                        StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType())
+                    );
+                    yield builder.build();
+                }
+                builder.deleteScript(randomFrom(instance.getStoredScripts().keySet().toArray(String[]::new)));
+                yield builder.build();
+            }
+            default -> {
+                if (instance.getStoredScripts().isEmpty()) {
+                    XContentType contentType = randomFrom(XContentType.values());
+                    XContentBuilder sourceBuilder = XContentBuilder.builder(contentType.xContent());
+                    sourceBuilder.startObject()
+                        .field("script")
+                        .startObject()
+                        .field("lang", randomAlphaOfLength(4))
+                        .field("source", randomAlphaOfLength(10))
+                        .endObject()
+                        .endObject();
+                    builder.storeScript(
+                        randomAlphaOfLength(8),
+                        StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType())
+                    );
+                    yield builder.build();
+                }
+                String id = randomFrom(instance.getStoredScripts().keySet().toArray(String[]::new));
+                StoredScriptSource existing = instance.getStoredScript(id);
+                // Append a character so the replacement cannot equal the stored script. Building it once
+                // outside randomValueOtherThan retries the same bytes forever when they happen to match.
+                builder.storeScript(
+                    id,
+                    new StoredScriptSource(existing.getLang(), existing.getSource() + "x", existing.getOptions())
+                );
+                yield builder.build();
+            }
+        };
     }
 
     @Override

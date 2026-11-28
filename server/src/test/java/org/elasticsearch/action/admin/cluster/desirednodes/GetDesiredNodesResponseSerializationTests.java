@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.mutateDesiredNodes;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
 public class GetDesiredNodesResponseSerializationTests extends AbstractWireSerializingTestCase<GetDesiredNodesAction.Response> {
@@ -27,6 +28,6 @@ public class GetDesiredNodesResponseSerializationTests extends AbstractWireSeria
 
     @Override
     protected GetDesiredNodesAction.Response mutateInstance(GetDesiredNodesAction.Response instance) {
-        return new GetDesiredNodesAction.Response(randomDesiredNodes());
+        return new GetDesiredNodesAction.Response(mutateDesiredNodes(instance.getDesiredNodes()));
     }
 }

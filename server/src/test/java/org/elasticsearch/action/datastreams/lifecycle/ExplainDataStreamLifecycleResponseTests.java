@@ -318,7 +318,85 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
 
     @Override
     protected Response mutateInstance(Response instance) {
-        return randomResponse();
+        return switch (between(0, 3)) {
+            case 0 -> new Response(
+                randomValueOtherThan(
+                    instance.getIndices(),
+                    () -> List.of(
+                        createRandomIndexDataStreamLifecycleExplanation(
+                            System.nanoTime(),
+                            randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+                        )
+                    )
+                ),
+                instance.getRolloverConfiguration(),
+                instance.getDataGlobalRetention(),
+                instance.getFailuresGlobalRetention()
+            );
+            case 1 -> new Response(
+                instance.getIndices(),
+                randomValueOtherThan(
+                    instance.getRolloverConfiguration(),
+                    () -> new RolloverConfiguration(
+                        new RolloverConditions(
+                            Map.of(
+                                MaxPrimaryShardDocsCondition.NAME,
+                                new MaxPrimaryShardDocsCondition(randomLongBetween(1000, 199_999_000))
+                            )
+                        )
+                    )
+                ),
+                instance.getDataGlobalRetention(),
+                instance.getFailuresGlobalRetention()
+            );
+            case 2 -> new Response(
+                instance.getIndices(),
+                instance.getRolloverConfiguration(),
+                copyWithDifferentDefault(instance.getDataGlobalRetention(), sharedMaxRetention(instance)),
+                instance.getFailuresGlobalRetention()
+            );
+            case 3 -> new Response(
+                instance.getIndices(),
+                instance.getRolloverConfiguration(),
+                instance.getDataGlobalRetention(),
+                copyWithDifferentDefault(instance.getFailuresGlobalRetention(), sharedMaxRetention(instance))
+            );
+            default -> throw new AssertionError("illegal mutate branch");
+        };
+    }
+
+    /**
+     * The wire format writes one maximum, taken from the data store, and a separate default for each store.
+     * Failures are rebuilt with that same maximum, which is also how {@link #randomResponse()} constructs them.
+     */
+    private static TimeValue sharedMaxRetention(Response instance) {
+        DataStreamGlobalRetention data = instance.getDataGlobalRetention();
+        return data == null ? null : data.maxRetention();
+    }
+
+    /** Copy {@code current}, keep {@code sharedMax}, and change only the default retention. */
+    private static DataStreamGlobalRetention copyWithDifferentDefault(
+        @Nullable DataStreamGlobalRetention current,
+        @Nullable TimeValue sharedMax
+    ) {
+        TimeValue currentDefault = current == null ? null : current.defaultRetention();
+        return DataStreamGlobalRetention.create(differentDefaultRetention(currentDefault, sharedMax), sharedMax);
+    }
+
+    /**
+     * A default that is not {@code current} and is never greater than {@code sharedMax}.
+     * One day is used when it fits; otherwise the shared maximum itself (already a legal retention).
+     * If that candidate is already the current default, the default is cleared instead.
+     */
+    private static TimeValue differentDefaultRetention(@Nullable TimeValue current, @Nullable TimeValue sharedMax) {
+        TimeValue candidate = TimeValue.timeValueDays(1);
+        if (sharedMax != null && candidate.getMillis() > sharedMax.getMillis()) {
+            candidate = sharedMax;
+        }
+        if (current == null || current.equals(candidate) == false) {
+            return candidate;
+        }
+        return null;
     }
 
     private Response randomResponse() {

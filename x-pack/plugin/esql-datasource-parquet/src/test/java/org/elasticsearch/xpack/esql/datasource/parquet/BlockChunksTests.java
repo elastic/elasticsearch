@@ -12,15 +12,18 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -130,6 +133,32 @@ public class BlockChunksTests extends ESTestCase {
         assertFalse("chunk must be left open when the all-null allocation trips", a.isReleased());
         assertFalse("chunk must be left open when the all-null allocation trips", b.isReleased());
         Releasables.closeExpectNoException(a, b);
+    }
+
+    public void testConcatSharedOrdinalsStaysOrdinal() {
+        BytesRefArray array = new BytesRefArray(2, blockFactory.bigArrays());
+        array.append(new BytesRef("a"));
+        array.append(new BytesRef("b"));
+        array.incRef();
+        BytesRefVector dict1 = blockFactory.newBytesRefArrayVector(array, 2);
+        BytesRefVector dict2 = blockFactory.newBytesRefArrayVector(array, 2);
+        IntBlock ords1 = blockFactory.newIntArrayVector(new int[] { 0, 1, 0 }, 3).asBlock();
+        IntBlock ords2 = blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2).asBlock();
+        List<Block> chunks = List.of(new OrdinalBytesRefBlock(ords1, dict1), new OrdinalBytesRefBlock(ords2, dict2));
+        Block result = BlockChunks.concat(chunks, blockFactory);
+        try {
+            OrdinalBytesRefBlock ordinal = ((BytesRefBlock) result).asOrdinals();
+            assertNotNull(ordinal);
+            assertEquals(5, ordinal.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("a"), ordinal.getBytesRef(0, scratch));
+            assertEquals(new BytesRef("b"), ordinal.getBytesRef(1, scratch));
+            assertEquals(new BytesRef("a"), ordinal.getBytesRef(2, scratch));
+            assertEquals(new BytesRef("b"), ordinal.getBytesRef(3, scratch));
+            assertEquals(new BytesRef("a"), ordinal.getBytesRef(4, scratch));
+        } finally {
+            result.close();
+        }
     }
 
     public void testAllNullYieldsConstantNullBlock() {

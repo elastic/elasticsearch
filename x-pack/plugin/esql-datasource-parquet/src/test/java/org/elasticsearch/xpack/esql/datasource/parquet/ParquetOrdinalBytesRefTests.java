@@ -40,12 +40,18 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -322,6 +328,53 @@ public class ParquetOrdinalBytesRefTests extends ESTestCase {
         public void close() {
             throw new AssertionError("BlockHash#add should not close the AddInput");
         }
+    }
+
+    /**
+     * Selective fill concatenates several {@code batchSize} windows of a dictionary-encoded
+     * projection column; the result must stay an {@link OrdinalBytesRefBlock} sharing the
+     * row-group dictionary.
+     */
+    public void testSelectiveFillKeepsOrdinalBytesRefBlock() throws IOException {
+        int numRows = 20_000;
+        int dictSize = 64;
+        Types.MessageTypeBuilder schemaBuilder = Types.buildMessage();
+        schemaBuilder.addField(Types.required(INT64).named("id"));
+        schemaBuilder.addField(Types.required(BINARY).as(LogicalTypeAnnotation.stringType()).named("name"));
+        MessageType schema = schemaBuilder.named("ordinal_fill");
+        byte[] data = writeFile(schema, numRows, (g, i) -> {
+            // Clustered survivors (20 consecutive per 1000) so each decode window is a
+            // multi-value ordinal block, not 1-row ConstantBytesRefBlocks that flatten on concat.
+            g.append("id", i % 1000 < 20 ? 1L : 0L);
+            g.append("name", "v_" + (i % dictSize));
+        });
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new Equals(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 1L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+        int ordinalPages = 0;
+        int total = 0;
+        try (
+            CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed)
+                .read(storageObject(data), FormatReadContext.of(List.of("id", "name"), BATCH_SIZE))
+        ) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                try {
+                    if (page.getPositionCount() == 0) {
+                        continue;
+                    }
+                    BytesRefBlock col = page.getBlock(1);
+                    assertNotNull("filled page must keep ordinals", col.asOrdinals());
+                    ordinalPages++;
+                    total += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertEquals(numRows / 1000 * 20, total);
+        assertTrue("expected ordinal pages after fill concat", ordinalPages > 0);
     }
 
     public void testUniqueStringsRemainCorrectAcrossPages() throws IOException {

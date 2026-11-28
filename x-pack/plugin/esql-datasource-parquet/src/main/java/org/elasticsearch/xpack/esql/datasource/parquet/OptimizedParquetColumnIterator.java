@@ -343,6 +343,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private boolean exhausted = false;
     private int rowGroupOrdinal = -1;
     private int pageBatchIndexInRowGroup = 0;
+    /**
+     * Compacted leftover survivors from a maxPage split of the previous filled page, still in
+     * this row group. Consumed as the start of the next fill. Never spans row groups.
+     */
+    @Nullable
+    private Block[] pageFillLeftover;
+    /**
+     * Late-mat output page probed by {@link #hasNext()} so a true {@code hasNext()} always has a
+     * {@link #next()} that succeeds. Source rows remaining in the group are not the same as
+     * survivors. Two-phase does not use this: stored survivor counts already make
+     * {@link #hasBufferedRows()} accurate after {@link #drainEmptyTwoPhaseBatches()}.
+     */
+    @Nullable
+    private Page pendingFilledPage;
 
     private final boolean lateMaterialization;
     /**
@@ -426,7 +440,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Per-row-group two-phase decode state. Populated in {@link #advanceRowGroup()} when
      * {@link #useTwoPhase} is active and the current row group survives Phase-1 filter
-     * evaluation; consumed batch-by-batch in {@link #nextTwoPhaseBatch(int)} and cleared in
+     * evaluation; consumed batch-by-batch in {@link #emitFilledTwoPhasePage()} and cleared in
      * {@link #closeTwoPhaseState()} when the iterator advances to the next row group or is
      * closed.
      */
@@ -1245,30 +1259,48 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     @Override
     public Page tryAdvance() {
         throwIfFailed();
-        if (closed.get() || exhausted) {
+        if (pendingFilledPage != null) {
+            Page pending = pendingFilledPage;
+            pendingFilledPage = null;
+            consumeGrantedIo();
+            return pending;
+        }
+        if (closed.get() || exhausted || budgetExhausted()) {
+            if (budgetExhausted() && exhausted == false) {
+                exhausted = true;
+                setPhase(ReadinessPhase.DONE);
+                releaseHeldIo();
+            }
             consumeGrantedIo();
             return null;
         }
         consumeGrantedIo();
-        if (hasBufferedRows() == false) {
-            if (isReadyNow() == false) {
-                return null;
-            }
-            try {
-                if (advanceRowGroup() == false) {
+        // Drain empty filter windows inside emitReadyPage; null here is RG/EOF (or park), not
+        // one empty window — tryAdvanceOrPark's retry cap would otherwise fire on a selective RG.
+        while (true) {
+            if (hasBufferedRows() == false) {
+                if (isReadyNow() == false) {
                     return null;
                 }
-            } catch (IOException | IllegalArgumentException e) {
-                throw ParquetReadFailures.wrap(
-                    e,
-                    "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"
-                );
+                try {
+                    if (advanceRowGroup() == false) {
+                        return null;
+                    }
+                } catch (IOException | IllegalArgumentException e) {
+                    throw ParquetReadFailures.wrap(
+                        e,
+                        "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"
+                    );
+                }
+                if (hasBufferedRows() == false) {
+                    return null;
+                }
             }
-            if (hasBufferedRows() == false) {
-                return null;
+            Page page = emitReadyPage();
+            if (page != null) {
+                return page;
             }
         }
-        return emitReadyPage();
     }
 
     @Override
@@ -1851,6 +1883,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     @Override
     public boolean hasNext() {
         throwIfFailed();
+        if (pendingFilledPage != null) {
+            return true;
+        }
         if (closed.get() || exhausted) {
             consumeGrantedIo();
             return false;
@@ -1870,7 +1905,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Early termination still takes effect below, where it stops us from advancing to (and
         // prefetching) any further row groups; the only extra work is draining the already-decoded,
         // in-memory current group, which the TopN simply discards.
-        if (hasBufferedRows()) {
+        if (hasBufferedRows() && lateMatHasEmitablePage()) {
             return true;
         }
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
@@ -1887,11 +1922,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (closed.get() || exhausted) {
                     return false;
                 }
-                if (hasBufferedRows()) {
+                if (hasBufferedRows() && lateMatHasEmitablePage()) {
                     return true;
                 }
                 if (advanceRowGroup()) {
-                    return true;
+                    if (lateMatHasEmitablePage()) {
+                        return true;
+                    }
+                    continue;
                 }
                 if (exhausted || closed.get()) {
                     return false;
@@ -1932,7 +1970,25 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsRemainingInGroup = 0;
             }
         }
-        return rowsRemainingInGroup > 0;
+        return pendingFilledPage != null || pageFillLeftover != null || rowsRemainingInGroup > 0;
+    }
+
+    /**
+     * Two-phase and unfiltered paths: source remaining (after empty-batch drain) is enough.
+     * Late-mat fill: decode windows until a non-empty page exists or this row group is spent,
+     * so {@link #hasNext()} is not true for a fully-filtered tail. Stashes the page in
+     * {@link #pendingFilledPage}. Must not run on two-phase: breaker tests arm after
+     * {@code hasNext()} and expect projection allocation to trip in {@link #next()}.
+     */
+    private boolean lateMatHasEmitablePage() {
+        if (pendingFilledPage != null) {
+            return true;
+        }
+        if (twoPhase != null || lateMaterialization == false || currentRowGroupTriviallyPasses) {
+            return hasBufferedRows();
+        }
+        pendingFilledPage = emitReadyPage();
+        return pendingFilledPage != null;
     }
 
     /**
@@ -1978,6 +2034,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     private boolean advanceRowGroup() throws IOException {
         consumeGrantedIo();
+        closePendingFilledPage();
+        closePageFillLeftover();
         closeTwoPhaseState();
         if (rowGroup != null) {
             rowsBeforeCurrentGroup += currentGroupRowsForBudget;
@@ -2118,7 +2176,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     } else {
                         // Two-phase decode: pre-decode predicate columns from chunks, accumulate the
                         // global survivor mask, fetch projection columns for surviving pages only, and
-                        // emit per-batch results in nextTwoPhaseBatch. When all rows are filtered out
+                        // emit coalesced results in emitFilledTwoPhasePage. When all rows are filtered out
                         // we drop the row group entirely and continue with the next survivor.
                         Boolean prepared = prepareTwoPhaseRowGroup(block, chunks);
                         if (prepared == null) {
@@ -3181,7 +3239,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * blocks are already cached inside {@link #twoPhase}.
      * <p>
      * The {@link #rowDropHelper} sink is intentionally <em>not</em> armed here: the two-phase
-     * emission path ({@link #nextTwoPhaseBatch}) does not call
+     * emission path ({@link #emitFilledTwoPhasePage}) does not call
      * {@link ColumnarRowDropHelper#filterBlocks}, so arming the sink would accumulate failure marks
      * that are never acted upon. Skip-row row-dropping is a known limitation of the two-phase path.
      */
@@ -3878,22 +3936,34 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Drain any already-decoded batch without re-reading noFurtherCandidates. After
         // advanceRowGroup() a new two-phase group may still have leading empty batches, so a true
         // hasNext() is not enough to emit: loop until hasBufferedRows() or the iterator is done.
-        while (hasBufferedRows() == false) {
-            if (hasNext() == false) {
-                throw new NoSuchElementException("Parquet iterator exhausted");
+        // Late-mat hasNext() probes survivors into pendingFilledPage so a fully-filtered RG
+        // tail does not throw after hasNext()==true.
+        while (true) {
+            while (hasBufferedRows() == false) {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException("Parquet iterator exhausted");
+                }
+            }
+            Page page;
+            if (pendingFilledPage != null) {
+                page = pendingFilledPage;
+                pendingFilledPage = null;
+            } else {
+                page = emitReadyPage();
+            }
+            if (page != null) {
+                return page;
             }
         }
-        return emitReadyPage();
     }
 
     private Page emitReadyPage() {
         if (twoPhase != null) {
-            // Captured before nextTwoPhaseBatch decrements rowsRemainingInGroup: the in-block index
-            // of the first source row this batch is about to emit. Same shape as the standard /
-            // late-mat paths, just computed in the two-phase branch where the source-row delta is
-            // queried from {@link TwoPhaseRowGroup#currentSourceRows} rather than {@link #batchSize}.
-            int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
-            return nextTwoPhaseBatch(firstRowOfBatchInRG);
+            return emitFilledTwoPhasePage();
+        }
+        boolean useLateMaterialization = lateMaterialization && currentRowGroupTriviallyPasses == false;
+        if (useLateMaterialization) {
+            return emitFilledLateMatPage();
         }
         int effectiveBatch = batchSize;
         if (rowBudget != FormatReader.NO_LIMIT) {
@@ -3904,10 +3974,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // batch is about to emit. The row-position injector uses it to compute file-global ids.
         int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
 
-        boolean useLateMaterialization = lateMaterialization && currentRowGroupTriviallyPasses == false;
-        Page result = useLateMaterialization
-            ? nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG)
-            : nextStandard(rowsToRead, firstRowOfBatchInRG);
+        Page result = nextStandard(rowsToRead, firstRowOfBatchInRG);
         int droppedRows = useLateMaterialization == false && rowDropHelper != null ? rowDropHelper.failedCount() : 0;
         try {
             listCorruptionHandler.completeBatch(rowsToRead, droppedRows);
@@ -3935,24 +4002,74 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * Emits the next batch under two-phase decoding. The predicate columns for the batch were
-     * already decoded and compacted in {@link #prepareTwoPhaseRowGroup}; this method only has
-     * to fetch the corresponding projection-column slice from the (already in-memory) projection
-     * store and combine the two halves into a {@link Page}.
-     *
-     * <p>The row budget is enforced on emitted (post-filter) rows since downstream operators
-     * see survivor counts and that's what {@code rowBudget} is meant to limit. We respect both
-     * the budget and the survivor count of the current batch by emitting the smaller of the
-     * two as the first row range; if a partial slice is needed, the remainder of this batch's
-     * survivors is dropped (its predicate blocks are released so we don't leak).
+     * Coalesces stored two-phase batches until the output page reaches {@code minPage}
+     * ({@code batchSize/2}), LIMIT, or the row group ends. Phase-1 decode windows stay
+     * {@code batchSize}; only emit granularity changes. Empty stored batches are drained
+     * between takes. Pages never span row groups.
      */
-    private Page nextTwoPhaseBatch(int firstRowOfBatchInRG) {
+    private Page emitFilledTwoPhasePage() {
         TwoPhaseRowGroup state = twoPhase;
-        // hasBufferedRows() drains any leading fully-filtered batches before next() emits, so the
-        // current cursor must point at a batch with at least one survivor by the time we get
-        // here. An assertion guards against an unexpected entry from a buggy next/hasNext path.
-        assert state.hasMoreBatches() && state.currentSurvivorCount() > 0
-            : "nextTwoPhaseBatch invoked on empty/missing batch (hasBufferedRows should have advanced or next returned false)";
+        List<Block>[] acc = newChunkLists(attributes.size());
+        int accRows = 0;
+        try {
+            accRows = takeLeftoverInto(acc);
+            int maxPage = batchSize;
+            int minPage = Math.max(1, batchSize / 2);
+            while (true) {
+                boolean rgDone = state.hasMoreBatches() == false;
+                if (accRows > 0 && (accRows >= maxPage || accRows >= minPage || rgDone || budgetHit(accRows))) {
+                    return finishFilledPage(acc, accRows);
+                }
+                if (rgDone) {
+                    return null;
+                }
+                drainEmptyTwoPhaseBatches();
+                if (state.hasMoreBatches() == false) {
+                    continue;
+                }
+                assert state.currentSurvivorCount() > 0
+                    : "emitFilledTwoPhasePage invoked on empty/missing batch (drainEmptyTwoPhaseBatches should have advanced)";
+                int budgetRoom = rowBudget == FormatReader.NO_LIMIT ? Integer.MAX_VALUE : rowBudget - accRows;
+                if (budgetRoom <= 0) {
+                    return accRows > 0 ? finishFilledPage(acc, accRows) : null;
+                }
+                int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
+                int survivorCount = state.currentSurvivorCount();
+                int sourceRows = state.currentSourceRows();
+                int keep = Math.min(survivorCount, budgetRoom);
+                boolean pastLimit = survivorCount > budgetRoom;
+                Block[] window = materializeTwoPhaseStoredBatch(firstRowOfBatchInRG, keep);
+                pageBatchIndexInRowGroup++;
+                rowsRemainingInGroup -= sourceRows;
+                if (pastLimit) {
+                    rowsRemainingInGroup = 0;
+                }
+                int maxRoom = maxPage - accRows;
+                accRows += appendWindowToAcc(acc, window, maxRoom, keep);
+                if (pageFillLeftover != null || accRows >= maxPage || accRows >= minPage || budgetHit(accRows)) {
+                    return finishFilledPage(acc, accRows);
+                }
+            }
+        } catch (RuntimeException e) {
+            closeAcc(acc);
+            closePageFillLeftover();
+            throw e;
+        }
+    }
+
+    /**
+     * Decodes one stored two-phase batch's projection columns and transfers compacted predicate
+     * blocks. {@code emitCount} is the number of survivors to keep (LIMIT may be smaller than
+     * the stored survivor count). Does not update {@link #rowsRemainingInGroup}, {@link #rowBudget},
+     * or counters — the fill loop owns that bookkeeping.
+     *
+     * <p>Ownership invariant: every predicate Block lives in EXACTLY one of
+     * {@code {predicateBlocks[col], blocks[col]}} at any moment. We null
+     * {@code predicateBlocks[col]} the instant we hand the reference off to {@code blocks[col]},
+     * so the catch never double-closes a transferred Block.
+     */
+    private Block[] materializeTwoPhaseStoredBatch(int firstRowOfBatchInRG, int emitCount) {
+        TwoPhaseRowGroup state = twoPhase;
         int sourceRows = state.currentSourceRows();
         int survivorCount = state.currentSurvivorCount();
         int[] survivorPositions = state.currentSurvivorPositions();
@@ -3970,42 +4087,26 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // when the catch closed both arrays — observed as the production crash on q23 with a
         // selective LIKE filter.
         Block[] blocks = new Block[attributes.size()];
-        int emitCount = survivorCount;
-        boolean budgetExhaustsBatch = false;
+        boolean budgetExhaustsBatch = emitCount < survivorCount;
         try {
-            // Apply the row budget to survivor count: if the budget is smaller than the number of
-            // surviving rows in this batch, truncate predicate and projection blocks to the first
-            // {@code rowBudget} survivors and mark the iterator as exhausted after emission. We
-            // re-slice predicate blocks via {@link #sliceBlockHead} (cheap because they're already
-            // compacted) and pass {@code emitCount} to the projection read so it doesn't decode
-            // beyond the budget either. This must run inside the try so that a mid-iteration
-            // sliceBlockHead failure leaves cleanup to the catch rather than leaking the partially
-            // re-sliced predicate array.
-            if (rowBudget != FormatReader.NO_LIMIT && rowBudget < emitCount) {
-                int newCount = rowBudget;
+            if (budgetExhaustsBatch) {
                 int[] truncated;
                 if (survivorPositions != null) {
-                    truncated = Arrays.copyOf(survivorPositions, newCount);
+                    truncated = Arrays.copyOf(survivorPositions, emitCount);
                 } else {
-                    // All rows in this batch survived; the projection reader will read sourceRows
-                    // and we'll filter to the first newCount via a synthesized positions array.
-                    truncated = UninitializedArrays.newIntArray(newCount);
-                    for (int i = 0; i < newCount; i++) {
+                    truncated = UninitializedArrays.newIntArray(emitCount);
+                    for (int i = 0; i < emitCount; i++) {
                         truncated[i] = i;
                     }
                 }
                 survivorPositions = truncated;
-                // sliceBlockHead now closes source on failure. Null the slot first so the outer
-                // catch cannot double-close a block that sliceBlockHead already released.
                 for (int col = 0; col < columnInfos.length; col++) {
                     if (isPredicateColumn[col] && predicateBlocks[col] != null) {
                         Block source = predicateBlocks[col];
                         predicateBlocks[col] = null;
-                        predicateBlocks[col] = sliceBlockHead(source, newCount);
+                        predicateBlocks[col] = sliceBlockHead(source, emitCount);
                     }
                 }
-                emitCount = newCount;
-                budgetExhaustsBatch = true;
             }
 
             for (int col = 0; col < columnInfos.length; col++) {
@@ -4078,22 +4179,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + "]"
             );
         }
-
-        pageBatchIndexInRowGroup++;
-        rowsRemainingInGroup -= sourceRows;
-        if (rowBudget != FormatReader.NO_LIMIT) {
-            rowBudget -= emitCount;
-        }
-        if (budgetExhaustsBatch) {
-            // Drop any remaining batches in this row group; the budget will short-circuit hasNext.
-            // Their predicate blocks will be closed via closeTwoPhaseState on next advanceRowGroup
-            // or close().
-            rowsRemainingInGroup = 0;
-        }
-        if (counters != null) {
-            counters.addRowsEmitted(emitCount);
-        }
-        return new Page(blocks);
+        return blocks;
     }
 
     /**
@@ -4231,7 +4317,200 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return new Page(blocks);
     }
 
-    private Page nextWithLateMaterialization(int rowsToRead, int firstRowOfBatchInRG) {
+    /**
+     * Late-mat fill: decode {@code batchSize} source rows, skip 0-survivor windows, concat
+     * compacted columns until {@code minPage = batchSize/2}, LIMIT, or the row group ends.
+     * Does not clamp the source window to {@code rowBudget}. Returns {@code null} when the
+     * remaining windows of this row group are all filtered and the accumulator is empty.
+     */
+    private Page emitFilledLateMatPage() {
+        List<Block>[] acc = newChunkLists(attributes.size());
+        int accRows = 0;
+        try {
+            accRows = takeLeftoverInto(acc);
+            int maxPage = batchSize;
+            int minPage = Math.max(1, batchSize / 2);
+            while (true) {
+                boolean rgDone = rowsRemainingInGroup <= 0;
+                if (accRows > 0 && (accRows >= maxPage || accRows >= minPage || rgDone || budgetHit(accRows))) {
+                    return finishFilledPage(acc, accRows);
+                }
+                if (rgDone) {
+                    return null;
+                }
+                int budgetRoom = rowBudget == FormatReader.NO_LIMIT ? Integer.MAX_VALUE : rowBudget - accRows;
+                if (budgetRoom <= 0) {
+                    return accRows > 0 ? finishFilledPage(acc, accRows) : null;
+                }
+                int rowsToRead = (int) Math.min(batchSize, rowsRemainingInGroup);
+                int firstRowOfBatchInRG = (int) (reader.getRowGroups().get(rowGroupOrdinal).getRowCount() - rowsRemainingInGroup);
+                Block[] window = nextWithLateMaterialization(rowsToRead, firstRowOfBatchInRG, budgetRoom);
+                try {
+                    listCorruptionHandler.completeBatch(rowsToRead, 0);
+                } catch (RuntimeException e) {
+                    Releasables.closeExpectNoException(window);
+                    throw e;
+                }
+                pageBatchIndexInRowGroup++;
+                rowsRemainingInGroup -= rowsToRead;
+                if (rowsRemainingInGroup == 0 && validateListExhaustion) {
+                    try {
+                        validateListColumnsExhausted();
+                    } catch (RuntimeException e) {
+                        Releasables.closeExpectNoException(window);
+                        throw e;
+                    }
+                }
+                int newRows = window[0].getPositionCount();
+                if (newRows == 0) {
+                    Releasables.closeExpectNoException(window);
+                    continue;
+                }
+                int keep = Math.min(newRows, budgetRoom);
+                boolean pastLimit = newRows > budgetRoom;
+                if (pastLimit) {
+                    rowsRemainingInGroup = 0;
+                }
+                int maxRoom = maxPage - accRows;
+                accRows += appendWindowToAcc(acc, window, maxRoom, keep);
+                if (pageFillLeftover != null || accRows >= maxPage || accRows >= minPage || budgetHit(accRows)) {
+                    return finishFilledPage(acc, accRows);
+                }
+            }
+        } catch (RuntimeException e) {
+            closeAcc(acc);
+            closePageFillLeftover();
+            throw e;
+        }
+    }
+
+    private boolean budgetHit(int accRows) {
+        return rowBudget != FormatReader.NO_LIMIT && accRows >= rowBudget;
+    }
+
+    private int takeLeftoverInto(List<Block>[] acc) {
+        if (pageFillLeftover == null) {
+            return 0;
+        }
+        int rows = pageFillLeftover[0].getPositionCount();
+        for (int col = 0; col < acc.length; col++) {
+            acc[col].add(pageFillLeftover[col]);
+        }
+        pageFillLeftover = null;
+        return rows;
+    }
+
+    private Page finishFilledPage(List<Block>[] acc, int accRows) {
+        if (accRows == 0) {
+            closeAcc(acc);
+            return null;
+        }
+        Block[] blocks = new Block[acc.length];
+        try {
+            for (int col = 0; col < acc.length; col++) {
+                List<Block> chunks = acc[col];
+                if (chunks.size() == 1) {
+                    blocks[col] = chunks.get(0);
+                } else {
+                    blocks[col] = BlockChunks.concat(chunks, blockFactory);
+                }
+                chunks.clear();
+            }
+            if (rowBudget != FormatReader.NO_LIMIT) {
+                rowBudget -= accRows;
+            }
+            if (counters != null) {
+                counters.addRowsEmitted(accRows);
+            }
+            return new Page(blocks);
+        } catch (RuntimeException e) {
+            ParquetReadFailures.closePreservingCause(e, blocks);
+            throw e;
+        }
+    }
+
+    /**
+     * Appends up to {@code keep} in-LIMIT survivors from {@code window} onto {@code acc}.
+     * {@code maxRoom} is the maxPage remainder. Rows in {@code (maxRoom, keep]} become
+     * {@link #pageFillLeftover}; rows past {@code keep} are closed. Returns rows added to
+     * {@code acc} this call.
+     */
+    private int appendWindowToAcc(List<Block>[] acc, Block[] window, int maxRoom, int keep) {
+        int newRows = window[0].getPositionCount();
+        int take = Math.min(keep, Math.max(maxRoom, 0));
+        if (take == newRows) {
+            for (int col = 0; col < window.length; col++) {
+                acc[col].add(window[col]);
+            }
+            return take;
+        }
+        Block[] leftover = keep > take ? new Block[window.length] : null;
+        try {
+            for (int col = 0; col < window.length; col++) {
+                Block src = window[col];
+                if (take > 0) {
+                    acc[col].add(src.slice(0, take));
+                }
+                if (leftover != null) {
+                    leftover[col] = src.slice(take, keep);
+                }
+                src.close();
+                window[col] = null;
+            }
+        } catch (RuntimeException e) {
+            if (leftover != null) {
+                Releasables.closeExpectNoException(leftover);
+            }
+            Releasables.closeExpectNoException(window);
+            throw e;
+        }
+        if (leftover != null) {
+            pageFillLeftover = leftover;
+        }
+        return take;
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static List<Block>[] newChunkLists(int cols) {
+        List<Block>[] acc = new List[cols];
+        for (int i = 0; i < cols; i++) {
+            acc[i] = new ArrayList<>();
+        }
+        return acc;
+    }
+
+    private static void closeAcc(List<Block>[] acc) {
+        if (acc == null) {
+            return;
+        }
+        for (List<Block> chunks : acc) {
+            if (chunks != null && chunks.isEmpty() == false) {
+                Releasables.closeExpectNoException(chunks.toArray(Block[]::new));
+                chunks.clear();
+            }
+        }
+    }
+
+    private void closePageFillLeftover() {
+        if (pageFillLeftover != null) {
+            Releasables.closeExpectNoException(pageFillLeftover);
+            pageFillLeftover = null;
+        }
+    }
+
+    private void closePendingFilledPage() {
+        if (pendingFilledPage != null) {
+            pendingFilledPage.releaseBlocks();
+            pendingFilledPage = null;
+        }
+    }
+
+    /**
+     * Decode one {@code batchSize} source window, filter, then materialize projection only for
+     * the prefix of survivors that still fit {@code maxEmit} (remaining LIMIT). fail_fast
+     * declared-type coercion must not see later matching rows that LIMIT would drop.
+     */
+    private Block[] nextWithLateMaterialization(int rowsToRead, int firstRowOfBatchInRG, int maxEmit) {
         Block[] blocks = new Block[attributes.size()];
         try {
             // Phase 1: decode predicate columns
@@ -4251,7 +4530,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // pushed expression) so it's always handled below in Phase 3, where the survivor mask
             // is already known and the values can be filled in survivor order.
 
-            // Phase 2: evaluate filter
+            // Phase 2: evaluate filter, then cap to remaining LIMIT before projection decode.
             WordMask mask = pushedExpressions.evaluateFilter(
                 predicateBlockMap,
                 rowsToRead,
@@ -4266,11 +4545,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsEliminatedByLateMaterialization += (rowsToRead - survivorCount);
                 if (survivorCount < rowsToRead) {
                     positions = mask.survivingPositions();
-                    // Compact predicate blocks
-                    for (int col = 0; col < columnInfos.length; col++) {
-                        if (isPredicateColumn[col] && blocks[col] != null) {
-                            blocks[col] = PageColumnReader.filterBlock(blocks[col], positions, survivorCount, blockFactory);
-                        }
+                }
+            }
+            int emitCount = Math.min(survivorCount, maxEmit);
+            if (emitCount < survivorCount) {
+                if (positions == null) {
+                    positions = UninitializedArrays.newIntArray(emitCount);
+                    for (int i = 0; i < emitCount; i++) {
+                        positions[i] = i;
+                    }
+                } else {
+                    positions = Arrays.copyOf(positions, emitCount);
+                }
+                survivorCount = emitCount;
+            }
+            if (positions != null) {
+                for (int col = 0; col < columnInfos.length; col++) {
+                    if (isPredicateColumn[col] && blocks[col] != null) {
+                        blocks[col] = PageColumnReader.filterBlock(blocks[col], positions, survivorCount, blockFactory);
                     }
                 }
             }
@@ -4305,7 +4597,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } else if (positions == null) {
                     blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
-                    blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
+                    blocks[col] = pageColumnReaders[col].readBatchSparse(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
                     Block fullBlock = readColumnBlockNoCleanup(col, info, rowsToRead);
                     blocks[col] = filterBlockClosingOnFailure(fullBlock, positions, survivorCount);
@@ -4319,10 +4611,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
             }
 
-            if (counters != null) {
-                counters.addRowsEmitted(survivorCount);
-            }
-            return new Page(blocks);
+            return blocks;
         } catch (CircuitBreakingException e) {
             ParquetReadFailures.closePreservingCause(e, blocks);
             throw e;
@@ -4578,6 +4867,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private void releaseHeldIo(boolean propagateRowGroupClose) throws IOException {
         Exception rowGroupCloseException = null;
         try {
+            closePendingFilledPage();
+            closePageFillLeftover();
             closeTwoPhaseState();
             closePageColumnReaders();
             if (rowGroup != null) {

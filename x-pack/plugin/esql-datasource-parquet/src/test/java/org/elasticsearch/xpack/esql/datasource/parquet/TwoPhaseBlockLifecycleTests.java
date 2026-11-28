@@ -418,11 +418,11 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         StorageObject obj = syncStorage(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
-            assertTrue("expected at least one row group", it.hasNext());
-            // Arm with skip=1 before next(): Phase 1 allocates the id block (skipped), Phase 3
-            // allocates the projection block (trips).
+            // Late-mat hasNext() probes the first output page, so arm before hasNext and
+            // expect the trip from either hasNext() or next().
             breaker.arm(1);
             CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, () -> {
+                assertTrue("expected at least one row group", it.hasNext());
                 Page p = it.next();
                 p.releaseBlocks();
             });
@@ -469,11 +469,10 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         StorageObject obj = syncStorage(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
         try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(512).build())) {
-            assertTrue("expected at least one row group", it.hasNext());
-            // Arm with skip=1 before next(): Phase 1 allocates id block (skipped), then id2
-            // block trips. blocks[0] is non-null when the exception fires.
+            // Late-mat hasNext() probes the first output page, so arm before hasNext.
             breaker.arm(1);
             CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, () -> {
+                assertTrue("expected at least one row group", it.hasNext());
                 Page p = it.next();
                 p.releaseBlocks();
             });

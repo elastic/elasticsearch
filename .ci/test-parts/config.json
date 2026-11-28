@@ -1,0 +1,8 @@
+{
+  "parts": 6,
+  "workers": 13,
+  "antiAffinity": [
+    [":server:test", ":server:internalClusterTest"]
+  ],
+  "splits": {}
+}

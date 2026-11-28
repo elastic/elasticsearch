@@ -3383,14 +3383,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testDisableSinglePassWindowedAggregations() {
-        var queries = List.of(
-            "TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY pod, TBUCKET(5 minute)",
-            "SET time_series_reduce_per_index=false; TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY pod, TBUCKET(5 minute)",
-            "SET time_series_reduce_per_index=true; TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY pod, TBUCKET(5 minute)"
-        );
-        for (String query : queries) {
+        String query = "TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY pod, TBUCKET(5 minute)";
+        for (String set : List.of("", "SET time_series_reduce_per_index=false; ", "SET time_series_reduce_per_index=true; ")) {
+            var statement = EsqlTestUtils.TEST_PARSER.createStatement(set + query);
+            var resolvedSettings = QuerySettings.resolve(
+                Map.of(),
+                statement,
+                new SettingsValidationContext(false, Build.current().isSnapshot())
+            );
+            var configuration = new ConfigurationBuilder(EsqlTestUtils.configuration(QueryPragmas.EMPTY)).resolvedSettings(resolvedSettings)
+                .build();
             var analyzer = metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer();
-            var configuration = EsqlTestUtils.configuration(query);
             var plan = new TestPlannerOptimizer(configuration, analyzer).plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
             var timeSeriesAggs = plan.collect(TimeSeriesAggregateExec.class);
             assertThat(timeSeriesAggs, hasSize(greaterThanOrEqualTo(1)));

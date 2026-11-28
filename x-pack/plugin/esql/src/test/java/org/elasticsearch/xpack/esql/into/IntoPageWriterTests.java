@@ -622,6 +622,44 @@ public class IntoPageWriterTests extends ComputeTestCase {
         );
     }
 
+    /** Values that take no bytes, like empty ones, are not shown without limit either. */
+    public void testTheReasonForAMultiValuedIdPreviewsAtMostTenValues() {
+        assertThat(
+            multiValuedIdReason(Collections.nCopies(100, "")),
+            equalTo("[400] [_id] must be single-valued, found [" + ", ".repeat(10) + "... 90 more]")
+        );
+    }
+
+    /** The preview is cut where a character starts, as the bytes of half of one would read as a character that is not in the id. */
+    public void testThePreviewOfAMultiValuedIdDoesNotCutACharacter() {
+        // The 256 bytes of the preview end between the two bytes of the first é
+        String value = "x".repeat(255) + "éé";
+        assertThat(
+            multiValuedIdReason(List.of(value, "b")),
+            equalTo("[400] [_id] must be single-valued, found [" + "x".repeat(255) + "..., b]")
+        );
+    }
+
+    private String multiValuedIdReason(List<String> values) {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        Page page;
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(1)
+        ) {
+            id.beginPositionEntry();
+            for (String value : values) {
+                id.appendBytesRef(new BytesRef(value));
+            }
+            id.endPositionEntry();
+            host.appendBytesRef(new BytesRef("h1"));
+            page = new Page(id.build(), host.build());
+        }
+        idWriter.consume(page);
+        idWriter.finish();
+        return idWriter.stats().failureDetails().getFirst();
+    }
+
     public void testMultiValuedIdStopsSiblingWriters() {
         IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
         IntoPageWriter sibling = sink.create(new DriverContext(mockBigArrays(), factory, null));

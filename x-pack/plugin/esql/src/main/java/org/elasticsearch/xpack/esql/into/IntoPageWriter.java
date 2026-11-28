@@ -84,8 +84,9 @@ public final class IntoPageWriter {
         + "\": \""
         + IntoOptions.Collisions.REPLACE.optionValue()
         + "\" (not supported on a data stream)";
-    /** What is shown of the values of a multi-valued {@code _id}, which can be large, and is only there to point at the row. */
+    /** What is shown of the values of a multi-valued {@code _id}, which can be many and large, and is only there to point at the row. */
     private static final int MAX_ID_PREVIEW_BYTES = 256;
+    private static final int MAX_ID_PREVIEW_VALUES = 10;
     private static final String EMPTY_ID_REASON = "if _id is specified it must not be empty";
     private static final String MULTI_VALUED_ID_MESSAGE = "INTO [{}] failed: [{}] must be single-valued, found [{}]";
 
@@ -539,19 +540,26 @@ public final class IntoPageWriter {
         };
     }
 
-    /** A preview of the values of a multi-valued {@code _id}: the first bytes of them, and how many more there are. */
+    /**
+     * A preview of the values of a multi-valued {@code _id}: the first of them, up to a number and a size, and how many more there
+     * are. A value is cut at the start of a character, so that the preview has no character that is not in the {@code _id}.
+     */
     private static List<String> idValues(BytesRefBlock ids, int row, BytesRef scratch) {
         int start = ids.getFirstValueIndex(row);
         int count = ids.getValueCount(row);
         List<String> values = new ArrayList<>();
         int remaining = MAX_ID_PREVIEW_BYTES;
         for (int i = 0; i < count; i++) {
-            if (remaining <= 0) {
+            if (remaining <= 0 || i == MAX_ID_PREVIEW_VALUES) {
                 values.add("... " + (count - i) + " more");
                 break;
             }
             BytesRef value = ids.getBytesRef(start + i, scratch);
             int shown = Math.min(value.length, remaining);
+            // A byte of the form 10xxxxxx continues a character, so the cut is inside one: back up to where it starts
+            while (shown > 0 && shown < value.length && (value.bytes[value.offset + shown] & 0xC0) == 0x80) {
+                shown--;
+            }
             values.add(new String(value.bytes, value.offset, shown, StandardCharsets.UTF_8) + (shown < value.length ? "..." : ""));
             remaining -= shown;
         }

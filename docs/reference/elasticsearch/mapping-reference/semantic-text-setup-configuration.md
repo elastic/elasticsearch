@@ -51,13 +51,20 @@ PUT my-index-000001
 
 
 
-The default {{infer}} endpoint varies by deployment type and version:
+The default {{infer}} endpoint varies by deployment type and version. {{es}} chooses it when you create the index and stores the chosen `inference_id` in the field mapping.
 
-- {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga` On {{ech}} deployments running {{stack}} 9.4+ and on {{serverless-short}}, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md). 
+| Applies to | Deployment | Default `inference_id` | Runs on |
+| --- | --- | --- | --- |
+| {applies_to}`stack: ga 9.4+` {applies_to}`serverless: ga` | {{ech}} and {{serverless-short}} | `.jina-embeddings-v5-text-small` | [EIS](docs-content://explore-analyze/elastic-inference/eis.md) |
+| {applies_to}`stack: ga =9.3` | {{ech}} | `.elser-2-elastic` | [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis) |
+| {applies_to}`stack: ga 9.0-9.2` | {{ech}} | `.elser-2-elasticsearch` | {{ml}} node, through the `elasticsearch` service |
+| {applies_to}`stack: ga 9.0+` | {{ece}}, {{eck}}, and self-managed clusters that are not [connected to EIS](docs-content://explore-analyze/elastic-inference/connect-self-managed-cluster-to-eis.md) | `.elser-2-elasticsearch` | {{ml}} node, through the `elasticsearch` service |
+| {applies_to}`stack: ga =9.3` | {{ece}}, {{eck}}, and self-managed clusters [connected to EIS through Cloud Connect](docs-content://explore-analyze/elastic-inference/connect-self-managed-cluster-to-eis.md) | `.elser-2-elastic` | [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis) |
+| {applies_to}`stack: ga 9.4+` | {{ece}}, {{eck}}, and self-managed clusters [connected to EIS through Cloud Connect](docs-content://explore-analyze/elastic-inference/connect-self-managed-cluster-to-eis.md) | `.jina-embeddings-v5-text-small` when that preconfigured endpoint is registered. Otherwise `.elser-2-elastic` when that endpoint is registered, then `.elser-2-elasticsearch` | [EIS](docs-content://explore-analyze/elastic-inference/eis.md). `.elser-2-elasticsearch` runs on an {{ml}} node |
 
-- {applies_to}`stack: ga 9.3` On {{ech}} deployments running {{stack}} 9.3, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
+`.elser-2-elasticsearch` deploys ELSER on an {{ml}} node. For node requirements and deployment steps, refer to [ELSER requirements](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-elser.md#elser-req).
 
-- {applies_to}`stack: ga 9.0-9.2` On {{ech}} deployments running {{stack}} 9.0-9.2, the `inference_id` parameter defaults to `.elser-2-elasticsearch` and runs on the `elasticsearch` service.
+To use a different endpoint, set `inference_id` on the `semantic_text` field. To pin the default for every `semantic_text` field on an index, set `index.semantic_text.default_inference_id` when you create the index or in an index template. A field `inference_id` overrides the index setting, and the index setting overrides the selection in the table. {{es}} checks the index setting against existing endpoints when you index a document, and returns an error if the endpoint does not exist.
 
 If you use the default {{infer}} endpoint, it might be updated to a newer version and use a different embedding model than the previous default endpoints. Queries that target these indices together can produce unexpected ranking results.
 For details, refer to [potential issues when mixing embedding models across indices](#default-endpoint-considerations).
@@ -67,7 +74,7 @@ For details, refer to [potential issues when mixing embedding models across indi
 
 If a `semantic_text` field relies on the default {{infer}} endpoint, the model used to generate embeddings might change across versions or deployments. This can result in indices using different embedding models.
 
-For example, if the `semantic_text` field is created without specifying `inference_id`, indices created on {{ecloud}} 9.3 use the `.elser-2-elastic` endpoint by default, while indices created on {{ecloud}} 9.4+ use `.jina-embeddings-v5-text-small`. As a result, older indices contain ELSER embeddings while newer indices contain Jina embeddings.
+For example, if the `semantic_text` field is created without specifying `inference_id`, indices created on {{ecloud}} 9.3 use the `.elser-2-elastic` endpoint by default, while indices created on {{ecloud}} 9.4+ use `.jina-embeddings-v5-text-small`. As a result, older indices contain ELSER embeddings while newer indices contain Jina embeddings. The same split happens on {{ece}}, {{eck}}, and self-managed clusters after you connect them to EIS through Cloud Connect. Indices created before that connection use `.elser-2-elasticsearch`. Indices created on 9.3 with EIS connected use `.elser-2-elastic`. Indices created on 9.4 or later use `.jina-embeddings-v5-text-small` when that endpoint is registered.
 
 Mixed embedding models across indices can occur in several common scenarios, including:
 

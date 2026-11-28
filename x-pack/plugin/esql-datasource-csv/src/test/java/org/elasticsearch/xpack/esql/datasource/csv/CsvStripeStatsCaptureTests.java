@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -634,6 +635,25 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
+     * The same two-byte extremum is harvested at the default and withheld at one.
+     */
+    public void testTheWidthSettingReachesTheStripeHarvest() throws Exception {
+        byte[] bytes = keywordCsv(6);
+
+        Map<String, Object> atDefault = stripeMetadata(bytes, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
+        assertEquals(
+            "a two-byte extremum is harvested under the default",
+            new BytesRef("k0"),
+            SourceStatisticsSerializer.extractColumnMin(atDefault, "k")
+        );
+
+        Map<String, Object> narrowed = stripeMetadata(bytes, 1);
+        assertNull("one byte withholds it", SourceStatisticsSerializer.extractColumnMin(narrowed, "k"));
+        assertNull("one byte withholds it", SourceStatisticsSerializer.extractColumnMax(narrowed, "k"));
+        assertEquals("and the row count survives", 6L, ((Number) narrowed.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    /**
      * The ALL-scope harvest runs AFTER the row-width rule, so what the rule rejects never reaches the per-column
      * statistics. A row that stops short of the file's width used to be padded and harvested, contributing a null
      * for each field it lacked; now it is dropped, and the published null count is the file's own nulls only.
@@ -680,6 +700,49 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         );
         assertEquals("b min is unaffected", 100, ((Number) SourceStatisticsSerializer.extractColumnMin(padded, "b")).intValue());
         assertEquals("b max is unaffected", 102, ((Number) SourceStatisticsSerializer.extractColumnMax(padded, "b")).intValue());
+    }
+
+    /** Header {@code a:integer,k:keyword}, then rows {@code i,ki} -- a two-byte keyword beside an integer. */
+    private static byte[] keywordCsv(int count) {
+        StringBuilder sb = new StringBuilder("a:integer,k:keyword\n");
+        for (int i = 0; i < count; i++) {
+            sb.append(i).append(",k").append(i).append('\n');
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Reads {@code bytes} through the CSV stripe path at {@code maxExtremumBytes} and reconciles to metadata. */
+    private Map<String, Object> stripeMetadata(byte[] bytes, int maxExtremumBytes) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("a", "k"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, 4096, true)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .statsMaxExtremumBytes(maxExtremumBytes)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        assertNotNull("the read must publish a contribution", raw);
+        return reconcileToMetadata(raw, List.of(intCol("a"), keywordCol("k")));
+    }
+
+    private static Attribute keywordCol(String name) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD, Nullability.TRUE, null, false);
     }
 
     /** {@link #captureScoped} with an explicit error policy and extra reader config, for a file with a bad row. */

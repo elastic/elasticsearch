@@ -1076,7 +1076,7 @@ public class LocalExecutionPlanner {
             case WRITE -> {
                 boolean discard = configuration.explainOnly();
                 if (discard == false) {
-                    IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
+                    IntoPageWriter.Factory.requireBatchDestinationUnchanged(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
                 }
                 IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
                     escfBulkService,
@@ -1084,7 +1084,8 @@ public class LocalExecutionPlanner {
                     blockFactory.breaker(),
                     target,
                     into.sourceAttributes(),
-                    indexing
+                    indexing,
+                    into.options()
                 );
                 yield source.with(
                     new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),

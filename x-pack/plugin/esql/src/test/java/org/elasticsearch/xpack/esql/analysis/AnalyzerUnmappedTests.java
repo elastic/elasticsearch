@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -1182,6 +1183,26 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private static final String AMBIGUOUS_FOO = "Cannot use field [foo] due to ambiguities";
 
+    /**
+     * [foo] is long in more indices than the error message lists, keyword in another one and unmapped in the last one: the message
+     * still counts the indices it doesn't list.
+     */
+    public void testPartiallyUnmappedConflictCountsUnlistedIndices() {
+        List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            responses.add(fieldCapabilitiesIndexResponse("idx_long" + i, fieldResponseMap(Map.of("foo", "long", "k", "keyword"))));
+        }
+        responses.add(fieldCapabilitiesIndexResponse("idx_keyword", fieldResponseMap(Map.of("foo", "keyword", "k", "keyword"))));
+        responses.add(fieldCapabilitiesIndexResponse("idx_unmapped", fieldResponseMap("k", "keyword")));
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(responses, List.of());
+
+        analyzer().addIndex("idx*", mergedResolution("idx*", caps, true))
+            .statementError(
+                setUnmappedLoad("FROM idx* | EVAL x = foo + 1"),
+                allOf(containsString(AMBIGUOUS_FOO), containsString("[long] in [idx_long1, idx_long2, idx_long3] and [2] other indices"))
+            );
+    }
+
     /** [foo] is double in idx1, long in idx2 and unmapped in idx3; [k] is keyword everywhere. */
     private TestAnalyzer partiallyUnmappedFoo() {
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
@@ -1473,6 +1494,36 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             var plan = ta.statement(setUnmappedLoad("FROM foo, bar " + suffix));
             assertTwoLeggedPunkResolution(plan, "message", DataType.LONG);
+        }
+    }
+
+    /**
+     * A base only converts strings. On a field that is a long in one index and unmapped in another, which is loaded as a keyword where
+     * unmapped, it used to be dropped silently by {@code TO_LONG}, and failed with an internal error in {@code TO_INTEGER}.
+     */
+    public void testBaseConversionOnPartiallyMappedLongFails() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        TestAnalyzer ta = analyzer().minimumTransportVersion(CompactMultiTypeEsField.CompactMultiTypeEsField);
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            String conversion = function + "(message, 16)";
+            String statement = setUnmappedLoad("FROM foo, bar | EVAL x = " + conversion);
+            var e = expectThrows(VerificationException.class, () -> ta.statement(statement));
+            assertThat(
+                e.getMessage(),
+                containsString("Mapped types [long] of partially unmapped field [message] cannot be accepted in [" + conversion + "]")
+            );
         }
     }
 

@@ -111,7 +111,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         }
         BytesRef scratch = new BytesRef();
         int positions = bytesVector.getPositionCount();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int i = 0; i < positions; i++) {
                 BytesRef v = bytesVector.getBytesRef(i, scratch);
                 builder.appendInt(Math.toIntExact(hashOrdToGroup(bytesHash.add(v))));
@@ -130,7 +130,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         }
         final int positionCount = bytesBlock.getPositionCount();
         BytesRef scratch = new BytesRef();
-        try (var builder = blockFactory.newIntBlockBuilder(positionCount)) {
+        try (var builder = blockFactory.newIntBlockBuilder(positionCount, true)) {
             for (int p = 0; p < positionCount; p++) {
                 int start = bytesBlock.getFirstValueIndex(p);
                 int valueCount = bytesBlock.getValueCount(p);
@@ -160,7 +160,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         if (ordinals.getPositionCount() > 0 && (dictHashOrds.isConstant() || ordinals.isConstant())) {
             return blockFactory.newConstantIntVector(dictHashOrds.getInt(ordinals.getInt(0)), ordinals.getPositionCount());
         }
-        try (var builder = blockFactory.newIntVectorFixedBuilder(ordinals.getPositionCount())) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(ordinals.getPositionCount(), true)) {
             for (int p = 0; p < ordinals.getPositionCount(); p++) {
                 int ord = dictHashOrds.getInt(ordinals.getInt(p));
                 builder.appendInt(p, ord);
@@ -171,7 +171,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     private IntBlock mapOrdinalsBlock(IntVector dictHashOrds, IntBlock ordinals) {
         final int positionCount = ordinals.getPositionCount();
-        try (var builder = blockFactory.newIntBlockBuilder(positionCount)) {
+        try (var builder = blockFactory.newIntBlockBuilder(positionCount, true)) {
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = ordinals.getValueCount(p);
                 int start = ordinals.getFirstValueIndex(p);
@@ -217,7 +217,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         }
         int positionCount = bytes.getPositionCount();
         BytesRef scratch = new BytesRef();
-        try (var builder = blockFactory.newIntBlockBuilder(positionCount)) {
+        try (var builder = blockFactory.newIntBlockBuilder(positionCount, true)) {
             for (int p = 0; p < positionCount; p++) {
                 int start = bytes.getFirstValueIndex(p);
                 int valueCount = bytes.getValueCount(p);
@@ -253,7 +253,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         }
         int positionCount = bytes.getPositionCount();
         BytesRef scratch = new BytesRef();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positionCount, true)) {
             for (int p = 0; p < positionCount; p++) {
                 var v = bytes.getBytesRef(p, scratch);
                 builder.appendInt(Math.toIntExact(bytesHash.find(v)));
@@ -474,7 +474,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         private IntVector addBytesVectorWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
             int positions = vector.getPositionCount();
             int dummy = 0;
-            try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
                 for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
                     int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
                     for (int i = 0; i < batchSize; i++) {

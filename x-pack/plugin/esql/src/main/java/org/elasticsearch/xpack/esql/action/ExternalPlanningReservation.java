@@ -16,8 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * One request-breaker reservation for a query's external planning. Created from the session's block
- * factory so every admit and the final release use that same breaker.
+ * One request-breaker reservation for a query's external planning. Created from the query's breaker on the
+ * coordinator, a child of the request breaker, so every admit and the final release use that same breaker.
  * <p>
  * Resolution's listing and the schema map live until {@link #close()}, which {@code PlanExecutor.esql} calls once,
  * because the plan holds both for as long as the query does.

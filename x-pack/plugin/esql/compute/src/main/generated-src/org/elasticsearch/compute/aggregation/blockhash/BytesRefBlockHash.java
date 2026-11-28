@@ -117,7 +117,7 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         }
         BytesRef scratch = new BytesRef();
         int positions = vector.getPositionCount();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int i = 0; i < positions; i++) {
                 BytesRef v = vector.getBytesRef(i, scratch);
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
@@ -129,7 +129,7 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
     private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
         int positions = vector.getPositionCount();
         int dummy = 0;
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
                 int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
                 for (int i = 0; i < batchSize; i++) {
@@ -199,7 +199,7 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
             referenced[inputOrds.getInt(p)] = true;
         }
         int[] groupIds = hashReferenced(dictionary, referenced);
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int p = 0; p < positions; p++) {
                 builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(p)));
             }
@@ -215,7 +215,7 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         BytesRefVector dictionary = inputBlock.getDictionaryVector();
         try (
             IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
-            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount(), true)
         ) {
             boolean[] referenced = new boolean[dictionary.getPositionCount()];
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {

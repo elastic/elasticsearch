@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -813,8 +812,6 @@ public class CredentialTransitionsTests extends ESTestCase {
     private static DatafeedConfig esqlDatafeed() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
         builder.setEsqlQuery(ESQL_QUERY);
-        builder.setSourceTimeField("@timestamp");
-        builder.setGroupingInterval(TimeValue.timeValueHours(1));
         builder.setProjectRouting("_alias:_origin");
         return builder.build();
     }

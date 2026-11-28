@@ -136,7 +136,7 @@ final class IntBlockHash extends PartitionedBlockHash {
      */
     IntVector add(IntVector vector) {
         int positions = vector.getPositionCount();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions, true)) {
             for (int i = 0; i < positions; i++) {
                 int v = vector.getInt(i);
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));

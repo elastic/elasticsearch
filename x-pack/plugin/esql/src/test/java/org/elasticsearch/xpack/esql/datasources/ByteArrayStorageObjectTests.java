@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ByteRegionInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -128,6 +129,55 @@ public class ByteArrayStorageObjectTests extends ESTestCase {
         byte[] data = "abcdefghij".getBytes(StandardCharsets.UTF_8);
         ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 0, data.length);
         expectThrows(IllegalArgumentException.class, () -> obj.newStream(-1, 4));
+    }
+
+    public void testNewStreamIsByteRegionOverSameArray() throws IOException {
+        byte[] data = "hello world".getBytes(StandardCharsets.UTF_8);
+        ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 0, data.length);
+
+        try (InputStream stream = obj.newStream()) {
+            assertTrue(stream instanceof ByteRegionInputStream);
+            assertRegion((ByteRegionInputStream) stream, data, 0, data.length, "hello world");
+        }
+    }
+
+    public void testNewStreamWithOffsetExposesRegionBounds() throws IOException {
+        byte[] data = "XXXhelloXXX".getBytes(StandardCharsets.UTF_8);
+        ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 3, 5);
+
+        try (InputStream stream = obj.newStream()) {
+            assertTrue(stream instanceof ByteRegionInputStream);
+            assertRegion((ByteRegionInputStream) stream, data, 3, 8, "hello");
+        }
+    }
+
+    public void testSkipAdvancesPositionOnOffsetWindow() throws IOException {
+        byte[] data = "XXab\ncdYY".getBytes(StandardCharsets.UTF_8);
+        ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 2, 5);
+
+        try (InputStream stream = obj.newStream()) {
+            assertTrue(stream instanceof ByteRegionInputStream);
+            ByteRegionInputStream region = (ByteRegionInputStream) stream;
+            assertEquals(3, region.skip(3));
+            assertRegion(region, data, 5, 7, "cd");
+        }
+    }
+
+    public void testNewStreamRangeOnOffsetWindow() throws IOException {
+        byte[] data = "XXXabcdefghijYYY".getBytes(StandardCharsets.UTF_8);
+        ByteArrayStorageObject obj = new ByteArrayStorageObject(StoragePath.of("mem://test"), data, 3, 10);
+
+        try (InputStream stream = obj.newStream(3, 4)) {
+            assertTrue(stream instanceof ByteRegionInputStream);
+            assertRegion((ByteRegionInputStream) stream, data, 6, 10, "defg");
+        }
+    }
+
+    private static void assertRegion(ByteRegionInputStream region, byte[] data, int position, int limit, String expected) {
+        assertSame(data, region.array());
+        assertEquals(position, region.position());
+        assertEquals(limit, region.limit());
+        assertEquals(expected, new String(region.array(), region.position(), region.limit() - region.position(), StandardCharsets.UTF_8));
     }
 
     public void testNewStreamSubRegionRejectsReadPastLogicalEnd() {

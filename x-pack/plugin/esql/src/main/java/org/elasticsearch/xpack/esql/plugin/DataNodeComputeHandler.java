@@ -258,7 +258,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             try {
                                 groupTask = computeService.createGroupTask(
                                     parentTask,
-                                    () -> "compute group: data-node [" + node.getName() + "], shards [" + shards + "]"
+                                    () -> "compute group: data-node [" + node.getName() + "], shards [" + shards + "]",
+                                    connection,
+                                    childSessionId
                                 );
                             } catch (TaskCancelledException e) {
                                 l.onFailure(e);
@@ -417,7 +419,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     + currentNode.get().getName()
                                     + "], splits ["
                                     + nodeSplits.size()
-                                    + "]"
+                                    + "]",
+                                connection,
+                                childSessionId
                             );
                         } catch (TaskCancelledException e) {
                             l.onFailure(e);
@@ -1834,13 +1838,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     /**
      * Resolves the sink the coordinator opened before this request. When the coordinator has since finished
      * that exchange, completes {@code listener} with an empty result so a {@link ResourceNotFoundException}
-     * cannot replace the query's own error. Returns {@code null} when {@code listener} has already been completed.
+     * cannot replace the query's own error. When a cancelled fetch removed the sink, fails {@code listener} with the
+     * cancellation: the coordinator may still count on the results of this request, and must not take it as done.
+     * Returns {@code null} when {@code listener} has already been completed.
      */
     private ExchangeSinkHandler sinkToRun(String sessionId, ActionListener<DataNodeComputeResponse> listener) {
         final ExchangeSinkHandler sink;
         try {
             sink = exchangeService.getSinkHandlerIfOpen(sessionId);
-        } catch (ResourceNotFoundException e) {
+        } catch (ResourceNotFoundException | TaskCancelledException e) {
             listener.onFailure(e);
             return null;
         }

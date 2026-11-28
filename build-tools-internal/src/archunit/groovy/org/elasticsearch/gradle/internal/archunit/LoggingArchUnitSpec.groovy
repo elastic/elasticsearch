@@ -35,7 +35,6 @@ class LoggingArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.dependencies.patches.azurecore.AzureCoreClassPatcher",
         "org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher",
         "org.elasticsearch.gradle.internal.doc.DocsTestPlugin",
-        "org.elasticsearch.gradle.internal.packer.CacheCacheableTestFixtures",
         "org.elasticsearch.gradle.internal.test.ErrorReportingTestListener",
     ] as Set
 

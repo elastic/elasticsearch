@@ -11,13 +11,11 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
@@ -130,12 +128,11 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             SearchExecutionContext context = this.context.getSearchExecutionContext();
             Query q;
             if (fetchChildInnerHits) {
-                Query hitQuery = new TermQuery(new Term(joiner.parentJoinField(typeName), hit.getId()));
                 q = new BooleanQuery.Builder()
                     // Only include child documents that have the current hit as parent:
-                    .add(hitQuery, BooleanClause.Occur.FILTER)
+                    .add(joiner.parentIdFilter(typeName, hit.getId(), context), BooleanClause.Occur.FILTER)
                     // and only include child documents of a single relation:
-                    .add(new TermQuery(new Term(joiner.getJoinField(), typeName)), BooleanClause.Occur.FILTER)
+                    .add(joiner.filter(typeName, context), BooleanClause.Occur.FILTER)
                     .build();
             } else {
                 String parentId = getSortedDocValue(joiner.childJoinField(typeName), this.context, hit.docId());

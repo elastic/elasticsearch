@@ -48,7 +48,8 @@ dependencies {
   api project(':libs:ip-location-api')
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
-  implementation project(":libs:lucene-store")
+  // On the api surface: the TSDB doc values implement its PrefetchableDocValues.
+  api project(":libs:lucene-store")
   implementation project(":libs:simdvec")
   implementation project(":libs:simdjson")
   // On the api surface rather than implementation: FieldMapper#columnarStringOptions returns one of its
@@ -112,6 +113,8 @@ dependencies {
   heapPressureTestImplementation project(':test:test-clusters')
   // The pausable field the heap pressure tests use to hold requests in flight.
   clusterModules project(':test:external-modules:test-pausable-field')
+  // Registers index.queries.cache.everything for the heap pressure tests that need every filter clause cached.
+  clusterModules project(':test:external-modules:test-cache-everything')
   // Mapping-level keyword runtime fields need a script engine.
   clusterModules project(':modules:lang-painless')
 }
@@ -211,6 +214,12 @@ tasks.named('heapPressureTest') {
 
 tasks.named('jacocoTestReport') {
   dependsOn 'test'
+  // CI turns the XML report into a single-page HTML artifact (.buildkite/scripts/jacoco/) and no
+  // longer uploads JaCoCo's own HTML report (~15k files), so skip writing it there.
+  reports {
+    xml.required = true
+    html.required = buildParams.ci == false
+  }
 }
 
 tasks.named('check') {

@@ -50,6 +50,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.tasks.CancellableTask;
@@ -86,6 +87,7 @@ public abstract class SearchContext implements Releasable {
         }
     }
     private InnerHitsContext innerHitsContext;
+    private volatile boolean fetchChargedByPool;
 
     protected Query rewriteQuery;
 
@@ -104,6 +106,17 @@ public abstract class SearchContext implements Releasable {
             return timeoutRunnable == null ? List.of(c) : List.of(c, timeoutRunnable);
         }
         return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
+    }
+
+    /**
+     * Whether the pool task the fetch phase started on charges its time, since the fetch can complete on another thread.
+     */
+    public final boolean fetchChargedByPool() {
+        return fetchChargedByPool;
+    }
+
+    public final void fetchChargedByPool(boolean fetchChargedByPool) {
+        this.fetchChargedByPool = fetchChargedByPool;
     }
 
     public abstract void setTask(CancellableTask task);
@@ -143,6 +156,14 @@ public abstract class SearchContext implements Releasable {
      */
     public DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture() {
         return DirectoryMetrics.Capture.NOOP;
+    }
+
+    /**
+     * Where the phase of this context is charged, or {@code null} if it reports no load.
+     */
+    @Nullable
+    public QueryLoad.Charging searchLoad() {
+        return null;
     }
 
     /**

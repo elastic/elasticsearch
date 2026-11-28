@@ -15,7 +15,7 @@ public class ParameterTests extends ESTestCase {
 
     public void test_ignore_above_param_default() {
         // when
-        FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam((FieldMapper fm) -> 123, 456);
+        FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam(456);
 
         // then
         assertEquals(456, ignoreAbove.getValue().intValue());
@@ -23,7 +23,7 @@ public class ParameterTests extends ESTestCase {
 
     public void test_ignore_above_param_invalid_value() {
         // when
-        FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam((FieldMapper fm) -> -1, 456);
+        FieldMapper.Parameter<Integer> ignoreAbove = FieldMapper.Parameter.ignoreAboveParam(456);
         ignoreAbove.setValue(-1);
 
         // then

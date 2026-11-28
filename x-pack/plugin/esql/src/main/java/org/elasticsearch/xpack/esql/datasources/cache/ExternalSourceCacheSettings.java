@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.List;
@@ -59,6 +60,16 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Whether this node serves reads from the external-source cache. With it off, a read planned while it is off
+     * neither reads the cache nor collects statistics for it in the formats that harvest them, and planning pays
+     * more: the schema and file-metadata loaders run on every resolve, not only on a miss. A scan already
+     * running keeps the scope it was built with, so turning this off does not stop its collection.
+     * <p>
+     * Off also clears the cache, so switching it back on leaves the node cold. Node-scoped, so a node left off
+     * harvests nothing and the coordinator never warms for its files. The Parquet and ORC footer caches are
+     * separate, with their own budgets: this setting neither clears nor bypasses them.
+     */
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
         "esql.external.cache.enabled",
         CACHE_ENABLED_OLD,
@@ -178,6 +189,22 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
+     * The widest text extremum a CSV, TSV or NDJSON read publishes, in bytes. A wider one is withheld: the
+     * column keeps its counts and {@code MIN}/{@code MAX} over it scans.
+     * <p>
+     * Not part of stripe identity, so changing it invalidates no cached entry; what changes is what later
+     * reads publish. Restart-only for the reason
+     * {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup {@code Settings}.
+     */
+    public static final Setting<ByteSizeValue> STATS_MAX_EXTREMUM_SIZE = Setting.byteSizeSetting(
+        "esql.external.cache.stats.max_extremum_size",
+        ByteSizeValue.ofBytes(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofMb(1),
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Rejects a non-positive footer cache budget at settings-parse time. Both footer caches are
      * built lazily, when a format reader is first constructed, so without this the node would
      * accept {@code 0b}/{@code 0%} at startup and only fail on the first Parquet or ORC query.
@@ -197,7 +224,7 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * This is a <em>working-set</em> LRU, not a function of
      * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#MAX_DISCOVERED_FILES}
-     * (25k default, up to 1M allowed). The
+     * (heap-derived default, up to 10M allowed). The
      * weigher is {@code byte[].length} only — a few KiB of uncounted object overhead per entry at
      * capacity is fine; do not size this so the cache would admit on the order of a million
      * entries. 0.5% of an 8 GB heap is ~41 MiB, enough for a typical working set of tiny-file
@@ -298,6 +325,7 @@ public final class ExternalSourceCacheSettings {
             LISTING_TTL_OLD,
             STRIPE_SIZE,
             STRIPE_COLUMNS,
+            STATS_MAX_EXTREMUM_SIZE,
             FOOTER_CACHE_SIZE,
             FOOTER_PARSED_CACHE_SIZE,
             FOOTER_CACHE_TTL,

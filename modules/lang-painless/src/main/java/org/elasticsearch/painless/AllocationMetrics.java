@@ -40,6 +40,9 @@ public final class AllocationMetrics {
 
     static final String METRIC_PREFIX = "es.script.painless.allocation.execution.";
 
+    /** Prefix of the per-context counter of executions that tripped the limit. */
+    static final String LIMIT_EXCEEDED_PREFIX = "es.script.painless.allocation.limit_exceeded.";
+
     /** Stands in until real telemetry is installed. */
     public static final AllocationMetrics NOOP = new AllocationMetrics(MeterRegistry.NOOP);
 
@@ -71,7 +74,14 @@ public final class AllocationMetrics {
             );
         }
 
-        recorder.retain(buckets);
+        LongAsyncCounter limitExceeded = meterRegistry.registerLongAsyncCounter(
+            limitExceededMetricName(scriptContextName),
+            "Painless script executions that failed by exceeding the allocation limit",
+            "count",
+            recorder::limitExceededCount
+        );
+
+        recorder.retain(buckets, limitExceeded);
 
         return recorder;
     }
@@ -94,6 +104,11 @@ public final class AllocationMetrics {
     /** {@code es.script.painless.allocation.execution.<context>.<range>.total}. */
     static String metricName(String scriptContextName, int bucket) {
         return METRIC_PREFIX + metricSegment(scriptContextName) + "." + bucketRange(bucket) + ".total";
+    }
+
+    /** {@code es.script.painless.allocation.limit_exceeded.<context>.total}. A tripped execution is never counted in a bucket. */
+    static String limitExceededMetricName(String scriptContextName) {
+        return LIMIT_EXCEEDED_PREFIX + metricSegment(scriptContextName) + ".total";
     }
 
     /** The size range a bucket covers, as a name segment: {@code under_1kb}, then {@code from_1kb} upwards. */
@@ -149,24 +164,31 @@ public final class AllocationMetrics {
      * The counters are asynchronous, so an execution touches no instrument at all: it increments one slot of the row its
      * thread is striped onto, and the observers sum each column when telemetry collects. Nothing is pushed and nothing has
      * to be flushed, which matters because a script instance has no end-of-life hook to flush on.
+     * <p>
+     * One column per bucket, plus one for executions that tripped the limit.
      */
     public static final class ContextRecorder {
 
         private static final VarHandle SLOT = MethodHandles.arrayElementVarHandle(long[].class);
 
+        /** The column after the buckets. */
+        static final int LIMIT_EXCEEDED_SLOT = BUCKET_COUNT;
+
         /** Enough rows that threads rarely share one; the write pool is sized to allocated processors. */
         private static final int STRIPES = Integer.highestOneBit(Math.max(8, Runtime.getRuntime().availableProcessors() * 2 - 1)) * 2;
 
         /** Separately allocated rows, so two threads never contend on the same cache line. */
-        private final long[][] rows = new long[STRIPES][BUCKET_COUNT];
+        private final long[][] rows = new long[STRIPES][BUCKET_COUNT + 1];
 
         /** Held only to keep the registered counters, and their observers, alive alongside this recorder. */
         private LongAsyncCounter[] buckets;
+        private LongAsyncCounter limitExceeded;
 
         private ContextRecorder() {}
 
-        private void retain(LongAsyncCounter[] buckets) {
+        private void retain(LongAsyncCounter[] buckets, LongAsyncCounter limitExceeded) {
             this.buckets = buckets;
+            this.limitExceeded = limitExceeded;
         }
 
         /**
@@ -175,12 +197,29 @@ public final class AllocationMetrics {
          * sharing a row cannot lose a count.
          */
         public void recordExecutionAllocation(long totalBytes) {
-            long[] row = rows[(int) (Thread.currentThread().threadId() & (STRIPES - 1))];
+            long[] row = row();
 
             SLOT.getAndAdd(row, bucketIndex(totalBytes), 1L);
         }
 
-        /** The executions counted in one bucket so far, summed across rows. Called when telemetry collects. */
+        /** Counts one tripped execution, from the generated {@code $checkAllocBytes} just before it throws. */
+        public void recordLimitExceeded() {
+            long[] row = row();
+
+            SLOT.getAndAdd(row, LIMIT_EXCEEDED_SLOT, 1L);
+        }
+
+        /** The row for the current thread. */
+        private long[] row() {
+            return rows[(int) (Thread.currentThread().threadId() & (STRIPES - 1))];
+        }
+
+        /** Tripped executions so far, summed across rows. */
+        long limitExceededCount() {
+            return count(LIMIT_EXCEEDED_SLOT);
+        }
+
+        /** The count in one column so far, summed across rows. Called when telemetry collects. */
         long count(int bucket) {
             long total = 0;
 

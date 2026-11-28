@@ -87,7 +87,8 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             IpLocationResolution.SERVICE_UNAVAILABLE,
             false,
             Map.of(),
-            EsqlFlags.DEFAULTS
+            EsqlFlags.DEFAULTS,
+            Map.of()
         );
         this.currentVersion = minimumVersion;
     }

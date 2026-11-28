@@ -301,9 +301,9 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     /**
      * Whether {@code layer} reads one of the per-field failure columns ({@code ._ignore_malformed}, {@code ._on_failure}) from binary
-     * doc values. The columnar batch path writes neither: it refuses every document that would need one, so on that path these layers
-     * never hold a value, and {@link SourceColumn} can leave them out of the direct {@code columnar_stored} blob — provided no such
-     * column was written, which {@code SourceFieldMapper#postColumnarParse} checks before it trusts the direct path.
+     * doc values. The columnar batch path typically writes neither: most mappers refuse a document that would need one, so
+     * {@link SourceColumn} leaves these layers out of the direct {@code columnar_stored} blob — provided no such column was written,
+     * which {@code SourceFieldMapper#postColumnarParse} checks before it trusts the direct path.
      */
     static boolean isBinaryFailureValuesLayer(Layer layer) {
         return layer instanceof MalformedValuesBinaryDocValuesLayer || layer instanceof OnFailureValuesBinaryDocValuesLayer;

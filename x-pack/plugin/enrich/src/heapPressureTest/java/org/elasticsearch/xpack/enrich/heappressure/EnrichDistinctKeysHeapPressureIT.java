@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.enrich.heappressure;
 
 /**
- * Every document of the bulk carries a distinct key that matches one wide source document, with a cold cache: every lookup misses,
- * the coordinator fans the bulk out in 128-lookup batches, and each response is expanded into 128 distinct maps on a search thread
- * while the re-serialized sources accumulate for the whole bulk. The steady-state shape of a wide-enrich workload.
+ * Every document has a distinct key and the cache is cold, so every lookup is a search. The scenario with the least headroom.
+ * Fixed by charging pipeline growth to indexing pressure (#163380), charging lookup responses to the request breaker while holding
+ * the permit (#163388), and releasing each coordinator slot early (#163387).
  */
 public class EnrichDistinctKeysHeapPressureIT extends EnrichWideDocumentHeapPressureTestCase {
 

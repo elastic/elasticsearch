@@ -44,6 +44,7 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 
 public class MlRecoverableErrorClassifierTests extends ESTestCase {
@@ -53,7 +54,7 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
     // -------------------------------------------------------------------------
 
     public void testSearchPhaseExecutionException_isRecoverable() {
-        var e = new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY);
+        var e = new SearchPhaseExecutionException("query", "partial results", List.of());
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
     }
 
@@ -100,7 +101,7 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
             "query",
             "Search rejected due to missing shards",
             new ShardRestoringException("my-index", randomUUID()),
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
         assertEquals(RestStatus.FORBIDDEN, e.status());
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
@@ -114,7 +115,7 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
         var e = new SearchPhaseExecutionException(
             "query",
             "all shards failed",
-            new ShardSearchFailure[] { new ShardSearchFailure(new ShardRestoringException("my-index", randomUUID())) }
+            List.of(new ShardSearchFailure(new ShardRestoringException("my-index", randomUUID())))
         );
         assertEquals(RestStatus.FORBIDDEN, e.status());
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
@@ -134,7 +135,7 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
     public void testSearchPhaseExecutionExceptionWrappingSearchContextMissingShouldBeRecoverable() {
         var scm = new SearchContextMissingException(new ShardSearchContextId("s", 1L));
         var shardFailure = new ShardSearchFailure(scm);
-        var e = new SearchPhaseExecutionException("query", "scroll failed", new ShardSearchFailure[] { shardFailure });
+        var e = new SearchPhaseExecutionException("query", "scroll failed", List.of(shardFailure));
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
     }
 
@@ -242,7 +243,7 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
     }
 
     public void testAvailabilityErrorShouldNotBeCapacityConstrained() {
-        var e = new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY);
+        var e = new SearchPhaseExecutionException("query", "partial results", List.of());
         assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
     }
 
@@ -361,7 +362,7 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
     }
 
     public void testWrappedRecoverableException_isRecoverable() {
-        var inner = new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY);
+        var inner = new SearchPhaseExecutionException("query", "partial results", List.of());
         var wrapped = new RemoteTransportException("remote", inner);
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(wrapped));
     }

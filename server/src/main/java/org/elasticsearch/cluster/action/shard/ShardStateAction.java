@@ -55,6 +55,8 @@ public class ShardStateAction {
     public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
     public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/failure";
 
+    public static final Priority SHARD_STARTED_TASK_PRIORITY = Priority.URGENT;
+
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -311,7 +313,7 @@ public class ShardStateAction {
         private final MasterServiceTaskQueue<ShardStartedTaskExecutor.Task> taskQueue;
 
         ShardStartedTransportHandler(ClusterService clusterService, ShardStartedTaskExecutor taskExecutor) {
-            taskQueue = clusterService.createTaskQueue("shard-started", Priority.URGENT, taskExecutor);
+            taskQueue = clusterService.createTaskQueue("shard-started", SHARD_STARTED_TASK_PRIORITY, taskExecutor);
         }
 
         @Override

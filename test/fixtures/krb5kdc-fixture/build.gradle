@@ -10,7 +10,7 @@ import org.gradle.api.services.internal.BuildServiceRegistryInternal
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.docker-image-cache'
 apply plugin: 'elasticsearch.deploy-test-fixtures'
 
 dockerFixtures {

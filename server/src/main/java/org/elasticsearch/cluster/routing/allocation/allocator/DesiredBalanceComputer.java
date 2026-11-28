@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -139,7 +141,11 @@ public class DesiredBalanceComputer {
             logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
         }
 
-        final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
+        final var computedMoveReasons = new ComputedMoveReasonCollector(
+            desiredBalanceInput.routingAllocation().routingNodes(),
+            previousDesiredBalance.computedMoveReasons()
+        );
+        final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation(computedMoveReasons);
         final var routingNodes = routingAllocation.routingNodes();
         final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
@@ -237,12 +243,12 @@ public class DesiredBalanceComputer {
                             .type() != Decision.Type.NO) {
                         // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will
                         // not be added to the cluster state:
-                        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
+                        RecoveryPriority recoveryPriority = RecoveryPriority.UNKNOWN;
                         final var targetShard = routingNodes.relocateShard(
                             shardRouting,
                             targetNodeId,
                             0L,
-                            "computation",
+                            MoveReason.INHERITED,
                             changes,
                             recoveryPriority
                         ).v2();
@@ -544,7 +550,13 @@ public class DesiredBalanceComputer {
         maybeLogAllocationExplainForUnassigned(finishReason, routingNodes, routingAllocation, desiredBalanceInput.index());
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
+        return new DesiredBalance(
+            lastConvergedIndex,
+            assignments,
+            routingNodes.getBalanceWeightStatsPerNode(),
+            finishReason,
+            computedMoveReasons.finish(assignments)
+        );
     }
 
     /**

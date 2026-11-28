@@ -136,6 +136,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
@@ -177,14 +178,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private Builder(String name, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField, IndexSettings indexSettings) {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
 
-            this.indexed = Parameter.indexParam(m -> ((MatchOnlyTextFieldMapper) m).indexed(), true);
+            this.indexed = Parameter.indexParam(true);
 
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
-                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
-                indexSettings.getIndexVersionCreated()
-            );
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, indexSettings.getIndexVersionCreated());
             this.storedFieldInBinaryFormat = isSyntheticSourceStoredFieldInBinaryFormat(indexSettings.getIndexVersionCreated());
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields(indexSettings);
             this.indexSettings = indexSettings;
@@ -196,7 +192,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
-                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
                 indexSettings
             );
         }
@@ -1103,9 +1098,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     private final IndexVersion indexCreatedVersion;
-    private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
-    private final int positionIncrementGap;
     private final FieldType fieldType;
     private final boolean storedFieldInBinaryFormat;
     private final boolean usesBinaryDocValuesForFallbackFields;
@@ -1131,9 +1124,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.indexCreatedVersion = builder.indexCreatedVersion();
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
-        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
         this.usesBinaryDocValuesForFallbackFields = builder.usesBinaryDocValuesForFallbackFields;
         this.docValuesParameters = builder.docValuesParameters.getValue();
@@ -1178,11 +1169,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexAnalyzers, fieldType().isWithinMultiField(), indexSettings).init(this);
-    }
-
     public boolean indexed() {
         return indexed;
     }
@@ -1204,7 +1190,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // usesBinaryDocValues() requires doc_values to be enabled which means synthetic-source stored-fallback is unreachable.
         // Additionally, this excludes the low-cardinality SORTED_SET encoding.
         // copy_to, script, mode gate, and legacy-version gate are handled by the base class.
@@ -1348,7 +1334,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
             // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
             // Each builder owns its buffers, so every finished column is registered for release with the batch.
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
@@ -1485,7 +1471,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName, TextFieldMapper.OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, TextFieldMapper.OFFSETS_FALLBACK);
             }
             return;
         }

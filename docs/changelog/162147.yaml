@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 162147
-summary: Release empty percentile digest when the breaker trips
-type: bug

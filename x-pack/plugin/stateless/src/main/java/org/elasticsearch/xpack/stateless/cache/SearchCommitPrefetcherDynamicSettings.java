@@ -38,6 +38,16 @@ public class SearchCommitPrefetcherDynamicSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /// Whether the prefetcher records [SearchCommitPrefetcherMetrics]. Disabled by default: it is meant to be enabled on specific projects
+    /// only, while investigating prefetching.
+    public static final Setting<Boolean> PREFETCH_METRICS_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.search.prefetch_commits.metrics.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     // this is not really a prefetch-related setting, however it is only checked during prefetching, when processing commit notifications
     // (we can't have the cluster settings updater hold references to each eg {@link SearchEngine} because that's a memory leak)
     public static final Setting<Boolean> STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT = Setting.boolSetting(
@@ -77,6 +87,7 @@ public class SearchCommitPrefetcherDynamicSettings {
     private volatile boolean prefetchingEnabled;
     private volatile long prefetchSearchIdleTimeInMillis;
     private volatile boolean useInternalFilesReplicatedContentForSearchShards;
+    private volatile boolean prefetchMetricsEnabled;
 
     public SearchCommitPrefetcherDynamicSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING, value -> this.prefetchingEnabled = value);
@@ -88,6 +99,7 @@ public class SearchCommitPrefetcherDynamicSettings {
             STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             value -> this.useInternalFilesReplicatedContentForSearchShards = value
         );
+        clusterSettings.initializeAndWatch(PREFETCH_METRICS_ENABLED_SETTING, value -> this.prefetchMetricsEnabled = value);
     }
 
     public boolean prefetchingEnabled() {
@@ -96,6 +108,10 @@ public class SearchCommitPrefetcherDynamicSettings {
 
     public long searchIdleTimeInMillis() {
         return prefetchSearchIdleTimeInMillis;
+    }
+
+    public boolean prefetchMetricsEnabled() {
+        return prefetchMetricsEnabled;
     }
 
     public boolean internalFilesReplicatedContentForSearchShardsEnabled() {

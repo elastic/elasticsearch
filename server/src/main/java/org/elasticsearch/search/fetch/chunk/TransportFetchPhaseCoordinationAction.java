@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.ShardResponseReservation;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -41,6 +42,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -264,6 +266,12 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 // the final FetchSearchResult bytes tracked by countingReader below.
                 responseStream.setChunkBytesConsumer(request.resultBytesConsumer);
             }
+            // The data node's result carries the last chunk, or all hits if it fell back to a classic fetch
+            final ShardResponseReservation reservation = new ShardResponseReservation(
+                circuitBreaker,
+                ShardResponseReservation.FETCH_BREAKER_LABEL,
+                request.onCoordinatorTrip
+            );
             transportService.sendRequest(
                 request.getDataNode(),
                 FETCH_ID_ACTION_NAME,
@@ -275,7 +283,18 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                         ? SearchTransportService.countingReader(FetchSearchResult::new, request.resultBytesConsumer)
                         : FetchSearchResult::new,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
-                )
+                ) {
+                    @Override
+                    public Releasable reserveResponseBytes(int bytes) {
+                        return reservation.reserve(bytes);
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        reservation.reportTrip();
+                        super.handleException(e);
+                    }
+                }
             );
         }
     }

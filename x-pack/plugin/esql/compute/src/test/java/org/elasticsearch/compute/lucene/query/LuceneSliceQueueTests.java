@@ -7,11 +7,17 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -25,23 +31,44 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.codec.tsdb.PrefixedPartitionsWriter;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +82,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class LuceneSliceQueueTests extends ESTestCase {
 
@@ -239,6 +268,75 @@ public class LuceneSliceQueueTests extends ESTestCase {
             assertEquals(sliceList.get(12), second);
             assertNull(null, queue.nextSlice(randomFrom(sliceList)));
         }
+    }
+
+    /**
+     * Each shard counts its slices until they are read: a slice is read once the next one is asked for after it, or
+     * once it is given back unfinished.
+     */
+    public void testUnfinishedSlicesPerShard() {
+        var first = new LuceneSourceOperatorTests.MockShardContext(null);
+        var second = new LuceneSourceOperatorTests.MockShardContext(null);
+        LeafReaderContext leaf = new MockLeafReader(100).getContext();
+        List<LuceneSlice> sliceList = new ArrayList<>();
+        for (var shard : List.of(first, first, second)) {
+            sliceList.add(
+                new LuceneSlice(
+                    sliceList.size(),
+                    false,
+                    shard,
+                    List.of(new PartialLeafReaderContext(leaf, 0, 100)),
+                    null,
+                    null,
+                    LuceneSlice.NEVER_BLOCKED
+                )
+            );
+        }
+        LuceneSliceQueue queue = new LuceneSliceQueue(i -> first, sliceList, Map.of());
+        assertThat(first.unfinishedSlices(), equalTo(2));
+        assertThat(second.unfinishedSlices(), equalTo(1));
+
+        LuceneSlice slice = queue.nextSlice(null);
+        assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(3));
+        int read = 0;
+        LuceneSlice next;
+        while ((next = queue.nextSlice(slice)) != null) {
+            read++;
+            assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(3 - read));
+            slice = next;
+        }
+        assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(0));
+
+        LuceneSliceQueue abandoned = new LuceneSliceQueue(i -> first, List.of(sliceList.get(0)), Map.of());
+        assertThat(first.unfinishedSlices(), equalTo(1));
+        abandoned.finished(abandoned.nextSlice(null));
+        assertThat(first.unfinishedSlices(), equalTo(0));
+    }
+
+    /**
+     * Once the last operator reading a queue stops, for example on reaching a limit, the slices nobody took count as read.
+     */
+    public void testSlicesLeftWhenTheLastReaderStopsCountAsRead() {
+        var shard = new LuceneSourceOperatorTests.MockShardContext(null);
+        LeafReaderContext leaf = new MockLeafReader(100).getContext();
+        List<LuceneSlice> sliceList = new ArrayList<>();
+        int numSlices = between(2, 10);
+        for (int i = 0; i < numSlices; i++) {
+            sliceList.add(
+                new LuceneSlice(i, false, shard, List.of(new PartialLeafReaderContext(leaf, 0, 100)), null, null, LuceneSlice.NEVER_BLOCKED)
+            );
+        }
+        LuceneSliceQueue queue = new LuceneSliceQueue(i -> shard, sliceList, Map.of());
+        queue.addReader();
+        queue.addReader();
+        LuceneSlice read = queue.nextSlice(null);
+        queue.finished(read);
+        assertThat(shard.unfinishedSlices(), equalTo(numSlices - 1));
+        queue.removeReader();
+        assertThat(shard.unfinishedSlices(), equalTo(numSlices - 1));
+        queue.removeReader();
+        assertThat(shard.unfinishedSlices(), equalTo(0));
+        assertNull(queue.nextSlice(null));
     }
 
     public void testRandom() throws Exception {
@@ -537,17 +635,56 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
     }
 
+    /**
+     * Rewriting the queries is charged to the shard and to the load of the task that creates the slices, before the pool
+     * charges the task.
+     */
+    public void testCreateSliceChargesTheLoadOfItsTask() throws Exception {
+        EsThreadPoolExecutor pool = EsExecutors.newFixed(
+            "test",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "load"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+        );
+        try (var directory = newDirectory(); var reader = simpleReader(directory, 1, 1)) {
+            var shardContext = new LuceneSourceOperatorTests.MockShardContext(reader);
+            long rewriteNanos = TimeUnit.MILLISECONDS.toNanos(1);
+            QueryLoad queryLoad = new QueryLoad();
+            PlainActionFuture<Long> chargedInTask = new PlainActionFuture<>();
+            pool.execute(ActionRunnable.supply(chargedInTask, () -> {
+                TaskLoadAttribution.attribute(queryLoad.charging((nanos, cpuNanos, finishNanos) -> {}));
+                LuceneSliceQueue.create(new IndexedByShardIdFromList<>(List.of(shardContext)), context -> {
+                    spin(rewriteNanos);
+                    return List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
+                },
+                    DataPartitioning.SEGMENT,
+                    (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SEGMENT,
+                    LuceneOperator.SMALL_INDEX_BOUNDARY,
+                    1,
+                    context -> ScoreMode.COMPLETE
+                );
+                return queryLoad.snapshot().loadNanos();
+            }));
+            assertThat(chargedInTask.get(10, TimeUnit.SECONDS), greaterThanOrEqualTo(rewriteNanos));
+            assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+        } finally {
+            ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        }
+    }
+
     public void testTimeSeriesPartitionerSingleSegment() throws IOException {
         var prefixes = new PartitionedDocValues.PrefixPartitions(3, new int[] { 0, 2, 3 }, new int[] { 0, 100, 300 });
         MultiReader reader = new MultiReader(new MockLeafReader(500, prefixes));
-        var partitioner = new LuceneSliceQueue.TimeSeriesPartitioner();
+
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1, 500);
+            List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), null, 1, 500);
             assertThat(slices, hasSize(1));
             assertThat(slices, contains(List.of(new PartialLeafReaderContext(reader.leaves().get(0), 0, 500))));
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 3, 200);
+            List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), null, 3, 200);
             assertThat(slices, hasSize(2));
             assertThat(
                 slices,
@@ -558,7 +695,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
             );
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 5, 100);
+            List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), null, 5, 100);
             assertThat(slices, hasSize(3));
             assertThat(
                 slices,
@@ -571,6 +708,80 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
     }
 
+    public void testTimeSeriesPartitionerWithRange() throws IOException {
+        var prefixes = new PartitionedDocValues.PrefixPartitions(3, new int[] { 0, 2, 3 }, new int[] { 0, 100, 300 });
+        MultiReader reader = new MultiReader(new MockLeafReader(500, prefixes));
+        LeafReaderContext leaf = reader.leaves().get(0);
+        int bits = PrefixedPartitionsWriter.PARTITION_PREFIX_BITS;
+        assertThat(
+            LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), new TsidPrefixRange(bits, 1, 3), 1, 500),
+            contains(List.of(new PartialLeafReaderContext(leaf, 100, 300)))
+        );
+        assertThat(
+            LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), new TsidPrefixRange(bits - 1, 1, 2), 5, 100),
+            contains(List.of(new PartialLeafReaderContext(leaf, 100, 300)), List.of(new PartialLeafReaderContext(leaf, 300, 500)))
+        );
+        assertThat(LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), new TsidPrefixRange(bits, 4, 9), 5, 100), hasSize(0));
+        expectThrows(
+            IllegalStateException.class,
+            () -> LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), new TsidPrefixRange(bits + 1, 5, 6), 1, 500)
+        );
+    }
+
+    public void testCreateWithTsidRange() throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig().setCodec(
+            TestUtil.alwaysDocValuesFormat(ES95TSDBDocValuesFormatFactory.create(randomBoolean(), randomBoolean(), true, null))
+        ).setIndexSort(new Sort(new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING)));
+        try (Directory directory = newDirectory(); IndexWriter writer = new IndexWriter(directory, config)) {
+            for (int firstByte = 1; firstByte <= 3; firstByte++) {
+                for (int i = 0; i < firstByte * 10; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(new byte[] { (byte) firstByte, 7, 7, 7 })));
+                    writer.addDocument(doc);
+                }
+            }
+            writer.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                Query query = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+                    .add(new TsidPrefixRangeQuery(new TsidPrefixRange(Byte.SIZE, 2, 3)), BooleanClause.Occur.FILTER)
+                    .build();
+                List<LuceneSlice> slices = slices(createQueue(reader, query, LuceneSliceQueue.PartitioningStrategy.TIME_SERIES));
+                assertThat(ranges(slices), contains("10..30"));
+                assertNotNull("the query still filters", TsidPrefixRangeQuery.find(slices.getFirst().weight().getQuery()));
+            }
+        }
+    }
+
+    private static LuceneSliceQueue createQueue(IndexReader reader, Query query, LuceneSliceQueue.PartitioningStrategy strategy) {
+        return LuceneSliceQueue.create(
+            new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            DataPartitioning.AUTO,
+            (ctx, q) -> strategy,
+            0,
+            between(1, 4),
+            ctx -> ScoreMode.COMPLETE_NO_SCORES
+        );
+    }
+
+    private static List<LuceneSlice> slices(LuceneSliceQueue queue) {
+        List<LuceneSlice> slices = new ArrayList<>();
+        for (LuceneSlice slice = queue.nextSlice(null); slice != null; slice = queue.nextSlice(slice)) {
+            slices.add(slice);
+        }
+        return slices;
+    }
+
+    private static List<String> ranges(List<LuceneSlice> slices) {
+        List<String> ranges = new ArrayList<>();
+        for (LuceneSlice slice : slices) {
+            for (PartialLeafReaderContext leaf : slice.leaves()) {
+                ranges.add(leaf.minDoc() + ".." + leaf.maxDoc());
+            }
+        }
+        return ranges;
+    }
+
     public void testTimeSeriesPartitionerMultipleSegments() throws IOException {
         var prefixes0 = new PartitionedDocValues.PrefixPartitions(2, new int[] { 0, 1 }, new int[] { 0, 100 });
         var prefixes1 = new PartitionedDocValues.PrefixPartitions(2, new int[] { 1, 6 }, new int[] { 0, 160 });
@@ -580,9 +791,9 @@ public class LuceneSliceQueueTests extends ESTestCase {
             new MockLeafReader(370, prefixes1),
             new MockLeafReader(801, prefixes2)
         );
-        var partitioner = new LuceneSliceQueue.TimeSeriesPartitioner();
+
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1, 1371);
+            List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), null, 1, 1371);
             assertThat(slices, hasSize(1));
             assertThat(
                 slices.get(0),
@@ -594,7 +805,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
             );
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 2, 750);
+            List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), null, 2, 750);
             assertThat(slices, hasSize(2));
             assertThat(
                 slices.get(0),
@@ -613,7 +824,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
             );
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 3, 500);
+            List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), null, 3, 500);
             assertThat(slices, hasSize(2));
             assertThat(
                 slices.get(0),
@@ -632,7 +843,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
             );
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 5, 200);
+            List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), null, 5, 200);
             assertThat(slices, hasSize(3));
             assertThat(
                 slices.get(0),
@@ -651,6 +862,95 @@ public class LuceneSliceQueueTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testRandomTimeSeriesPartition() throws IOException {
+        int shift = PrefixedPartitionsWriter.PARTITION_PREFIX_BITS - Byte.SIZE;
+        int maxDocsPerPartition = 50;
+        List<PartitionedDocValues.PrefixPartitions> partitions = new ArrayList<>();
+        List<MockLeafReader> readers = new ArrayList<>();
+        int[] metricDocs = new int[1 << Byte.SIZE];
+        int totalDocs = 0;
+        int partitionBits = PrefixedPartitionsWriter.PARTITION_PREFIX_BITS;
+        TsidPrefixRange tsidRange = null;
+        if (randomBoolean()) {
+            int prefixBits = between(1, partitionBits);
+            int lower = between(0, (1 << prefixBits) - 1);
+            tsidRange = new TsidPrefixRange(prefixBits, lower, between(lower + 1, 1 << prefixBits));
+        }
+        for (int leaf = between(1, 6); leaf > 0; leaf--) {
+            List<Integer> prefixes = new ArrayList<>();
+            List<Integer> startDocs = new ArrayList<>();
+            int maxDoc = 0;
+            for (int metric : new int[] { 0, 3, 255 }) {
+                if (rarely()) {
+                    continue;
+                }
+                for (int low = between(0, 200); low < 1 << shift; low += between(1, 100)) {
+                    int docs = between(1, maxDocsPerPartition);
+                    int prefix = (metric << shift) + low;
+                    prefixes.add(prefix);
+                    startDocs.add(maxDoc);
+                    maxDoc += docs;
+                    if (inRange(tsidRange, prefix, partitionBits)) {
+                        metricDocs[metric] += docs;
+                        totalDocs += docs;
+                    }
+                }
+            }
+            var leafPartitions = new PartitionedDocValues.PrefixPartitions(
+                prefixes.size(),
+                prefixes.stream().mapToInt(Integer::intValue).toArray(),
+                startDocs.stream().mapToInt(Integer::intValue).toArray()
+            );
+            partitions.add(leafPartitions);
+            readers.add(new MockLeafReader(maxDoc, leafPartitions));
+        }
+        MultiReader reader = new MultiReader(readers.toArray(MockLeafReader[]::new));
+        int taskConcurrency = between(1, 8);
+        int maxDocsPerLeave = between(1, 2000);
+        var slices = LuceneSliceQueue.TimeSeriesPartitioner.partition(reader.leaves(), tsidRange, taskConcurrency, maxDocsPerLeave);
+        Map<Integer, List<PartialLeafReaderContext>> sliceOfPrefix = new HashMap<>();
+        int previousMetric = -1;
+        int previousDocs = 0;
+        for (List<PartialLeafReaderContext> slice : slices) {
+            int metric = -1;
+            int sliceDocs = 0;
+            for (PartialLeafReaderContext range : slice) {
+                assertThat(range.maxDoc() - range.minDoc(), lessThan(maxDocsPerLeave + maxDocsPerPartition));
+                sliceDocs += range.maxDoc() - range.minDoc();
+                var leafPartitions = partitions.get(range.leafReaderContext().ord);
+                int numPartitions = leafPartitions.numPartitions();
+                for (int i = 0; i < numPartitions; i++) {
+                    int startDoc = leafPartitions.startDocs()[i];
+                    int endDoc = i + 1 < numPartitions ? leafPartitions.startDocs()[i + 1] : range.leafReaderContext().reader().maxDoc();
+                    if (startDoc < range.maxDoc() && endDoc > range.minDoc()) {
+                        int prefix = leafPartitions.prefixes()[i];
+                        assertTrue("prefix outside the range", inRange(tsidRange, prefix, partitionBits));
+                        assertSame(slice, sliceOfPrefix.computeIfAbsent(prefix, p -> slice));
+                        assertTrue("slice mixes metrics", metric == -1 || metric == prefix >>> shift);
+                        metric = prefix >>> shift;
+                    }
+                }
+            }
+            int docsPerSlice = Math.max(Math.ceilDiv(metricDocs[metric], taskConcurrency), maxDocsPerLeave);
+            assertThat(sliceDocs, lessThan(docsPerSlice + readers.size() * maxDocsPerPartition));
+            if (metric == previousMetric) {
+                assertThat(previousDocs, greaterThanOrEqualTo(maxDocsPerLeave));
+            }
+            previousMetric = metric;
+            previousDocs = sliceDocs;
+            totalDocs -= sliceDocs;
+        }
+        assertThat(totalDocs, equalTo(0));
+    }
+
+    private static boolean inRange(TsidPrefixRange range, int prefix, int partitionBits) {
+        if (range == null) {
+            return true;
+        }
+        int scaled = prefix >>> (partitionBits - range.prefixBits());
+        return scaled >= range.lower() && scaled < range.upper();
     }
 
     static class MockLeafReader extends LeafReader {
@@ -831,7 +1131,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
 
         @Override
         public int prefixPartitionBits() {
-            return 1;
+            return PrefixedPartitionsWriter.PARTITION_PREFIX_BITS;
         }
     }
 }

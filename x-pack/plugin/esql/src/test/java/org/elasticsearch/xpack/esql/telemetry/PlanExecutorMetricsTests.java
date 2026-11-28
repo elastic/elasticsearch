@@ -46,6 +46,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
+import org.elasticsearch.search.scheduling.QueryScheduler;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -134,6 +136,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     ) {
         ClusterService clusterService = createMockClusterService();
         return new TransportActionServices(
+            mock(Client.class),
             createMockTransportService(),
             mock(SearchService.class),
             null,
@@ -146,7 +149,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             IpLocationService.NOOP,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            cpsDecider
+            cpsDecider,
+            null
         );
     }
 
@@ -223,7 +227,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // test a failed query: xyz field doesn't exist
             request.query("from test | stats m = max(xyz)");
             request.allowPartialResults(false);
-            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen");
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> fail(
+                "this shouldn't happen"
+            );
             IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
                 "",
                 new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
@@ -245,6 +251,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     1,
                     () -> false,
+                    NoopCircuitBreaker.INSTANCE,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {
@@ -267,7 +274,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // fix the failing query: foo field does exist
             request.query("from test | stats m = max(foo)");
             var successExecutionInfo = createEsqlExecutionInfo(randomBoolean());
-            runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, successExecutionInfo)
             );
             try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
@@ -286,6 +293,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     1,
                     () -> false,
+                    NoopCircuitBreaker.INSTANCE,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {}
@@ -311,16 +319,21 @@ public class PlanExecutorMetricsTests extends ESTestCase {
      * transport action has to. The plan runner stands in for resolution and compute by charging the query-scoped
      * reservation and a {@link ExternalPlanningReservation.Run} it leaves open, so a missing release of either shows up
      * on a real request breaker.
+     * <p>
+     * The reservation charges the breaker of the query's coordination part, as the transport actions pass it, so the
+     * planning memory is the query's on the node and not only the node's: the block factory's breaker sees none of it.
      */
     public void testExternalPlanningReservationReleasedOnSuccessAndFailure() throws Exception {
-        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
-        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        CircuitBreaker requestBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
+        CircuitBreaker blockFactoryBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(blockFactoryBreaker).build();
         TransportActionServices services = createTransportActionServices(
             new UsageService(),
             CrossProjectModeDecider.NOOP,
             new BlockFactoryProvider(blockFactory)
         );
-        long baseline = breaker.getUsed();
+        QueryScheduler scheduler = new QueryScheduler(System::nanoTime, requestBreaker);
+        long baseline = requestBreaker.getUsed();
         long queryCharge = randomLongBetween(1, 64 * 1024);
         long runCharge = randomLongBetween(1, 64 * 1024);
 
@@ -331,27 +344,37 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.allowPartialResults(false);
 
             for (Outcome outcome : Outcome.values()) {
+                TaskId queryId = new TaskId("coordinator", randomNonNegativeLong());
                 var executionInfo = createEsqlExecutionInfo(randomBoolean());
                 AtomicReference<ExternalPlanningReservation.Run> openRun = new AtomicReference<>();
-                EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> {
+                EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> {
                     ExternalPlanningReservation reservation = executionInfo.externalPlanning();
                     reservation.chargeQuery(queryCharge);
                     // Left open on purpose: closing the query reservation must refund a run its owner never closed.
                     ExternalPlanningReservation.Run run = reservation.openRun();
                     run.charge(runCharge);
                     openRun.set(run);
-                    assertEquals(baseline + queryCharge + runCharge, breaker.getUsed());
+                    assertEquals(queryCharge + runCharge, scheduler.memoryBytes(queryId));
+                    assertEquals(baseline + queryCharge + runCharge, requestBreaker.getUsed());
+                    assertEquals(0L, blockFactoryBreaker.getUsed());
                     switch (outcome) {
                         case SUCCESS -> r.onResponse(createPlanRunnerResult(configuration, executionInfo));
                         case FAILURE -> r.onFailure(new IllegalStateException("simulated compute failure"));
                         case THROW -> throw new IllegalStateException("simulated synchronous failure");
                     }
                 };
-                PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
-                executeEsql(planExecutor, services, request, executionInfo, runPhase, future);
-                switch (outcome) {
-                    case SUCCESS -> future.actionGet();
-                    case FAILURE, THROW -> expectThrows(IllegalStateException.class, future::actionGet);
+                try (
+                    QueryScheduler.QueryPart coordination = scheduler.part(queryId, randomNonNegativeLong());
+                    InMemoryViewService viewService = InMemoryViewService.makeViewService()
+                ) {
+                    PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
+                    executeEsql(planExecutor, services, viewService, request, executionInfo, runPhase, coordination.breaker(), future);
+                    switch (outcome) {
+                        case SUCCESS -> future.actionGet();
+                        case FAILURE, THROW -> expectThrows(IllegalStateException.class, future::actionGet);
+                    }
+                    // Released before the caller is notified, so while the coordination part is still open.
+                    assertEquals(0L, scheduler.memoryBytes(queryId));
                 }
 
                 ExternalPlanningReservation reservation = executionInfo.externalPlanning();
@@ -359,12 +382,13 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 assertNotNull("plan runner did not run for " + outcome, openRun.get());
                 assertEquals(0L, reservation.queryHeld());
                 assertEquals(0L, openRun.get().held());
-                assertEquals(baseline, breaker.getUsed());
+                assertEquals(baseline, requestBreaker.getUsed());
                 expectThrows(IllegalStateException.class, reservation::openRun);
 
                 // A second close, e.g. from a caller that still releases it itself, must not refund again.
                 reservation.close();
-                assertEquals(baseline, breaker.getUsed());
+                assertEquals(baseline, requestBreaker.getUsed());
+                assertEquals("the query is forgotten once its part closes and its memory is released", 0, scheduler.queries());
             }
         }
     }
@@ -390,9 +414,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo1 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runTimeZonePhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
-                createPlanRunnerResult(configuration, executionInfo1)
-            );
+            EsqlSession.PlanRunner runTimeZonePhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r
+                .onResponse(createPlanRunnerResult(configuration, executionInfo1));
 
             executeEsql(planExecutor, request, executionInfo1, runTimeZonePhase, new ActionListener<>() {
                 @Override
@@ -417,9 +440,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET unmapped_fields=\"NULLIFY\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo2 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runUnmappedFieldsPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
-                createPlanRunnerResult(configuration, executionInfo2)
-            );
+            EsqlSession.PlanRunner runUnmappedFieldsPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r
+                .onResponse(createPlanRunnerResult(configuration, executionInfo2));
             executeEsql(planExecutor, request, executionInfo2, runUnmappedFieldsPhase, new ActionListener<>() {
                 @Override
                 public void onResponse(Versioned<Result> result) {}
@@ -443,9 +465,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"America/New_York\"; SET unmapped_fields=\"NULLIFY\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo3 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runBothSettingsPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
-                createPlanRunnerResult(configuration, executionInfo3)
-            );
+            EsqlSession.PlanRunner runBothSettingsPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r
+                .onResponse(createPlanRunnerResult(configuration, executionInfo3));
             executeEsql(planExecutor, request, executionInfo3, runBothSettingsPhase, new ActionListener<>() {
                 @Override
                 public void onResponse(Versioned<Result> result) {}
@@ -493,7 +514,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     viewService,
                     request,
                     executionInfo,
-                    (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                    (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> fail("this shouldn't happen"),
+                    NoopCircuitBreaker.INSTANCE,
                     listener
                 )
             );
@@ -524,7 +546,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; SET time_zone=\"America/New_York\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo1 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runDedupPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+            EsqlSession.PlanRunner runDedupPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r.onResponse(
                 createPlanRunnerResult(configuration, executionInfo1)
             );
 
@@ -546,9 +568,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET time_zone=\"UTC\"; SET time_zone=\"UTC\"; SET time_zone=\"UTC\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
             final var executionInfo2 = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runTripleSetPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
-                createPlanRunnerResult(configuration, executionInfo2)
-            );
+            EsqlSession.PlanRunner runTripleSetPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r
+                .onResponse(createPlanRunnerResult(configuration, executionInfo2));
             executeEsql(planExecutor, request, executionInfo2, runTripleSetPhase, new ActionListener<>() {
                 @Override
                 public void onResponse(Versioned<Result> result) {}
@@ -582,7 +603,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request.query("SET approximation=true; FROM test | STATS COUNT(foo)");
             request.allowPartialResults(false);
             var executionInfo = createEsqlExecutionInfo(randomBoolean());
-            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> r.onFailure(
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r.onFailure(
                 new IllegalStateException("skip approximation execution; telemetry collected at parse time")
             );
 
@@ -624,7 +645,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             var request = new EsqlQueryRequest();
             request.query("SET project_routing=\"test\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
-            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, r) -> fail(
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> fail(
                 "should not reach execution phase"
             );
 
@@ -742,7 +763,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     private EsqlSession.PlanRunner planRunnerFor(EsqlExecutionInfo executionInfo) {
-        return (role, p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(
+        return (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r.onResponse(
             createPlanRunnerResult(configuration, executionInfo)
         );
     }
@@ -766,7 +787,16 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         ActionListener<Versioned<Result>> listener
     ) {
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            executeEsql(planExecutor, services, viewService, request, executionInfo, runPhase, listener);
+            executeEsql(
+                planExecutor,
+                services,
+                viewService,
+                request,
+                executionInfo,
+                runPhase,
+                services.blockFactoryProvider().blockFactory().breaker(),
+                listener
+            );
         }
     }
 
@@ -777,6 +807,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         EsqlSession.PlanRunner runPhase,
+        CircuitBreaker planningBreaker,
         ActionListener<Versioned<Result>> listener
     ) {
         IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
@@ -798,6 +829,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             1,
             () -> false,
+            planningBreaker,
             listener
         );
     }
@@ -825,7 +857,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     IndexMode.STANDARD,
                     0,
                     0,
-                    0
+                    0,
+                    0,
+                    null
                 )
             );
         }

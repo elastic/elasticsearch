@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -85,6 +86,16 @@ public abstract class CoreTestTranslater {
         IpFieldMapper.CONTENT_TYPE,
         GeoPointFieldMapper.CONTENT_TYPE,
         NumberType.LONG.typeName()
+    );
+
+    /**
+     * Matches the deprecation warning that columnar index modes emit when the {@code doc_values: false} from
+     * {@link #dynamicTemplateToDisableRuntimeCompatibleFields()} is applied to one of the dynamic templates this translater registers.
+     * Columnar indices always have doc values so they ignore the parameter, but the template cannot tell which indices are columnar.
+     */
+    private static final Pattern IGNORED_DOC_VALUES_IN_DYNAMIC_TEMPLATE = Pattern.compile(
+        "The \\[doc_values\\] parameter of field \\[__dynamic__[a-z]+\\] is ignored in columnar index modes, "
+            + "because doc values are always enabled\\. Remove the parameter\\."
     );
 
     protected abstract Map<String, Object> dynamicTemplateFor();
@@ -190,9 +201,13 @@ public abstract class CoreTestTranslater {
                 String api = doSection.getApiCallSection().getApi();
                 switch (api) {
                     case "indices.create":
+                        allowIgnoredDocValuesWarnings(doSection);
                         if (false == modifyCreateIndex(doSection.getApiCallSection())) {
                             return false;
                         }
+                        break;
+                    case "indices.put_mapping":
+                        allowIgnoredDocValuesWarnings(doSection);
                         break;
                     case "search":
                     case "async_search.submit":
@@ -215,6 +230,16 @@ public abstract class CoreTestTranslater {
                 }
             }
             return true;
+        }
+
+        /**
+         * Allow the warning columnar indices emit for the {@code doc_values: false} that the registered dynamic templates carry.
+         * Creating an index or updating its mapping validates those templates, so either call can emit it.
+         */
+        private static void allowIgnoredDocValuesWarnings(DoSection doSection) {
+            List<Pattern> allowed = new ArrayList<>(doSection.getAllowedWarningHeadersRegex());
+            allowed.add(IGNORED_DOC_VALUES_IN_DYNAMIC_TEMPLATE);
+            doSection.setAllowedWarningHeadersRegex(allowed);
         }
 
         /**

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
@@ -20,6 +21,17 @@ import java.io.IOException;
 public final class PrefixedPartitionsReader {
     public static PartitionedDocValues.PrefixPartitions prefixPartitions(IndexInput dataIn, PartitionedDocValues.PrefixPartitions reused)
         throws IOException {
+        final int dataLength = Math.toIntExact(dataIn.length());
+        final byte[] bytes = new byte[dataLength];
+        dataIn.readBytes(bytes, 0, dataLength);
+        final ByteArrayDataInput bytesInput = new ByteArrayDataInput(bytes);
+        return prefixPartitions(bytesInput, reused);
+    }
+
+    private static PartitionedDocValues.PrefixPartitions prefixPartitions(
+        ByteArrayDataInput dataIn,
+        PartitionedDocValues.PrefixPartitions reused
+    ) {
         final int numPartitions = dataIn.readVInt();
         final int[] prefixes;
         final int[] startDocs;

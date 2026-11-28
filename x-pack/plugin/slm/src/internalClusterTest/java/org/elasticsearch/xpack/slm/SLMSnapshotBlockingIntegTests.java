@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -18,8 +19,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -35,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
@@ -59,8 +63,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -94,11 +98,17 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         masterNodeNames = internalCluster().startMasterOnlyNodes(2);
         dataNodeNames = internalCluster().startDataOnlyNodes(2);
         ensureGreen();
+        // A history write that is still buffered when the test ends can recreate .slm-history-* after the cluster is wiped
+        setSlmHistoryEnabled(false);
     }
 
     @After
     public void cleanUp() throws Exception {
         awaitNoMoreRunningOperations();
+    }
+
+    private static void setSlmHistoryEnabled(boolean enabled) {
+        updateClusterSettings(Settings.builder().put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), enabled));
     }
 
     @Override
@@ -163,6 +173,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     }
 
     public void testRetentionWhileSnapshotInProgress() throws Exception {
+        setSlmHistoryEnabled(true);
         final String indexName = "test";
         final String policyId = "slm-policy";
         int docCount = 20;
@@ -248,6 +259,10 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 ).get().isAcknowledged()
             );
 
+            // Retention picks the snapshots to delete asynchronously. Wait until it has queued the deletion of the
+            // completed snapshot, so it can't also pick the second snapshot once that one is unblocked and completes.
+            awaitNDeletionsInProgress(1);
+
             logger.info("--> unblocking snapshots");
             unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);
@@ -298,6 +313,15 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                     }
                 )
             );
+
+            // The second snapshot also writes one creation record, as a success or a failure. Wait for it so that
+            // no history write is still buffered when the cluster is wiped.
+            assertBusy(
+                () -> assertResponse(
+                    prepareSearch(".slm-history*").setQuery(QueryBuilders.termQuery("snapshot_name", secondSnapName)),
+                    resp -> assertThat(resp.getHits().getTotalHits().value(), equalTo(1L))
+                )
+            );
         } finally {
             unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);
@@ -332,14 +356,52 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             ExecuteSnapshotLifecycleAction.INSTANCE,
             new ExecuteSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyId)
         ).get();
-        // make sure the SLM history data stream is green and won't not be green for long because of delayed allocation when data nodes
-        // are stopped
-        ensureGreen(SLM_HISTORY_DATA_STREAM);
-        updateIndexSettings(
-            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0),
-            SLM_HISTORY_DATA_STREAM
-        );
         testUnsuccessfulSnapshotRetention(randomBoolean());
+    }
+
+    /** Verifies that losing mastership while an SLM snapshot is running can notify its failure listener from a state applier. */
+    public void testSnapshotFailureOnMasterStepDown() throws Exception {
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        indexRandomDocs(indexName, 20);
+        createRepository(REPO, "mock");
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true);
+
+        blockAllDataNodes(REPO);
+        try {
+            final String snapshotName = executePolicy(policyName);
+            waitForBlockOnAnyDataNode(REPO);
+            final String initialMaster = internalCluster().getMasterName();
+            final long initialTerm = internalCluster().getInstance(ClusterService.class, initialMaster).state().term();
+
+            // The data node blocks as soon as it applies the cluster state that adds the snapshot, which can happen before the master has
+            // finished publishing that state and registered SnapshotsService's finalization listener. The master failure triggered by
+            // startInitialJoin() occurs on the applier thread which can also precede the registration of the listener. If so, the listener
+            // is registered and then can be completed successfully by the re-elected master. Here we wait until that publication and its
+            // completion callbacks are done, so the listener is always registered before startInitialJoin() is called below.
+            assertNoTimeout(client(initialMaster).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID));
+
+            // Keep the snapshot out of finalization so SnapshotsService fails its listener immediately on losing mastership.
+            // Step down without stopping the node so its state applier notifies SLM's pending completion listener.
+            MockLog.awaitLogger(
+                () -> internalCluster().getInstance(Coordinator.class, initialMaster).startInitialJoin(),
+                SnapshotLifecycleTask.class,
+                new MockLog.SeenEventExpectation(
+                    "SLM handles the snapshot failure after stepping down",
+                    SnapshotLifecycleTask.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to create snapshot for snapshot lifecycle policy [" + policyName + "]"
+                )
+            );
+
+            awaitClusterState(initialMaster, state -> state.term() > initialTerm && state.nodes().getMasterNode() != null);
+            ensureStableCluster(masterNodeNames.size() + dataNodeNames.size());
+            unblockAllDataNodes(REPO);
+            awaitNoMoreRunningOperations();
+            assertSnapshotSuccessful(snapshotName);
+        } finally {
+            unblockAllDataNodes(REPO);
+        }
     }
 
     // Test that SLM stats and lastSuccess/lastFailure are correctly updated with master shutdown

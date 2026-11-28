@@ -1220,6 +1220,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         assert field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
         final long start = skip.getFilePointer();
         final SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         long globalMaxValue = Long.MIN_VALUE;
         long globalMinValue = Long.MAX_VALUE;
         int globalDocCount = 0;
@@ -1228,29 +1229,55 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final List<SkipAccumulator> accumulators = new ArrayList<>();
         SkipAccumulator accumulator = null;
         final int maxAccumulators = 1 << (formatConfig.skipIndexLevelShift() * (formatConfig.skipIndexMaxLevel() - 1));
-        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            final long firstValue = values.nextValue();
-            final int valueCount = values.docValueCount();
-            globalMaxValueCount = Math.max(globalMaxValueCount, valueCount);
-            if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), valueCount, firstValue, doc)) {
-                globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
-                globalMinValue = Math.min(globalMinValue, accumulator.minValue);
-                globalDocCount += accumulator.docCount;
-                maxDocId = accumulator.maxDocID;
-                accumulator = null;
-                if (accumulators.size() == maxAccumulators) {
-                    writeLevels(accumulators);
-                    accumulators.clear();
+        if (singleton != null) {
+            for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
+                final long value = singleton.longValue();
+                if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), 1, value, doc)) {
+                    globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
+                    globalMinValue = Math.min(globalMinValue, accumulator.minValue);
+                    globalDocCount += accumulator.docCount;
+                    maxDocId = accumulator.maxDocID;
+                    accumulator = null;
+                    if (accumulators.size() == maxAccumulators) {
+                        writeLevels(accumulators);
+                        accumulators.clear();
+                    }
                 }
+                if (accumulator == null) {
+                    accumulator = new SkipAccumulator(doc);
+                    accumulators.add(accumulator);
+                }
+                accumulator.nextDoc(doc);
+                accumulator.accumulate(value);
             }
-            if (accumulator == null) {
-                accumulator = new SkipAccumulator(doc);
-                accumulators.add(accumulator);
+            if (accumulator != null) {
+                globalMaxValueCount = 1;
             }
-            accumulator.nextDoc(doc);
-            accumulator.accumulate(firstValue);
-            for (int i = 1; i < valueCount; ++i) {
-                accumulator.accumulate(values.nextValue());
+        } else {
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                final long firstValue = values.nextValue();
+                final int valueCount = values.docValueCount();
+                globalMaxValueCount = Math.max(globalMaxValueCount, valueCount);
+                if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), valueCount, firstValue, doc)) {
+                    globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
+                    globalMinValue = Math.min(globalMinValue, accumulator.minValue);
+                    globalDocCount += accumulator.docCount;
+                    maxDocId = accumulator.maxDocID;
+                    accumulator = null;
+                    if (accumulators.size() == maxAccumulators) {
+                        writeLevels(accumulators);
+                        accumulators.clear();
+                    }
+                }
+                if (accumulator == null) {
+                    accumulator = new SkipAccumulator(doc);
+                    accumulators.add(accumulator);
+                }
+                accumulator.nextDoc(doc);
+                accumulator.accumulate(firstValue);
+                for (int i = 1; i < valueCount; ++i) {
+                    accumulator.accumulate(values.nextValue());
+                }
             }
         }
 

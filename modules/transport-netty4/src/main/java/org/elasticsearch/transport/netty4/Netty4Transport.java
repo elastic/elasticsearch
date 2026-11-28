@@ -387,7 +387,12 @@ public class Netty4Transport extends TcpTransport {
             getStatsTracker(),
             threadPool.relativeTimeInMillisSupplier(),
             new InboundDecoder(recycler),
-            new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+            new InboundAggregator(
+                getInflightBreaker(),
+                getRequestHandlers()::getHandler,
+                getResponseHandlers()::getHandler,
+                ignoreDeserializationErrors()
+            ),
             this::inboundMessage
         );
     }

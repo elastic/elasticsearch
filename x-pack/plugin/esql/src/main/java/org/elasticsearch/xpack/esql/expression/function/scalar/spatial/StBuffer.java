@@ -376,13 +376,12 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
     }
 
     @Override
-    public Object fold(FoldContext foldCtx) {
+    public Object doFold(Source source, FoldContext foldCtx) {
         var distanceExpression = distance.fold(foldCtx);
         double inputDistance = getInputDistance(distanceExpression);
         BufferParameters bp = bufferParameters();
         Object input = geometry.fold(foldCtx);
         return switch (input) {
-            case null -> null;
             case List<?> list -> {
                 Geometry jts = processor.asJtsGeometry(list);
                 yield UNSPECIFIED.jtsGeometryToWkb(bufferOp(jts, inputDistance, bp));

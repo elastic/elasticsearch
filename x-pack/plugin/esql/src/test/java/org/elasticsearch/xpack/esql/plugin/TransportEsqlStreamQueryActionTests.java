@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -53,6 +54,8 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class TransportEsqlStreamQueryActionTests extends ESTestCase {
 
@@ -433,6 +436,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -456,6 +460,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -487,6 +492,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -515,8 +521,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             (k, v) -> new EsqlExecutionInfo.Cluster(
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
-                "test",
-                false
+                "test"
             )
         );
         assertTrue("precondition: execution info must have metadata to report", executionInfo.hasMetadataToReport());
@@ -685,6 +690,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             50,
             200,
             300,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -717,6 +723,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -750,6 +757,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -766,5 +774,40 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         );
 
         assertTrue("is_partial must be true when completedWork.partial() is true", footer.isPartial());
+    }
+
+    private static DriverCompletionInfo usageWithBytesRead(long bytesRead) {
+        return new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            bytesRead,
+            0,
+            0,
+            0,
+            0,
+            SearchLoadMetrics.EMPTY,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
+    }
+
+    /**
+     * A query that failed has done what the computes that failed and the sub-plans that completed before them did; if its final
+     * compute completed, its completion info is everything it did, as it includes the intermediate computes.
+     */
+    public void testWorkDoneBeforeFailure() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(0L));
+        executionInfo.addFailedWork(usageWithBytesRead(1));
+        executionInfo.addFailedWork(usageWithBytesRead(10));
+        Result finalResult = new Result(List.of(), List.of(), null, null, usageWithBytesRead(100), executionInfo, null);
+
+        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, null).bytesRead(), equalTo(11L));
+        assertThat(TransportEsqlStreamQueryAction.workDoneBeforeFailure(executionInfo, finalResult).bytesRead(), equalTo(100L));
     }
 }

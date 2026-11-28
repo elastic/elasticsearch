@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -42,6 +44,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -105,6 +108,40 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
         assertThat(queryExec.query().toString(), is(expected.toString()));
     }
 
+    /**
+     * Inputs computed from metrics are filtered on the metric fields they read, which pushes down to Lucene as {@code exists} queries.
+     */
+    public void testPushdownOfComputedMetrics() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        String query = """
+            TS k8s
+            | EVAL tx = network.eth0.tx::double * 8, rx = network.eth0.rx::long
+            | STATS max(max_over_time(tx)), max(max_over_time(rx)) BY Bucket(@timestamp, 1 hour)
+            | LIMIT 10
+            """;
+        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(query);
+        EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+
+        QueryBuilder expected = boolQuery().should(unscore(existsQuery("network.eth0.tx"))).should(unscore(existsQuery("network.eth0.rx")));
+        assertThat(queryExec.query().toString(), is(expected.toString()));
+        assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
+    }
+
+    /**
+     * PromQL count and presence functions read a counter directly, so only documents with a value of the counter are read.
+     */
+    public void testPushdownOfPromqlCountAndPresenceOverCounter() {
+        assumeTrue("requires PROMQL command", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        for (String function : List.of("present_over_time", "absent_over_time", "count_over_time")) {
+            String query = "PROMQL index=k8s step=1h result=(" + function + "(network.total_bytes_in[1h]))";
+            PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(query);
+            EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+
+            assertNotNull(function, queryExec.query());
+            assertThat(function, queryExec.query().toString(), containsString(unscore(existsQuery("network.total_bytes_in")).toString()));
+        }
+    }
+
     public void testPushdownOfMixedAggregateMetricDoubleAndDoubleMetric() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
@@ -118,6 +155,26 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
         QueryBuilder expected = boolQuery().should(unscore(existsQuery("network.eth0.rx"))).should(unscore(existsQuery("network.eth0.rx")));
         assertThat(queryExec.query().toString(), is(expected.toString()));
         assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
+    }
+
+    /**
+     * An explicit cast of a field whose type differs between raw and downsampled indices becomes a union-typed field. It is still
+     * filtered, but after loading the values: unlike the implicit conversion above, the filter isn't pushed down to Lucene yet.
+     */
+    public void testFilterOfExplicitlyCastMixedAggregateMetricDoubleAndDoubleMetric() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
+        String query = """
+            TS k8s,k8s-downsampled
+            | EVAL rx = TO_AGGREGATE_METRIC_DOUBLE(network.eth0.rx)
+            | STATS avg(avg_over_time(rx)) BY Bucket(@timestamp, 1 hour)
+            | LIMIT 10
+            """;
+        PhysicalPlan actualPlan = mixedDownsampledPlanner().plan(query);
+        EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+        assertNull(actualPlan.toString(), queryExec.query());
+        FilterExec filter = (FilterExec) actualPlan.collect(node -> node instanceof FilterExec).get(0);
+        assertThat(actualPlan.toString(), filter.condition().anyMatch(IsNotNull.class::isInstance), is(true));
     }
 
     public void testPushdownOfAggregateMetricDoubleMetric() {

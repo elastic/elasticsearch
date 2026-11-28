@@ -33,8 +33,10 @@ import org.gradle.api.tasks.SourceSetContainer;
  *   dependsOn       generateEsqlSpecTests
  * }</pre>
  *
- * <p>Usage in {@code build.gradle}:
+ * <p>Usage in {@code build.gradle} ({@code restTests} is provided by the REST test plugins, so one of
+ * them must be applied as well):
  * <pre>{@code
+ * apply plugin: 'elasticsearch.internal-java-rest-test'
  * apply plugin: 'elasticsearch.esql-csv-spec-tests'
  *
  * esqlCsvSpecTests {
@@ -43,7 +45,7 @@ import org.gradle.api.tasks.SourceSetContainer;
  *     variant 'EsqlSpec', 'AbstractEsqlSpecIT'
  * }
  *
- * tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+ * restTests.register('csvSpecTests') {
  *     usesDefaultDistribution(...)
  *     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
  *     classpath       = sourceSets.csvSpecTest.runtimeClasspath

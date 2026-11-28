@@ -22,7 +22,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
-  implementation 'org.ow2.asm:asm:9.10.1'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
+  implementation 'org.ow2.asm:asm:9.11.1'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
   api project(':libs:arrow')
   api project(':libs:exponential-histogram')
   implementation project(':libs:swisshash')
@@ -30,6 +30,9 @@ dependencies {
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))
   testImplementation(project(xpackModule('esql-core')))
+  // TopN version-field tests use org.elasticsearch.xpack.versionfield; esql-core no longer re-exports
+  // mapper-version (it extends it), so depend on it directly for the test classpath.
+  testImplementation(project(path: xpackModule('mapper-version')))
   testImplementation(project(xpackModule('esql:compute:test'))) {
     /*
      * compute:test depends on this project's main code which is fine
@@ -641,7 +644,7 @@ tasks.named('stringTemplates').configure {
     }
   }
 
-  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"))
+  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"), true)
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), true, true, "All")
 
   File legacyIrateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-LegacyIrateAggregator.java.st")
@@ -1278,7 +1281,6 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForDoubleRange.java"
   }
 
-  // TODO: add {value}_over_time for other types: boolean, bytes_refs
   def generateTimestampAggregatorClasses = { inputFilename, includeBooleanV1 = false, includeIntegerV2 = false, prefix = "" ->
     def inputFile = file(inputFilename)
 
@@ -1325,7 +1327,7 @@ tasks.named('stringTemplates').configure {
     }
   }
 
-  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st")
+  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st", true)
   generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-AllValueByTimestampAggregator.java.st", true, true, "All")
 
   def generateAggregatorClassesOnConstantType = { inputFilename ->

@@ -22,6 +22,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsStaging;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -170,6 +172,7 @@ public final class StreamingParallelParsingCoordinator {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
@@ -235,6 +238,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks
     ) throws IOException {
         return parallelRead(
@@ -252,6 +256,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             StreamingSegmentatorAdmission.unbounded(),
             new NoopCircuitBreaker("streaming-parse-test"),
@@ -288,6 +293,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -310,6 +316,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -346,6 +353,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -368,6 +376,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -398,6 +407,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -428,6 +438,7 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(baseFileOffset, statsStripeSize, true)
                 .statsColumnScope(statsColumnScope)
+                .statsMaxExtremumBytes(statsMaxExtremumBytes)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)
                 .build();
@@ -449,6 +460,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -478,6 +490,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -499,6 +512,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -527,6 +541,7 @@ public final class StreamingParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
         CircuitBreaker breaker,
@@ -548,6 +563,7 @@ public final class StreamingParallelParsingCoordinator {
             captureSink,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             warningSinks,
             admission,
             breaker,
@@ -631,6 +647,8 @@ public final class StreamingParallelParsingCoordinator {
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
+        /** One mtime for the whole file: empty is a non-answer, null is not yet probed. */
+        private final AtomicReference<Optional<Instant>> pinnedSourceMtime = new AtomicReference<>();
 
         private final ArrayBlockingQueue<PoolBuffer> bufferPool;
         /**
@@ -702,6 +720,14 @@ public final class StreamingParallelParsingCoordinator {
         private final long statsStripeSize;
         /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
+        private final int statsMaxExtremumBytes;
+        /**
+         * Where the chunks of this read hand their pieces of a stripe, so a stripe several chunks observed is
+         * staged once rather than once per chunk. {@code null} when there is no sink to stage into or no stripe
+         * grid to address pieces on, and each chunk then publishes its own pieces. Shared across parser threads.
+         */
+        @Nullable
+        private final StripeStatsStaging stripeStaging;
         /**
          * Grow-loop bound. In production it comes from the {@code external_max_record_size} pragma (default
          * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
@@ -730,6 +756,11 @@ public final class StreamingParallelParsingCoordinator {
          * incremented. Null in production.
          */
         volatile IntConsumer afterOfferBeforeDispatchCount;
+        /**
+         * Test-only. Invoked on the parser thread after {@link #tasksOutstanding} is incremented in
+         * {@link #consumeChunk}. Null in production.
+         */
+        volatile Runnable afterConsumeChunkCount;
         /**
          * Bounds how far ahead of the consumer the segmentator may dispatch. {@link #pageQueues} is
          * indexed by {@code chunk.index % pageQueueRingSize}; without this semaphore a fast parser
@@ -826,6 +857,7 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             WarningSinks warningSinks
         ) {
             this(
@@ -843,6 +875,7 @@ public final class StreamingParallelParsingCoordinator {
                 captureSink,
                 statsStripeSize,
                 statsColumnScope,
+                statsMaxExtremumBytes,
                 warningSinks,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("streaming-parse-test"),
@@ -868,6 +901,7 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             WarningSinks warningSinks,
             StreamingSegmentatorAdmission admission,
             CircuitBreaker breaker,
@@ -890,6 +924,7 @@ public final class StreamingParallelParsingCoordinator {
                 captureSink,
                 statsStripeSize,
                 statsColumnScope,
+                statsMaxExtremumBytes,
                 warningSinks,
                 admission,
                 breaker,
@@ -915,6 +950,7 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             WarningSinks warningSinks,
             StreamingSegmentatorAdmission admission,
             CircuitBreaker breaker,
@@ -936,7 +972,9 @@ public final class StreamingParallelParsingCoordinator {
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
             this.statsStripeSize = statsStripeSize;
+            this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
             this.warningSinks = warningSinks;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
@@ -1032,29 +1070,81 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
+         * Cancels an in-flight {@code newStream} GET. Safe on the closer thread: it does not
+         * tear down a decoder the segmentator may still be reading.
+         */
+        private void cancelStorageOpen() {
+            if (storageObject != null) {
+                try {
+                    storageObject.close();
+                } catch (IOException e) {
+                    logger.warn(
+                        "Failed to close storage object for [{}]",
+                        ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+                        e
+                    );
+                }
+            }
+        }
+
+        /**
          * Releases {@link #decompressedStream} exactly once regardless of which path reaches it first
-         * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}).
-         * Uses abort semantics via {@link StorageObject#abortStream} when a {@link #storageObject} is
-         * available, so providers such as S3 can discard the underlying HTTP connection without draining
-         * the remaining response body. A no-op when the opener never ran ({@code decompressedStream} is
-         * still null) — does not CAS {@link #streamClosed} in that case so a racing segmentator can still
-         * close the stream it is about to assign.
+         * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}
+         * after tasks have exited). Always {@link StorageObject#close()} so a hung {@code newStream}
+         * GET is cancelled even when {@code decompressedStream} is still null. Then closes the
+         * assigned stream; the leaf decides drain vs drop. A no-op when the opener never ran
+         * ({@code decompressedStream} is still null) — does not CAS {@link #streamClosed} in that case
+         * so a racing segmentator can still close the stream it is about to assign.
+         * <p>
+         * Must run on the thread that owns the decoder (the segmentator) once a {@code DecompressedStream}
+         * exists. Parse {@link #close()} cancels hung opens via {@link StorageObject#close()} and aborts
+         * only the raw GET via {@link #abortTransport()}, leaving this CAS unset so this method still
+         * closes gzip/zstd on the owner thread.
          */
         private void closeStream() {
+            cancelStorageOpen();
             InputStream stream = decompressedStream;
             if (stream == null) {
                 return;
             }
             if (streamClosed.compareAndSet(false, true)) {
                 try {
-                    if (storageObject != null) {
-                        storageObject.abortStream(stream);
-                    } else {
-                        stream.close();
-                    }
-                } catch (IOException e) {
-                    logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
+                    stream.close();
+                } catch (Exception e) {
+                    logger.warn(
+                        "Failed to release stream for [{}]",
+                        storageObject != null ? ExternalFailures.redactHttpUrl(storageObject.path().toString()) : "<stream>",
+                        e
+                    );
                 }
+            }
+        }
+
+        /**
+         * Wakes a segmentator blocked in {@code stream.read()} without closing a gzip/zstd decoder
+         * from this thread and without claiming {@link #streamClosed}. For {@link DecompressingStorageObject}
+         * that is {@code rawOwner.abortStream(raw)}; otherwise {@link StorageObject#abortStream}.
+         */
+        private void abortTransport() {
+            InputStream stream = decompressedStream;
+            if (stream == null) {
+                return;
+            }
+            try {
+                if (DecompressingStorageObject.isDecompressedStream(stream)) {
+                    // Wrapper owns the raw GET even when this coordinator has no StorageObject.
+                    DecompressingStorageObject.abortRawTransport(stream);
+                } else if (storageObject != null) {
+                    storageObject.abortStream(stream);
+                } else {
+                    stream.close();
+                }
+            } catch (Exception e) {
+                logger.warn(
+                    "Failed to abort transport for [{}]",
+                    storageObject != null ? ExternalFailures.redactHttpUrl(storageObject.path().toString()) : "<stream>",
+                    e
+                );
             }
         }
 
@@ -1154,6 +1244,10 @@ public final class StreamingParallelParsingCoordinator {
                         pooled = takeOrAllocateBuffer();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        // Same as dispatchChunk's permit wait: interrupt is a failure, not EOF.
+                        // A silent break left producersDoneAndDrained true, so the drain completed
+                        // with a prefix and no error.
+                        recordFirstError(e);
                         break;
                     }
                     if (pooled == null) {
@@ -1172,7 +1266,9 @@ public final class StreamingParallelParsingCoordinator {
                     int bytesRead = readFromStream(stream, buf, offset, buf.length - offset);
                     if (bytesRead <= 0 && offset == 0) {
                         pooled.release();
-                        reachedEof = true;
+                        if (closed.get() == false) {
+                            reachedEof = true;
+                        }
                         break;
                     }
 
@@ -1313,7 +1409,11 @@ public final class StreamingParallelParsingCoordinator {
                     // parser pool cannot stall the consumer on missing POISON.
                 }
             } catch (Exception e) {
-                recordFirstError(e);
+                // close() aborts the stream to unblock a parked read(); the resulting failure is
+                // teardown, not a query failure. LIMIT / cancellation already has its rows.
+                if (closed.get() == false) {
+                    recordFirstError(e);
+                }
             } finally {
                 // Parser tasks may sit behind a pinned pool thread and never run. Inline whatever is
                 // still queued so EOF (including non-strict truncation) does not depend on those tasks.
@@ -1430,9 +1530,8 @@ public final class StreamingParallelParsingCoordinator {
                 // are missing. Log the real cause at WARN so the two can be connected — this is the only place
                 // it is visible.
                 logger.warn(
-                    () -> "could not read header columns from the first chunk of ["
-                        + (storageObject == null ? "<stream>" : storageObject.path())
-                        + "]",
+                    "could not read header columns from the first chunk of [{}]",
+                    storageObject == null ? "<stream>" : ExternalFailures.redactHttpUrl(storageObject.path().toString()),
                     e
                 );
             }
@@ -1502,7 +1601,7 @@ public final class StreamingParallelParsingCoordinator {
                     recordFirstError(e);
                     return DispatchOutcome.QUEUED_FAILED;
                 }
-                if (last) {
+                if (last && closed.get() == false) {
                     reachedEof = true;
                 }
                 return DispatchOutcome.SUBMITTED;
@@ -1584,6 +1683,10 @@ public final class StreamingParallelParsingCoordinator {
             tasksOutstanding.incrementAndGet();
             ArrayBlockingQueue<Page> queue = chunk == null ? null : pageQueues[chunk.index % pageQueueRingSize];
             try {
+                Runnable afterCount = afterConsumeChunkCount;
+                if (afterCount != null) {
+                    afterCount.run();
+                }
                 if (chunk == null || closed.get() || firstError.get() != null) {
                     return;
                 }
@@ -1633,6 +1736,8 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                 .statsColumnScope(statsColumnScope)
+                .statsMaxExtremumBytes(statsMaxExtremumBytes)
+                .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)
                 .build();
@@ -2421,6 +2526,36 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
+         * The source's last-modified, probed on first use and reused by every later chunk, so a store that
+         * serves no last-modified costs one metadata request per file rather than one per chunk -- GCS,
+         * Azure and http/https all re-enter {@code fetchMetadata()} whenever their {@code cachedLastModified}
+         * is still null, which for such an object is every call, and S3 is the one store that memoizes the
+         * non-answer. Either non-answer is final for this read, as it is for the row readers, which probe
+         * once at open and stop caching the file on a null or a throw.
+         */
+        @Nullable
+        private Instant pinnedSourceMtime() {
+            Optional<Instant> cached = pinnedSourceMtime.get();
+            if (cached == null) {
+                Optional<Instant> probed;
+                try {
+                    probed = Optional.ofNullable(storageObject.lastModified());
+                } catch (IOException e) {
+                    probed = Optional.empty(); // No pin, so the publish guard leaves the file a safe miss.
+                    // The throwable stays out: a store's own message can quote the signed URL back.
+                    logger.debug(
+                        "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                        ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+                        e.getClass().getSimpleName()
+                    );
+                }
+                pinnedSourceMtime.compareAndSet(null, probed);
+                cached = pinnedSourceMtime.get();
+            }
+            return cached.orElse(null);
+        }
+
+        /**
          * Test-only accessor: returns {@code true} when at least one thread is parked on
          * {@link #dispatchPermits}. Used by close-path tests to deterministically wait for the
          * segmentator to reach the permit-acquire blocking site instead of relying on wall-clock sleeps.
@@ -2436,13 +2571,10 @@ public final class StreamingParallelParsingCoordinator {
             // the chunk under a fabricated mtime — risking a stale warm hit if the file later changes. A null
             // mtime leaves pinnedMtimeMillis at -1, so the chunk's stats are uncacheable (safe-miss). A real
             // last-modified (including a genuine EPOCH) still flows through and stays cacheable.
+            // Only a read that harvests needs the stamp, so one that does not never probes.
             Instant mtime = null;
-            if (storageObject != null) {
-                try {
-                    mtime = storageObject.lastModified();
-                } catch (IOException e) {
-                    // Fall back to null — the chunk cannot be safely cached without a pinned mtime.
-                }
+            if (storageObject != null && captureSink != null && statsColumnScope != StripeColumnScope.NONE) {
+                mtime = pinnedSourceMtime();
             }
             return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
         }
@@ -2453,7 +2585,10 @@ public final class StreamingParallelParsingCoordinator {
          * <p>
          * Phase 1: CAS {@code closed} to {@code true} (causes any in-flight parser task to bail on
          * its {@code firstError || closed} check and the segmentator to skip its next iteration), wake
-         * any segmentator parked on {@link #dispatchPermits}, and drain whatever is already queued.
+         * any segmentator parked on {@link #dispatchPermits}, abort the raw GET so a segmentator
+         * blocked in {@code stream.read()} (slow S3, retry, zstd decode) can exit, and drain whatever
+         * is already queued. Abort is transport-only: a {@code DecompressedStream} decoder is closed
+         * later on the segmentator thread, not here.
          * <p>
          * Phase 2: poll {@link #tasksOutstanding} for up to {@link #CLOSE_TIMEOUT_SECONDS} so all
          * one-shot parser tasks (and the segmentator) have a chance to exit cleanly, then drain again
@@ -2463,8 +2598,10 @@ public final class StreamingParallelParsingCoordinator {
          * deadline we log a warning and run the second drain anyway, but parser tasks may still be
          * alive at return time. Any pages they publish after that — and any blocks those pages
          * reference — are leaked. We do not interrupt the parser executor: it is shared and an
-         * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make
-         * the leak window an exceptional condition; production workloads should not hit it.
+         * interrupt could disrupt unrelated tasks. Aborting the stream first makes the 60s wait apply
+         * to parser tasks that cannot be interrupted, not to a blocked upstream read. The timeout is
+         * intentionally generous to make the leak window an exceptional condition; production
+         * workloads should not hit it.
          */
         @Override
         public void close() throws IOException {
@@ -2483,6 +2620,12 @@ public final class StreamingParallelParsingCoordinator {
             // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
+            // Cancel a hung {@code newStream} and abort an assigned body GET before waiting.
+            // A segmentator blocked in stream.read() never observes {@code closed} until the read
+            // returns. Do not close the decompressed stream on this thread: the segmentator may
+            // still be inside the decoder.
+            cancelStorageOpen();
+            abortTransport();
             drainAllQueues();
             boolean neverStarted = admissionHandle.cancel();
             if (neverStarted) {
@@ -2509,10 +2652,20 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 drainAllQueues();
             }
-            // Backstop for never-started (no-op while the stream is still null) and for any path that
-            // did not closeStream itself. Skip-CAS-when-null lets a racing segmentator still close
-            // a stream it assigns after this read.
-            closeStream();
+            // Stage whatever stripes this read left partly covered, for the coordinator's interval cover —
+            // the only place that can tell whether another read completes them. The wait above USUALLY means
+            // every parser has finished, but it can time out and leave one running, so a piece may arrive after
+            // this and never be staged. That costs coverage, not correctness, and only on a path that has
+            // already failed cleanCompletion and poisons the file anyway.
+            if (stripeStaging != null) {
+                stripeStaging.flush();
+            }
+            // Backstop: early cancelStorageOpen cancelled a hung GET. Close the decompressed stream
+            // only once the segmentator has exited so this thread does not free native decoder
+            // state still in use. A timed-out segmentator closes the stream in its own finally.
+            if (neverStarted || tasksOutstanding.get() == 0) {
+                closeStream();
+            }
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
             // parser, including any dispatched in the close race window) and the consumer's currentChunk
             // is fixed. Clean = no error, the segmentator reached EOF, and the consumer drained every
@@ -2556,6 +2709,7 @@ public final class StreamingParallelParsingCoordinator {
             for (GrowBuffer buf : growBuffers) {
                 buf.release();
             }
+            FormatReaders.closeDistinctFrom(reader, originalReader);
         }
 
         private void poisonCapturedStats(String path) {

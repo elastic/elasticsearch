@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
@@ -49,6 +50,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
     private final IndicesService indicesService;
+    private final IndexSettingProviders indexSettingProviders;
 
     @Inject
     public TransportUpdateDataStreamMappingsAction(
@@ -60,7 +62,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         MetadataDataStreamsService metadataDataStreamsService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
-        IndicesService indicesService
+        IndicesService indicesService,
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             UpdateDataStreamMappingsAction.NAME,
@@ -77,6 +80,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
         this.indicesService = indicesService;
+        this.indexSettingProviders = indexSettingProviders;
     }
 
     @Override
@@ -119,8 +123,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                             dataStreamName,
                             false,
                             Strings.hasText(e.getMessage()) ? e.getMessage() : e.toString(),
-                            Mapping.EMPTY.toCompressedXContent(),
-                            Mapping.EMPTY.toCompressedXContent()
+                            Mapping.emptyCompressed(),
+                            Mapping.emptyCompressed()
                         )
                     );
                     countDownListener.onResponse(null);
@@ -145,8 +149,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                     dataStreamName,
                     false,
                     "Cannot update a system data stream",
-                    Mapping.EMPTY.toCompressedXContent(),
-                    Mapping.EMPTY.toCompressedXContent()
+                    Mapping.emptyCompressed(),
+                    Mapping.emptyCompressed()
                 )
             );
             return;
@@ -167,7 +171,11 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 true,
                                 null,
                                 mappingsOverrides,
-                                dataStream.getEffectiveMappings(clusterService.state().metadata().getProject(projectId), indicesService)
+                                dataStream.getEffectiveMappings(
+                                    clusterService.state().metadata().getProject(projectId),
+                                    indicesService,
+                                    indexSettingProviders
+                                )
                             )
                         );
                     } catch (IOException e) {
@@ -176,8 +184,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 dataStreamName,
                                 false,
                                 e.getMessage(),
-                                Mapping.EMPTY.toCompressedXContent(),
-                                Mapping.EMPTY.toCompressedXContent()
+                                Mapping.emptyCompressed(),
+                                Mapping.emptyCompressed()
                             )
                         );
                     }
@@ -187,8 +195,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                             dataStreamName,
                             false,
                             "Updating mappings not accepted for unknown reasons",
-                            Mapping.EMPTY.toCompressedXContent(),
-                            Mapping.EMPTY.toCompressedXContent()
+                            Mapping.emptyCompressed(),
+                            Mapping.emptyCompressed()
                         )
                     );
                 }

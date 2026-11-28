@@ -125,14 +125,6 @@ public class ParquetPushdownMaskGridTests extends ESTestCase {
                 layoutBuilder.append(List.of(y));
                 Layout layout = layoutBuilder.build();
                 for (Expression leaf : leaves(fixture, x, y)) {
-                    if (fixture.type() == DataType.DOUBLE && isMultivalueForm(leaf) == false) {
-                        // The scalar arms order doubles with Double.compare, which separates -0.0 from 0.0 and ranks NaN
-                        // above every value, while the engine's own evaluators compare with primitive operators. That
-                        // mismatch predates this change and drops rows for `d == -0.0` and for NOT over a comparison on a
-                        // NaN row. The multivalue forms decline on a double block rather than inherit it, which is what
-                        // this grid holds them to; the scalar defect is tracked separately.
-                        continue;
-                    }
                     for (Expression expr : wrappers(leaf, x, fixture)) {
                         boolean[] truth = oracle(expr, page, layout);
                         if (truth == null) {
@@ -220,10 +212,6 @@ public class ParquetPushdownMaskGridTests extends ESTestCase {
             }
         }
         return leaves;
-    }
-
-    private static boolean isMultivalueForm(Expression leaf) {
-        return leaf instanceof MvContains || leaf instanceof MvIntersects || leaf instanceof MvInRange || leaf instanceof MvCompare;
     }
 
     /** The leaf bare, negated, and under each connective with an arm the reader can also evaluate. */

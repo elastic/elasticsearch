@@ -1,0 +1,64 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "serial_event_id": {
+            "type": "long"
+        },
+        "event_type": {
+            "type": "keyword"
+        },
+        "event_type_full": {
+            "type": "keyword"
+        },
+        "event_subtype_full": {
+            "type": "keyword"
+        },
+        "subtype": {
+            "type": "keyword"
+        },
+        "opcode": {
+            "type": "long"
+        },
+        "pid": {
+            "type": "long"
+        },
+        "ppid": {
+            "type": "long"
+        },
+        "unique_pid": {
+            "type": "long"
+        },
+        "unique_ppid": {
+            "type": "long"
+        },
+        "process_name": {
+            "type": "keyword"
+        },
+        "parent_process_name": {
+            "type": "keyword"
+        },
+        "user_name": {
+            "type": "keyword"
+        },
+        "user_domain": {
+            "type": "keyword"
+        },
+        "exit_code": {
+            "type": "long"
+        },
+        "event": {
+            "properties": {
+                "category": {
+                    "type": "alias",
+                    "path": "event_type"
+                },
+                "sequence": {
+                    "type": "alias",
+                    "path": "serial_event_id"
+                }
+            }
+        }
+    }
+}

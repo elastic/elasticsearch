@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -19,7 +20,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
-import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.time.Instant;
 import java.util.List;
@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
+import static org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAction.getRequiredParam;
 
 /**
  * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/query} instant query endpoint.
@@ -99,41 +100,32 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
             ? PromqlParserUtils.parseDate(Source.EMPTY, timeStr)
             : Instant.now();
 
-        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement(
-            query,
+        var esqlRequest = new PromqlQueryRequest(
             index,
-            evaluationTime,
-            PrometheusQueryResponseListener.QueryMode.INSTANT
+            () -> PromqlQueryPlanBuilder.buildStatement(query, index, evaluationTime, PrometheusQueryResponseListener.QueryMode.INSTANT),
+            query,
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit
         );
-        if (result.stringValue() != null) {
-            // a string literal: the response is the literal itself, no statement runs
-            String value = result.stringValue();
-            return channel -> channel.sendResponse(
-                new RestResponse(RestStatus.OK, PrometheusQueryResponseListener.buildStringResult(evaluationTime, value))
-            );
-        }
-        var esqlRequest = new PromqlQueryRequest(index, result.esqlStatement(), query, LIMIT_PARAM, limit == DEFAULT_LIMIT ? null : limit);
 
-        return channel -> PromqlQueryExecutor.execute(
-            client,
-            request.getHttpChannel(),
-            esqlRequest,
-            timeout,
-            new PrometheusQueryResponseListener(
+        return channel -> {
+            var queryListener = new PrometheusQueryResponseListener(
                 channel,
-                result.resultType(),
+                () -> esqlRequest.result().resultType(),
                 PrometheusQueryResponseListener.QueryMode.INSTANT,
                 limit == 0 ? Integer.MAX_VALUE : limit
-            )
-        );
+            );
+            PromqlQueryExecutor.execute(client, request.getHttpChannel(), esqlRequest, timeout, ActionListener.wrap(response -> {
+                String value = esqlRequest.result().stringValue();
+                if (value == null) {
+                    queryListener.onResponse(response);
+                } else {
+                    // a string literal: the response is the literal itself
+                    channel.sendResponse(
+                        new RestResponse(RestStatus.OK, PrometheusQueryResponseListener.buildStringResult(evaluationTime, value))
+                    );
+                }
+            }, queryListener::onFailure));
+        };
     }
-
-    private static String getRequiredParam(RestRequest request, String name) {
-        String value = request.param(name);
-        if (value == null || value.isEmpty()) {
-            throw new IllegalArgumentException("required parameter \"" + name + "\" is missing");
-        }
-        return value;
-    }
-
 }

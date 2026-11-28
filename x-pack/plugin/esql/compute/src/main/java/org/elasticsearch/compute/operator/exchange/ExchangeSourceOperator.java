@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -107,6 +108,14 @@ public class ExchangeSourceOperator extends SourceOperator {
             "exchange_source",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("pages_waiting", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         private final int pagesWaiting;
         private final int pagesEmitted;
@@ -148,13 +157,17 @@ public class ExchangeSourceOperator extends SourceOperator {
             return rowsEmitted;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("pages_waiting", pagesWaiting);
             builder.field("pages_emitted", pagesEmitted);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

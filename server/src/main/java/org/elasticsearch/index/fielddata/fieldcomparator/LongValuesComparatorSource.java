@@ -9,9 +9,12 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -23,6 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.DocValuesSkippers;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -137,11 +141,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
-                        if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false) {
+                        if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
+                        // the tail holds the best hits only if every document has one value, which the last one confirms
+                            || lastDocumentHasSingleValue(context, fieldname) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
-                        int start = context.reader().numDocs() - numHits - 1;
+                        int start = Math.max(0, context.reader().numDocs() - numHits - 1);
                         return new CompetitiveDISIBuilder(this) {
                             @Override
                             protected int docCount() {
@@ -252,7 +258,26 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         };
     }
 
-    // Checks that the current segment is either directly sorted by descending timestamp,
+    /**
+     * Whether the segment's last document has a value and no document has more than one, so that the index sort and the search
+     * sort order documents by the same value.
+     */
+    private boolean lastDocumentHasSingleValue(LeafReaderContext context, String field) throws IOException {
+        final int last = context.reader().maxDoc() - 1;
+        if (indexFieldData != null) {
+            final SortedNumericLongValues values = indexFieldData.load(context).getLongValues();
+            return values.isSingleton() && values.advanceExact(last);
+        }
+        final NumericDocValues values = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), field));
+        return values != null && values.advanceExact(last);
+    }
+
+    private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {
+        return values.advanceExact(0) && values.advanceExact(maxDoc - 1);
+    }
+
+    // Checks that the current segment is either directly sorted by descending timestamp (with missing values last, or with no
+    // missing values at all),
     // or that it is sorted by host.name and then timestamp, where host.name has either no
     // values or only a single value, so timestamp is effectively the primary sort.
     private static boolean segmentSortedByDescTimestamp(LeafReaderContext context) throws IOException {
@@ -264,7 +289,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             if ("@timestamp".equals(sortField.getField())) {
                 if (sortField.getMissingValue() != null) {
                     long missingValue = (long) sortField.getMissingValue();
-                    if (missingValue != Long.MIN_VALUE) {
+                    // Missing-first only matters if some documents lack a @timestamp, otherwise the segment order is the same.
+                    if (missingValue != Long.MIN_VALUE && allDocsHaveValue(context.reader(), "@timestamp") == false) {
                         return false;
                     }
                 }
@@ -278,6 +304,16 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return false;
     }
 
+    // Whether every document of the segment has a value for the field, false if that can't be determined cheaply.
+    private static boolean allDocsHaveValue(LeafReader reader, String field) throws IOException {
+        DocValuesSkipper skipper = DocValuesSkippers.get(reader, field);
+        if (skipper != null) {
+            return skipper.docCount() == reader.maxDoc();
+        }
+        PointValues points = reader.getPointValues(field);
+        return points != null && points.getDocCount() == reader.maxDoc();
+    }
+
     private static boolean isHostNameSingletonInSegment(LeafReaderContext context, SortField sortField) throws IOException {
         if (Objects.equals(sortField.getField(), "host.name") == false) {
             return false;
@@ -285,7 +321,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         LeafReader reader = context.reader();
         SortedSetDocValues ssdv = reader.getSortedSetDocValues("host.name");
         if (ssdv != null) {
-            return ssdv.getValueCount() == 1;
+            // host.name can only have one value and all documents must have a value.
+            // host.name is primary sort, but sort direction is unknown, so check both ends.
+            return ssdv.getValueCount() == 1 && firstAndLastDocumentsHaveValue(ssdv, reader.maxDoc());
         }
         if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {
             BinaryDocValues bdv = reader.getBinaryDocValues("host.name");

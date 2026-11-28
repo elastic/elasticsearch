@@ -39,6 +39,8 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
@@ -252,6 +254,14 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     /** Return true if the provided field may have multiple values per document in the leaf **/
     private static boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
+        // Binary doc values sort as STRING too, but have no SORTED_SET doc values to ask below, which would read as single-valued.
+        if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {
+            return binarySortField.isMaybeMultiValued(context.reader());
+        }
+        // Likewise a ColumNAR numeric column sorts as a number but has no SORTED_NUMERIC doc values.
+        if (sortField instanceof ColumnarNumericSortField columnarSortField) {
+            return columnarSortField.isMaybeMultiValued(context.reader());
+        }
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
         return switch (type) {
             case STRING -> {
@@ -288,7 +298,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                 || source.missingBucket
                 || indexSortField.getField().equals(source.fieldType.name()) == false
                 || isMaybeMultivalued(context, indexSortField)
-                || sourceConfig.hasScript()) {
+                || sourceConfig.hasScript()
+                // applySortFieldRounding can only round a SortedNumericSortField; a ColumNAR numeric column's sort isn't one.
+                || (sourceConfig.valuesSource() instanceof RoundingValuesSource
+                    && indexSortField instanceof SortedNumericSortField == false)) {
                 break;
             }
 
@@ -354,7 +367,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
                     @Override
                     public FieldComparator<?> getComparator(int numHits, Pruning enableSkipping) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), Pruning.NONE) {
+                        // Documents without a value must compare as the index sort placed them, or the search for the first
+                        // document after the after key, which assumes the comparator follows the index order, goes astray.
+                        Long missing = (Long) delegate.getMissingValue();
+                        return new LongComparator(1, delegate.getField(), missing, delegate.getReverse(), Pruning.NONE) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {

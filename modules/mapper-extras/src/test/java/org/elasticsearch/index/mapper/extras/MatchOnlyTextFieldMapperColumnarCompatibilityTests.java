@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -256,6 +257,22 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"value\"}", "{\"f\":null}"));
+    }
+
+    /** A nullability=false field that is missing, null, or an array with no non-null value goes in _ignored under on_failure=ignore. */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String values = "[\"" + randomAlphanumericOfLength(5) + "\",\"" + randomAlphanumericOfLength(5) + "\"]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "match_only_text").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch(
+                "required field without a value",
+                1L,
+                doc("d1", 1L, "{\"f\":" + values + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[]", "[[]]", "[null]", "[null,null]") + "}")
+            ),
+            batch("missing and null", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":null}"))
+        );
     }
 
     public void testAllPresentDenseMultiValueFalse() throws IOException {

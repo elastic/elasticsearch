@@ -62,7 +62,6 @@ public class VectorScorerBFloat16OperationBenchmark {
     float[] floatsB;
     float[] scratchA;
     float[] scratchB;
-    MemorySegment heapSegA, heapSegB;
     MemorySegment nativeSegA, nativeSegB;
 
     Arena arena;
@@ -94,11 +93,6 @@ public class VectorScorerBFloat16OperationBenchmark {
             floatsB[i] = random.nextFloat();
             bfloatsBShorts.put(BFloat16.floatToBFloat16(floatsB[i]));
         }
-        heapSegA = MemorySegment.ofArray(bFloatsA);
-        heapSegB = switch (queryType) {
-            case BFLOAT16 -> MemorySegment.ofArray(bFloatsB);
-            case FLOAT32 -> MemorySegment.ofArray(floatsB);
-        };
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate(bFloatsA.length);
@@ -149,21 +143,6 @@ public class VectorScorerBFloat16OperationBenchmark {
             case EUCLIDEAN -> switch (queryType) {
                 case FLOAT32 -> VEC_LIBRARY.squareDistanceDBF16QF32(nativeSegA, nativeSegB, size);
                 case BFLOAT16 -> VEC_LIBRARY.squareDistanceDBF16QBF16(nativeSegA, nativeSegB, size);
-            };
-            default -> throw new IllegalArgumentException(function.toString());
-        };
-    }
-
-    @Benchmark
-    public float nativeWithHeapSeg() {
-        return switch (function) {
-            case DOT_PRODUCT -> switch (queryType) {
-                case FLOAT32 -> VEC_LIBRARY.dotProductDBF16QF32(heapSegA, heapSegB, size);
-                case BFLOAT16 -> VEC_LIBRARY.dotProductDBF16QBF16(heapSegA, heapSegB, size);
-            };
-            case EUCLIDEAN -> switch (queryType) {
-                case FLOAT32 -> VEC_LIBRARY.squareDistanceDBF16QF32(heapSegA, heapSegB, size);
-                case BFLOAT16 -> VEC_LIBRARY.squareDistanceDBF16QBF16(heapSegA, heapSegB, size);
             };
             default -> throw new IllegalArgumentException(function.toString());
         };

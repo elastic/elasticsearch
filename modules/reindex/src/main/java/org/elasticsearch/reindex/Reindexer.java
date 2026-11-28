@@ -767,8 +767,15 @@ public class Reindexer {
                 // to when we're shutting down. But outside of those, the available node(s) to relocate to that made reindex stop to
                 // relocate could've died or gotten a shutdown request. Do best-effort relocation to a shutting-down node which might
                 // wait for reindex to complete or relocate again.
-                logger.warn("no node available to relocate reindex task [{}] to, trying nodes marked for shutdown", task.getId());
-                return relocationNodePicker.pickNode(clusterState.nodes(), NodesShutdownMetadata.EMPTY);
+                final var shuttingDownTargetNode = relocationNodePicker.pickNode(clusterState.nodes(), NodesShutdownMetadata.EMPTY);
+                shuttingDownTargetNode.ifPresent(
+                    nodeId -> logger.warn(
+                        "no node available to relocate reindex task [{}] to, relocating to node [{}] marked for shutdown",
+                        task.getId(),
+                        nodeId
+                    )
+                );
+                return shuttingDownTargetNode;
             }).map(clusterState.nodes()::get).orElse(null);
             if (nodeToRelocateToNode == null) {
                 final var noNodeToRelocateTo = new IllegalStateException(
@@ -1031,7 +1038,8 @@ public class Reindexer {
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
                 requestBreaker,
-                "reindex_bulk_batch"
+                "reindex_bulk_batch",
+                "reindex_search_hits"
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
             this.destinationSliceEnabled = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && destinationSliceEnabled(state);
@@ -1226,20 +1234,21 @@ public class Reindexer {
          * Override the simple copy behavior to allow more fine grained control.
          */
         @Override
-        protected void copyRouting(RequestWrapper<?> request, String routing) {
+        protected void copyRouting(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
             final IndexRequest dest = mainRequest.getDestination();
+            final String routing = doc.getRouting();
             // A destination [_slice] routes every reindexed document to the given slice value.
             if (dest.isRoutingFromSlice()) {
-                super.copyRouting(request, dest.routing());
+                request.setRouting(dest.routing());
                 request.setRoutingFromSlice(true);
                 return;
             }
-            // When the source is read in slice mode and the user did not explicitly request a [routing] behavior, decide based on the
-            // destination: a slice-enabled destination preserves each document's source slice; a non-slice-enabled destination drops the
-            // slice value so it is not silently persisted as ordinary routing.
-            if (mainRequest.getSearchRequest().isRoutingFromSlice() && dest.routing() == null) {
+            // When the hit is a slice of a slice-enabled index and the user did not explicitly request a [routing] behavior, decide
+            // based on the destination: a slice-enabled destination preserves each document's source slice; a non-slice-enabled
+            // destination drops the slice value so it is not silently persisted as ordinary routing.
+            if (doc.isRoutingFromSlice() && dest.routing() == null) {
                 if (destinationSliceEnabled) {
-                    super.copyRouting(request, routing);
+                    request.setRouting(routing);
                     request.setRoutingFromSlice(true);
                 } else {
                     // Dropping the slice value means documents that were kept distinct by their slice in the source (a slice-enabled
@@ -1247,7 +1256,7 @@ public class Reindexer {
                     // overwrite each other. This is expected: reindexing several source slices into a single unsliced index cannot
                     // preserve that separation, and it differs from the [routing: discard] case below where collisions only happen
                     // when the colliding ids route to the same shard.
-                    super.copyRouting(request, null);
+                    request.setRouting(null);
                     request.setRoutingFromSlice(false);
                 }
                 return;
@@ -1255,23 +1264,23 @@ public class Reindexer {
             // Otherwise fall back to the standard [routing] handling. Slice provenance never applies on this path.
             String routingSpec = dest.routing();
             if (routingSpec == null) {
-                super.copyRouting(request, routing);
+                request.setRouting(routing);
                 // Prevent saying "routing from slice" on empty routing on write, as this is invalid
                 request.setRoutingFromSlice(false);
                 return;
             }
             if (routingSpec.startsWith("=")) {
-                super.copyRouting(request, routingSpec.substring(1));
+                request.setRouting(routingSpec.substring(1));
                 request.setRoutingFromSlice(false);
                 return;
             }
             switch (routingSpec) {
                 case "keep" -> {
-                    super.copyRouting(request, routing);
+                    request.setRouting(routing);
                     request.setRoutingFromSlice(false);
                 }
                 case "discard" -> {
-                    super.copyRouting(request, null);
+                    request.setRouting(null);
                     request.setRoutingFromSlice(false);
                 }
                 default -> throw new IllegalArgumentException("Unsupported routing command");

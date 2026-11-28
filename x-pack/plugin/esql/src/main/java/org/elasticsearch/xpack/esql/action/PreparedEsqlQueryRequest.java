@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.io.IOException;
 
@@ -128,7 +129,7 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
         EsqlParser parser,
         SettingsValidationContext settingsValidationCtx,
         InferenceSettings inferenceSettings,
-        int maxCommandCount
+        EsqlFlags flags
     ) {
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;

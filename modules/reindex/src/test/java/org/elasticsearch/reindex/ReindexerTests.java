@@ -33,11 +33,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -806,22 +808,14 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testListenerWithRelocationsFallsBackToNodeMarkedForShutdownAtSendTime() {
         final NodesShutdownMetadata targetMarkedForShutdown = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
-            SingleNodeShutdownMetadata.builder()
-                .setNodeId(RELOCATION_TARGET_NODE.getId())
-                .setStartedAtMillis(randomMillisUpToYear9999())
-                .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
-                .setReason(randomAlphaOfLengthBetween(5, 20))
-                .setGracePeriod(randomPositiveTimeValue())
-                .build()
+            shutdownMarker(RELOCATION_TARGET_NODE.getId())
         );
         final AtomicReference<ResumeBulkByPaginatedSearchRequest> capturedRequest = new AtomicReference<>();
         final Reindexer reindexer = reindexerWithRelocation(
             relocationClusterService(targetMarkedForShutdown),
             relocationTransportService(capturedRequest),
             // only yields a node when shutdown markers are ignored
-            (nodes, nodeShutdowns) -> nodeShutdowns == NodesShutdownMetadata.EMPTY
-                ? Optional.of(RELOCATION_TARGET_NODE.getId())
-                : Optional.empty()
+            (nodes, nodeShutdowns) -> nodeShutdowns.getAll().isEmpty() ? Optional.of(RELOCATION_TARGET_NODE.getId()) : Optional.empty()
         );
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
@@ -842,7 +836,11 @@ public class ReindexerTests extends ESTestCase {
                     "fallback warning",
                     Reindexer.class.getCanonicalName(),
                     WARN,
-                    "no node available to relocate reindex task [" + task.getId() + "] to, trying nodes marked for shutdown"
+                    "no node available to relocate reindex task ["
+                        + task.getId()
+                        + "] to, relocating to node ["
+                        + RELOCATION_TARGET_NODE.getId()
+                        + "] marked for shutdown"
                 )
             );
             wrapped.onResponse(reindexResponseWithResumeInfo());
@@ -852,6 +850,92 @@ public class ReindexerTests extends ESTestCase {
         assertTrue(future.isDone());
         assertNotNull("resume request should have been sent to the node marked for shutdown", capturedRequest.get());
         verify(relocationListener).onResponse(any());
+        expectThrows(TaskRelocatedException.class, future::actionGet);
+    }
+
+    /// Through the real picker and supplier: slices stop because node A is available, but by the time the leader hands off, A is
+    /// marked for shutdown and B has joined. The hand-off must go to B, the node available at send time, not to A.
+    public void testRelocationHandsOffToNodeAvailableAtSendTimeNotAtSliceStop() {
+        final DiscoveryNode sourceNode = dataNode("source-node");
+        final DiscoveryNode nodeA = dataNode("node-a");
+        final DiscoveryNode nodeB = dataNode("node-b");
+        final ClusterState stateA = clusterState(
+            DiscoveryNodes.builder().add(sourceNode).add(nodeA).localNodeId(sourceNode.getId()).build(),
+            NodesShutdownMetadata.EMPTY
+        );
+        final ClusterState stateB = clusterState(
+            DiscoveryNodes.builder().add(sourceNode).add(nodeA).add(nodeB).localNodeId(sourceNode.getId()).build(),
+            NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(shutdownMarker(nodeA.getId()))
+        );
+        final AtomicReference<ClusterState> stateRef = new AtomicReference<>(stateA);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenAnswer(invocation -> stateRef.get());
+        when(clusterService.localNode()).thenReturn(sourceNode);
+
+        final AtomicReference<DiscoveryNode> targetNode = new AtomicReference<>();
+        final TransportService transportService = nodeCapturingRelocationTransportService(targetNode);
+        final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService, new StatefulReindexRelocationNodePicker());
+
+        final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        final ReindexRequest request = reindexRequest();
+        final int totalSlices = randomIntBetween(2, 5);
+        request.setSlices(totalSlices);
+        final PlainActionFuture<Void> initFuture = new PlainActionFuture<>();
+        reindexer.initTask(task, request, initFuture);
+        initFuture.actionGet();
+        task.requestRelocation();
+
+        // first slice stops: A is the only candidate and it is not marked for shutdown
+        assertTrue(task.getLeaderState().hasNodeToRelocateTo());
+
+        stateRef.set(stateB);
+
+        final Map<Integer, ResumeInfo.SliceStatus> slices = new LinkedHashMap<>();
+        for (int i = 0; i < totalSlices; i++) {
+            final var status = new BulkByPaginatedSearchTask.Status(
+                i,
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomTimeValue(),
+                randomFloat(),
+                randomBoolean() ? randomAlphaOfLength(5) : null,
+                randomTimeValue()
+            );
+            final var resumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(randomAlphaOfLength(10), System.currentTimeMillis(), status, null);
+            slices.put(i, new ResumeInfo.SliceStatus(i, resumeInfo, null));
+        }
+        final BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
+            TimeValue.MINUS_ONE,
+            new BulkByPaginatedSearchTask.Status(List.of(), null, 0f),
+            List.of(),
+            List.of(),
+            false,
+            new ResumeInfo(randomOrigin(), null, slices)
+        );
+
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            request,
+            ActionListener.noop(),
+            future
+        );
+        wrapped.onResponse(response);
+
+        assertThat(targetNode.get(), equalTo(nodeB));
+        verify(transportService, never()).sendRequest(
+            eq(nodeA),
+            any(String.class),
+            any(TransportRequest.class),
+            Mockito.<TransportResponseHandler<?>>any()
+        );
         expectThrows(TaskRelocatedException.class, future::actionGet);
     }
 
@@ -3444,6 +3528,41 @@ public class ReindexerTests extends ESTestCase {
         }).when(transportService)
             .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
         return transportService;
+    }
+
+    /// Like [#relocationTransportService] but accepts any target node and records which one was sent to.
+    private static TransportService nodeCapturingRelocationTransportService(AtomicReference<DiscoveryNode> targetNode) {
+        final TransportService transportService = mock(TransportService.class);
+        doAnswer(invocation -> {
+            final DiscoveryNode target = invocation.getArgument(0);
+            targetNode.set(target);
+            TransportResponseHandler<ResumeBulkByPaginatedSearchResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId(target.getId(), randomNonNegativeLong())));
+            return null;
+        }).when(transportService)
+            .sendRequest(any(DiscoveryNode.class), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
+        return transportService;
+    }
+
+    private static DiscoveryNode dataNode(String nodeId) {
+        return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
+    }
+
+    private static ClusterState clusterState(DiscoveryNodes nodes, NodesShutdownMetadata nodeShutdowns) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodes)
+            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodeShutdowns))
+            .build();
+    }
+
+    private static SingleNodeShutdownMetadata shutdownMarker(String nodeId) {
+        return SingleNodeShutdownMetadata.builder()
+            .setNodeId(nodeId)
+            .setStartedAtMillis(randomMillisUpToYear9999())
+            .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+            .setReason(randomAlphaOfLengthBetween(5, 20))
+            .setGracePeriod(randomPositiveTimeValue())
+            .build();
     }
 
     private static ReindexRequest reindexRequest() {

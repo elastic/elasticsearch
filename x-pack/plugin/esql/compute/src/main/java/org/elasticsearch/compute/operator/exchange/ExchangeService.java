@@ -29,6 +29,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -90,6 +93,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * tests shorten that interval to a few seconds, which is shorter than a data-node request can take to arrive.
      */
     private final Map<String, Long> sourcesFinishedSinks = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Exchange ids removed because a fetch for them was cancelled. A compute request that has not yet resolved its sink fails with
+     * the cancellation, as it would on the aborted sink. This is not the graceful end that {@link #sourcesFinishedSinks} records: a
+     * fetch can be cancelled while its query goes on, and a compute request that completed empty would then report its shards as
+     * successful without any of their rows. A close that the coordinator sends afterwards is still recorded in
+     * {@link #sourcesFinishedSinks}, and that one wins. Entries expire like those of {@link #sourcesFinishedSinks}.
+     */
+    private final Map<String, Long> fetchCancelledSinks = ConcurrentCollections.newConcurrentMap();
     private static final long SOURCES_FINISHED_REMEMBER_NANOS = TimeUnit.MINUTES.toNanos(5);
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
     private final Map<String, LocalExchange> localExchanges = ConcurrentCollections.newConcurrentMap();
@@ -179,7 +190,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @throws IllegalStateException if a sink handler for the given id already exists
      */
     public ExchangeSinkHandler createSinkHandler(String exchangeId, int maxBufferSize) {
-        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier());
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(maxBufferSize, threadPool.relativeTimeInMillisSupplier());
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
@@ -205,6 +216,10 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * <p>
      * A sink that was never opened still throws {@link ResourceNotFoundException}. The marker is left in place
      * until it expires, so a transport retry of the same compute request also completes empty.
+     * <p>
+     * A sink that was removed because a fetch for it was cancelled throws {@link TaskCancelledException}, unless the coordinator
+     * also finished the exchange, before or after that: the caller must fail its compute request, since the coordinator may still
+     * count on its results.
      */
     @Nullable
     public ExchangeSinkHandler getSinkHandlerIfOpen(String exchangeId) {
@@ -215,6 +230,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         if (sourcesFinishedSinks.containsKey(exchangeId)) {
             return null;
         }
+        if (fetchCancelledSinks.containsKey(exchangeId)) {
+            throw new TaskCancelledException("exchange [" + exchangeId + "] was removed because a fetch for it was cancelled");
+        }
         throw new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
     }
 
@@ -223,10 +241,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * This is useful when the sink handler may have been pre-registered (e.g., for test setup coordination).
      */
     public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
-        return sinks.computeIfAbsent(
-            exchangeId,
-            id -> new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier())
-        );
+        return sinks.computeIfAbsent(exchangeId, id -> new ExchangeSinkHandler(maxBufferSize, threadPool.relativeTimeInMillisSupplier()));
     }
 
     /**
@@ -345,13 +360,41 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(ExchangeRequest request, TransportChannel channel, Task exchangeTask) {
             final String exchangeId = request.exchangeId();
-            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
+            ActionListener<ExchangeResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(ExchangeResponse response) {
+                    // The serialized page is charged to its query until it is written, so a page waiting for a slow reader is charged.
+                    new ChannelActionListener<ExchangeResponse>(channel, response.pageBreaker()).onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    new ChannelActionListener<ExchangeResponse>(channel).onFailure(e);
+                }
+            };
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
-                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+                // A cancelled fetch may have removed the sink before this close. The coordinator has stopped reading, so the close is
+                // recorded as it is for a sink that is still there, and a late compute request completes empty. Only for an exchange
+                // that is remembered already: a close for any other id leaves nothing behind.
+                if (request.sourcesFinished() && fetchCancelledSinks.containsKey(exchangeId)) {
+                    rememberSourcesFinished(exchangeId);
+                }
+                listener.onResponse(new ExchangeResponse(null, true));
             } else {
                 final CancellableTask task = (CancellableTask) exchangeTask;
-                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
+                task.addListener(() -> {
+                    // The fetch now answers that the sink is finished, so the coordinator sends no sourcesFinished for it, and the ban
+                    // on its cancelled task can keep the compute request, which would remove the sink, from ever running here. Remove
+                    // the sink, so that it does not stay until the reaper. A compute request that still arrives is told of the
+                    // cancellation, as the aborted sink would tell it, see fetchCancelledSinks. The marker comes first for the same
+                    // reason as on the sourcesFinished path below: the abort runs the completion listeners on this thread, and one of
+                    // them can remove the sink.
+                    rememberFetchCancelled(exchangeId);
+                    sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled()));
+                    // Null failure: aborted above.
+                    finishSinkHandler(exchangeId, null);
+                });
                 // Remember the id before the fetch runs. fetchPageAsync(sourcesFinished) finishes the buffer and can
                 // remove the handler from a completion listener on this thread; a compute request arriving in that
                 // window must still see the marker rather than a sink that was never opened.
@@ -374,9 +417,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         sourcesFinishedSinks.put(exchangeId, System.nanoTime() + SOURCES_FINISHED_REMEMBER_NANOS);
     }
 
+    private void rememberFetchCancelled(String exchangeId) {
+        fetchCancelledSinks.put(exchangeId, System.nanoTime() + SOURCES_FINISHED_REMEMBER_NANOS);
+    }
+
     private void expireSourcesFinishedSinks() {
         long now = System.nanoTime();
         sourcesFinishedSinks.entrySet().removeIf(entry -> entry.getValue() <= now);
+        fetchCancelledSinks.entrySet().removeIf(entry -> entry.getValue() <= now);
     }
 
     private final class InactiveSinksReaper extends AbstractRunnable {
@@ -435,14 +483,60 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Asks the remote node to remove the sink of an exchange that the caller opened there but will not use, e.g. because its query was
+     * cancelled before the compute request was sent. No {@link RemoteSink} exists for the exchange at that point, so this sends the
+     * {@code sourcesFinished} request that {@link RemoteSink#close} would. That request carries no parent task
+     * ({@link ExchangeRequest#getParentTask()}), so it reaches the remote node even though the query's task is cancelled. Best effort:
+     * if the request fails, the remote node's inactive-sink reaper removes the sink.
+     */
+    public void finishUnusedRemoteSink(TransportService transportService, Transport.Connection connection, String exchangeId) {
+        transportService.sendRequest(
+            connection,
+            EXCHANGE_ACTION_NAME,
+            new ExchangeRequest(exchangeId, true),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> {
+                final Page page = r.takePage();
+                if (page != null) {
+                    page.releaseBlocks();
+                }
+            },
+                e -> logger.debug(
+                    () -> Strings.format("failed to finish unused exchange sink [%s] on [%s]", exchangeId, connection.getNode()),
+                    e
+                )
+            ), in -> {
+                try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                    return new ExchangeResponse(bsi);
+                }
+            }, executor)
+        );
+    }
+
+    /**
+     * Like {@link #newRemoteSink(Task, String, TransportService, Transport.Connection, BlockFactory)}, but reads and charges the
+     * pages through the block factory of this service.
+     */
+    RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
+        return newRemoteSink(parentTask, exchangeId, transportService, conn, blockFactory);
+    }
+
+    /**
      * Creates a new {@link RemoteSink} that fetches pages from an exchange sink located on the remote node.
      *
      * @param parentTask       the parent task that initialized the ESQL request
      * @param exchangeId       the exchange ID
      * @param transportService the transport service
      * @param conn             the connection to the remote node where the remote exchange sink is located
+     * @param blockFactory     reads and charges the pages
      */
-    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
+    public RemoteSink newRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Transport.Connection conn,
+        BlockFactory blockFactory
+    ) {
         return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
     }
 
@@ -476,13 +570,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
             if (allSourcesFinished) {
-                close(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
+                close(listener.map(unused -> new ExchangeResponse(null, true)));
                 return;
             }
             // already finished
             SubscribableListener<Void> completionListener = completionListenerRef.get();
             if (completionListener != null) {
-                completionListener.addListener(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
+                completionListener.addListener(listener.map(unused -> new ExchangeResponse(null, true)));
                 return;
             }
             doFetchPageAsync(false, ActionListener.wrap(r -> {
@@ -524,7 +618,25 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                         transportService.getThreadPool().getThreadContext().takeResponseHeaders("Warning");
                         return resp;
                     }
-                }, responseExecutor)
+                }, responseExecutor) {
+                    /** The bytes of the response that have arrived. Its pieces arrive one after another on a transport worker. */
+                    private long arrivedBytes;
+
+                    @Override
+                    public Releasable reserveResponseBytes(int bytes) {
+                        // The fetch reserved an estimate of the page, which is zero for the first page. Charge what arrives beyond it,
+                        // until the page is read and its blocks are charged.
+                        final long covered = Math.clamp(reservedBytes - arrivedBytes, 0L, bytes);
+                        arrivedBytes += bytes;
+                        final long uncovered = bytes - covered;
+                        if (uncovered == 0) {
+                            // Not NO_RESERVATION, which would stop the reservations for the rest of the response.
+                            return () -> {};
+                        }
+                        blockFactory.breaker().addEstimateBytesAndMaybeBreak(uncovered, "fetch page");
+                        return Releasables.assertOnce(() -> blockFactory.breaker().addWithoutBreaking(-uncovered));
+                    }
+                }
             );
         }
 

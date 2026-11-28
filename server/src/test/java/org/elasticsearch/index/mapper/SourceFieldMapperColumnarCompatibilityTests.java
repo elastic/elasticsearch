@@ -459,18 +459,18 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
     @TestLogging(reason = "the direct path reports a fallback at DEBUG", value = "org.elasticsearch.index.mapper.BatchMappingContext:DEBUG")
     public void testUnsupportedFieldTakesTheLoaderPath() throws IOException {
         assumeTrue("the _unmapped sink is behind a feature flag", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
-        final XContentBuilder mappingWithSink = mapping(b -> {
+        // dynamic: flattened at the root is what adds the sink.
+        final XContentBuilder mappingWithSink = topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties");
             b.startObject("kw").field("type", "keyword").endObject();
             b.startObject("num").field("type", "long").endObject();
+            b.endObject();
         });
-        final Settings settingsWithSink = Settings.builder()
-            .put(columnarSettings())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
-            .build();
         MockLog.assertThatLogger(
             () -> assertColumnarMatchesXContentUnchecked(
                 mappingWithSink,
-                settingsWithSink,
+                columnarSettings(),
                 batch(
                     "unmapped key present",
                     1L,

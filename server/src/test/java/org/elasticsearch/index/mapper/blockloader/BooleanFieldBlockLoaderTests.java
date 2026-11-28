@@ -54,20 +54,17 @@ public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
         if (value == null) {
             return nullValue;
         }
-        if (value instanceof String s) {
-            if (s.isEmpty()) {
-                // This is a documented behavior.
-                return false;
-            }
-            if (value.equals("true")) {
-                return true;
-            }
-            if (value.equals("false")) {
-                return false;
-            }
-        }
         if (value instanceof Boolean b) {
             return b;
+        }
+        if (value instanceof String s) {
+            // Mirror production parsing: empty and whitespace-only strings (including non-ASCII whitespace like U+3000) parse to false.
+            try {
+                return Booleans.parseBoolean(s, false);
+            } catch (IllegalArgumentException e) {
+                // Malformed values are excluded
+                return null;
+            }
         }
 
         // Malformed values are excluded

@@ -157,7 +157,8 @@ public final class DynamicMappingUpdateMerger {
                 builder.merge(parse(update), REASON, ParseFieldLimits.UNLIMITED, clusterSupportsFeature);
             }
         }
-        return builder.build(REASON).toCompressedXContent();
+        builder.build(REASON);
+        return builder.toCompressedXContent();
     }
 
     private MappingBuilder parse(CompressedXContent update) {

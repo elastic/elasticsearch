@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.external.http.sender.TimedListenerTests.createTimedListener;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
@@ -73,7 +74,7 @@ public class CustomRequestManagerTests extends ESTestCase {
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
         var manager = CustomRequestManager.of(model, threadPool);
-        manager.execute(EmbeddingsInput.fromStrings(List.of("abc", "123"), null), mock(RequestSender.class), () -> false, listener);
+        manager.execute(EmbeddingsInput.fromStrings(List.of("abc", "123"), null), mock(RequestSender.class), createTimedListener(listener));
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(30)));
 

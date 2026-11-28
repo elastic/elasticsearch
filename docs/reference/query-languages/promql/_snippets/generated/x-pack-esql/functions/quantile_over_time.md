@@ -25,6 +25,8 @@
 quantile_over_time(0.5, http_requests_total[1h])
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly from Prometheus's exact linear interpolation, particularly for small sample sets.
+Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly from {{prom}}'s exact linear interpolation, particularly for small sample sets.
+:::

@@ -318,7 +318,17 @@ public class ColumnarStoredSourceBatchIndexingBenchmark {
     }
 
     private IndexOperationBatch operationBatch(int from, int to, EscfBatch escfBatch) {
-        return IndexOperationBatch.initFromBulk(items, from, to, escfBatch, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+        return IndexOperationBatch.initFromBulk(
+            items,
+            from,
+            to,
+            escfBatch,
+            indexSettings.getMode(),
+            Engine.Operation.Origin.PRIMARY,
+            1L,
+            0L,
+            null
+        );
     }
 
     private ShardBatchMapper.BatchMapperResolution resolve(EscfBatch escfBatch) {

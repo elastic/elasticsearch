@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -83,7 +84,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerSurrogate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -147,6 +156,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -1406,6 +1416,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
             var plan = basic().query("from test | " + breaker + " | eval cc = c * 10 | where cc > 0");
             var limit = as(plan, Limit.class);
             assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        }
+    }
+
+    public void testImplicitLimitOnDescribeIsTheNumberOfColumns() {
+        int columns = basic().query("from test | limit 0").output().size();
+        for (String query : List.of(
+            "from test | describe",
+            "from test | describe | keep name, type",
+            "from test | describe | where type == \"keyword\" | eval n = name | sort name",
+            "from test | describe | dissect name \"%{a}_%{b}\""
+        )) {
+            var limit = as(basic().query(query), Limit.class);
+            assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(columns));
+        }
+    }
+
+    public void testImplicitLimitAfterDescribeAddingRows() {
+        for (String query : List.of("from test | describe | mv_expand unit", "from test | describe | stats c = count(*) by unit")) {
+            var limit = as(basic().query(query), Limit.class);
+            assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        }
+    }
+
+    public void testImplicitMaxLimitAfterDescribeAndLimit() {
+        for (int explicit : List.of(1, MAX_LIMIT + 1)) {
+            var limit = as(basic().query("from test | describe | sort name | limit " + explicit), Limit.class);
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+            limit = as(limit.child(), Limit.class);
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(explicit));
         }
     }
 
@@ -3585,8 +3624,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
         return new FieldCapabilitiesResponse(
             List.of(
-                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0),
-                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0)
+                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES, 0, 0, 0, 0, null),
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD, 0, 0, 0, 0, null)
             ),
             List.of()
         );
@@ -3603,6 +3642,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    ( SORT emp_no )
                    ( LIMIT 9 )
             """);
+        plan = aligned(plan);
 
         var expectedOutput = List.of("emp_no", "first_name", "last_name", "_fork");
         Limit limit = as(plan, Limit.class);
@@ -3697,6 +3737,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    | STATS x = MIN(d::double), y = MAX(e::double) WHERE d::double > 1000
                    | EVAL xyz = "abc")
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         Fork fork = as(limit.child(), Fork.class);
@@ -3803,6 +3844,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         esRelation = as(filter.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
+    }
+
+    /**
+     * A FORK over a wide index aligns every branch to all of its columns. The alignment used to be quadratic in the number of
+     * columns (#163560); this checks the wide case still aligns the branches correctly.
+     */
+    public void testForkAlignmentOverWideIndex() {
+        int width = 10_000;
+        Map<String, EsField> mapping = new LinkedHashMap<>();
+        for (int i = 0; i < width; i++) {
+            String name = String.format(Locale.ROOT, "f%05d", i);
+            mapping.put(name, new EsField(name, KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        }
+        TestAnalyzer analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("wide", mapping));
+
+        LogicalPlan plan = analyzer.query("""
+            FROM wide
+            | FORK ( EVAL a = 1 )
+                   ( EVAL b = 2 )
+            """);
+        plan = aligned(plan);
+
+        Fork fork = as(as(plan, Limit.class).child(), Fork.class);
+        List<String> expected = new ArrayList<>(mapping.keySet());
+        expected.addAll(List.of("a", "_fork", "b"));
+        assertThat(Expressions.names(fork.output()), equalTo(expected));
+        for (LogicalPlan branch : fork.children()) {
+            assertThat(Expressions.names(as(branch, Project.class).projections()), equalTo(expected));
+        }
     }
 
     public void testForkError() {
@@ -3964,6 +4034,57 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
+     * The {@code leading_zeros} option of {@code TO_IP} selects the conversion used for each type of a union-typed field, both when
+     * the field is the input and when it's converted first, as in {@code value::keyword}.
+     */
+    public void testToIpOptionsOnUnionType() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword"))
+            ),
+            List.of()
+        );
+        Map<String, Class<? extends Expression>> conversionByOption = Map.of(
+            "octal",
+            ToIpLeadingZerosOctal.class,
+            "decimal",
+            ToIpLeadingZerosDecimal.class,
+            "reject",
+            ToIpLeadingZerosRejected.class
+        );
+        for (Map.Entry<String, Class<? extends Expression>> entry : conversionByOption.entrySet()) {
+            String options = "{\"leading_zeros\": \"" + entry.getKey() + "\"}";
+
+            LogicalPlan direct = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = TO_IP(value, " + options + ")");
+            List<UnionTypeEsField> unionFields = new ArrayList<>();
+            direct.forEachDown(EsRelation.class, relation -> {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute instanceof FieldAttribute field && field.field() instanceof UnionTypeEsField union) {
+                        unionFields.add(union);
+                    }
+                }
+            });
+            assertThat(unionFields, hasSize(1));
+            assertThat(unionFields.get(0).getConversionExpressions(), not(hasSize(0)));
+            assertThat(unionFields.get(0).getConversionExpressions(), everyItem(instanceOf(entry.getValue())));
+
+            LogicalPlan nested = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = TO_IP(value::keyword, " + options + ")");
+            List<ToIp> conversions = new ArrayList<>();
+            nested.forEachExpressionDown(ToIp.class, conversions::add);
+            assertThat(conversions, hasSize(1));
+            assertThat(conversions.get(0).children(), hasSize(2));
+            assertThat(conversions.get(0).children().get(1), instanceOf(MapExpression.class));
+            assertThat(
+                ToIp.LeadingZeros.from((MapExpression) conversions.get(0).children().get(1)),
+                equalTo(ToIp.LeadingZeros.from(entry.getKey()))
+            );
+        }
+    }
+
+    /**
      * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). When
      * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), the
      * conversion function can't resolve every leg, so the field falls through to the generic
@@ -3990,6 +4111,144 @@ public class AnalyzerTests extends AnalyzerTestCase {
                         + "[ip] in [foo], [keyword] in [bar]"
                 )
             );
+    }
+
+    private static FieldCapabilitiesResponse unionOfValueTypes(String fooType, String barType) {
+        return new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap(Map.of("value", fooType, "base", "integer"))),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap(Map.of("value", barType, "base", "integer")))
+            ),
+            List.of()
+        );
+    }
+
+    /**
+     * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} on a field that is keyword and text across indices convert it per
+     * type like any other conversion, keeping the constant base in every per-type conversion.
+     */
+    public void testConversionWithBaseOnUnionOfStringTypes() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "text");
+        Map<String, Class<? extends Expression>> conversionClasses = Map.of("TO_LONG", ToLongBase.class, "TO_INTEGER", ToIntegerBase.class);
+        for (Map.Entry<String, Class<? extends Expression>> function : conversionClasses.entrySet()) {
+            for (String base : List.of("16", "8 + 8", "TO_INTEGER(\"16\")")) {
+                LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                    .query("FROM foo, bar | EVAL x = " + function.getKey() + "(value, " + base + ")");
+
+                List<UnionTypeEsField> unionFields = new ArrayList<>();
+                plan.forEachDown(EsRelation.class, relation -> {
+                    for (Attribute attribute : relation.output()) {
+                        if (attribute instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
+                            unionFields.add(union);
+                        }
+                    }
+                });
+                assertThat(unionFields, hasSize(1));
+                Collection<Expression> conversions = unionFields.get(0).getConversionExpressions();
+                assertThat(conversions, hasSize(2));
+                for (Expression conversion : conversions) {
+                    assertThat(conversion, instanceOf(function.getValue()));
+                    assertThat(conversion.children(), hasSize(2));
+                    // The only attribute is the loaded field, the base is a constant that can be evaluated while loading.
+                    assertThat(conversion.references(), hasSize(1));
+                    assertTrue(conversion.children().get(1).foldable());
+                    // The conversion is serialized with the field, so there can't be surrogates left in the base
+                    conversion.children()
+                        .get(1)
+                        .forEachDown(Expression.class, e -> assertThat(e, not(instanceOf(OnlySurrogateExpression.class))));
+                }
+            }
+        }
+    }
+
+    /**
+     * A base is only for strings, so a field that is not only keyword and text across indices is a type conflict, like for any
+     * other conversion that doesn't support all of the types. Converting it to a string first works.
+     */
+    public void testConversionWithBaseOnUnionWithNonStringTypeFails() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "long");
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .error(
+                    "FROM foo, bar | EVAL x = " + function + "(value, 16)",
+                    containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
+                );
+            // Without a base the same union is fine, as longs can be converted.
+            analyzer().addIndex(mergedResolution("foo,bar", caps)).query("FROM foo, bar | EVAL x = " + function + "(value)");
+
+            LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = " + function + "(value::keyword, 16)");
+            List<Expression> conversions = new ArrayList<>();
+            plan.forEachExpressionDown(ToLongSurrogate.class, conversions::add);
+            plan.forEachExpressionDown(ToIntegerSurrogate.class, conversions::add);
+            assertThat(conversions, hasSize(1));
+            assertThat(conversions.get(0).children(), hasSize(2));
+            assertThat(conversions.get(0).children().get(1).sourceText(), equalTo("16"));
+        }
+    }
+
+    /**
+     * {@code TO_LONG(x)} and {@code TO_INTEGER(x)} on a union with a small numeric type, like {@code short}, resolve every type: the
+     * {@code short} is widened when converting. The conversions are serialized with the field, so none can be left as a surrogate.
+     */
+    public void testConversionOnUnionWithSmallNumericType() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("short", "long");
+        Map<String, Class<? extends Expression>> conversionClasses = Map.of("TO_LONG", ToLong.class, "TO_INTEGER", ToInteger.class);
+        for (Map.Entry<String, Class<? extends Expression>> function : conversionClasses.entrySet()) {
+            LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = " + function.getKey() + "(value)");
+
+            List<UnionTypeEsField> unionFields = new ArrayList<>();
+            plan.forEachDown(EsRelation.class, relation -> {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
+                        unionFields.add(union);
+                    }
+                }
+            });
+            assertThat(unionFields, hasSize(1));
+            Collection<Expression> conversions = unionFields.get(0).getConversionExpressions();
+            assertThat(conversions, hasSize(2));
+            assertThat(conversions, everyItem(instanceOf(function.getValue())));
+            assertThat(conversions, everyItem(not(instanceOf(OnlySurrogateExpression.class))));
+        }
+    }
+
+    /**
+     * The conversions of a union run while loading the field, where other fields aren't available, so the base has to be a constant.
+     */
+    public void testConversionWithNonConstantBaseOnUnionFails() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "text");
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            for (String base : List.of("base", "base + 1", "COUNT(*)")) {
+                String query = "FROM foo, bar | EVAL x = " + function + "(value, " + base + ")";
+                analyzer().addIndex(mergedResolution("foo,bar", caps))
+                    .error(
+                        query,
+                        containsString(
+                            "["
+                                + function
+                                + "(value, "
+                                + base
+                                + ")] can't convert a field with multiple types if its other arguments are not constants"
+                        )
+                    );
+            }
+        }
+    }
+
+    /**
+     * An invalid base is reported as for a field of a single type, instead of failing while building the per-type conversions.
+     */
+    public void testConversionWithInvalidBaseOnUnionFails() {
+        FieldCapabilitiesResponse caps = unionOfValueTypes("keyword", "text");
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .error(
+                    "FROM foo, bar | EVAL x = " + function + "(value, 1.5)",
+                    containsString("second argument of [" + function + "(value, 1.5)] must be [integer], found value [1.5] type [double]")
+                );
+        }
     }
 
     public void testValidFuse() {
@@ -4071,7 +4330,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     private LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
-            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0)
+            new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD, 0, 0, 0, 0, null)
         );
         IndexResolution resolution = mergedResolution("test*", new FieldCapabilitiesResponse(idxResponses, List.of()));
         return analyzer().addIndex(resolution).query(query);
@@ -6410,6 +6669,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addNoFieldsIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -6438,6 +6698,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addEmptyIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -7405,7 +7666,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Fork fork = plan.collect(Fork.class).getFirst();
         assertThat(fork.output(), hasItem(key));
         for (LogicalPlan branch : fork.children()) {
-            assertThat(fieldNames(branch.output()).getLast(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+            assertThat(fieldNames(branch.output()), hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME));
         }
         assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
         assertWarnings();

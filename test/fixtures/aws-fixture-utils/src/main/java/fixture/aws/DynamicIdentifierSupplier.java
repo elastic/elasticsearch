@@ -40,8 +40,18 @@ public class DynamicIdentifierSupplier implements Supplier<String> {
         if (alreadyGenerated != null) {
             return alreadyGenerated;
         }
-        final var newRegion = ESTestCase.randomIdentifier(prefixSupplier.get());
-        return Objects.requireNonNullElse(generatedIdentifier.compareAndExchange(null, newRegion), newRegion);
+        final var newIdentifier = ESTestCase.randomValueOtherThanMany(
+            this::isInvalidIdentifier,
+            () -> ESTestCase.randomIdentifier(prefixSupplier.get())
+        );
+        return Objects.requireNonNullElse(generatedIdentifier.compareAndExchange(null, newIdentifier), newIdentifier);
+    }
+
+    /**
+     * Subclasses may override this to reject generated identifiers that must not be used.
+     */
+    protected boolean isInvalidIdentifier(String value) {
+        return false;
     }
 
     public static Supplier<String> testClassIdentifierSupplier(String prefixPart) {

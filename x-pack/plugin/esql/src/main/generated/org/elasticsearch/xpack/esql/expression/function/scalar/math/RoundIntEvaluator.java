@@ -72,7 +72,7 @@ public final class RoundIntEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock valBlock, LongBlock decimalsBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -112,7 +112,7 @@ public final class RoundIntEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int val = valVector.getInt(p);
         long decimals = decimalsVector.getLong(p);

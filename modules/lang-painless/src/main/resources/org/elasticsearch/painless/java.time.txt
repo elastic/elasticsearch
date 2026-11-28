@@ -15,9 +15,9 @@
 #### Classes
 
 class java.time.Clock {
-  Clock fixed(Instant,ZoneId)
+  Clock fixed(Instant,ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="clockBytes"]
   ZoneId getZone() @nondeterministic
-  Instant instant() @nondeterministic
+  Instant instant() @nondeterministic @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   long millis() @nondeterministic
   Clock offset(Clock,Duration) @nondeterministic
   Clock tick(Clock,Duration) @nondeterministic
@@ -25,49 +25,49 @@ class java.time.Clock {
 
 class java.time.Duration {
   Duration ZERO
-  Duration abs()
-  Duration between(Temporal,Temporal)
+  Duration abs() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration between(Temporal,Temporal) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   int compareTo(Duration)
-  Duration dividedBy(long)
-  Duration from(TemporalAmount)
+  Duration dividedBy(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration from(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   int getNano()
   long getSeconds()
   boolean isNegative()
   boolean isZero()
-  Duration minus(Duration)
-  Duration minus(long,TemporalUnit)
-  Duration minusDays(long)
-  Duration minusHours(long)
-  Duration minusMinutes(long)
-  Duration minusSeconds(long)
-  Duration minusMillis(long)
-  Duration minusNanos(long)
-  Duration multipliedBy(long)
-  Duration negated()
-  Duration of(long,TemporalUnit)
-  Duration ofDays(long)
-  Duration ofHours(long)
-  Duration ofMillis(long)
-  Duration ofMinutes(long)
-  Duration ofNanos(long)
-  Duration ofSeconds(long)
-  Duration ofSeconds(long,long)
-  Duration parse(CharSequence)
-  Duration plus(Duration)
-  Duration plus(long,TemporalUnit)
-  Duration plusDays(long)
-  Duration plusHours(long)
-  Duration plusMinutes(long)
-  Duration plusSeconds(long)
-  Duration plusMillis(long)
-  Duration plusNanos(long)
+  Duration minus(Duration) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration minusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration minusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration minusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration minusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration minusMillis(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration minusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration multipliedBy(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration negated() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration of(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration ofDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration ofHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration ofMillis(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration ofMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration ofNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration ofSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration ofSeconds(long,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  Duration plus(Duration) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration plusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration plusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration plusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration plusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration plusMillis(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration plusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   long toDays()
   long toHours()
   long toMinutes()
   long toMillis()
   long toNanos()
-  Duration withSeconds(long)
-  Duration withNanos(int)
+  Duration withSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Duration withNanos(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 class java.time.Instant {
@@ -105,13 +105,13 @@ class java.time.Instant {
 class java.time.LocalDate {
   LocalDate MAX
   LocalDate MIN
-  LocalDateTime atStartOfDay()
-  ZonedDateTime atStartOfDay(ZoneId)
-  LocalDateTime atTime(LocalTime)
-  LocalDateTime atTime(int,int)
-  LocalDateTime atTime(int,int,int)
-  LocalDateTime atTime(int,int,int,int)
-  LocalDate from(TemporalAccessor)
+  LocalDateTime atStartOfDay() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  ZonedDateTime atStartOfDay(ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  LocalDateTime atTime(LocalTime) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime atTime(int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime atTime(int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime atTime(int,int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDate from(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   IsoChronology getChronology()
   int getDayOfMonth()
   DayOfWeek getDayOfWeek()
@@ -119,38 +119,38 @@ class java.time.LocalDate {
   Month getMonth()
   int getMonthValue()
   int getYear()
-  LocalDate minus(TemporalAmount)
-  LocalDate minus(long,TemporalUnit)
-  LocalDate minusYears(long)
-  LocalDate minusMonths(long)
-  LocalDate minusWeeks(long)
-  LocalDate minusDays(long)
-  LocalDate of(int,int,int)
-  LocalDate ofYearDay(int,int)
-  LocalDate ofEpochDay(long)
-  LocalDate parse(CharSequence)
-  LocalDate parse(CharSequence,DateTimeFormatter)
-  LocalDate plus(TemporalAmount)
-  LocalDate plus(long,TemporalUnit)
-  LocalDate plusYears(long)
-  LocalDate plusMonths(long)
-  LocalDate plusWeeks(long)
-  LocalDate plusDays(long)
-  Period until(ChronoLocalDate)
-  LocalDate with(TemporalAdjuster)
-  LocalDate with(TemporalField,long)
-  LocalDate withDayOfMonth(int)
-  LocalDate withDayOfYear(int)
-  LocalDate withMonth(int)
-  LocalDate withYear(int)
+  LocalDate minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate minusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate minusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate minusWeeks(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate minusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate of(int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate ofYearDay(int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate ofEpochDay(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  LocalDate parse(CharSequence,DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  LocalDate plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate plusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate plusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate plusWeeks(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate plusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period until(ChronoLocalDate) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate withDayOfMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate withDayOfYear(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate withMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate withYear(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 class java.time.LocalDateTime {
   LocalDateTime MIN
   LocalDateTime MAX
-  OffsetDateTime atOffset(ZoneOffset)
-  ZonedDateTime atZone(ZoneId)
-  LocalDateTime from(TemporalAccessor)
+  OffsetDateTime atOffset(ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  ZonedDateTime atZone(ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  LocalDateTime from(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
   int getDayOfMonth()
   DayOfWeek getDayOfWeek()
   int getDayOfYear()
@@ -161,45 +161,45 @@ class java.time.LocalDateTime {
   int getNano()
   int getSecond()
   int getYear()
-  LocalDateTime minus(TemporalAmount)
-  LocalDateTime minus(long,TemporalUnit)
-  LocalDateTime minusDays(long)
-  LocalDateTime minusHours(long)
-  LocalDateTime minusMinutes(long)
-  LocalDateTime minusMonths(long)
-  LocalDateTime minusNanos(long)
-  LocalDateTime minusSeconds(long)
-  LocalDateTime minusWeeks(long)
-  LocalDateTime minusYears(long)
-  LocalDateTime of(LocalDate,LocalTime)
-  LocalDateTime of(int,int,int,int,int)
-  LocalDateTime of(int,int,int,int,int,int)
-  LocalDateTime of(int,int,int,int,int,int,int)
-  LocalDateTime ofInstant(Instant,ZoneId)
-  LocalDateTime ofEpochSecond(long,int,ZoneOffset)
-  LocalDateTime parse(CharSequence)
-  LocalDateTime parse(CharSequence,DateTimeFormatter)
-  LocalDateTime plus(TemporalAmount)
-  LocalDateTime plus(long,TemporalUnit)
-  LocalDateTime plusDays(long)
-  LocalDateTime plusHours(long)
-  LocalDateTime plusMinutes(long)
-  LocalDateTime plusMonths(long)
-  LocalDateTime plusNanos(long)
-  LocalDateTime plusSeconds(long)
-  LocalDateTime plusWeeks(long)
-  LocalDateTime plusYears(long)
+  LocalDateTime minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minusWeeks(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime minusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime of(LocalDate,LocalTime) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime of(int,int,int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime of(int,int,int,int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime of(int,int,int,int,int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime ofInstant(Instant,ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime ofEpochSecond(long,int,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseLocalDateTimeBytes"]
+  LocalDateTime parse(CharSequence,DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseLocalDateTimeBytes"]
+  LocalDateTime plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plusWeeks(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime plusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
   LocalDate toLocalDate()
-  LocalDateTime truncatedTo(TemporalUnit)
-  LocalDateTime with(TemporalAdjuster)
-  LocalDateTime with(TemporalField,long)
-  LocalDateTime withDayOfMonth(int)
-  LocalDateTime withDayOfYear(int)
-  LocalDateTime withHour(int)
-  LocalDateTime withMinute(int)
-  LocalDateTime withMonth(int)
-  LocalDateTime withSecond(int)
-  LocalDateTime withYear(int)
+  LocalDateTime truncatedTo(TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime withDayOfMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime withDayOfYear(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime withHour(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime withMinute(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime withMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime withSecond(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  LocalDateTime withYear(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
 }
 
 class java.time.LocalTime {
@@ -207,74 +207,74 @@ class java.time.LocalTime {
   LocalTime MIDNIGHT
   LocalTime MIN
   LocalTime NOON
-  LocalDateTime atDate(LocalDate)
-  OffsetTime atOffset(ZoneOffset)
+  LocalDateTime atDate(LocalDate) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="localDateTimeBytes"]
+  OffsetTime atOffset(ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
   int compareTo(LocalTime)
-  String format(DateTimeFormatter)
-  LocalTime from(TemporalAccessor)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
+  LocalTime from(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   int getHour()
   int getMinute()
   int getNano()
   int getSecond()
   boolean isAfter(LocalTime)
   boolean isBefore(LocalTime)
-  LocalTime minus(TemporalAmount)
-  LocalTime minus(long,TemporalUnit)
-  LocalTime minusHours(long)
-  LocalTime minusMinutes(long)
-  LocalTime minusNanos(long)
-  LocalTime minusSeconds(long)
-  LocalTime of(int,int)
-  LocalTime of(int,int,int)
-  LocalTime of(int,int,int,int)
-  LocalTime ofNanoOfDay(long)
-  LocalTime ofSecondOfDay(long)
-  LocalTime parse(CharSequence)
-  LocalTime parse(CharSequence,DateTimeFormatter)
-  LocalTime plus(TemporalAmount)
-  LocalTime plus(long,TemporalUnit)
-  LocalTime plusHours(long)
-  LocalTime plusMinutes(long)
-  LocalTime plusNanos(long)
-  LocalTime plusSeconds(long)
+  LocalTime minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime minusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime minusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime minusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime minusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime of(int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime of(int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime of(int,int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime ofNanoOfDay(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime ofSecondOfDay(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  LocalTime parse(CharSequence,DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  LocalTime plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime plusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime plusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime plusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime plusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   long toNanoOfDay()
   int toSecondOfDay()
-  LocalTime truncatedTo(TemporalUnit)
-  LocalTime with(TemporalAdjuster)
-  LocalTime with(TemporalField,long)
-  LocalTime withHour(int)
-  LocalTime withMinute(int)
-  LocalTime withNano(int)
-  LocalTime withSecond(int)
+  LocalTime truncatedTo(TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime withHour(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime withMinute(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime withNano(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalTime withSecond(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 class java.time.MonthDay {
-  LocalDate atYear(int)
+  LocalDate atYear(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   int compareTo(MonthDay)
-  String format(DateTimeFormatter)
-  MonthDay from(TemporalAccessor)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
+  MonthDay from(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   int getMonthValue()
   Month getMonth()
   int getDayOfMonth()
   boolean isAfter(MonthDay)
   boolean isBefore(MonthDay)
   boolean isValidYear(int)
-  MonthDay of(int,int)
-  MonthDay parse(CharSequence)
-  MonthDay parse(CharSequence,DateTimeFormatter)
-  MonthDay with(Month)
-  MonthDay withDayOfMonth(int)
-  MonthDay withMonth(int)
+  MonthDay of(int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  MonthDay parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  MonthDay parse(CharSequence,DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  MonthDay with(Month) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  MonthDay withDayOfMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  MonthDay withMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 class java.time.OffsetDateTime {
   OffsetDateTime MAX
   OffsetDateTime MIN
-  ZonedDateTime atZoneSameInstant(ZoneId)
-  ZonedDateTime atZoneSimilarLocal(ZoneId)
+  ZonedDateTime atZoneSameInstant(ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  ZonedDateTime atZoneSimilarLocal(ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
   int compareTo(OffsetDateTime)
-  String format(DateTimeFormatter)
-  OffsetDateTime from(TemporalAccessor)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
+  OffsetDateTime from(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
   int getDayOfMonth()
   DayOfWeek getDayOfWeek()
   int getDayOfYear()
@@ -289,61 +289,61 @@ class java.time.OffsetDateTime {
   boolean isAfter(OffsetDateTime)
   boolean isBefore(OffsetDateTime)
   boolean isEqual(OffsetDateTime)
-  OffsetDateTime minus(TemporalAmount)
-  OffsetDateTime minus(long,TemporalUnit)
-  OffsetDateTime minusYears(long)
-  OffsetDateTime minusMonths(long)
-  OffsetDateTime minusWeeks(long)
-  OffsetDateTime minusDays(long)
-  OffsetDateTime minusHours(long)
-  OffsetDateTime minusMinutes(long)
-  OffsetDateTime minusSeconds(long)
-  OffsetDateTime minusNanos(long)
-  OffsetDateTime of(LocalDate,LocalTime,ZoneOffset)
-  OffsetDateTime of(LocalDateTime,ZoneOffset)
-  OffsetDateTime of(int,int,int,int,int,int,int,ZoneOffset)
-  OffsetDateTime ofInstant(Instant,ZoneId)
-  OffsetDateTime parse(CharSequence)
-  OffsetDateTime parse(CharSequence,DateTimeFormatter)
-  OffsetDateTime plus(TemporalAmount)
-  OffsetDateTime plus(long,TemporalUnit)
-  OffsetDateTime plusYears(long)
-  OffsetDateTime plusMonths(long)
-  OffsetDateTime plusWeeks(long)
-  OffsetDateTime plusDays(long)
-  OffsetDateTime plusHours(long)
-  OffsetDateTime plusMinutes(long)
-  OffsetDateTime plusSeconds(long)
-  OffsetDateTime plusNanos(long)
+  OffsetDateTime minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minusWeeks(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime minusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime of(LocalDate,LocalTime,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime of(LocalDateTime,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime of(int,int,int,int,int,int,int,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime ofInstant(Instant,ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseOffsetDateTimeBytes"]
+  OffsetDateTime parse(CharSequence,DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseOffsetDateTimeBytes"]
+  OffsetDateTime plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plusWeeks(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime plusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
   Comparator timeLineOrder()
   long toEpochSecond()
-  Instant toInstant()
+  Instant toInstant() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   LocalDate toLocalDate()
   LocalDateTime toLocalDateTime()
   LocalTime toLocalTime()
-  OffsetTime toOffsetTime()
-  ZonedDateTime toZonedDateTime()
-  OffsetDateTime truncatedTo(TemporalUnit)
-  OffsetDateTime with(TemporalAdjuster)
-  OffsetDateTime with(TemporalField,long)
-  OffsetDateTime withDayOfMonth(int)
-  OffsetDateTime withDayOfYear(int)
-  OffsetDateTime withHour(int)
-  OffsetDateTime withMinute(int)
-  OffsetDateTime withMonth(int)
-  OffsetDateTime withNano(int)
-  OffsetDateTime withSecond(int)
-  OffsetDateTime withYear(int)
-  OffsetDateTime withOffsetSameLocal(ZoneOffset)
-  OffsetDateTime withOffsetSameInstant(ZoneOffset)
+  OffsetTime toOffsetTime() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  ZonedDateTime toZonedDateTime() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zonedDateTimeBytes"]
+  OffsetDateTime truncatedTo(TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withDayOfMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withDayOfYear(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withHour(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withMinute(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withNano(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withSecond(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withYear(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withOffsetSameLocal(ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
+  OffsetDateTime withOffsetSameInstant(ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetDateTimeBytes"]
 }
 
 class java.time.OffsetTime {
   OffsetTime MAX
   OffsetTime MIN
   int compareTo(OffsetTime)
-  String format(DateTimeFormatter)
-  OffsetTime from(TemporalAccessor)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
+  OffsetTime from(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
   int getHour()
   int getMinute()
   ZoneOffset getOffset()
@@ -352,100 +352,100 @@ class java.time.OffsetTime {
   boolean isAfter(OffsetTime)
   boolean isBefore(OffsetTime)
   boolean isEqual(OffsetTime)
-  OffsetTime of(LocalTime,ZoneOffset)
-  OffsetTime of(int,int,int,int,ZoneOffset)
-  OffsetTime ofInstant(Instant,ZoneId)
-  OffsetTime plus(TemporalAmount)
-  OffsetTime plus(long,TemporalUnit)
-  OffsetTime plusHours(long)
-  OffsetTime plusMinutes(long)
-  OffsetTime plusSeconds(long)
-  OffsetTime plusNanos(long)
-  OffsetTime minus(TemporalAmount)
-  OffsetTime minus(long,TemporalUnit)
-  OffsetTime minusHours(long)
-  OffsetTime minusMinutes(long)
-  OffsetTime minusSeconds(long)
-  OffsetTime minusNanos(long)
-  OffsetTime parse(CharSequence)
-  OffsetTime parse(CharSequence,DateTimeFormatter)
+  OffsetTime of(LocalTime,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime of(int,int,int,int,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime ofInstant(Instant,ZoneId) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime plusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime plusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime plusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime plusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime minusHours(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime minusMinutes(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime minusSeconds(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime minusNanos(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseOffsetTimeBytes"]
+  OffsetTime parse(CharSequence,DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseOffsetTimeBytes"]
   LocalTime toLocalTime()
-  OffsetTime truncatedTo(TemporalUnit)
-  OffsetTime with(TemporalAdjuster)
-  OffsetTime with(TemporalField,long)
-  OffsetTime withHour(int)
-  OffsetTime withMinute(int)
-  OffsetTime withNano(int)
-  OffsetTime withOffsetSameLocal(ZoneOffset)
-  OffsetTime withOffsetSameInstant(ZoneOffset)
-  OffsetTime withSecond(int)
+  OffsetTime truncatedTo(TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime withHour(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime withMinute(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime withNano(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime withOffsetSameLocal(ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime withOffsetSameInstant(ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
+  OffsetTime withSecond(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="offsetTimeBytes"]
 }
 
 class java.time.Period {
   Period ZERO
-  Period between(LocalDate,LocalDate)
-  Period from(TemporalAmount)
+  Period between(LocalDate,LocalDate) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period from(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   IsoChronology getChronology()
   int getDays()
   int getMonths()
   int getYears()
-  Period of(int,int,int)
-  Period ofYears(int)
-  Period ofMonths(int)
-  Period ofWeeks(int)
-  Period ofDays(int)
-  Period parse(CharSequence)
-  Period plus(TemporalAmount)
-  Period plusYears(long)
-  Period plusMonths(long)
-  Period plusDays(long)
-  Period minus(TemporalAmount)
-  Period minusYears(long)
-  Period minusMonths(long)
-  Period minusDays(long)
-  Period multipliedBy(int)
-  Period negated()
-  Period normalized()
+  Period of(int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period ofYears(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period ofMonths(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period ofWeeks(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period ofDays(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  Period plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period plusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period plusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period plusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period minusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period minusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period minusDays(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period multipliedBy(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period negated() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period normalized() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   long toTotalMonths()
-  Period withDays(int)
-  Period withMonths(int)
-  Period withYears(int)
+  Period withDays(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period withMonths(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Period withYears(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 class java.time.Year {
   int MAX_VALUE
   int MIN_VALUE
-  LocalDate atDay(int)
-  YearMonth atMonth(int)
-  LocalDate atMonthDay(MonthDay)
+  LocalDate atDay(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth atMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate atMonthDay(MonthDay) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   int compareTo(Year)
-  String format(DateTimeFormatter)
-  Year from(TemporalAccessor)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
+  Year from(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   int getValue()
   boolean isAfter(Year)
   boolean isLeap()
   boolean isLeap(long)
   boolean isValidMonthDay(MonthDay)
   int length()
-  Year minus(TemporalAmount)
-  Year minus(long,TemporalUnit)
-  Year minusYears(long)
-  Year of(int)
-  Year parse(CharSequence)
-  Year parse(CharSequence,DateTimeFormatter)
-  Year plus(TemporalAmount)
-  Year plus(long,TemporalUnit)
-  Year plusYears(long)
-  Year with(TemporalAdjuster)
-  Year with(TemporalField,long)
+  Year minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Year minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Year minusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Year of(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Year parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  Year parse(CharSequence,DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  Year plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Year plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Year plusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Year with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  Year with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 class java.time.YearMonth {
-  LocalDate atDay(int)
-  LocalDate atEndOfMonth()
+  LocalDate atDay(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  LocalDate atEndOfMonth() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   int compareTo(YearMonth)
-  String format(DateTimeFormatter)
-  YearMonth from(TemporalAccessor)
+  String format(DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="formatBytes"]
+  YearMonth from(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
   Month getMonth()
   int getMonthValue()
   int getYear()
@@ -455,21 +455,21 @@ class java.time.YearMonth {
   boolean isValidDay(int)
   int lengthOfMonth()
   int lengthOfYear()
-  YearMonth minus(TemporalAmount)
-  YearMonth minus(long,TemporalUnit)
-  YearMonth minusYears(long)
-  YearMonth minusMonths(long)
-  YearMonth of(int,int)
-  YearMonth parse(CharSequence)
-  YearMonth parse(CharSequence,DateTimeFormatter)
-  YearMonth plus(TemporalAmount)
-  YearMonth plus(long,TemporalUnit)
-  YearMonth plusYears(long)
-  YearMonth plusMonths(long)
-  YearMonth with(TemporalAdjuster)
-  YearMonth with(TemporalField,long)
-  YearMonth withYear(int)
-  YearMonth withMonth(int)
+  YearMonth minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth minusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth minusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth of(int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth parse(CharSequence) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  YearMonth parse(CharSequence,DateTimeFormatter) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="parseFlatValueBytes"]
+  YearMonth plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth plusYears(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth plusMonths(long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth withYear(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  YearMonth withMonth(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 class java.time.ZonedDateTime {
@@ -551,13 +551,13 @@ class java.time.ZonedDateTime {
 
 class java.time.ZoneId {
   Map SHORT_IDS
-  Set getAvailableZoneIds()
-  ZoneId of(String)
-  ZoneId of(String,Map)
-  ZoneId ofOffset(String,ZoneOffset)
+  Set getAvailableZoneIds() @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="availableZoneIdsBytes"]
+  ZoneId of(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zoneIdBytes"]
+  ZoneId of(String,Map) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zoneIdBytes"]
+  ZoneId ofOffset(String,ZoneOffset) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zoneIdBytes"]
   ZoneId from(TemporalAccessor)
   String getId()
-  String getDisplayName(TextStyle,Locale)
+  String getDisplayName(TextStyle,Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="displayNameBytes"]
   ZoneId normalized()
   ZoneId systemDefault()
   ZoneRules getRules()
@@ -569,11 +569,11 @@ class java.time.ZoneOffset {
   ZoneOffset UTC
   ZoneOffset from(TemporalAccessor)
   int getTotalSeconds()
-  ZoneOffset of(String)
-  ZoneOffset ofHours(int)
-  ZoneOffset ofHoursMinutes(int,int)
-  ZoneOffset ofHoursMinutesSeconds(int,int,int)
-  ZoneOffset ofTotalSeconds(int)
+  ZoneOffset of(String) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="zoneIdBytes"]
+  ZoneOffset ofHours(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ZoneOffset ofHoursMinutes(int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ZoneOffset ofHoursMinutesSeconds(int,int,int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
+  ZoneOffset ofTotalSeconds(int) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="flatValueBytes"]
 }
 
 #### Enums
@@ -589,7 +589,7 @@ class java.time.DayOfWeek {
   DayOfWeek of(int)
   DayOfWeek from(TemporalAccessor)
   int getValue()
-  String getDisplayName(TextStyle,Locale)
+  String getDisplayName(TextStyle,Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="displayNameBytes"]
   DayOfWeek minus(long)
   DayOfWeek plus(long)
   DayOfWeek valueOf(String)
@@ -613,7 +613,7 @@ class java.time.Month {
   int firstDayOfYear(boolean)
   Month firstMonthOfQuarter()
   int getValue()
-  String getDisplayName(TextStyle,Locale)
+  String getDisplayName(TextStyle,Locale) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="displayNameBytes"]
   int length(boolean)
   int maxLength()
   int minLength()

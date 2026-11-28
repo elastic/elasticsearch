@@ -29,8 +29,8 @@ public final class DoubleRangeBlockBuilder extends AbstractBlockBuilder implemen
         fromBuilder = null;
         toBuilder = null;
         try {
-            fromBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-            toBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
+            fromBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory, false);
+            toBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory, false);
         } finally {
             if (toBuilder == null) {
                 Releasables.closeWhileHandlingException(fromBuilder);

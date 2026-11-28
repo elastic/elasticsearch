@@ -217,10 +217,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             ThreadPool.Names.REFRESH
         );
 
-        StatelessDeterministicTaskQueue(TaskSelectionPolicy selectionPolicy) {
-            super(selectionPolicy);
-        }
-
         @Override
         public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
             return new StatelessDeterministicThreadPool(runnableWrapper);
@@ -265,8 +261,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected DeterministicTaskQueue createDeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy selectionPolicy) {
-        return new StatelessDeterministicTaskQueue(selectionPolicy);
+    protected DeterministicTaskQueue createDeterministicTaskQueue() {
+        return new StatelessDeterministicTaskQueue();
     }
 
     @Override

@@ -88,7 +88,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testRandomPriorityRunsEveryTask() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy.RANDOM_PRIORITY);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final Set<String> strings = new HashSet<>();
 
         taskQueue.scheduleNow(() -> {
@@ -110,7 +110,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     private List<Integer> executeAndGetOrder(Random random) {
-        final var taskQueue = new DeterministicTaskQueue(random, DeterministicTaskQueue.TaskSelectionPolicy.RANDOM_PRIORITY);
+        final var taskQueue = new DeterministicTaskQueue(random);
         final var order = new ArrayList<Integer>();
         for (int i = 0; i < 20; i++) {
             final var task = i;
@@ -133,15 +133,12 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         // L becomes runnable first, then each link in turn
         final var draws = DoubleStream.concat(DoubleStream.of(priorityOfL), Arrays.stream(chainPriorities)).iterator();
-        final var taskQueue = new DeterministicTaskQueue(
-            new Random(0),
-            new DeterministicTaskQueue.TaskSelector.RandomPriority(new Random(0) {
-                @Override
-                public double nextDouble() {
-                    return draws.nextDouble();
-                }
-            })
-        );
+        final var taskQueue = new DeterministicTaskQueue(new Random(0), new Random(0) {
+            @Override
+            public double nextDouble() {
+                return draws.nextDouble();
+            }
+        });
 
         final var actualOrder = new ArrayList<String>();
         taskQueue.scheduleNow(() -> actualOrder.add("L"));

@@ -266,6 +266,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return process.pid();
         }
 
+        /**
+         * Returns whether the node process is still alive. This is a fast, non-blocking OS-level check.
+         */
+        public boolean isAlive() {
+            return process != null && process.isAlive();
+        }
+
         public InputStream getLog(LogType logType) {
             return RolledLogReader.open(logsDir, spec.getCluster().getName(), logType);
         }

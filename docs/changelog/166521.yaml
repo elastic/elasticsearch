@@ -1,0 +1,5 @@
+area: Infra/Entitlements
+issues: []
+pr: 166521
+summary: Tighten process start entitlement checks
+type: bug

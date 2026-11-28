@@ -14,6 +14,7 @@ import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -44,6 +45,16 @@ public class SystemInstrumentation implements InstrumentationConfig {
                 .enforce((_, path) -> Policies.fileRead(Path.of(path)).and(Policies.loadingNativeLibraries()))
                 .elseThrowNotEntitled();
             rule.callingVoid(Runtime::loadLibrary, String.class).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
+            rule.calling(Runtime::exec, String.class).enforce(Policies::startProcess).elseThrow(IOException::new);
+            rule.calling(Runtime::exec, String.class, String[].class).enforce(Policies::startProcess).elseThrow(IOException::new);
+            rule.calling(Runtime::exec, String.class, String[].class, File.class)
+                .enforce(Policies::startProcess)
+                .elseThrow(IOException::new);
+            rule.calling(Runtime::exec, String[].class).enforce(Policies::startProcess).elseThrow(IOException::new);
+            rule.calling(Runtime::exec, String[].class, String[].class).enforce(Policies::startProcess).elseThrow(IOException::new);
+            rule.calling(Runtime::exec, String[].class, String[].class, File.class)
+                .enforce(Policies::startProcess)
+                .elseThrow(IOException::new);
         });
 
         builder.on(System.class, rule -> {

@@ -60,6 +60,10 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             .register("updateVersions", UpdateVersionsTask.class, t -> project.getTasks().named("spotlessApply").get().mustRunAfter(t));
 
         project.getTasks().register("extractCurrentVersions", ExtractCurrentVersionsTask.class);
+        final var validateIndexVersionsTask = project.getTasks().register("validateIndexVersions", ValidateIndexVersionsTask.class, t -> {
+            t.setDescription("Validates that index version ids neither skip nor reuse the ids that main has");
+            t.getPatchBranchName().set(project.getProviders().gradleProperty("org.elasticsearch.transport.patchBranch"));
+        });
         project.getTasks().register("tagVersions", TagVersionsTask.class);
         project.getTasks().register("updateBranchesJson", UpdateBranchesJsonTask.class);
 
@@ -119,7 +123,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setChangelogs(yamlFiles);
         });
 
-        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
+        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask, validateIndexVersionsTask));
     }
 
     private static List<BundleChangelogsTask.ExternalChangelogSource> loadExternalSources() {

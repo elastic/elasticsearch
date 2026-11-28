@@ -502,11 +502,11 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         );
     }
 
-    private static IndexResolution resolution(String pattern, FieldCapabilitiesIndexResponse... indices) {
+    static IndexResolution resolution(String pattern, FieldCapabilitiesIndexResponse... indices) {
         return mergedResolution(pattern, FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indices)).build());
     }
 
-    private static FieldCapabilitiesIndexResponse index(String name, IndexMode mode, IndexFieldCapabilities... fields) {
+    static FieldCapabilitiesIndexResponse index(String name, IndexMode mode, IndexFieldCapabilities... fields) {
         Map<String, IndexFieldCapabilities> byName = new HashMap<>();
         for (IndexFieldCapabilities field : fields) {
             byName.put(field.name(), field);
@@ -514,7 +514,7 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         return new FieldCapabilitiesIndexResponse(name, name, byName, true, mode, 1, 0, 1L, 1L, null);
     }
 
-    private static IndexFieldCapabilities field(String name, String type) {
+    static IndexFieldCapabilities field(String name, String type) {
         return new IndexFieldCapabilitiesBuilder(name, type).build();
     }
 

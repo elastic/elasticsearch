@@ -110,3 +110,231 @@ id:keyword | items.sku:keyword | events.start:integer
 3          | c                 | 30
 3          | c                 | 31
 ;
+
+expandThroughAnAlias
+required_capability: nested_expand
+
+FROM nested_orders
+| EVAL o = items
+| NESTED_EXPAND o
+| KEEP id, o.sku, o.qty
+| SORT id, o.sku
+;
+
+id:keyword | o.sku:keyword | o.qty:long
+1          | a             | 1
+1          | b             | 2
+2          | null          | null
+3          | c             | 5
+;
+
+expandThroughARenamedAlias
+required_capability: nested_expand
+
+FROM nested_orders
+| EVAL o = items
+| RENAME o AS p
+| NESTED_EXPAND p
+| WHERE p.qty > 1
+| KEEP id, p.sku
+| SORT id
+;
+
+id:keyword | p.sku:keyword
+1          | b
+3          | c
+;
+
+expandAfterFork
+required_capability: nested_expand
+required_capability: fork_v9
+
+FROM nested_orders
+| FORK (WHERE id == "1") (WHERE id == "3")
+| NESTED_EXPAND items
+| KEEP id, items.sku, _fork
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword | _fork:keyword
+1          | a                 | fork1
+1          | b                 | fork1
+3          | c                 | fork2
+;
+
+expandAfterSubqueries
+required_capability: nested_expand
+required_capability: subquery_in_from_command
+
+FROM (FROM nested_orders | WHERE id == "1"), (FROM nested_orders | WHERE id == "3")
+| NESTED_EXPAND items
+| KEEP id, items.sku
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword
+1          | a
+1          | b
+3          | c
+;
+
+expandThroughARename
+required_capability: nested_expand
+
+FROM nested_orders
+| RENAME items AS i
+| NESTED_EXPAND i
+| KEEP id, i.sku, i.qty
+| SORT id, i.sku
+;
+
+id:keyword | i.sku:keyword | i.qty:long
+1          | a             | 1
+1          | b             | 2
+2          | null          | null
+3          | c             | 5
+;
+
+expandThroughAnAliasOfTheSameName
+required_capability: nested_expand
+
+FROM nested_orders
+| EVAL items = items
+| NESTED_EXPAND items
+| KEEP id, items.sku
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword
+1          | a
+1          | b
+2          | null
+3          | c
+;
+
+expandThroughAnAliasOfAnAlias
+required_capability: nested_expand
+
+FROM nested_orders
+| EVAL o = items
+| EVAL p = o
+| NESTED_EXPAND p
+| KEEP id, p.sku
+| SORT id, p.sku
+;
+
+id:keyword | p.sku:keyword
+1          | a
+1          | b
+2          | null
+3          | c
+;
+
+expandAfterFORKThroughAnAlias
+required_capability: nested_expand
+required_capability: fork_v9
+
+FROM nested_orders
+| EVAL o = items
+| FORK (WHERE id == "1") (WHERE id == "3")
+| NESTED_EXPAND o
+| KEEP id, o.sku, _fork
+| SORT id, o.sku
+;
+
+id:keyword | o.sku:keyword | _fork:keyword
+1          | a             | fork1
+1          | b             | fork1
+3          | c             | fork2
+;
+
+expandAfterAnIndexAndASubquery
+required_capability: nested_expand
+required_capability: subquery_in_from_command
+
+FROM nested_orders, (FROM nested_orders | WHERE id == "1")
+| NESTED_EXPAND items
+| KEEP id, items.sku
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword
+1          | a
+1          | a
+1          | b
+1          | b
+2          | null
+3          | c
+;
+
+expandAfterASubqueryAndASubquery
+required_capability: nested_expand
+required_capability: subquery_in_from_command
+
+FROM (FROM nested_orders | WHERE id == "1"), (FROM nested_orders)
+| NESTED_EXPAND items
+| KEEP id, items.sku
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword
+1          | a
+1          | a
+1          | b
+1          | b
+2          | null
+3          | c
+;
+
+expandAfterKeepingTheAlias
+required_capability: nested_expand
+
+FROM nested_orders
+| EVAL o = items
+| KEEP id, o
+| NESTED_EXPAND o
+| KEEP id, o.sku
+| SORT id, o.sku
+;
+
+id:keyword | o.sku:keyword
+1          | a
+1          | b
+2          | null
+3          | c
+;
+
+expandAfterAFilterAfterFork
+required_capability: nested_expand
+required_capability: fork_v9
+
+FROM nested_orders
+| FORK (WHERE id == "1") (WHERE id == "2") (WHERE id == "3")
+| WHERE id != "2"
+| NESTED_EXPAND items
+| KEEP id, items.sku, _fork
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword | _fork:keyword
+1          | a                 | fork1
+1          | b                 | fork1
+3          | c                 | fork3
+;
+
+expandAfterAnEvalAfterSubqueries
+required_capability: nested_expand
+required_capability: subquery_in_from_command
+
+FROM (FROM nested_orders | WHERE id == "1"), (FROM nested_orders | WHERE id == "3")
+| EVAL z = 1
+| NESTED_EXPAND items
+| KEEP id, z, items.sku
+| SORT id, items.sku
+;
+
+id:keyword | z:integer | items.sku:keyword
+1          | 1         | a
+1          | 1         | b
+3          | 1         | c
+;

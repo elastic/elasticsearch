@@ -182,3 +182,127 @@ FROM nested_orders
 id:keyword
 1
 ;
+
+anyThroughAnAlias
+required_capability: fn_nested_any
+
+FROM nested_orders
+| EVAL o = items
+| WHERE NESTED_ANY(o, o.qty > 1)
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+3
+;
+
+anyAfterFork
+required_capability: fn_nested_any
+required_capability: fork_v9
+
+FROM nested_orders
+| FORK (WHERE id == "1") (WHERE id == "2") (WHERE id == "3")
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id, _fork
+| SORT id
+;
+
+id:keyword | _fork:keyword
+1          | fork1
+3          | fork3
+;
+
+anyThroughARename
+required_capability: fn_nested_any
+
+FROM nested_orders
+| RENAME items AS i
+| WHERE NESTED_ANY(i, i.qty > 1)
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+3
+;
+
+anyAfterSubqueries
+required_capability: fn_nested_any
+required_capability: subquery_in_from_command
+
+FROM (FROM nested_orders | WHERE id == "1"), (FROM nested_orders | WHERE id == "3")
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+3
+;
+
+anyInEvalAfterFork
+required_capability: fn_nested_any
+required_capability: fork_v9
+
+FROM nested_orders
+| FORK (WHERE id == "1") (WHERE id == "2")
+| EVAL hit = NESTED_ANY(items.qty > 1)
+| KEEP id, hit, _fork
+| SORT id
+;
+
+id:keyword | hit:boolean | _fork:keyword
+1          | true        | fork1
+2          | false       | fork2
+;
+
+anyWithAConjunctOnAColumnOfTheForkAfterFork
+required_capability: fn_nested_any
+required_capability: fork_v9
+
+FROM nested_orders
+| FORK (WHERE id == "1") (WHERE id == "3")
+| WHERE _fork == "fork1" AND NESTED_ANY(items.qty > 1)
+| KEEP id, _fork
+;
+
+id:keyword | _fork:keyword
+1          | fork1
+;
+
+anyAfterKeepingTheAlias
+required_capability: fn_nested_any
+
+FROM nested_orders
+| EVAL o = items
+| KEEP id, o
+| WHERE NESTED_ANY(o, o.qty > 1)
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+3
+;
+
+anyAfterAFilterAfterFork
+required_capability: fn_nested_any
+required_capability: fork_v9
+
+FROM nested_orders
+| FORK (WHERE id == "1") (WHERE id == "2") (WHERE id == "3")
+| WHERE id != "2"
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id, _fork
+| SORT id
+;
+
+id:keyword | _fork:keyword
+1          | fork1
+3          | fork3
+;

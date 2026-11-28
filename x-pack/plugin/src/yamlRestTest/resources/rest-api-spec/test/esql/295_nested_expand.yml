@@ -553,6 +553,75 @@ setup:
           query: 'FROM ne_flattened | NESTED_EXPAND items | KEEP items.qty, other.attrs.size | LIMIT 10'
 
 ---
+"A key of a flattened field under a renamed or copied collection resolves inside the expansion":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [flattened_keys, fn_nested_any]
+      reason: "flattened keys are behind a feature flag"
+  - do:
+      indices.create:
+        index: ne_flattened_alias
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+                  attrs:
+                    type: flattened
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_flattened_alias", "_id": "a" } }
+          - { "items": [ { "qty": 1, "attrs": { "color": "red" } }, { "qty": 2, "attrs": { "color": "blue" } } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_flattened_alias | RENAME items AS i | NESTED_EXPAND i | KEEP i.qty, i.attrs.color | SORT i.qty | LIMIT 10'
+  - match: { columns.1.name: i.attrs.color }
+  - match: { columns.1.type: keyword }
+  - length: { values: 2 }
+  - match: { values.0: [1, "red"] }
+  - match: { values.1: [2, "blue"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_flattened_alias | EVAL o = items | NESTED_EXPAND o | KEEP o.qty, o.attrs.color | SORT o.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, "red"] }
+  - match: { values.1: [2, "blue"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_flattened_alias | RENAME items AS i | EVAL j = i | NESTED_EXPAND j | KEEP j.attrs.color | SORT j.attrs.color | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["blue"] }
+  - match: { values.1: ["red"] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM ne_flattened_alias | RENAME items AS i | WHERE NESTED_ANY(i.attrs.color == "red" AND i.qty == 1) | STATS c = COUNT(*)'
+  - match: { values.0: [1] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM ne_flattened_alias | RENAME items AS i | WHERE NESTED_ANY(i.attrs.color == "red" AND i.qty == 2) | STATS c = COUNT(*)'
+  - match: { values.0: [0] }
+
+---
 "A column of the query named _doc does not replace the document NESTED_EXPAND reads":
   - do:
       esql.query:
@@ -1518,3 +1587,27 @@ setup:
           query: 'FROM ne_code_leaf, ne_code_object | NESTED_EXPAND items | WHERE items.code == "x" | KEEP items.code, items.code.label | LIMIT 10'
   - length: { values: 1 }
   - match: { values.0: ["x", null] }
+
+---
+"A nested collection is a column that EVAL can name and NESTED_EXPAND can read":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL o = items | NESTED_EXPAND o | KEEP id, o.sku, o.qty | SORT id, o.sku'
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "o.sku" }
+  - match: { columns.2.name: "o.qty" }
+  - length: { values: 3 }
+  - match: { values.0: ["1", "a", 1] }
+  - match: { values.1: ["1", "b", 2] }
+  - match: { values.2: ["2", null, null] }
+
+---
+"A column that names a nested collection is not a value":
+  - do:
+      catch: /is a nested collection \[items\]/
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL o = items | NESTED_EXPAND o | WHERE o IS NOT NULL'

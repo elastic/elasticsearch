@@ -34,7 +34,10 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.BindNestedAny;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.analysis.rules.DistributeNestedOverBranches;
+import org.elasticsearch.xpack.esql.analysis.rules.NestedReference;
 import org.elasticsearch.xpack.esql.analysis.rules.NestedRowChecks;
+import org.elasticsearch.xpack.esql.analysis.rules.RemoveNestedReferences;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightFieldMappings;
@@ -334,6 +337,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveExternalRelations(),
                 new ResolveEqlRelation(),
                 new PruneEmptyUnionAllBranch(),
+                new DistributeNestedOverBranches(),
                 new ResolveEnrich(),
                 new ResolveIpLocation(),
                 new ResolveLookupTables(),
@@ -376,6 +380,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Limiter.ONCE,
                 new BindNestedAny(),
                 new HideNestedScopeFields(),
+                new RemoveNestedReferences(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
@@ -972,16 +977,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            if (plan.anyMatch(NestedExpand.class::isInstance) == false && plan.anyMatch(NestedPredicate::usedBy) == false) {
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false
+                && plan.anyMatch(NestedPredicate::usedBy) == false
+                && NestedReference.references(plan).isEmpty()) {
                 return plan;
             }
-            return plan.transformUp(EsRelation.class, relation -> {
+            Map<NameId, String> references = NestedReference.references(plan);
+            // A ResolvingProject resolves its command again against any new child, whose output no longer has the private schema a
+            // renamed collection is bound to, so the collection columns it holds are kept as they are.
+            LogicalPlan frozen = references.isEmpty() ? plan : plan.transformUp(ResolvingProject.class, project -> {
+                boolean holdsReference = project.projections().stream().anyMatch(p -> references.containsKey(p.id()));
+                if (holdsReference == false) {
+                    return project;
+                }
+                List<? extends NamedExpression> projections = project.projections()
+                    .stream()
+                    .filter(p -> isNestedScope(p) == false)
+                    .toList();
+                return new Project(project.source(), project.child(), projections);
+            });
+            return frozen.transformUp(EsRelation.class, relation -> {
                 List<Attribute> visible = relation.output().stream().filter(a -> isNestedScope(a) == false).toList();
                 return visible.size() == relation.output().size() ? relation : relation.withAttributes(visible);
             });
         }
 
-        private static boolean isNestedScope(Attribute attribute) {
+        private static boolean isNestedScope(NamedExpression attribute) {
             return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
         }
     }
@@ -1902,7 +1923,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 throw nestedExpandError(target, "NESTED_EXPAND requires all nodes to support nested expansion");
             }
             String name = target.name();
-            String rootName = NestedScopeField.PREFIX + name;
+            String referenced = NestedReference.referencedPath(expand.child(), name);
+            String rootName = NestedScopeField.PREFIX + (referenced != null ? referenced : name);
             FieldAttribute root = null;
             Set<String> collections = new HashSet<>();
             for (Attribute attribute : childrenOutput) {
@@ -1917,7 +1939,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             if (root == null) {
                 if (childrenOutput.stream().anyMatch(a -> inNestedPath(a.name(), name) || inNestedPath(a.name(), rootName))) {
-                    throw nestedExpandError(target, "NESTED_EXPAND requires a mapped nested field, not [" + name + "]");
+                    String hint = expand.child().anyMatch(MergePlan.class::isInstance)
+                        ? "; if it is a nested field of the indices of a FORK or a subquery, NESTED_EXPAND has to follow it directly, "
+                            + "with only WHERE or EVAL commands in between"
+                        : "";
+                    throw nestedExpandError(target, "NESTED_EXPAND requires a mapped nested field, not [" + name + "]" + hint);
                 }
                 return resolveExpressions(expand, childrenOutput);
             }
@@ -1932,7 +1958,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
                 );
             }
-            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))) {
+            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))
+                && NestedReference.referencedPath(expand.child(), path) == null) {
                 throw nestedExpandError(target, "NESTED_EXPAND cannot use [" + path + "]: a column of that name replaces it here");
             }
             if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
@@ -1959,7 +1986,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> paths = new ArrayList<>();
             for (FieldAttribute child : children) {
                 String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
-                String childName = path + "." + relative;
+                String childName = (referenced != null ? name : path) + "." + relative;
                 String parentName = childName.substring(0, childName.lastIndexOf('.'));
                 expanded.add(fieldAttribute(expand.source(), parentName, childName, ((NestedScopeField) child.field()).leaf(), false));
                 paths.add(relative);
@@ -3323,8 +3350,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
-            var resolved = resolveFields(eval.fields(), childOutput);
-            return resolved != null ? new Eval(eval.source(), eval.child(), resolved) : eval;
+            List<Alias> fields = NestedReference.bindCollections(eval.fields(), childOutput);
+            var resolved = resolveFields(fields, childOutput);
+            if (resolved != null) {
+                return new Eval(eval.source(), eval.child(), resolved);
+            }
+            return fields == eval.fields() ? eval : new Eval(eval.source(), eval.child(), fields);
         }
 
         /**
@@ -3413,11 +3444,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     new ResolvingProject.Command(
                         ResolvingProject.Kind.KEEP,
                         keep.projections(),
-                        inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmatchedPatterns)
+                        inputAttributes -> NestedReference.withKeptSchema(
+                            keepResolver(keep.projections(), inputAttributes, unmatchedPatterns),
+                            keep.child(),
+                            inputAttributes
+                        )
                     )
                 );
             }
-            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL);
+            List<NamedExpression> resolved = NestedReference.withKeptSchema(
+                keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL),
+                keep.child(),
+                keep.child().output()
+            );
             // Provenance for the external-metadata surfacing rule: when a Keep projection lists an
             // engine-synthesized virtual column (ExternalMetadataAttribute), emit a Keep node, not
             // a bare Project, so planWithoutSyntheticAttributes can tell "the user kept this
@@ -3645,7 +3684,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     childrenOutput.removeIf(x -> x.name().equals(alias.name()));
 
                     var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
-                    if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
+                    Alias collectionAlias = resolved.resolved() ? null : NestedReference.bindCollection(alias, childrenOutput);
+                    if (collectionAlias != null) {
+                        // The collection's private schema stays in the rows, so the alias is added beside it.
+                        projections.removeIf(x -> x.name().equals(alias.name()));
+                        projections.add(collectionAlias);
+                    } else if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
                         var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
                         childrenOutput.removeIf(x -> x.equals(resolved));

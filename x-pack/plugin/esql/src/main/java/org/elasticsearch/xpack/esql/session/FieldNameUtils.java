@@ -72,9 +72,11 @@ import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -101,7 +103,57 @@ public class FieldNameUtils {
     public static Set<String> namedFields(LogicalPlan parsed) {
         Set<String> names = new HashSet<>();
         parsed.forEachExpressionDown(UnresolvedAttribute.class, ua -> names.add(ua.name()));
+        if (readsNestedObjects(parsed)) {
+            addNamesBehindAliases(parsed, names);
+        }
         return names;
+    }
+
+    private static boolean readsNestedObjects(LogicalPlan parsed) {
+        if (parsed.anyMatch(NestedExpand.class::isInstance)) {
+            return true;
+        }
+        Holder<Boolean> nestedAny = new Holder<>(false);
+        parsed.forEachExpressionDown(
+            UnresolvedFunction.class,
+            function -> nestedAny.set(nestedAny.get() || function.name().equalsIgnoreCase("nested_any"))
+        );
+        return nestedAny.get();
+    }
+
+    /**
+     * A key of a {@code flattened} field below a collection that an EVAL or a RENAME made a column of is named by the column, not by
+     * the collection: {@code RENAME items AS i | NESTED_EXPAND i | KEEP i.attrs.color}. Index resolution reads the names as the
+     * mapping spells them, so each name under such a column is also added under the name it copies. Chains of columns are followed
+     * once per column, which bounds a column that copies a path below itself.
+     */
+    private static void addNamesBehindAliases(LogicalPlan parsed, Set<String> names) {
+        Map<String, Set<String>> copies = new HashMap<>();
+        parsed.forEachDown(Eval.class, eval -> eval.fields().forEach(field -> {
+            if (field.child() instanceof UnresolvedAttribute source) {
+                copies.computeIfAbsent(field.name(), k -> new HashSet<>()).add(source.name());
+            }
+        }));
+        parsed.forEachDown(Rename.class, rename -> rename.renamings().forEach(field -> {
+            if (field.child() instanceof UnresolvedAttribute source) {
+                copies.computeIfAbsent(field.name(), k -> new HashSet<>()).add(source.name());
+            }
+        }));
+        for (int round = 0; round < copies.size(); round++) {
+            Set<String> added = new HashSet<>();
+            for (String name : names) {
+                for (Map.Entry<String, Set<String>> copy : copies.entrySet()) {
+                    if (name.startsWith(copy.getKey() + ".")) {
+                        for (String source : copy.getValue()) {
+                            added.add(source + name.substring(copy.getKey().length()));
+                        }
+                    }
+                }
+            }
+            if (names.addAll(added) == false) {
+                return;
+            }
+        }
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
@@ -117,8 +169,6 @@ public class FieldNameUtils {
         Set<String> collections = new HashSet<>();
         parsed.forEachDown(NestedExpand.class, expand -> {
             if (expand.bound() == false && expand.target() != null) {
-                // TODO: When collection aliases/references are supported, resolve their owning
-                // source and mapped path here; the target name may be an alias in the query.
                 collections.add(expand.target().name());
             }
         });
@@ -136,6 +186,17 @@ public class FieldNameUtils {
         if (collections.isEmpty()) {
             return result;
         }
+        // The target of NESTED_EXPAND, or the first argument of NESTED_ANY, can be a column that an EVAL or a RENAME made of a collection.
+        parsed.forEachDown(Eval.class, eval -> eval.fields().forEach(field -> {
+            if (field.child() instanceof UnresolvedAttribute source) {
+                collections.add(source.name());
+            }
+        }));
+        parsed.forEachDown(Rename.class, rename -> rename.renamings().forEach(field -> {
+            if (field.child() instanceof UnresolvedAttribute source) {
+                collections.add(source.name());
+            }
+        }));
         if (result.fieldNames().contains(WILDCARD)) {
             return new PreAnalysisResult(result.fieldNames(), result.parentPaths(), true, result.wildcardJoinIndices());
         }

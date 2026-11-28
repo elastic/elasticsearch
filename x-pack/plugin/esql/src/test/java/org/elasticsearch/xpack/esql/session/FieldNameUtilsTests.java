@@ -109,6 +109,64 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertThat(nestedScope(query), is(true));
     }
 
+    public void testNestedExpandOfAnAliasAsksForTheAliasedCollection() {
+        assumeTrue("NESTED_EXPAND required", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
+        String query = "from test | eval o = items | nested_expand o | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "o", "o.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedPredicateOverAnAliasAsksForTheAliasedCollection() {
+        String query = "from test | eval o = items | where nested_any(o, o.price > 1) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "o", "o.*", "o.price", "o.price.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedExpandOfARenamedCollectionAsksForTheCollection() {
+        assumeTrue("NESTED_EXPAND required", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
+        String query = "from test | rename items as i | nested_expand i | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "i", "i.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNamedFieldsIncludeTheNamesBehindARenamedCollection() {
+        assumeTrue("NESTED_EXPAND required", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
+        assertThat(namedFields("from test | rename items as i | nested_expand i | keep i.attrs.color"), hasItem("items.attrs.color"));
+    }
+
+    public void testNamedFieldsIncludeTheNamesBehindACopiedCollection() {
+        assumeTrue("NESTED_EXPAND required", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
+        assertThat(namedFields("from test | eval o = items | nested_expand o | keep o.attrs.color"), hasItem("items.attrs.color"));
+    }
+
+    public void testNamedFieldsIncludeTheNamesBehindAChainOfAliases() {
+        assumeTrue("NESTED_EXPAND required", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
+        assertThat(
+            namedFields("from test | rename items as i | eval j = i | nested_expand j | keep j.attrs.color"),
+            hasItem("items.attrs.color")
+        );
+    }
+
+    public void testNamedFieldsIncludeTheNamesBehindACollectionOfNestedAny() {
+        assertThat(
+            namedFields("from test | rename items as i | where nested_any(i.attrs.color == \"red\") | keep id"),
+            hasItem("items.attrs.color")
+        );
+    }
+
+    public void testNamedFieldsOfAQueryWithoutANestedCommandAreTheNamesItUses() {
+        assertThat(namedFields("from test | eval o = attrs | keep o.color"), not(hasItem("attrs.color")));
+    }
+
+    public void testNamedFieldsOfAnAliasCycleTerminate() {
+        assumeTrue("NESTED_EXPAND required", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
+        assertThat(namedFields("from test | eval a = b, b = a | nested_expand a | keep a.attrs.color"), hasItem("b.attrs.color"));
+    }
+
+    public void testAliasWithoutANestedCommandDoesNotAskForTheNestedScope() {
+        assertThat(nestedScope("from test | eval o = items | keep id"), is(false));
+    }
+
     public void testAQueryWithoutNestedPredicatesIsNotNestedScoped() {
         assertThat(nestedScope("from test | where id > 1 | keep id"), is(false));
     }
@@ -4970,6 +5028,10 @@ public class FieldNameUtilsTests extends ESTestCase {
         var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields);
         assertThat("Parent paths", preAnalysisResult.parentPaths(), equalTo(expected));
         assertThat("Parent paths are requested", preAnalysisResult.fieldNames().containsAll(expected), equalTo(true));
+    }
+
+    private static Set<String> namedFields(String query) {
+        return FieldNameUtils.namedFields(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query)));
     }
 
     private boolean nestedScope(String query) {

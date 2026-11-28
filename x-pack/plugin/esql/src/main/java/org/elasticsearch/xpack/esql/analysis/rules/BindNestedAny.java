@@ -39,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * Binds {@code NESTED_ANY} to the private nested schema and lowers it to a {@link NestedPredicate}. Name resolution ignores
@@ -50,29 +51,41 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
      * query with the same name replaces the child, as a later definition does everywhere else, so that is an error.
      */
     public static LogicalPlan scope(LogicalPlan plan, List<Attribute> childrenOutput) {
-        if (plan instanceof Eval eval) {
-            return scopeEval(eval, childrenOutput);
+        if (plan.expressions().stream().noneMatch(expression -> expression.anyMatch(NestedAny.class::isInstance))) {
+            return plan;
         }
-        return plan.transformExpressionsOnlyUp(NestedAny.class, nested -> scope(nested, childrenOutput, Set.of()));
+        LogicalPlan input = plan.children().size() == 1 ? plan.children().getFirst() : null;
+        Names names = new Names(
+            childrenOutput,
+            NestedReference.dereferencer(input),
+            input == null ? Set.of() : NestedReference.references(input).keySet()
+        );
+        if (plan instanceof Eval eval) {
+            return scopeEval(eval, names);
+        }
+        return plan.transformExpressionsOnlyUp(NestedAny.class, nested -> scope(nested, names, Set.of()));
     }
 
+    /** The columns the names of a {@code NESTED_ANY} resolve against, and the nested collection columns among them. */
+    private record Names(List<Attribute> output, UnaryOperator<UnresolvedAttribute> dereferencer, Set<NameId> references) {}
+
     /** Each assignment sees the columns the earlier assignments of the same {@code EVAL} define. */
-    private static LogicalPlan scopeEval(Eval eval, List<Attribute> childrenOutput) {
+    private static LogicalPlan scopeEval(Eval eval, Names names) {
         if (eval.fields().stream().noneMatch(field -> field.anyMatch(NestedAny.class::isInstance))) {
             return eval;
         }
         Set<String> assigned = new HashSet<>();
         List<Alias> fields = new ArrayList<>();
         for (Alias field : eval.fields()) {
-            fields.add((Alias) field.transformUp(NestedAny.class, nested -> scope(nested, childrenOutput, assigned)));
+            fields.add((Alias) field.transformUp(NestedAny.class, nested -> scope(nested, names, assigned)));
             assigned.add(field.name());
         }
         return fields.equals(eval.fields()) ? eval : new Eval(eval.source(), eval.child(), fields);
     }
 
-    private static Expression scope(NestedAny nested, List<Attribute> childrenOutput, Set<String> assigned) {
+    private static Expression scope(NestedAny nested, Names names, Set<String> assigned) {
         return nested.transformUp(UnresolvedAttribute.class, attribute -> {
-            Attribute field = nestedField(attribute, childrenOutput, assigned);
+            Attribute field = nestedField(names.dereferencer().apply(attribute), names, assigned);
             return field == null ? attribute : field;
         });
     }
@@ -217,7 +230,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             if (scope.conflict() != null) {
                 throw error(nested, "NESTED_ANY cannot read [" + scope.path() + "]: " + scope.conflict());
             }
-            if (replacedByColumn(input.output(), scope.path())) {
+            if (NestedReference.replacedByColumn(input.output(), NestedReference.references(input).keySet(), scope.path())) {
                 throw error(nested, "NESTED_ANY cannot use [" + scope.path() + "]: a column of that name replaces it here");
             }
             if (NestedRowChecks.fromLookupIndex(input, field.id())) {
@@ -228,18 +241,14 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
         throw error(nested, "NESTED_ANY requires a nested collection first, not [" + named.sourceText() + "]");
     }
 
-    /** Whether a column of the query, not a private schema entry, has this name. */
-    private static boolean replacedByColumn(List<Attribute> output, String name) {
-        return output.stream().anyMatch(column -> column.synthetic() == false && column.name().equals(name));
-    }
-
-    private static Attribute nestedField(UnresolvedAttribute attribute, List<Attribute> output, Set<String> assigned) {
+    private static Attribute nestedField(UnresolvedAttribute attribute, Names names, Set<String> assigned) {
+        List<Attribute> output = names.output();
         String scopedName = NestedScopeField.PREFIX + attribute.name();
         for (Attribute candidate : output) {
             if (candidate instanceof FieldAttribute field
                 && field.name().equals(scopedName)
                 && field.field() instanceof NestedScopeField scope) {
-                if (assigned.contains(attribute.name()) || replacedByColumn(output, attribute.name())) {
+                if (assigned.contains(attribute.name()) || NestedReference.replacedByColumn(output, names.references(), attribute.name())) {
                     throw error(attribute, "NESTED_ANY cannot use [" + attribute.name() + "]: a column of that name replaces it here");
                 }
                 if (scope.leaf() instanceof UnsupportedEsField unsupported) {

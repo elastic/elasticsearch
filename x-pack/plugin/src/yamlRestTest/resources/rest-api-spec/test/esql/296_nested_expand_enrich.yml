@@ -1,0 +1,125 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [nested_expand]
+      reason: "NESTED_EXPAND is snapshot-only"
+  - do:
+      indices.create:
+        index: ne_enrich_source
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              label:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  sku:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_enrich_source", "_id": "1" } }
+          - { "id": "1", "label": "L1", "items": [ { "sku": "x" } ] }
+  - do:
+      enrich.put_policy:
+        name: ne_enrich_label
+        body:
+          match:
+            indices: [ "ne_enrich_source" ]
+            match_field: "id"
+            enrich_fields: [ "label" ]
+  - do:
+      enrich.execute_policy:
+        name: ne_enrich_label
+  - do:
+      enrich.put_policy:
+        name: ne_enrich_items
+        body:
+          match:
+            indices: [ "ne_enrich_source" ]
+            match_field: "id"
+            enrich_fields: [ "items" ]
+  - do:
+      enrich.execute_policy:
+        name: ne_enrich_items
+  - do:
+      indices.create:
+        index: ne_enrich_orders
+        body:
+          settings:
+            number_of_shards: 2
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  sku:
+                    type: keyword
+                  qty:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_enrich_orders", "_id": "1" } }
+          - { "id": "1", "items": [ { "sku": "a", "qty": 1 }, { "sku": "b", "qty": 2 } ] }
+          - { "index": { "_index": "ne_enrich_orders", "_id": "2" } }
+          - { "id": "2", "items": [ { "sku": "c", "qty": 5 } ] }
+
+---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: ne_enrich_label
+  - do:
+      enrich.delete_policy:
+        name: ne_enrich_items
+
+---
+"expand after an enrich keeps the enriched columns":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_enrich_orders | ENRICH ne_enrich_label ON id WITH label | NESTED_EXPAND items | KEEP id, label, items.sku | SORT id, items.sku | LIMIT 10'
+  - match: { values: [ [ "1", "L1", "a" ], [ "1", "L1", "b" ], [ "2", null, "c" ] ] }
+
+---
+"nested any after a rename and an enrich":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_enrich_orders | RENAME items AS i | ENRICH ne_enrich_label ON id WITH label | WHERE NESTED_ANY(i.sku == "a") | KEEP id, label | SORT id | LIMIT 10'
+  - match: { values: [ [ "1", "L1" ] ] }
+
+---
+"expand cannot follow a coordinator enrich":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM ne_enrich_orders | ENRICH _coordinator:ne_enrich_label ON id WITH label | NESTED_EXPAND items | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "NESTED_EXPAND must run on the data nodes, so it cannot follow [ENRICH _coordinator:ne_enrich_label ON id WITH label]" }
+
+---
+"a nested field of the enrich index is not an enrich field":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM ne_enrich_orders | ENRICH ne_enrich_items ON id WITH items | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "Found 1 problem\nline 1:25: Enrich field [items] not found in enrich policy [ne_enrich_items]" }

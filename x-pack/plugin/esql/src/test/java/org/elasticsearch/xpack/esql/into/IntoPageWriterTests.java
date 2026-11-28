@@ -596,6 +596,32 @@ public class IntoPageWriterTests extends ComputeTestCase {
         );
     }
 
+    /** The values of a multi-valued {@code _id} can be large, and are only there to point at the row, so only a preview is decoded. */
+    public void testTheReasonForAMultiValuedIdOnlyPreviewsItsValues() {
+        IntoPageWriter idWriter = writerWithIds(IntoOptions.builder().keepGoing(true).build());
+        Page page;
+        try (
+            BytesRefBlock.Builder id = factory.newBytesRefBlockBuilder(1);
+            BytesRefBlock.Builder host = factory.newBytesRefBlockBuilder(1)
+        ) {
+            id.beginPositionEntry();
+            for (int i = 0; i < 5; i++) {
+                id.appendBytesRef(new BytesRef("x".repeat(600)));
+            }
+            id.endPositionEntry();
+            host.appendBytesRef(new BytesRef("h1"));
+            page = new Page(id.build(), host.build());
+        }
+        idWriter.consume(page);
+        idWriter.finish();
+
+        assertThat(client.bulks, empty());
+        assertThat(
+            idWriter.stats().failureDetails(),
+            equalTo(List.of("[400] [_id] must be single-valued, found [" + "x".repeat(256) + "..., ... 4 more]"))
+        );
+    }
+
     public void testMultiValuedIdStopsSiblingWriters() {
         IntoPageWriter idWriter = writerWithIds(Collisions.ABORT);
         IntoPageWriter sibling = sink.create(new DriverContext(mockBigArrays(), factory, null));

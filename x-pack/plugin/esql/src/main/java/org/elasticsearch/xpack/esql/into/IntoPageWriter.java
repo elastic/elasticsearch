@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -83,6 +84,8 @@ public final class IntoPageWriter {
         + "\": \""
         + IntoOptions.Collisions.REPLACE.optionValue()
         + "\" (not supported on a data stream)";
+    /** What is shown of the values of a multi-valued {@code _id}, which can be large, and is only there to point at the row. */
+    private static final int MAX_ID_PREVIEW_BYTES = 256;
     private static final String EMPTY_ID_REASON = "if _id is specified it must not be empty";
     private static final String MULTI_VALUED_ID_MESSAGE = "INTO [{}] failed: [{}] must be single-valued, found [{}]";
 
@@ -536,11 +539,21 @@ public final class IntoPageWriter {
         };
     }
 
+    /** A preview of the values of a multi-valued {@code _id}: the first bytes of them, and how many more there are. */
     private static List<String> idValues(BytesRefBlock ids, int row, BytesRef scratch) {
         int start = ids.getFirstValueIndex(row);
-        List<String> values = new ArrayList<>(ids.getValueCount(row));
-        for (int i = 0; i < ids.getValueCount(row); i++) {
-            values.add(ids.getBytesRef(start + i, scratch).utf8ToString());
+        int count = ids.getValueCount(row);
+        List<String> values = new ArrayList<>();
+        int remaining = MAX_ID_PREVIEW_BYTES;
+        for (int i = 0; i < count; i++) {
+            if (remaining <= 0) {
+                values.add("... " + (count - i) + " more");
+                break;
+            }
+            BytesRef value = ids.getBytesRef(start + i, scratch);
+            int shown = Math.min(value.length, remaining);
+            values.add(new String(value.bytes, value.offset, shown, StandardCharsets.UTF_8) + (shown < value.length ? "..." : ""));
+            remaining -= shown;
         }
         return values;
     }

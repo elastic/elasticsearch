@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 167532
+summary: Return index not found when all shards fail because the index was deleted during the search
+type: bug

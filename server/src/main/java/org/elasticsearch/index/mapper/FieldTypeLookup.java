@@ -196,6 +196,13 @@ final class FieldTypeLookup {
         return getDynamicField(field);
     }
 
+    /**
+     * Returns the field type defined under exactly this name, without resolving a dynamic key such as the one of a flattened field.
+     */
+    MappedFieldType getDefined(String field) {
+        return fullNameToFieldType.get(field);
+    }
+
     // for testing
     int getMaxParentPathDots() {
         return maxParentPathDots;

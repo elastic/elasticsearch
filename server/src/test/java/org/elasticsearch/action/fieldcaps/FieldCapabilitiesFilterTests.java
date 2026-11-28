@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +66,87 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNotNull(response.get("field4"));
         assertNull(response.get("field2"));
         assertNull(response.get("field2.field3"));
+    }
+
+    public void testRuntimeFieldIsFlaggedAndMappedFieldIsNot() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "runtime" : { "calc" : { "type" : "long" } },
+              "properties" : { "id" : { "type" : "keyword" } }
+            } }
+            """);
+
+        Map<String, IndexFieldCapabilities> response = retrieve(mapperService);
+
+        assertThat(response.get("calc").isRuntimeField(), is(true));
+        assertThat(response.get("id").isRuntimeField(), is(false));
+    }
+
+    public void testLookupRuntimeFieldIsFlagged() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "runtime" : {
+                "items.lookup" : {
+                  "type" : "lookup",
+                  "target_index" : "other",
+                  "input_field" : "id",
+                  "target_field" : "id",
+                  "fetch_fields" : [ "name" ]
+                }
+              },
+              "properties" : {
+                "id" : { "type" : "keyword" },
+                "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" } } }
+              }
+            } }
+            """);
+
+        assertThat(retrieve(mapperService).get("items.lookup").isRuntimeField(), is(true));
+    }
+
+    public void testRuntimeFieldAndMappedFieldOfTheSameNameInDifferentIndicesAreToldApart() throws IOException {
+        MapperService runtime = createMapperService("""
+            { "_doc" : {
+              "runtime" : { "items.calc" : { "type" : "long" } },
+              "properties" : { "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" } } } }
+            } }
+            """);
+        MapperService mapped = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" }, "calc" : { "type" : "long" } } }
+              }
+            } }
+            """);
+
+        assertThat(retrieve(runtime).get("items.calc").isRuntimeField(), is(true));
+        assertThat(retrieve(mapped).get("items.calc").isRuntimeField(), is(false));
+    }
+
+    public void testNestedFieldsAreStillReportedWithoutTheFilterAlongsideARuntimeFieldNamedUnderThem() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "runtime" : { "items.calc" : { "type" : "long" } },
+              "properties" : { "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" } } } }
+            } }
+            """);
+
+        Map<String, IndexFieldCapabilities> response = retrieve(mapperService, "-metadata");
+
+        assertThat(response.keySet(), containsInAnyOrder("items", "items.qty", "items.calc"));
+        assertThat(response.get("items").type(), is("nested"));
+    }
+
+    private Map<String, IndexFieldCapabilities> retrieve(MapperService mapperService, String... filters) {
+        return FieldCapabilitiesFetcher.retrieveFieldCaps(
+            createSearchExecutionContext(mapperService),
+            s -> true,
+            filters,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
     }
 
     public void testMetadataFilters() throws IOException {

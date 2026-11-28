@@ -613,6 +613,14 @@ public final class MappingLookup {
         return sourceParent != null && fieldMappers.containsKey(sourceParent);
     }
 
+    /**
+     * Whether {@code field} is defined in the {@code runtime} section of the mapping, including one that shadows a mapped field.
+     * A runtime field is defined at the root of the mapping, whatever its name suggests about the objects it sits under.
+     */
+    public boolean isRuntimeField(String field) {
+        return indexTimeLookup.getDefined(field) != fieldTypeLookup.getDefined(field);
+    }
+
     public boolean isObjectField(String field) {
         return objectMappers.containsKey(field);
     }

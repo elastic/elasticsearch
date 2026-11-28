@@ -488,6 +488,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.isMetadataField(field);
     }
 
+    /**
+     * Whether {@code field} is a runtime field, one the search request defines or the mapping defines in its {@code runtime} section.
+     * A runtime field is defined at the root, so it has no nested parent whatever its name suggests.
+     */
+    public boolean isRuntimeField(String field) {
+        return runtimeMappings.containsKey(field) || mappingLookup.isRuntimeField(field);
+    }
+
     public boolean isMultiField(String field) {
         if (runtimeMappings.containsKey(field)) {
             return false;

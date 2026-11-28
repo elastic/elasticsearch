@@ -283,7 +283,8 @@ class FieldCapabilitiesFetcher {
                     reported == null ? null : reported.name(),
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
                     indexLocalAnalyzer,
-                    ft.isStaticallySingleValued()
+                    ft.isStaticallySingleValued(),
+                    context.isRuntimeField(field)
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -326,6 +327,7 @@ class FieldCapabilitiesFetcher {
                             Map.of(),
                             null,
                             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+                            false,
                             false,
                             false
                         );

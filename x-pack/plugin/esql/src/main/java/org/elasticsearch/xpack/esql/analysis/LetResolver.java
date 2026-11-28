@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -27,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  * Substitutes {@link LetBinding} names into the main query plan (and earlier subquery bodies)
@@ -75,18 +78,32 @@ public final class LetResolver {
     private LetResolver() {}
 
     /**
+     * The outcome of {@link #resolve}.
+     *
+     * @param plan         the plan with all resolvable {@code LET} name references substituted
+     * @param unreferenced the named subqueries that neither the main query nor another named subquery references, in declaration
+     *                     order. Each carries its body with the earlier named subqueries already substituted, so it is a
+     *                     complete query that can be analyzed on its own. A named subquery read only by an unreferenced one is
+     *                     not listed: it is part of that one's body.
+     */
+    public record Resolution(LogicalPlan plan, List<LetBinding> unreferenced) {}
+
+    /**
      * Substitutes {@code letBindings} names into {@code plan}, evaluating named subqueries in
      * declaration order so that later bodies can reference earlier names.
+     * <p>
+     * A named subquery that is never referenced does not become part of the plan, so nothing downstream resolves or validates
+     * it. Such subqueries are returned in {@link Resolution#unreferenced()} for the caller to analyze separately and to warn
+     * about, see {@link #unreferencedWarning}.
      *
      * @param plan        the parsed main query plan
      * @param letBindings the ordered list of {@code LET} named subqueries (may be empty)
      * @param maxPlanNodesCount the maximum number of plan nodes the substituted plan, and each substituted named subquery, may reach
      * @param maxPlanNodesSource the pragma or cluster setting that supplied {@code maxPlanNodesCount}, named in the error
-     * @return the plan with all resolvable {@code LET} name references substituted
      */
-    public static LogicalPlan resolve(LogicalPlan plan, List<LetBinding> letBindings, int maxPlanNodesCount, String maxPlanNodesSource) {
+    public static Resolution resolve(LogicalPlan plan, List<LetBinding> letBindings, int maxPlanNodesCount, String maxPlanNodesSource) {
         if (letBindings.isEmpty()) {
-            return plan;
+            return new Resolution(plan, List.of());
         }
 
         // Left fold: build the resolved map incrementally so named subquery N sees named subqueries 1..N-1.
@@ -106,33 +123,30 @@ public final class LetResolver {
         // Substitute the full map into the main query plan.
         PlanSize planSize = new PlanSize(plan, maxPlanNodesCount, maxPlanNodesSource);
         LogicalPlan result = substitute(plan, resolved, sizes, allBindings, referenced, planSize);
-        failOnUnreferenced(letBindings, referenced);
-        return result;
+        List<LetBinding> unreferenced = letBindings.stream()
+            .filter(b -> referenced.contains(b.name()) == false)
+            .map(b -> new LetBinding(b.source(), b.name(), resolved.get(b.name())))
+            .toList();
+        return new Resolution(result, unreferenced);
     }
 
     /**
-     * A named subquery that is never referenced is never resolved, so errors in its body (unknown indices or functions, missing
-     * privileges, type errors) would go unreported. Rejecting it keeps the option to validate or warn about such subqueries
-     * later without breaking queries that were accepted before.
+     * The text of the warning for a named subquery that is declared but never referenced. The position of a declaration in a
+     * view definition means nothing to the user who queries the view, so the view is named too.
      */
-    private static void failOnUnreferenced(List<LetBinding> letBindings, Set<String> referenced) {
-        List<LetBinding> unreferenced = letBindings.stream().filter(b -> referenced.contains(b.name()) == false).toList();
-        if (unreferenced.isEmpty()) {
-            return;
+    public static String unreferencedWarning(LetBinding binding) {
+        Source source = binding.source();
+        String position = "Line " + source.lineNumber() + ":" + source.columnNumber();
+        if (source.viewName() != null) {
+            // The same form as a verification failure inside a view, see Failure
+            position += " (in view [" + source.viewName() + "])";
         }
-        List<String> names = unreferenced.stream().map(LetBinding::name).toList();
-        throw new ParsingException(
-            unreferenced.get(0).source(),
-            names.size() == 1
-                ? "LET subquery [{}] is declared but never referenced"
-                : "LET subqueries [{}] are declared but never referenced",
-            names.size() == 1 ? names.get(0) : String.join(", ", names)
-        );
+        return format(null, "{}: LET subquery [{}] is declared but never referenced", position, binding.name());
     }
 
     // Only for testing, it names the cluster setting as the source of maxPlanNodesCount
     public static LogicalPlan resolve(LogicalPlan plan, List<LetBinding> letBindings, int maxPlanNodesCount) {
-        return resolve(plan, letBindings, maxPlanNodesCount, PlanSize.CLUSTER_SETTING_SOURCE);
+        return resolve(plan, letBindings, maxPlanNodesCount, PlanSize.CLUSTER_SETTING_SOURCE).plan();
     }
 
     /**

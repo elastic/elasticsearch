@@ -15,11 +15,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -87,45 +87,44 @@ public class ValidateViewAction extends ActionType<ValidateViewAction.Response> 
     }
 
     /**
-     * Carries what is wrong with the query of the view, or {@code null} if nothing is. It is returned in the response, instead of
-     * written to the response headers where it is created, because the analysis completes on another thread.
+     * Carries what is wrong with the query of the view, as the texts of warnings, or nothing if all is well. They are returned in
+     * the response, instead of written to the response headers where they are created, because the analysis completes on another
+     * thread.
      * <p>
      * This action is only executed on the node that received the REST request, so the response is never sent to a node of another
      * version. Executing it remotely would require a {@code TransportVersion} guard, as the wire format differs from
      * {@link ActionResponse.Empty}.
      */
     public static class Response extends ActionResponse {
-        @Nullable
-        private final String warning;
+        private final List<String> warnings;
 
-        public Response(@Nullable String warning) {
-            this.warning = warning;
+        public Response(List<String> warnings) {
+            this.warnings = List.copyOf(warnings);
         }
 
         public Response(StreamInput in) throws IOException {
-            warning = in.readOptionalString();
+            warnings = in.readStringCollectionAsImmutableList();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(warning);
+            out.writeStringCollection(warnings);
         }
 
-        @Nullable
-        public String warning() {
-            return warning;
+        public List<String> warnings() {
+            return warnings;
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            return Objects.equals(warning, ((Response) o).warning);
+            return warnings.equals(((Response) o).warnings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(warning);
+            return warnings.hashCode();
         }
     }
 }

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -50,8 +51,10 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -160,34 +163,40 @@ public class ViewService {
 
     /**
      * Reports what is wrong with a view definition without storing it, so that a caller can validate on the node it received the
-     * request on rather than on the master. A problem with the query is returned as the text of a warning for the caller to put on
-     * its response, and {@code null} means there is nothing to warn about; only a definition that could never be stored, such as an
-     * unparsable query, fails the listener.
+     * request on rather than on the master. Problems with the query are returned as the texts of warnings for the caller to put on
+     * its response, and an empty list means there is nothing to warn about; only a definition that could never be stored, such as
+     * an unparsable query, fails the listener.
+     * <p>
+     * A named subquery that the definition declares but never references gets a warning. The analysis covers its body too, so a
+     * mistake in it is reported like any other problem with the query.
      */
-    public void validateView(ProjectId projectId, View view, ActionListener<String> listener) {
+    public void validateView(ProjectId projectId, View view, ActionListener<List<String>> listener) {
         try {
-            var statement = validatePutView(clusterService.state().metadata().getProject(projectId), view);
+            final ValidatedView validated = validatePutView(clusterService.state().metadata().getProject(projectId), view);
+            final List<String> unreferenced = validated.unreferenced().stream().map(LetResolver::unreferencedWarning).toList();
             final var threadPool = clusterService.threadPool();
             // The analysis completes on another thread. Go back to the request context, so that the warnings of the analysis itself
             // do not end up on the response.
-            final ActionListener<String> warningOnFailure = listener.delegateResponse((l, e) -> {
+            final ActionListener<List<String>> warningOnFailure = listener.delegateResponse((l, e) -> {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof VerificationException || cause instanceof ResourceNotFoundException) {
                     // HeaderWarning percent-encodes newlines, which makes the multi-line verification message unreadable.
                     final String message = String.valueOf(cause.getMessage()).replace('\n', ' ');
-                    l.onResponse(Strings.format("view [%s] query is not valid: %s", view.name(), message));
+                    final List<String> warnings = new ArrayList<>(unreferenced);
+                    warnings.add(Strings.format("view [%s] query is not valid: %s", view.name(), message));
+                    l.onResponse(warnings);
                 } else {
-                    l.onResponse(null);
+                    l.onResponse(unreferenced);
                 }
             });
-            final ActionListener<String> analyzed = ListenerTimeouts.wrapWithTimeout(
+            final ActionListener<List<String>> analyzed = ListenerTimeouts.wrapWithTimeout(
                 threadPool,
                 new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), warningOnFailure),
                 VIEW_VERIFICATION_TIMEOUT,
                 threadPool.generic(),
                 "view [" + view.name() + "] verification"
             );
-            ActionListener.run(analyzed, l -> queryAnalyzer.analyze(statement, view.name(), l.map(ignored -> null)));
+            ActionListener.run(analyzed, l -> queryAnalyzer.analyze(validated.statement(), view.name(), l.map(ignored -> unreferenced)));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -244,9 +253,17 @@ public class ViewService {
     }
 
     /**
+     * A view definition that may be stored.
+     *
+     * @param statement    the parsed definition
+     * @param unreferenced the named subqueries that the definition declares but never references
+     */
+    record ValidatedView(EsqlStatement statement, List<LetBinding> unreferenced) {}
+
+    /**
      * Validates that a view may be inserted into the cluster state
      */
-    EsqlStatement validatePutView(ProjectMetadata metadata, View view) {
+    ValidatedView validatePutView(ProjectMetadata metadata, View view) {
         if (view.query().length() > this.maxViewLength) {
             throw new IllegalArgumentException(
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength
@@ -297,12 +314,16 @@ public class ViewService {
             QueryPragmas.EMPTY,
             flags
         );
-        // Named subqueries are substituted before anything is resolved, so their errors (unreferenced or forward-referenced
-        // names, a named subquery read by TS or LOOKUP JOIN) depend only on the definition, and a view that has one could never
-        // be queried.
-        LetResolver.resolve(statement.plan(), statement.letBindings(), flags.maxCommandCount(), PlanSize.CLUSTER_SETTING_SOURCE);
+        // Named subqueries are substituted before anything is resolved, so their errors (forward-referenced names, a named
+        // subquery read by TS or LOOKUP JOIN) depend only on the definition, and a view that has one could never be queried.
+        LetResolver.Resolution letResolution = LetResolver.resolve(
+            statement.plan(),
+            statement.letBindings(),
+            flags.maxCommandCount(),
+            PlanSize.CLUSTER_SETTING_SOURCE
+        );
         validateTsView(view.name(), statement.plan());
-        return statement;
+        return new ValidatedView(statement, letResolution.unreferenced());
     }
 
     /**

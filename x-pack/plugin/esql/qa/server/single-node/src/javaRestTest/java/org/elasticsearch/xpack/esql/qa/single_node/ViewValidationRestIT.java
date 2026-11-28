@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -100,6 +101,69 @@ public class ViewValidationRestIT extends ESRestTestCase {
 
         // The view is saved regardless.
         ensureViewExists("view-validation-unknown-remote");
+    }
+
+    public void testUnreferencedNamedSubqueryEmitsWarning() throws IOException {
+        createIndex("view-validation-index", null, "\"properties\": {\"k\": {\"type\": \"keyword\"}}");
+        Response response = putView(
+            "view-validation-unreferenced-let",
+            "LET unused = (FROM view-validation-index | KEEP k); FROM view-validation-index",
+            true
+        );
+        assertThat(
+            response.getWarnings(),
+            contains("Line 1:5 (in view [view-validation-unreferenced-let]): LET subquery [unused] is declared but never referenced")
+        );
+
+        // The view is saved regardless.
+        ensureViewExists("view-validation-unreferenced-let");
+    }
+
+    /**
+     * The validation covers the body of a named subquery that the view never references.
+     */
+    public void testInvalidUnreferencedNamedSubqueryEmitsWarnings() throws IOException {
+        createIndex("view-validation-index", null, "\"properties\": {\"k\": {\"type\": \"keyword\"}}");
+        for (var invalid : Map.of(
+            "FROM no-such-index-for-view",
+            "Unknown index [no-such-index-for-view]",
+            "FROM view-validation-index | EVAL x = no_such_fn(k)",
+            "Unknown function [no_such_fn]",
+            "FROM view-validation-index | KEEP no_such_column",
+            "Unknown column [no_such_column]",
+            "FROM view-validation-index | EVAL x = k + 1",
+            "first argument of [k + 1] must be"
+        ).entrySet()) {
+            Response response = putView(
+                "view-validation-invalid-unreferenced-let",
+                "LET unused = (" + invalid.getKey() + "); FROM view-validation-index",
+                true
+            );
+            assertThat(response.getWarnings(), hasSize(2));
+            assertThat(
+                response.getWarnings().getFirst(),
+                equalTo(
+                    "Line 1:5 (in view [view-validation-invalid-unreferenced-let]): "
+                        + "LET subquery [unused] is declared but never referenced"
+                )
+            );
+            assertThat(
+                response.getWarnings().getLast(),
+                containsString("view [view-validation-invalid-unreferenced-let] query is not valid")
+            );
+            assertThat(response.getWarnings().getLast(), containsString(invalid.getValue()));
+        }
+
+        // The view is saved regardless.
+        ensureViewExists("view-validation-invalid-unreferenced-let");
+    }
+
+    public void testUnreferencedNamedSubqueryIsNotCheckedWithoutValidation() throws IOException {
+        assertThat(
+            putView("view-validation-unreferenced-let-skipped", "LET unused = (FROM no-such-index-for-view); ROW a = 1", false)
+                .getWarnings(),
+            empty()
+        );
     }
 
     public void testValidationDoesNotRecordQueryTelemetry() throws IOException {

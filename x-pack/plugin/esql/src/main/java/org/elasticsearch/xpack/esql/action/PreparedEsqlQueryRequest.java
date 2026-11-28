@@ -50,6 +50,13 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
         this.analyzeOnly = false;
     }
 
+    private PreparedEsqlQueryRequest(EsqlQueryRequest source, boolean async, EsqlStatement statement, String queryDescription) {
+        super(source, async);
+        this.statement = statement;
+        this.queryDescription = PREPARED_QUERY_PREFIX + queryDescription;
+        this.analyzeOnly = true;
+    }
+
     /**
      * Creates a synchronous request backed by the given pre-built statement.
      */
@@ -71,6 +78,15 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
      */
     public static PreparedEsqlQueryRequest analyzeOnly(EsqlStatement statement, String queryDescription) {
         return new PreparedEsqlQueryRequest(false, statement, queryDescription, true);
+    }
+
+    /**
+     * Creates a synchronous request that stops after analysis, like {@link #analyzeOnly(EsqlStatement, String)}, with all other
+     * properties copied from {@code source}. It checks a part of the query of {@code source} that the query itself does not run,
+     * under the same filter, settings and pragmas as that query.
+     */
+    public static PreparedEsqlQueryRequest analyzeOnly(EsqlQueryRequest source, EsqlStatement statement, String queryDescription) {
+        return new PreparedEsqlQueryRequest(source, false, statement, queryDescription);
     }
 
     /**

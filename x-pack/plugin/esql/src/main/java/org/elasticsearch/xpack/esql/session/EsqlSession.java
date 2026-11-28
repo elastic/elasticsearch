@@ -12,13 +12,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -61,14 +64,17 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.TargetProjects;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -137,9 +143,11 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
@@ -205,6 +213,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -319,6 +328,7 @@ public class EsqlSession {
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
     private final ThreadPool threadPool;
+    private final Client client;
     private final PlannerSettings plannerSettings;
     private final EsqlFlags flags;
     private final ClusterService clusterService;
@@ -483,6 +493,7 @@ public class EsqlSession {
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
         this.threadPool = services.transportService().getThreadPool();
+        this.client = services.client();
         this.plannerSettings = plannerSettings;
         this.flags = new EsqlFlags(services.clusterService().getClusterSettings());
         this.clusterService = services.clusterService();
@@ -516,13 +527,14 @@ public class EsqlSession {
         if (externalSourceResolver != null) {
             externalSourceResolver.planningCpu(planningCpu);
         }
-        planningCpu.meteredCpu(() -> doExecute(request, executionInfo, planRunner, listener));
+        planningCpu.meteredCpu(() -> doExecute(request, executionInfo, planRunner, cancellation, listener));
     }
 
     private void doExecute(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         assert planningCpu.isMeteringCurrentThread() : "planning started on a thread without an open planning CPU measurement";
@@ -585,7 +597,19 @@ public class EsqlSession {
         // requires no cluster state — it simply substitutes named subquery bodies for their names.
         // Performing it before replaceViews ensures that LET names never reach field-caps and that
         // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
-        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings(), maxCommandCount, maxCommandCountSource);
+        LetResolver.Resolution letResolution = LetResolver.resolve(
+            parsedPlan,
+            statement.letBindings(),
+            maxCommandCount,
+            maxCommandCountSource
+        );
+        parsedPlan = letResolution.plan();
+        // Named subqueries that nothing references are not part of the plan. They are analyzed on their own once the views are
+        // resolved, see analyzeUnreferencedSubqueries. A view that is read several times is parsed several times, hence the keys.
+        Map<String, UnreferencedSubquery> unreferencedSubqueries = Collections.synchronizedMap(new LinkedHashMap<>());
+        for (LetBinding unreferenced : letResolution.unreferenced()) {
+            unreferencedSubqueries.put(unreferenced.name(), new UnreferencedSubquery(unreferenced, statement.settings(), false));
+        }
 
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
@@ -628,11 +652,24 @@ public class EsqlSession {
                     request.pragmas(),
                     flags
                 );
-                return new EsqlStatement(
-                    LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount, maxCommandCountSource),
-                    viewStmt.settings(),
-                    List.of()
+                LetResolver.Resolution viewLetResolution = LetResolver.resolve(
+                    viewStmt.plan(),
+                    viewStmt.letBindings(),
+                    maxCommandCount,
+                    maxCommandCountSource
                 );
+                // An analyze-only request is itself a check of a view definition or of an unreferenced named subquery. It
+                // leaves the unreferenced named subqueries of the views it reads alone, or a view whose unreferenced named
+                // subquery reads that same view would be analyzed without end.
+                if (request.analyzeOnly() == false) {
+                    for (LetBinding unreferenced : viewLetResolution.unreferenced()) {
+                        unreferencedSubqueries.putIfAbsent(
+                            viewName + "/" + unreferenced.name(),
+                            new UnreferencedSubquery(unreferenced, viewStmt.settings(), true)
+                        );
+                    }
+                }
+                return new EsqlStatement(viewLetResolution.plan(), viewStmt.settings(), List.of());
             }),
             boundaryPreservation,
             maxCommandCount,
@@ -645,8 +682,97 @@ public class EsqlSession {
                 }
                 viewResolutionProfile.stop();
                 request.setViewSettings(viewResolution.viewSettings());
-                analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l);
+                analyzeUnreferencedSubqueries(
+                    request,
+                    List.copyOf(unreferencedSubqueries.values()),
+                    cancellation,
+                    l,
+                    () -> analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l)
+                );
             }))
+        );
+    }
+
+    /**
+     * A named subquery that neither the query nor another named subquery references, declared by the query or by the definition
+     * of a view that the query reads.
+     *
+     * @param binding  the named subquery, its body already has the named subqueries declared before it substituted
+     * @param settings the {@code SET} settings of the statement that declares it
+     * @param inView   whether a view definition declares it, rather than the query
+     */
+    private record UnreferencedSubquery(LetBinding binding, List<QuerySetting> settings, boolean inView) {}
+
+    /**
+     * Analyzes the named subqueries that nothing references, then runs {@code next}.
+     * <p>
+     * Such a subquery is not part of the plan, so view resolution, field-caps, the analyzer and the verifier would never see it,
+     * and a mistake in it, like an unknown index or function, would go unnoticed. Each one is analyzed as a query of its own
+     * that stops after analysis, which keeps what it resolves (clusters, indices, enrich policies) apart from the state of this
+     * query. A failure fails this query, as it would if the subquery were referenced. If they all pass, each gets a warning,
+     * because declaring a named subquery without using it is most likely a mistake.
+     * <p>
+     * The analyses run one after the other, and none is started once the query is cancelled.
+     */
+    private void analyzeUnreferencedSubqueries(
+        EsqlQueryRequest request,
+        List<UnreferencedSubquery> unreferenced,
+        BooleanSupplier cancellation,
+        ActionListener<Versioned<Result>> listener,
+        Runnable next
+    ) {
+        if (unreferenced.isEmpty()) {
+            next.run();
+            return;
+        }
+        // The analyses complete on their own threads, in their own contexts. Go back to the context of this request, which also
+        // drops the warnings of the analyses themselves, and to a search thread, where planning continues.
+        ActionListener<Void> analyzed = new ContextPreservingActionListener<>(
+            threadPool.getThreadContext().newRestorableContext(false),
+            listener.delegateFailureAndWrap(
+                (l, ignored) -> threadPool.executor(ThreadPool.Names.SEARCH)
+                    .execute(ActionRunnable.wrap(l, ll -> planningCpu.meteredCpu(() -> {
+                        for (UnreferencedSubquery subquery : unreferenced) {
+                            HeaderWarning.addWarning("{}", LetResolver.unreferencedWarning(subquery.binding()));
+                        }
+                        next.run();
+                    })))
+            )
+        );
+        analyzeUnreferencedSubqueries(request, unreferenced.iterator(), cancellation, analyzed);
+    }
+
+    private void analyzeUnreferencedSubqueries(
+        EsqlQueryRequest request,
+        Iterator<UnreferencedSubquery> remaining,
+        BooleanSupplier cancellation,
+        ActionListener<Void> listener
+    ) {
+        if (remaining.hasNext() == false) {
+            listener.onResponse(null);
+            return;
+        }
+        if (cancellation.getAsBoolean()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
+        UnreferencedSubquery subquery = remaining.next();
+        PreparedEsqlQueryRequest analysis = PreparedEsqlQueryRequest.analyzeOnly(
+            request,
+            new EsqlStatement(subquery.binding().plan(), subquery.settings(), List.of()),
+            "LET subquery [" + subquery.binding().name() + "]"
+        );
+        if (subquery.inView()) {
+            // The caller's settings stop at view boundaries, see ViewQuerySettings. The body of a view runs with what the
+            // definition SETs, which is on the statement, and so does a named subquery that the definition declares.
+            for (QuerySettingDef<?> setting : ViewQuerySettings.SETTINGS) {
+                analysis.set(setting, null);
+            }
+        }
+        client.execute(
+            EsqlQueryAction.INSTANCE,
+            analysis,
+            listener.delegateFailureAndWrap((l, response) -> analyzeUnreferencedSubqueries(request, remaining, cancellation, l))
         );
     }
 

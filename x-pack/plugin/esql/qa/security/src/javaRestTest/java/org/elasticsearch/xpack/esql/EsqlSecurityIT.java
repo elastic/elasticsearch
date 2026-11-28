@@ -715,6 +715,19 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
+    /**
+     * A named subquery that nothing references is analyzed as the user who runs the query, so it does not see an index that
+     * this user cannot read.
+     */
+    public void testUnauthorizedIndexInUnreferencedNamedSubquery() throws IOException {
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "LET unused = (FROM index-user2); ROW a = 1")
+        );
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+    }
+
     public void testInsufficientPrivilege() {
         ResponseException error = expectThrows(
             ResponseException.class,

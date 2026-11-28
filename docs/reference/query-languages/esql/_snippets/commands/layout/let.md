@@ -50,9 +50,10 @@ Named subqueries are resolved in the order they are declared: a subquery body ca
 only named subqueries declared before it. A reference to a named subquery declared later, or to the
 named subquery itself, is an error.
 
-Every named subquery must be referenced, either by the main query or by another named
-subquery that is itself referenced. Declaring a named subquery that is never referenced is
-an error.
+A named subquery that is declared but never referenced, neither by the main query nor by
+another named subquery, doesn't run. It is still checked like the rest of the query, so an
+error in it, such as an unknown index or column, fails the query. If it is valid, the query
+runs and returns a warning that names the unreferenced subquery.
 
 A named subquery takes precedence over an index, alias, or view with the same name.
 Only exact names are matched: an index pattern such as `name*` refers to indices,

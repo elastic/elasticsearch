@@ -305,9 +305,9 @@ public abstract class FieldMapper extends Mapper {
             }
             // Outside strict-columnar modes (which reject the setting), the row path copies every value of a field under
             // synthetic_source_keep: all, scalars included, into _ignored_source, as it does for a field with no synthetic source of its
-            // own (SYNTHETIC_FALLBACK). The batch path writes neither, so such a field must stay on the row path. No mapper that gets
-            // this far reports FALLBACK today (copy_to, scripts and normalizers are refused above or by the mapper), so that half of the
-            // check guards mappers added later.
+            // own (SYNTHETIC_FALLBACK). The batch path writes neither, so such a field must stay on the row path. A keyword field whose
+            // normalizer keeps the original value reports FALLBACK, and this is the check that refuses it; copy_to and scripts are
+            // refused above.
             if (indexSettings.getMode().isStrictColumnar() == false
                 && FallbackPostMapper.capturesScalarValues(
                     syntheticSourceMode() == SyntheticSourceMode.FALLBACK,

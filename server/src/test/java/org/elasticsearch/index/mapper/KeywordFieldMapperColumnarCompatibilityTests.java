@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -19,11 +20,16 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -68,6 +74,22 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     private static Settings columnarSettings() {
         return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+    }
+
+    // A normalizer with a name other than "lowercase" keeps the original value for synthetic source by default.
+    private static final String CUSTOM_NORMALIZER = "custom_lowercase";
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of(
+                "lowercase",
+                new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
+                CUSTOM_NORMALIZER,
+                new NamedAnalyzer(CUSTOM_NORMALIZER, AnalyzerScope.INDEX, new LowercaseNormalizer())
+            )
+        );
     }
 
     public void testSingleValue() throws IOException {
@@ -809,6 +831,127 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    // ---- normalizer ---------------------------------------------------------------------------
+
+    public void testNormalizer() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("normalizer", "lowercase").endObject()),
+            columnarSettings(),
+            batch(
+                "normalizer",
+                1L,
+                doc("d1", 1L, "{\"f\":\"MiXed\"}"),
+                doc("d2", 2L, "{\"f\":[\"Alpha\",null,\"BETA\",\"alpha\"]}"),
+                doc("d3", 3L, "{}"),
+                doc("d4", 4L, "{\"f\":null}"),
+                doc("d5", 5L, "{\"f\":\"already lower\"}"),
+                doc("d6", 6L, "{\"f\":\"ÀÉÎ Straße\"}")
+            ),
+            batch("normalizer on booleans", 1L, doc("d1", 1L, "{\"f\":true}"), doc("d2", 2L, "{\"f\":[false,true]}"))
+        );
+    }
+
+    public void testNormalizerMultiValueFalse() throws IOException {
+        // A STRING source column, which without the normalizer would be the output column itself.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("normalizer", "lowercase");
+            b.field("multi_value", false);
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "normalizer multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"Hello\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"WORLD\"}")
+            ),
+            batch("normalizer multi_value=false, dense", 1L, doc("d1", 1L, "{\"f\":\"A\"}"), doc("d2", 2L, "{\"f\":\"b\"}"))
+        );
+    }
+
+    public void testNormalizerAppliesToNullValue() throws IOException {
+        final boolean multiValue = randomBoolean();
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("normalizer", "lowercase").field("null_value", "Not Available");
+            b.field("multi_value", multiValue);
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "normalizer with null_value multi_value=" + multiValue,
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":\"Real\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testNormalizerWithIgnoreAbove() throws IOException {
+        final boolean multiValue = randomBoolean();
+        // ignore_above reads the raw value, and the copy kept for synthetic source is the raw value too.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("normalizer", "lowercase").field("ignore_above", 5);
+            b.field("multi_value", multiValue);
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "normalizer with ignore_above multi_value=" + multiValue,
+                1L,
+                doc("d1", 1L, "{\"f\":\"TooLongValue\"}"),
+                doc("d2", 2L, "{\"f\":\"Short\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testNormalizerSubFieldNextToTextSubField() throws IOException {
+        // The shape of process.name in the Elastic Endpoint mappings.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 1024);
+            b.startObject("fields");
+            b.startObject("caseless").field("type", "keyword").field("normalizer", "lowercase").field("ignore_above", 1024).endObject();
+            b.startObject("text").field("type", "text").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "normalizer sub-field next to text sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"Cmd.EXE\"}"),
+                doc("d2", 2L, "{\"f\":[\"PowerShell.exe\",null,\"svchost.EXE\"]}"),
+                doc("d3", 3L, "{}"),
+                doc("d4", 4L, "{\"f\":\"" + "X".repeat(1025) + "\"}")
+            )
+        );
+    }
+
+    public void testCustomNormalizerSubField() throws IOException {
+        // A sub-field is not in _source, so strict columnar mode accepts a normalizer that keeps the original value there.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields")
+                .startObject("norm")
+                .field("type", "keyword")
+                .field("normalizer", CUSTOM_NORMALIZER)
+                .endObject()
+                .endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "custom normalizer sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"MiXed\"}"),
+                doc("d2", 2L, "{\"f\":[\"B\",\"a\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
     // ---- multi-fields -------------------------------------------------------------------------
 
     /** {@code keyword} parent with a plain {@code keyword} sub-field. */
@@ -1182,6 +1325,49 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"real\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
             )
         );
+    }
+
+    public void testTsdbNormalizer() throws IOException {
+        // SORTED_SET doc values hold the normalized values, so values that differ only by case collapse on both paths.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("tag").field("type", "keyword").field("normalizer", "lowercase").endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword normalizer",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":\"host-a\",\"tag\":\"MiXed\",\"@timestamp\":" + ST_TS_A + "}"),
+                doc(
+                    tsdbId(ST_TS_A + 1000L),
+                    ST_ROUTING,
+                    ST_TSID,
+                    2L,
+                    "{\"f\":\"host-a\",\"tag\":[\"Dup\",\"DUP\",\"other\"],\"@timestamp\":" + (ST_TS_A + 1000L) + "}"
+                ),
+                doc(tsdbId(ST_TS_A + 2000L), ST_ROUTING, ST_TSID, 3L, "{\"f\":\"host-a\",\"@timestamp\":" + (ST_TS_A + 2000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbNormalizerKeepingOriginalValueIsNotColumnar() throws IOException {
+        // The original value goes to _ignored_source, which the batch path does not write outside the strictly columnar modes.
+        for (boolean skipStoreOriginalValue : new boolean[] { false, true }) {
+            final var mapperService = createMapperService(tsdbKeepSettings(null), mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.startObject(FIELD).field("type", "keyword").field("normalizer", "lowercase");
+                b.field("normalizer_skip_store_original_value", skipStoreOriginalValue);
+                b.endObject();
+            }));
+            final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+            assertEquals(
+                "normalizer_skip_store_original_value=" + skipStoreOriginalValue,
+                skipStoreOriginalValue,
+                mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
+            );
+        }
     }
 
     public void testTsdbIgnoreAboveSingleValuePerDoc() throws IOException {

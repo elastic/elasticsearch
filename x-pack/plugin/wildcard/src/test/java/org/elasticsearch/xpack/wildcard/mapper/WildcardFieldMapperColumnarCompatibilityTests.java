@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
@@ -20,6 +25,7 @@ import org.elasticsearch.xpack.wildcard.Wildcard;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -34,6 +40,14 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singleton(new Wildcard());
+    }
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
+        );
     }
 
     private static Settings columnarSettings() {
@@ -344,6 +358,27 @@ public class WildcardFieldMapperColumnarCompatibilityTests extends AbstractColum
                 doc("d1", 1L, "{\"f\":\"hello\"}"),
                 doc("d2", 2L, "{}"),
                 doc("d3", 3L, "{\"f\":\"world\"}")
+            )
+        );
+    }
+
+    public void testWildcardParentWithNormalizedKeywordMultiField() throws IOException {
+        // The shape of process.command_line in the Elastic Endpoint mappings.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "wildcard").field("ignore_above", 1024);
+            b.startObject("fields");
+            b.startObject("caseless").field("type", "keyword").field("normalizer", "lowercase").field("ignore_above", 1024).endObject();
+            b.startObject("text").field("type", "text").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "wildcard parent with normalized keyword multi-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"C:\\\\Windows\\\\System32\\\\Cmd.EXE /C Whoami\"}"),
+                doc("d2", 2L, "{\"f\":[\"PowerShell.exe -NoProfile\",null,\"SvcHost.EXE -k\"]}"),
+                doc("d3", 3L, "{}")
             )
         );
     }

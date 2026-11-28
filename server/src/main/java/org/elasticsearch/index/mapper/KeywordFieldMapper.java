@@ -128,6 +128,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -1712,7 +1713,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             && supportsColumnarDocValues(mode)
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && normalizerName == null
             && getOffsetFieldName() == null
             && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && ignoreAboveFallbackIsColumnar(indexSettings);
@@ -1852,6 +1852,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         // A columnar field's payload carries its own count, so it needs no companion column.
         final boolean columnar = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;
+        // Each consumer below copies the value, so one buffer can hold every normalized value in turn.
+        final BytesRefBuilder normalized = fieldType().hasNormalizer() ? new BytesRefBuilder() : null;
 
         // TODO: make the batch return these column builders to wire up recycling
         try (
@@ -1974,6 +1976,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                     continue;
                 }
 
+                // After ignore_above, which reads the raw value, and before the length check, as the row path does in indexValue.
+                if (normalized != null) {
+                    binaryValue = normalizeValue(binaryValue, normalized);
+                }
+
                 if (binaryValue.length > maxValueLength) {
                     throw largeTermException(binaryValue);
                 }
@@ -2057,11 +2064,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         final boolean multiValue = docValuesParameters().multiValue();
         final boolean emitSharedColumn = emitTerms || (emitDvs && columnarPayload == false);
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;
+        // Each consumer below copies the value, so one buffer can hold every normalized value in turn.
+        final BytesRefBuilder normalized = fieldType().hasNormalizer() ? new BytesRefBuilder() : null;
 
         // `values` is created lazily when the zero-copy plan is abandoned mid-loop, so it cannot sit in the
         // try-with-resources header; the group releases whichever builders were actually created.
         try (GroupedReleasables pending = new GroupedReleasables(4)) {
-            EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && emitSharedColumn
+            // A normalizer rewrites the values, so the output can never be the source column itself.
+            EscfColumnBuilder values = (source.leafValueKind() != EscfColumnKind.STRING || normalized != null) && emitSharedColumn
                 ? pending.add(mergeStringColumn(ctx.recycler()))
                 : null;
             final EscfColumnBuilder payloadDvs = emitDvs && columnarPayload ? pending.add(mergeStringColumn(ctx.recycler())) : null;
@@ -2142,6 +2152,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                         }
                     }
                     continue;
+                }
+                // After ignore_above, which reads the raw value, and before the length check, as the row path does in indexValue.
+                if (normalized != null) {
+                    binaryValue = normalizeValue(binaryValue, normalized);
                 }
                 if (binaryValue.length > maxValueLength) {
                     throw largeTermException(binaryValue);
@@ -2432,6 +2446,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (normalizer == Lucene.KEYWORD_ANALYZER) {
             return value;
         }
+        return normalizeValue(normalizer, field, value, CharTermAttribute::toString);
+    }
+
+    /** Batch path variant of {@link #normalizeValue}. The result is in {@code scratch}, and is valid until the next call. */
+    private BytesRef normalizeValue(BytesRef value, BytesRefBuilder scratch) {
+        return normalizeValue(fieldType().normalizer(), fullPath(), value.utf8ToString(), term -> {
+            scratch.copyChars(term.buffer(), 0, term.length());
+            return scratch.get();
+        });
+    }
+
+    /** Runs the normalizer on {@code value} and reads its single token with {@code tokenReader}. */
+    private static <T> T normalizeValue(NamedAnalyzer normalizer, String field, String value, Function<CharTermAttribute, T> tokenReader) {
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
@@ -2441,7 +2468,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     but got 0 for analyzer %s and input "%s"
                     """, normalizer, value));
             }
-            final String newValue = termAtt.toString();
+            final T newValue = tokenReader.apply(termAtt);
             if (ts.incrementToken()) {
                 throw new IllegalStateException(String.format(Locale.ROOT, """
                     The normalization token stream is expected to produce exactly 1 token, \

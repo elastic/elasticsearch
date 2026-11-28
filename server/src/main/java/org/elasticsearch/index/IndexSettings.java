@@ -1158,7 +1158,8 @@ public final class IndexSettings {
         } else if (mode == IndexMode.TIME_SERIES) {
             return Boolean.toString(defaultBatchIndexingForTimeSeries(settings));
         }
-        return Boolean.FALSE.toString();
+        // CI-only: enable batch indexing by default for every other index mode too
+        return Boolean.TRUE.toString();
     }, new Setting.Validator<>() {
         @Override
         public void validate(Boolean value) {
@@ -1198,9 +1199,7 @@ public final class IndexSettings {
 
     private static boolean defaultBatchIndexingForTimeSeries(Settings settings) {
         assert MODE.get(settings) == IndexMode.TIME_SERIES;
-        if (BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled() == false) {
-            return false;
-        }
+        // CI-only: the TSDB_FEATURE_FLAG gate is intentionally not applied here
         // checked before the deprecated setting, because the validator rejects true for stored source
         if (INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings) == SourceFieldMapper.Mode.STORED) {
             return false;

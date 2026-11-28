@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 
 /**
  * The request circuit breaker of a {@link ContextIndexSearcher} and the {@link LeafExecutionAccounting} charged against it,
@@ -55,6 +56,12 @@ final class ExecutionAccounting implements Releasable {
         if (accounting != null) {
             accounting.charge(ctx, bytes, label);
         }
+    }
+
+    @Nullable
+    LongConsumer reserve(LeafReaderContext ctx, long bytes, String label) {
+        LeafExecutionAccounting accounting = getOrCreate();
+        return accounting == null ? null : accounting.reserve(ctx, bytes, label);
     }
 
     Releasable enterLeaf(LeafReaderContext ctx) {

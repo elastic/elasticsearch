@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 167327
+summary: Update to Tika 3.4.0
+type: upgrade

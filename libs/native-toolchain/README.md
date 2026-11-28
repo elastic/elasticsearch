@@ -4,9 +4,11 @@ Every native library under `libs/` (libvec in `libs/simdvec`, libsimdjson in `li
 built with the toolchain in this directory. Each library keeps its own `Makefile` in
 `libs/<library>/native/`, and declares how Gradle builds and publishes it in `libs/<library>/build.gradle`.
 
-All four targets — `darwin-aarch64`, `linux-aarch64`, `linux-x64`, `windows-x64` — are
+The compiled targets — `darwin-aarch64`, `linux-aarch64`, `linux-x64`, `windows-x64` — are all
 cross-compiled inside a single toolchain image. Windows uses llvm-mingw (clang, mingw-w64 and UCRT),
-installed into the image from its pinned release.
+installed into the image from its pinned release. A library may also stage pinned, checksummed upstream
+binaries for some platforms instead of compiling them, as `libs/zstd` does for Darwin (including
+`darwin-x64`) and Windows.
 
 For the Linux targets everything comes from Debian packages: clang plus the
 `libstdc++-*-dev-{arm64,amd64}-cross` sysroots, installed straight into the image. Darwin has no
@@ -15,7 +17,7 @@ distributions (Libc, xnu, Libm, libpthread, libplatform, libmalloc) plus upstrea
 That assembly is why most of this document is about Darwin; the Linux targets need nothing beyond
 the `--target=` flag.
 
-This document explains the workflow for building a library for all four targets.
+This document explains the workflow for building a library for all its targets.
 Details and the reasoning behind each piece is in the comments of the files themselves.
 Paths such as `./build_cross_toolchain_image.sh` are relative to this directory; Gradle commands
 run from the repository root.
@@ -88,7 +90,7 @@ docker run --rm es-native-cross-toolchain:local cat /opt/darwin-sysroot/MANIFEST
 ## Add a system header
 
 When a library starts including a system header that no other library uses, the new `#include`
-will result in a compilation error, as the toolchain will fails to resolve it.
+will result in a compilation error, as the toolchain fails to resolve it.
 To fix it, you will need to add the missing system header(s) to the Darwin sysroot:
 
 1. Add the include to `darwin-sysroot/probe.cpp`, in the matching group.
@@ -98,7 +100,9 @@ To fix it, you will need to add the missing system header(s) to the Darwin sysro
    *Build and test a library*).
 3. Bump `VERSION` in `build_cross_toolchain_image.sh`, then
    `./build_cross_toolchain_image.sh` to push it.
-4. Point every reference at the new tag (`git grep es-native-cross-toolchain:` finds them all).
+4. Point the library that needs the header at the new tag (its `toolchainImage`). Moving the other
+   libraries to it (`git grep es-native-cross-toolchain:` finds them all) is optional: the image is
+   part of each library's hash, so moving one makes CI rebuild and republish it.
 
 Steps 3 and 4 are needed because the sysroot is baked into the image.
 
@@ -132,12 +136,21 @@ Steps 3 and 4 are needed because the sysroot is baked into the image.
    - where each platform's output is collected from (`collect`), and its debug info (`debugInfoCollect`).
 4. Build it with `<LIBRARY>_NATIVE_BUILD=docker`. If a system header is missing, follow
    *Add a system header* above.
+5. Have CI build it: in `.buildkite/hooks/pre-command`, default `<LIBRARY>_NATIVE_BUILD` to `docker`
+   next to the existing libraries, and add it to the condition that logs in to `docker.elastic.co`.
+   Without this, CI jobs look for a published artifact, and fail when the hash is new.
 
-Nothing else is needed. Applying the plugin does two things:
+Applying the plugin does two things:
 - when a test or benchmark task in a project that depends on this project forks a JVM, the task adds the directory containing the library to the list of directories the JVM uses to load native libraries (`es.nativelibs.path`);
 - every project that applies `elasticsearch.native-library-collection` gets the library: for example, the `:distribution:archives` and `:distribution:packages` projects, which copy it into `lib/platform` in every archive and package they build.
 
 There is no version to declare either: every build resolves the library by the hash of its sources.
+
+When the library ships in the distribution, also add a test for it to
+`qa/packaging/src/test/java/org/elasticsearch/packaging/test/NativeLibraryTests.java`, which loads
+the shipped libraries on every packaging platform. If its Java module lands in the distribution's
+`lib/`, add the module to `EXPECTED_ES_SERVER_MODULES` in `InternalDistributionModuleCheckTaskProvider`
+(the `checkModules` task fails otherwise).
 
 ## Bump the sysroot components
 
@@ -175,7 +188,9 @@ the libc++ release Apple ships in that macOS version; `versions.env` documents t
 A library is published under a hash of the files its `sources` patterns select, together with the
 toolchain image, `supportedPlatforms`, the docker command, the `collect` mapping and the forwarded
 environment variables that are set. There is no version to bump.
-Every CI job runs with `<LIBRARY>_NATIVE_BUILD=docker` and the correct set of parameters (including credentials): when no artifact exists
+Every CI job that runs the shell hook `.buildkite/hooks/pre-command` (the Linux jobs) runs with `<LIBRARY>_NATIVE_BUILD=docker`
+and the correct set of parameters (including credentials); the Windows jobs (`.buildkite/hooks/pre-command.bat`) set no mode, so they
+only download (see below). When no artifact exists
 for the current hash, the first job to build it uploads `<name>-<hash>.zip` and
 `<name>-<hash>-debuginfo.zip`. Concurrent jobs that build binaries from the same sources (same hash) have their upload refused (the repository refuses to overwrite an artifact).
 
@@ -185,6 +200,16 @@ sources is all it takes.
 
 Note: this means that artifacts are "immutable": a hash is final once published. To replace a bad
 artifact, change the sources so that a new hash is generated.
+
+What a job does when the hash has no published artifact depends on `<LIBRARY>_NATIVE_BUILD`:
+- `docker`: builds every platform, and publishes it if it has credentials;
+- `host`: builds the current platform from source, and never publishes;
+- unset (or `artifactory`): download-only. It fails until a `docker` job has published the hash, and
+  re-running it then is enough. This is what the Windows jobs started by
+  `.buildkite/hooks/pre-command.bat` do.
+
+So only download-only jobs need to wait for publication. This applies to any change to a hashed file,
+including a comment in a `Makefile`.
 
 ### Build locally without publishing
 
@@ -230,5 +255,6 @@ with one of:
 ### Change the toolchain image
 
 1. `./build_cross_toolchain_image.sh` (see *Add a system header*).
-2. Update `toolchainImage` in each library's `build.gradle`. The image is part of the hash, so the
-   next CI run builds and publishes every library with it.
+2. Update `toolchainImage` in the `build.gradle` of each library that should use it; libraries that
+   do not need the new image can stay on the old one. The image is part of the hash, so the next CI
+   run builds and publishes every library you moved.

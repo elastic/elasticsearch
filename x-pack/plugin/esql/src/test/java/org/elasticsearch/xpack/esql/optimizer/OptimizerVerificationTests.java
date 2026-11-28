@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -48,8 +51,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.external;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.externalCommand;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -272,6 +274,133 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         }
     }
 
+    /**
+     * A subquery union whose filter sits above a pipeline breaker over the merge. Unlike the shapes above, the breaker
+     * is above the union rather than in its branches, so the filter stays where it is and searches the merged column.
+     */
+    private static final String UNION_THEN_TOP_N = """
+        FROM (FROM test | WHERE category == 1 %s),
+             (FROM test | WHERE category == 2 %s)
+        | SORT id | LIMIT 5
+        """;
+
+    private static String unionThenTopN(String firstBranch, String secondBranch) {
+        return String.format(Locale.ROOT, UNION_THEN_TOP_N, firstBranch, secondBranch);
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllOnMappedTextField() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var err = error(fullTextAnalyzer().query(unionThenTopN("", "") + "| WHERE match(title, \"data\")"));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
+        // unlike after FORK, declaring an analyzer doesn't work here - TO_TEXT above the subqueries is pushed into them,
+        // where the declaration lands on the mapped field and is rejected
+        assertThat(err, containsString("Search [title] in the subqueries instead."));
+        assertThat(err, not(containsString("TO_TEXT(")));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllWithConflictingAnalyzers() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var err = error(
+            fullTextAnalyzer().query(
+                unionThenTopN(
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})",
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"simple\"})"
+                ) + "| WHERE match(t, \"data\")"
+            )
+        );
+        assertThat(err, containsString("[MATCH] function cannot search column [t] after subqueries in FROM"));
+        assertThat(err, containsString("its subqueries analyze its values with different analyzers [simple] and [whitespace]"));
+        assertThat(err, containsString("TO_TEXT(t, {\"analyzer\": ...})"));
+        // declaring nothing is declaring the standard analyzer, in whichever order the branches come
+        for (var branches : List.of(
+            List.of("| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})", "| EVAL t = to_text(concat(title, body))"),
+            List.of("| EVAL t = to_text(concat(title, body))", "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})")
+        )) {
+            err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE match_phrase(t, \"data\")"));
+            assertThat(err, containsString("different analyzers [standard] and [whitespace]"));
+        }
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllOfMappedAndDeclaredColumn() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // the merged column loses the mapping either way, so the mapped rows are analyzed with standard
+        String declared = "| EVAL title = to_text(concat(title, \"\"), {\"analyzer\": \"whitespace\"})";
+        for (var branches : List.of(List.of("", declared), List.of(declared, ""))) {
+            var err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE title : \"data\""));
+            assertThat(err, containsString("[:] operator cannot search column [title] after subqueries in FROM"));
+            assertThat(err, containsString("different analyzers [standard] and [whitespace]"));
+            assertThat(err, containsString("Search [title] in the subqueries instead."));
+            assertThat(err, not(containsString("TO_TEXT(")));
+        }
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllOfForksOnMappedTextField() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // each subquery's column is merged again by its own FORK, so the mapped field sits one merge further down
+        String fork = "| FORK (WHERE id > 0) (WHERE id <= 0)";
+        var err = error(fullTextAnalyzer().query(unionThenTopN(fork, fork) + "| WHERE match(title, \"data\")"));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
+        assertThat(err, containsString("rather than the analyzer mapped for [title]"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterNestedUnionAllWithConflictingAnalyzers() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // the nested merge disagrees with itself, while its first branch agrees with the outer one's other branch
+        var err = error(fullTextAnalyzer().query("""
+            FROM (FROM (FROM test | WHERE category == 1 | EVAL t = to_text(concat(title, body), {"analyzer": "whitespace"})),
+                       (FROM test | WHERE category == 2 | EVAL t = to_text(concat(title, body), {"analyzer": "simple"}))),
+                 (FROM test | WHERE category == 3 | EVAL t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | SORT id | LIMIT 5
+            | WHERE match(t, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [t] after subqueries in FROM"));
+        assertThat(err, containsString("different analyzers [simple] and [whitespace]"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllOfMappedAndStandardDeclaredColumn() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // declaring the standard analyzer in the other branch does not restore the mapped rows' analyzer, whichever
+        // branch comes first and so lends the merged column its declaration
+        String declared = "| EVAL title = to_text(concat(title, \"\"), {\"analyzer\": \"standard\"})";
+        for (var branches : List.of(List.of("", declared), List.of(declared, ""))) {
+            var err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE match(title, \"data\")"));
+            assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
+            assertThat(err, containsString("rather than the analyzer mapped for [title]"));
+        }
+    }
+
+    public void testRuntimeTextSearchAllowedAfterUnionAllWithInlineDeclaredAnalyzer() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // the declaration is pushed into the subqueries like any conversion, and lands on a computed column, where it is allowed
+        optimize(
+            fullTextAnalyzer().query(
+                unionThenTopN(
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})",
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"simple\"})"
+                ) + "| WHERE match(to_text(t, {\"analyzer\": \"whitespace\"}), \"data\")"
+            )
+        );
+    }
+
+    public void testRuntimeTextSearchAllowedAfterUnionAllWithAgreeingAnalyzers() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String declared = "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})";
+        optimize(fullTextAnalyzer().query(unionThenTopN(declared, declared) + "| WHERE match(t, \"data\")"));
+        // a branch that does not produce the column at all is filled with nulls, which have nothing to analyze
+        optimize(fullTextAnalyzer().query(unionThenTopN(declared, "") + "| WHERE match(t, \"data\")"));
+        // and no branch computing the column without a declaration is the standard analyzer everywhere
+        String undeclared = "| EVAL t = to_text(concat(title, body))";
+        optimize(fullTextAnalyzer().query(unionThenTopN(undeclared, undeclared) + "| WHERE match(t, \"data\")"));
+    }
+
+    public void testRuntimeTextSearchAllowedAfterForkWithInlineDeclaredAnalyzer() {
+        // TO_TEXT declares the analyzer for every row of the merged column right where it is searched, so nothing is
+        // substituted - exactly what the rejection of the undeclared column suggests writing
+        String search = "match(to_text(title, {\"analyzer\": \"whitespace\"}), \"data\")";
+        optimize(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE " + search));
+        optimize(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match_phrase" + search.substring("match".length())));
+    }
+
     public void testRuntimeTextSearchRejectedAfterForkNestedInSubqueryBranch() {
         assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         // The bare FORK at the top of the subquery branch is lifted into the enclosing union by compaction, so no
@@ -284,6 +413,123 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | WHERE match(title, "data")
             """));
         assertThat(err, containsString("[MATCH] function cannot be used after SORT and LIMIT when it targets an indexed field"));
+    }
+
+    /**
+     * The full-text filter of an aggregate function is evaluated by the aggregation. The optimizer has the final say on which
+     * filters remain there: one shared by all the aggregate functions becomes a WHERE that is pushed into the FORK branches.
+     */
+    /**
+     * A command that only runs on the coordinator takes the aggregation there. A filter shared by all the aggregate
+     * functions becomes a WHERE that is pushed below a LOOKUP JOIN, to the shards, so only the optimized plan can tell.
+     */
+    public void testFullTextInStatsFilterAfterCoordinatorCommands() {
+        String lookup = "FROM test | EVAL language_code = id | LOOKUP JOIN _coordinator:languages_lookup ON language_code";
+        String stats = " | STATS c = COUNT(*) WHERE match(title, \"Meditation\")";
+        optimize(fullTextAnalyzer().addLanguagesLookup().query(lookup + stats));
+        var err = error(fullTextAnalyzer().addLanguagesLookup().query(lookup + stats + ", d = COUNT(*)"));
+        assertThat(err, containsString("[MATCH] function cannot be used after LOOKUP when it targets an indexed field"));
+
+        // nothing is pushed below CHANGE_POINT
+        for (String aggs : List.of(stats, stats + ", d = COUNT(*)")) {
+            err = error(fullTextAnalyzer().query("FROM test | CHANGE_POINT id ON id" + aggs));
+            assertThat(aggs, err, containsString("[MATCH] function cannot be used after CHANGE_POINT when it targets an indexed field"));
+        }
+    }
+
+    /**
+     * A filter is pushed below an ENRICH that runs on the coordinator, to the shards, unless it needs the fields that
+     * the ENRICH adds. That goes for a WHERE and for the filter shared by all the aggregate functions of a STATS, which
+     * becomes one.
+     */
+    public void testFullTextAfterCoordinatorEnrich() {
+        String enrich = "FROM test | EVAL language_code = id | ENRICH _coordinator:languages ON language_code";
+        String match = "match(title, \"Meditation\")";
+        String both = match + " OR language_name == \"English\"";
+
+        optimize(coordinatorEnrichAnalyzer().query(enrich + " | WHERE " + match));
+        optimize(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + match));
+
+        if (EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled()) {
+            // the subquery runs on its own, its ENRICH doesn't take the rows of the main query to the coordinator
+            optimize(coordinatorEnrichAnalyzer().query("FROM test | WHERE id IN (" + enrich + " | KEEP id) | WHERE " + match));
+        }
+
+        String error = "[MATCH] function cannot be used in a filter that stays after ENRICH _coordinator:";
+        assertThat(error(coordinatorEnrichAnalyzer().query(enrich + " | WHERE " + both)), containsString(error));
+        assertThat(error(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + both)), containsString(error));
+        // not shared by all the aggregate functions, so it stays in the aggregation
+        assertThat(
+            error(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + match + ", d = COUNT(*)")),
+            containsString("[MATCH] function cannot be used after ENRICH when it targets an indexed field")
+        );
+    }
+
+    private TestAnalyzer coordinatorEnrichAnalyzer() {
+        return analyzer().addIndex("test", "mapping-full_text_search.json")
+            .addEnrichPolicy(Enrich.Mode.COORDINATOR, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+    }
+
+    public void testFullTextInStatsFilterAfterFork() {
+        String fork = "FROM test | FORK (WHERE id > 0) (WHERE id > 1) | STATS c = COUNT(*) WHERE ";
+        for (String ftf : List.of("kql(\"title: Meditation\")", "qstr(\"title: Meditation\")")) {
+            optimize(fullTextAnalyzer().query(fork + ftf));
+            optimize(fullTextAnalyzer().query(fork + ftf + ", d = MAX(id) WHERE " + ftf));
+
+            var err = error(fullTextAnalyzer().query(fork + ftf + ", d = COUNT(*)"));
+            assertThat(ftf, err, containsString(" function cannot be used after FORK"));
+        }
+    }
+
+    /**
+     * INLINE STATS keeps the rows tied to their documents. In the optimized plan its aggregation is on the right of a join,
+     * and must not be taken for the one of a STATS, nor the join for a command that runs on the coordinator.
+     */
+    public void testFullTextInStatsFilterAfterInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        for (String ftf : List.of("match(title, \"Meditation\")", "qstr(\"title: Meditation\")")) {
+            String stats = " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)";
+            optimize(fullTextAnalyzer().query("FROM test | INLINE STATS m = MAX(id)" + stats));
+            optimize(fullTextAnalyzer().query("FROM test | INLINE STATS m = MAX(id) + 1 BY category" + stats));
+        }
+    }
+
+    /**
+     * The subquery of {@code IN} runs as a query of its own, before the main one. Its LIMIT or STATS doesn't move the
+     * aggregation of the main query to the coordinator, unlike the same commands in the main query.
+     */
+    public void testFullTextInStatsFilterWithInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        for (String ftf : List.of("match(title, \"Meditation\")", "qstr(\"title: Meditation\")")) {
+            for (String subquery : List.of("(FROM test | SORT id | LIMIT 3 | KEEP id)", "(FROM test | STATS id = MAX(id))")) {
+                String in = "id IN " + subquery;
+                optimize(fullTextAnalyzer().query("FROM test | WHERE " + in + " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)"));
+                optimize(fullTextAnalyzer().query("FROM test | STATS c = COUNT(*) WHERE " + ftf + " AND " + in + ", d = COUNT(*)"));
+                optimize(fullTextAnalyzer().query("FROM test | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*) WHERE " + in));
+
+                // the same command in the main query is rejected, already by the analyzer. Below the join it tells that
+                // only the subquery is skipped, not both of its sides.
+                for (String limit : List.of("LIMIT 10 | WHERE " + in, "WHERE " + in + " | LIMIT 10")) {
+                    String query = "FROM test | " + limit + " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)";
+                    var e = expectThrows(VerificationException.class, () -> fullTextAnalyzer().query(query));
+                    assertThat(query, e.getMessage(), containsString(" function cannot be used after LIMIT"));
+                }
+            }
+        }
+    }
+
+    /**
+     * A column that is an alias of an indexed field looks like one to search row by row in the analyzed plan, but the
+     * optimizer replaces it with the field, making it a Lucene query that the aggregation can't evaluate after LIMIT.
+     */
+    public void testFullTextInStatsFilterOnAliasedField() {
+        String stats = " | STATS c = COUNT(*) WHERE match(t, \"Meditation\"), d = COUNT(*)";
+        for (String commands : List.of("RENAME title AS t | LIMIT 10", "LIMIT 10 | RENAME title AS t", "EVAL t = title | LIMIT 10")) {
+            var err = error(fullTextAnalyzer().query("FROM test | " + commands + stats));
+            assertThat(commands, err, containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field"));
+        }
+        optimize(fullTextAnalyzer().query("FROM test | RENAME title AS t" + stats));
+        optimize(fullTextAnalyzer().query("FROM test | EVAL t = title" + stats));
     }
 
     public void testRuntimeTextSearchRejectedAfterForkThroughCast() {
@@ -380,6 +626,85 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(knn.field(), instanceOf(FieldAttribute.class));
     }
 
+    // Older nodes don't support runtime MATCH options (see Match#writeTo)
+    public void testRuntimeMatchWithOptionsRejectedOnOlderTransportVersion() {
+        var e = expectThrows(VerificationException.class, () -> optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox", {"operator": "AND"})
+            """));
+        assertThat(e.getMessage(), containsString(RUNTIME_MATCH_OPTIONS_UNSUPPORTED));
+    }
+
+    public void testRuntimeKeywordMatchWithLenientRejectedOnOlderTransportVersion() {
+        var e = expectThrows(VerificationException.class, () -> optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW k = "fox"
+            | WHERE MATCH(k, "fox", {"lenient": true})
+            """));
+        assertThat(e.getMessage(), containsString(RUNTIME_MATCH_OPTIONS_UNSUPPORTED));
+    }
+
+    public void testRuntimeMatchWithoutOptionsAllowedOnOlderTransportVersion() {
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox")
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(true));
+    }
+
+    public void testRuntimeMatchWithOptionsAllowedOnSearchFunctionOptionsVersion() {
+        var plan = optimizeWithMinimumVersion(fullTextAnalyzer(), FullTextFunction.ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS, """
+            ROW t = TO_TEXT("the quick brown fox")
+            | WHERE MATCH(t, "quick fox", {"operator": "AND"})
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(true));
+    }
+
+    public void testIndexBackedMatchWithOptionsAllowedOnOlderTransportVersion() {
+        // the coordinator-built query builder carries the options to older nodes
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            FROM test
+            | WHERE MATCH(title, "quick fox", {"operator": "AND"})
+            """);
+        assertThat(findMatch(plan).isRuntimeSearch(), is(false));
+    }
+
+    public void testIndexBackedInUnionAllSubqueryMatchWithOptionsAllowedOnOlderTransportVersion() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // title is a runtime search on the merged column at analysis time, and only becomes index-backed once the
+        // filter is pushed into the branches
+        var plan = optimizeBelowSearchFunctionOptionsVersion(fullTextAnalyzer(), """
+            FROM (FROM test | WHERE category == 1),
+                 (FROM test | WHERE category == 2)
+            | WHERE MATCH(title, "quick fox", {"operator": "AND"})
+            """);
+
+        List<Match> matches = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, node -> node.forEachExpression(Match.class, matches::add));
+        assertThat(matches, hasSize(2));
+        for (Match match : matches) {
+            assertThat(match.isRuntimeSearch(), is(false));
+            assertThat(match.field(), instanceOf(FieldAttribute.class));
+        }
+    }
+
+    private static final String RUNTIME_MATCH_OPTIONS_UNSUPPORTED =
+        "[MATCH] options on a non-index-mapped field or expression are not supported on every participating node";
+
+    private static Match findMatch(LogicalPlan plan) {
+        List<Match> functions = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, node -> node.forEachExpression(Match.class, functions::add));
+        assertThat(functions, hasSize(1));
+        return functions.getFirst();
+    }
+
+    private LogicalPlan optimizeBelowSearchFunctionOptionsVersion(TestAnalyzer analyzer, String query) {
+        return optimizeWithMinimumVersion(
+            analyzer,
+            TransportVersionUtils.getPreviousVersion(FullTextFunction.ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS),
+            query
+        );
+    }
+
     private static void assumeKnnRuntimeEnabled() {
         assumeTrue("Knn on runtime expression requires corresponding capability", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
     }
@@ -397,9 +722,12 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * support guard reads the optimizer's minimum version, so it must be set there and not only on the analyzer.
      */
     private LogicalPlan optimizeBelowKnnRuntimeVersion(TestAnalyzer analyzer, String query) {
-        TransportVersion beforeFeature = TransportVersionUtils.getPreviousVersion(Knn.ESQL_KNN_RUNTIME_FIELD);
-        LogicalPlan analyzed = analyzer.minimumTransportVersion(beforeFeature).query(query);
-        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), beforeFeature));
+        return optimizeWithMinimumVersion(analyzer, TransportVersionUtils.getPreviousVersion(Knn.ESQL_KNN_RUNTIME_FIELD), query);
+    }
+
+    private LogicalPlan optimizeWithMinimumVersion(TestAnalyzer analyzer, TransportVersion minimumVersion, String query) {
+        LogicalPlan analyzed = analyzer.minimumTransportVersion(minimumVersion).query(query);
+        LogicalPlanOptimizer optimizer = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
         return optimizer.optimize(analyzed);
     }
 
@@ -955,7 +1283,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testEnrichRemoteRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        var testAnalyzer = external().addEnrichPolicy(
+        var testAnalyzer = externalCommand().addEnrichPolicy(
             Enrich.Mode.REMOTE,
             EnrichPolicy.MATCH_TYPE,
             "languages_policy",
@@ -974,40 +1302,97 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
     }
 
-    public void testEmbeddingLiteralValues() {
-        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
-
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
-
-        var err = error(testAnalyzer.query("""
-            from test
-            | EVAL embedding = EMBEDDING(first_name, "embedding-inference-id")
+    public void testRemoteEnrichRejectedAfterEql() {
+        String err = error(eqlAnalyzer().query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | ENRICH _remote:languages ON language_code
             """));
-        assertThat(err, is("2:20: first argument for [EMBEDDING(first_name, \"embedding-inference-id\")] must be a constant string"));
-
-        err = error(testAnalyzer.query("""
-            from test
-            | EVAL embedding = EMBEDDING("my text", first_name)
-            """));
-        assertThat(err, is("2:20: second argument for [EMBEDDING(\"my text\", first_name)] must be a constant string"));
+        assertThat(
+            err,
+            containsString(
+                "3:3: ENRICH with remote policy can't be executed after [EQL eql_test \"process where true\"]@1:1"
+                    + "; the EQL source command returns its events to the coordinating node and is incompatible with remote ENRICH"
+            )
+        );
     }
 
-    public void testEmbeddingFunctionInvalidQuery() {
-        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
-
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
-
-        var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(last_name, ?)", EMBEDDING_INFERENCE_ID));
-        assertThat(err, is("1:30: first argument for [EMBEDDING(last_name, ?)] must be a constant string"));
+    public void testLookupJoinBeforeRemoteEnrichRejectedAfterEql() {
+        String err = error(eqlAnalyzer().query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(
+            err,
+            containsString("3:3: LOOKUP JOIN with remote indices can't be executed after [EQL eql_test \"process where true\"]@1:1")
+        );
     }
 
-    public void testEmbeddingFunctionInvalidInferenceId() {
-        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+    public void testRemoteEnrichAllowedAfterCoordinatorOnlyPlanInWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+        optimize(testAnalyzer.query("""
+            FROM test
+            | WHERE languages IN (FROM test | STATS c = COUNT(*) BY languages | KEEP languages)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+    }
 
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
+    public void testRemoteEnrichRejectedAfterEqlFilteredByWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String err = error(eqlAnalyzer().addDefaultIndex().query("""
+            EQL eql_test "process where true"
+            | EVAL languages = TO_INT(pid / 100)
+            | WHERE languages IN (FROM test | KEEP languages)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(
+            err,
+            containsString(
+                "5:3: ENRICH with remote policy can't be executed after [EQL eql_test \"process where true\"]@1:1"
+                    + "; the EQL source command returns its events to the coordinating node and is incompatible with remote ENRICH"
+            )
+        );
+    }
 
-        var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(\"query\", last_name)", EMBEDDING_INFERENCE_ID));
-        assertThat(err, is("1:30: second argument for [EMBEDDING(\"query\", last_name)] must be a constant string"));
+    public void testRemoteEnrichRejectedAfterCoordinatorOnlyPlanFilteredByWhereInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+        String err = error(testAnalyzer.query("""
+            FROM test
+            | STATS c = COUNT(*) BY languages
+            | WHERE c IN (FROM test | EVAL c = TO_LONG(languages) | KEEP c)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """));
+        assertThat(err, containsString("5:3: ENRICH with remote policy can't be executed after [STATS c = COUNT(*) BY languages]@2:3"));
+    }
+
+    public void testLookupJoinAfterEqlIsRemoteWhenWhereInSubqueryReadsRemoteIndices() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String err = error(eqlAnalyzer().addIndex("test,remote:test", "mapping-default.json").query("""
+            EQL eql_test "process where true"
+            | EVAL language_code = TO_INT(pid / 100)
+            | WHERE language_code IN (FROM test,remote:test | KEEP languages)
+            | LOOKUP JOIN languages_lookup ON language_code
+            """));
+        assertThat(
+            err,
+            containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [EQL eql_test \"process where true\"]@1:1")
+        );
+    }
+
+    private TestAnalyzer eqlAnalyzer() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        return analyzer().addIndex("eql_test", "mapping-eql_test.json")
+            .addLanguagesLookup()
+            .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
     }
 
     // Regression for #142026.

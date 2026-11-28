@@ -10,6 +10,7 @@
 package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.PlainShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -45,7 +47,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.RestoringShardTestState;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -61,11 +68,13 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -256,6 +265,185 @@ public class TransportSingleShardActionTests extends ESTestCase {
             }
         };
         action.execute(null, request, assertingListener);
+    }
+
+    /**
+     * The kinds of iterator that an action can return when no copy of a restoring shard can be searched: one that knows its shard, the
+     * empty one that some actions return when a {@code _shards} preference leaves out the shard that the request routes to (see
+     * {@code TransportTermVectorsAction#shards}), which has no shard id, and an index-level one.
+     */
+    private enum NoCopyIterator {
+        WITH_SHARD_ID {
+            @Override
+            ShardsIterator create(ShardId shardId) {
+                return new ShardIterator(shardId, List.of());
+            }
+        },
+        WITHOUT_SHARD_ID {
+            @Override
+            ShardsIterator create(ShardId shardId) {
+                return new ShardIterator(null, List.of());
+            }
+        },
+        INDEX_LEVEL {
+            @Override
+            ShardsIterator create(ShardId shardId) {
+                return new PlainShardsIterator(List.of());
+            }
+        };
+
+        abstract ShardsIterator create(ShardId shardId);
+    }
+
+    /**
+     * When no copy of a shard can be searched because its primary is being restored by a restore that reports its shards, the request
+     * fails with the {@link ShardRestoringException}, whether the action's iterator is for that shard or for the whole index.
+     */
+    public void testRestoringShardIsReportedWhenNoCopyCanBeSearched() throws Exception {
+        for (NoCopyIterator iterator : List.of(NoCopyIterator.WITH_SHARD_ID, NoCopyIterator.INDEX_LEVEL)) {
+            final String restoreUuid = randomUUID();
+            final Exception failure = executeAgainstRestoringIndex(restoreUuid, true, restoring -> iterator.create(restoring.shardId()));
+            assertThat(iterator.name(), failure, isA(ShardRestoringException.class));
+            final var restoring = (ShardRestoringException) failure;
+            assertThat(iterator.name(), restoring.recoveryId(), equalTo(restoreUuid));
+            assertThat(iterator.name(), restoring.getMetadata("es.index"), equalTo(List.of(RESTORING_INDEX)));
+            assertThat(iterator.name(), restoring.status(), equalTo(RestStatus.FORBIDDEN));
+        }
+    }
+
+    /**
+     * A restore that did not ask for its shards to be reported leaves the failure as it always was.
+     */
+    public void testRestoringShardIsNotReportedWhenTheRestoreDoesNotAskForIt() throws Exception {
+        for (NoCopyIterator iterator : NoCopyIterator.values()) {
+            final Exception failure = executeAgainstRestoringIndex(randomUUID(), false, restoring -> iterator.create(restoring.shardId()));
+            assertThat(iterator.name(), failure, isA(NoShardAvailableActionException.class));
+            assertThat(iterator.name(), ((NoShardAvailableActionException) failure).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+    }
+
+    /**
+     * An iterator without a shard id is the one some actions return when a {@code _shards} preference leaves out the shard that the
+     * request routes to. Such a request fails just the same once the restore has finished, so the failure is the usual one rather than
+     * the {@link ShardRestoringException}.
+     */
+    public void testRestoringShardIsNotReportedWhenThePreferenceLeavesOutTheRoutedShard() throws Exception {
+        final Exception failure = executeAgainstRestoringIndex(
+            randomUUID(),
+            true,
+            restoring -> NoCopyIterator.WITHOUT_SHARD_ID.create(restoring.shardId())
+        );
+        assertThat(failure, isA(NoShardAvailableActionException.class));
+        assertThat(((NoShardAvailableActionException) failure).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    /**
+     * A failure that is not about shard availability is returned as it is, even while the shard is being restored by a restore that
+     * reports its shards, because the restore is not what stopped the request.
+     */
+    public void testOtherFailureIsNotReplacedWhileTheShardIsRestoring() throws Exception {
+        doAnswer(invocation -> {
+            final ActionListenerResponseHandler<TestResponse> handler = invocation.getArgument(3);
+            handler.handleException(new RemoteTransportException("failed", new IllegalArgumentException("bad request")));
+            return null;
+        }).when(transportService).sendRequest(any(), any(), any(), ArgumentMatchers.<ActionListenerResponseHandler<TestResponse>>any());
+
+        final Exception failure = executeAgainstRestoringIndex(
+            randomUUID(),
+            true,
+            restoring -> new ShardIterator(
+                restoring.shardId(),
+                List.of(shardRoutingBuilder(restoring.shardId(), "node", true, ShardRoutingState.STARTED).build())
+            )
+        );
+        assertThat(ExceptionsHelper.unwrapCause(failure), isA(IllegalArgumentException.class));
+    }
+
+    /**
+     * When the iterator has a copy of the restoring shard, as on a stateful cluster where the read goes to the initializing primary, the
+     * request is sent and the copy turns it down with the {@link IllegalIndexShardStateException} a shard that is still recovering answers
+     * with. Once there are no copies left, a restore that reports its shards makes that a {@link ShardRestoringException}; one that does
+     * not leaves the usual failure, with the copy's as its cause.
+     */
+    public void testRestoringShardIsReportedWhenTheCopiesTurnTheRequestDown() throws Exception {
+        final AtomicInteger sent = new AtomicInteger();
+        doAnswer(invocation -> {
+            sent.incrementAndGet();
+            final TestRequest request = invocation.getArgument(2);
+            final ActionListenerResponseHandler<TestResponse> handler = invocation.getArgument(3);
+            handler.handleException(
+                new RemoteTransportException(
+                    "failed",
+                    new IllegalIndexShardStateException(
+                        request.internalShardId,
+                        IndexShardState.RECOVERING,
+                        "operations only allowed when shard state is one of [POST_RECOVERY, STARTED]"
+                    )
+                )
+            );
+            return null;
+        }).when(transportService).sendRequest(any(), any(), any(), ArgumentMatchers.<ActionListenerResponseHandler<TestResponse>>any());
+        final Function<RestoringShardTestState.Restoring, ShardsIterator> initializingPrimary = restoring -> new ShardIterator(
+            restoring.shardId(),
+            List.of(restoring.state().routingTable(projectResolver.getProjectId()).shardRoutingTable(restoring.shardId()).primaryShard())
+        );
+
+        final String restoreUuid = randomUUID();
+        final Exception reported = executeAgainstRestoringIndex(restoreUuid, true, initializingPrimary);
+        assertThat(reported, isA(ShardRestoringException.class));
+        assertThat(((ShardRestoringException) reported).recoveryId(), equalTo(restoreUuid));
+        assertThat(((ShardRestoringException) reported).status(), equalTo(RestStatus.FORBIDDEN));
+
+        final Exception notReported = executeAgainstRestoringIndex(randomUUID(), false, initializingPrimary);
+        assertThat(notReported, isA(NoShardAvailableActionException.class));
+        assertThat(((NoShardAvailableActionException) notReported).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(ExceptionsHelper.unwrapCause(notReported.getCause()), isA(IllegalIndexShardStateException.class));
+
+        assertThat("each run sends the request to the copy once", sent.get(), equalTo(2));
+    }
+
+    private static final String RESTORING_INDEX = "index";
+
+    /**
+     * Runs an action whose iterator {@code shards} builds from the restoring shard, against a cluster state in which
+     * {@link #RESTORING_INDEX} is being restored, and returns the exception the request fails with.
+     */
+    private Exception executeAgainstRestoringIndex(
+        String restoreUuid,
+        boolean reportShardRestoring,
+        Function<RestoringShardTestState.Restoring, ShardsIterator> shards
+    ) throws Exception {
+        final ClusterState originalClusterState = clusterService.state();
+        try {
+            final var restoring = RestoringShardTestState.restoringIndex(
+                originalClusterState,
+                projectResolver.getProjectId(),
+                RESTORING_INDEX,
+                restoreUuid,
+                reportShardRestoring
+            );
+            when(clusterService.state()).thenReturn(restoring.state());
+            final var action = new TestTransportSingleShardAction<TestRequest>(
+                threadPool,
+                clusterService,
+                transportService,
+                projectResolver
+            ) {
+                @Override
+                protected ShardsIterator shards(
+                    ProjectState state,
+                    TransportSingleShardAction<TestRequest, TestResponse>.InternalRequest request
+                ) {
+                    return shards.apply(restoring);
+                }
+            };
+            final var result = new PlainActionFuture<TestResponse>();
+            action.execute(null, new TestRequest().index(RESTORING_INDEX), result);
+            final var e = assertThrows(ExecutionException.class, () -> result.get(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+            return (Exception) e.getCause();
+        } finally {
+            when(clusterService.state()).thenReturn(originalClusterState);
+        }
     }
 
     static class TestRequest extends SingleShardRequest<TestRequest> implements RetryableSplitAwareRequest {

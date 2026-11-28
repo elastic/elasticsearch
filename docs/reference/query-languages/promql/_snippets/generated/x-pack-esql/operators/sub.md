@@ -21,3 +21,9 @@ An `instant_vector`, or a `scalar` when both operands are scalars.
 ```
 requests_total - requests_errors
 ```
+
+:::{note}
+**Differences from {{prom}}**
+
+Native histogram operands, such as `h * 2`, and some pairs of instant vectors, listed in [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-vector-matching), aren't supported yet.
+:::

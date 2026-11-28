@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,9 +38,9 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
  * from callers. They end at the next view boundary the same way the caller's do: a nested view is governed only by its
  * own definition's {@code SET}.
  * <p>
- * A setting a definition does not {@code SET} stays at its registry default inside the body, whatever the caller's
- * request or the cluster default says — a cluster-level default reaching into bodies would change view contents the
- * way a materialized view could not change.
+ * A setting a definition does not {@code SET} takes the cluster default inside the body, as it does in a query that does
+ * not {@code SET} it, whatever the caller's request says. The cluster default is the operator's choice for every query on
+ * the cluster, so it applies on both sides of a view boundary, like the settings that are not scoped at view boundaries.
  * <p>
  * {@code supplied} holds the names of the settings the definition {@code SET}s explicitly, kept apart from the values
  * so telemetry can count what view authors set the same way it counts what callers set.
@@ -50,7 +52,7 @@ public record ViewQuerySettings(
     Set<String> supplied
 ) {
 
-    /** The settings of a view whose definition has no {@code SET} statements: everything at its registry default. */
+    /** The settings of a view whose definition has no {@code SET} statements on a cluster with no defaults configured. */
     public static final ViewQuerySettings DEFAULTS = new ViewQuerySettings(UnmappedResolution.DEFAULT, false, false, Set.of());
 
     /** The settings a view definition may {@code SET} — the ones scoped at view boundaries for callers. */
@@ -67,8 +69,8 @@ public record ViewQuerySettings(
     }
 
     /**
-     * Settings for a view branch. A view branch has a name; a definition that did not {@code SET} a mode contributes
-     * {@link #DEFAULTS}, which is the registry default and not the cluster default.
+     * Settings for a view branch. A view branch has a name, and {@code ViewResolver} records the settings of every view it
+     * resolves; {@link #DEFAULTS} is only a fallback for a name it did not record.
      */
     public static ViewQuerySettings forView(String viewName, Map<String, ViewQuerySettings> viewSettings) {
         assert viewName != null : "a view branch has no view name to read settings from";
@@ -77,17 +79,38 @@ public record ViewQuerySettings(
     }
 
     /**
-     * Reads the view-scoped settings from a parsed view definition. Call {@link #validate} first; this assumes the
-     * statement carries only allowed settings.
+     * Resolves the view-scoped settings of a parsed view definition with the same fold as a query's settings, minus the
+     * request body, which belongs to the caller: the cluster defaults in {@code clusterState} and {@code nodeSettings},
+     * then the definition's {@code SET}. Call {@link #validate} first; this assumes the statement carries only allowed settings.
+     * <p>
+     * A {@code PROMQL} body gets {@code NULLIFY}, as a query containing {@code PROMQL} does in {@code EsqlSession}: PromQL treats a
+     * missing label or metric as absent. Only the view's own {@code SET} of a mode other than {@code DEFAULT} overrides that.
+     * A cluster default does not, and {@code DEFAULT} means the query type's own behavior, which for PromQL is this one. The
+     * view's own scope is where that belongs, so the view behaves the same whatever its caller {@code SET}s, and its
+     * {@code PROMQL} does not change how the caller's query resolves.
      */
-    public static ViewQuerySettings from(EsqlStatement statement) {
+    public static ViewQuerySettings from(EsqlStatement statement, Settings clusterState, Settings nodeSettings) {
         Set<String> supplied = statement.settings() == null
             ? Set.of()
             : statement.settings().stream().map(QuerySetting::name).collect(toUnmodifiableSet());
+        // Snapshot is forced on, as in validate, which has already applied the snapshot gate to the definition.
+        ResolvedSettings resolved = QuerySettings.resolve(
+            SETTINGS,
+            clusterState,
+            nodeSettings,
+            Map.of(),
+            statement,
+            new SettingsValidationContext(false, true)
+        );
+        UnmappedResolution unmappedFields = QuerySettings.UNMAPPED_FIELDS.get(resolved);
+        boolean viewSetsMode = supplied.contains(QuerySettings.UNMAPPED_FIELDS.name()) && unmappedFields != UnmappedResolution.DEFAULT;
+        if (viewSetsMode == false && statement.plan().anyMatch(PromqlCommand.class::isInstance)) {
+            unmappedFields = UnmappedResolution.NULLIFY;
+        }
         return new ViewQuerySettings(
-            statement.setting(QuerySettings.UNMAPPED_FIELDS),
-            statement.setting(QuerySettings.WILDCARDS_MATCH_VIEWS),
-            statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS),
+            unmappedFields,
+            QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
+            QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
             supplied
         );
     }

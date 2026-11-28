@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
@@ -27,9 +28,12 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.bulk.SimulateBulkAction;
+import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -137,6 +141,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         }
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -208,7 +213,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         // maybe force merge
         if (randomBoolean()) {
             var forceMergeResponse = client().admin().indices().forceMerge(new ForceMergeRequest("k8s").maxNumSegments(1)).actionGet();
-            assertEquals(0, forceMergeResponse.getShardFailures().length);
+            assertEquals(0, forceMergeResponse.getShardFailures().size());
         }
 
         // index again and check for success
@@ -398,6 +403,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset");
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
             templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+            randomBatchIndexing(templateSettings);
             if (randomBoolean()) {
                 templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
             }
@@ -604,6 +610,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -665,6 +672,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean())
             .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -751,6 +759,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -819,6 +828,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -890,6 +900,72 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         assertThat(bulkResponse.hasFailures(), is(false));
+    }
+
+    /**
+     * A real write goes to the backing index whose time range covers the @timestamp, so simulate must accept the document.
+     * After a rollover that is an older backing index, even though _ingest/_simulate sends op_type index.
+     * Simulate with template substitutions resolves the template as if the data stream did not exist, but must still use that range.
+     */
+    public void testSimulateUsesBackingIndexTimeRange() throws Exception {
+        var request = new TransportPutComposableIndexTemplateAction.Request("id");
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("k8s*"))
+                .template(
+                    new Template(
+                        Settings.builder().put("index.mode", "time_series").put(DataStreamsPlugin.LOOK_BACK_TIME.getKey(), "7d").build(),
+                        new CompressedXContent(MAPPING_TEMPLATE),
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build()
+        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+        client().index(
+            new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE)
+                .source(DOC.replace("$time", formatInstant(Instant.now())), XContentType.JSON)
+        ).actionGet();
+        safeGet(indicesAdmin().rolloverIndex(new RolloverRequest("k8s", null)));
+
+        // The substitute has the default look_back_time of 2 hours, so the time range of a new first backing index would not cover this.
+        Instant time = Instant.now().minus(randomIntBetween(3, 144), ChronoUnit.HOURS);
+        Map<String, Object> substitute = Map.of(
+            "index_patterns",
+            List.of("k8s*"),
+            "data_stream",
+            Map.of(),
+            "template",
+            Map.of(
+                "settings",
+                Map.of("index.mode", "time_series"),
+                "mappings",
+                Map.of(
+                    "properties",
+                    Map.of("@timestamp", Map.of("type", "date"), "metricset", Map.of("type", "keyword", "time_series_dimension", true))
+                )
+            )
+        );
+        var bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of("id", substitute), Map.of(), null);
+        bulkRequest.add(new IndexRequest("k8s").source(DOC.replace("$time", formatInstant(time)), XContentType.JSON));
+        BulkResponse response = client().execute(new ActionType<BulkResponse>(SimulateBulkAction.NAME), bulkRequest).actionGet();
+        assertThat(response.getItems().length, equalTo(1));
+        assertNull(((SimulateIndexResponse) response.getItems()[0].getResponse()).getException());
+
+        // Without substitutions, a mapping addition is validated against the existing backing index that the @timestamp selects.
+        // The REST API wraps the mapping addition in _doc, like this.
+        var additionRequest = new SimulateBulkRequest(
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of("_doc", Map.of("properties", Map.of("extra", Map.of("type", "keyword")))),
+            null
+        );
+        additionRequest.add(new IndexRequest("k8s").source(DOC.replace("$time", formatInstant(time)), XContentType.JSON));
+        response = client().execute(new ActionType<BulkResponse>(SimulateBulkAction.NAME), additionRequest).actionGet();
+        assertThat(response.getItems().length, equalTo(1));
+        assertNull(((SimulateIndexResponse) response.getItems()[0].getResponse()).getException());
     }
 
     private <T> T getSetting(String dataStreamName, Setting<T> setting) {

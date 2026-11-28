@@ -16,10 +16,13 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -33,6 +36,7 @@ import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_F
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.not;
 
 public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
@@ -225,6 +229,102 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
             try (var response = run("TS index-1 | " + command + " | KEEP data_stream | MV_EXPAND data_stream | STATS BY data_stream")) {
                 assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of("index-1"))));
             }
+        }
+    }
+
+    /** {@code METRICS_INFO} lists every index that holds the series of the cpu metric. */
+    public void testMetricsInfoReportsEachIndexOfTheSameSeries() {
+        createIndicesWithTheSameSeries();
+        assertRowsPerIndexOfTheSameSeries("METRICS_INFO", 1);
+    }
+
+    /** {@code TS_INFO} lists every index that holds each of the three series. */
+    public void testTsInfoReportsEachIndexOfTheSameSeries() {
+        createIndicesWithTheSameSeries();
+        assertRowsPerIndexOfTheSameSeries("TS_INFO", 3);
+    }
+
+    /**
+     * Creates two indices with the same three time series on one node. One driver then reads both shards, so a dedup of
+     * time series across shards would drop the series of the index read second.
+     */
+    private void createIndicesWithTheSameSeries() {
+        Settings settings = Settings.builder()
+            .put("mode", "time_series")
+            .putList("routing_path", List.of("host"))
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.routing.allocation.require._name", internalCluster().getRandomDataNodeName())
+            .build();
+        List<String> indices = List.of("same-series-1", "same-series-2");
+        long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
+        for (String index : indices) {
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(settings)
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=double,time_series_metric=gauge"
+                )
+                .get();
+            for (String host : List.of("a", "b", "c")) {
+                client().prepareIndex(index).setSource("@timestamp", timestamp, "host", host, "cpu", 1.0).get();
+            }
+            client().admin().indices().prepareRefresh(index).get();
+        }
+    }
+
+    /**
+     * With the smallest threshold every data node page with rows is emitted early. The coordinator must still merge
+     * each series into one row that lists both indices.
+     */
+    public void testTsInfoMergesRowsEmittedEarly() {
+        createIndicesWithTheSameSeries();
+        ByteSizeValue threshold = ByteSizeValue.ofBytes(1);
+        updateClusterSettings(Settings.builder().put(PlannerSettings.TS_INFO_PARTIAL_EMIT_THRESHOLD.getKey(), threshold));
+        try {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.profile(true);
+            request.query(
+                "TS same-series-1,same-series-2 | TS_INFO | EVAL indices = MV_COUNT(data_stream) | STATS series = COUNT(*) BY indices"
+            );
+            try (var response = run(request)) {
+                assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of(3L, 2))));
+                List<String> initialOperators = response.profile()
+                    .drivers()
+                    .stream()
+                    .flatMap(driver -> driver.operators().stream())
+                    .filter(op -> op.status() instanceof TsInfoOperator.Status status && status.mode() == TsInfoOperator.Mode.INITIAL)
+                    .map(OperatorStatus::operator)
+                    .toList();
+                assertThat(initialOperators, not(empty()));
+                assertThat(initialOperators, everyItem(equalTo("TsInfoOperator[mode=INITIAL, partialEmitThreshold=" + threshold + "]")));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(PlannerSettings.TS_INFO_PARTIAL_EMIT_THRESHOLD.getKey()));
+        }
+    }
+
+    private void assertRowsPerIndexOfTheSameSeries(String command, long rowsPerIndex) {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(
+            "TS same-series-1,same-series-2 | "
+                + command
+                + " | MV_EXPAND data_stream | STATS rows = COUNT(*) BY data_stream | SORT data_stream"
+        );
+        if (canUseQueryPragmas()) {
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build()));
+        }
+        try (var response = run(request)) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(List.of(List.of(rowsPerIndex, "same-series-1"), List.of(rowsPerIndex, "same-series-2")))
+            );
         }
     }
 

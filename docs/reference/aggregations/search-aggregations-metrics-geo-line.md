@@ -2,12 +2,17 @@
 navigation_title: "Geo-line"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-geo-line.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Geo-line aggregation [search-aggregations-metrics-geo-line]
 
 
 The `geo_line` aggregation aggregates all `geo_point` values within a bucket into a `LineString` ordered by the chosen `sort` field. This `sort` can be a date field, for example. The bucket returned is a valid [GeoJSON Feature](https://tools.ietf.org/html/rfc7946#section-3.2) representing the line geometry.
+
+In {{stack}}, this aggregation is available with a Gold, Platinum, or Enterprise license.
 
 $$$search-aggregations-metrics-geo-line-simple$$$
 
@@ -272,9 +277,17 @@ These results contain an array of buckets, where each bucket is a JSON object wi
 
 
 ## Grouping with time-series [search-aggregations-metrics-geo-line-grouping-time-series]
+```{applies_to}
+stack: deprecated 9.7+, preview 9.0-9.6
+serverless:
+  elasticsearch: deprecated
+  observability: deprecated
+  security: deprecated
+  vectordb: unavailable
+```
 
 ::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+The [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) is scheduled for removal. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead of nesting `geo_line` inside `time_series`. Where the deprecation is active, search requests that use this combination return a deprecation warning.
 ::::
 
 

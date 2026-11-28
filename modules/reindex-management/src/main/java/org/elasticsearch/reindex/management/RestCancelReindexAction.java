@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -29,6 +30,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /** REST handler for cancelling an ongoing reindex task. */
 @ServerlessScope(Scope.PUBLIC)
 public class RestCancelReindexAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("wait_for_completion");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "task_id");
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
@@ -67,4 +71,15 @@ public class RestCancelReindexAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return Set.of(CAPABILITY_REINDEX_MANAGEMENT_API);
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

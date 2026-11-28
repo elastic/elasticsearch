@@ -343,12 +343,14 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public Map<String, Object> map() throws IOException {
-        return readMapSafe(SIMPLE_MAP_FACTORY);
+        requireSupportsMap();
+        return readMap(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return readMapSafe(ORDERED_MAP_FACTORY);
+        requireSupportsMap();
+        return readMap(this, ORDERED_MAP_FACTORY);
     }
 
     @Override
@@ -360,18 +362,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException {
         requireSupportsMap();
-        final Map<String, T> map = mapFactory.get();
-        String fieldName = findNonEmptyMapStart(this);
-        if (fieldName == null) {
-            return map;
-        }
-        assert currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + currentToken() + "]";
-        do {
-            nextToken();
-            T value = mapValueParser.apply(this);
-            map.put(fieldName, value);
-        } while ((fieldName = nextFieldName()) != null);
-        return map;
+        return readMap(this, mapFactory, mapValueParser);
     }
 
     private void requireSupportsList() {
@@ -383,26 +374,56 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public List<Object> list() throws IOException {
         requireSupportsList();
-        skipToListStart(this);
-        return readListUnsafe(this, SIMPLE_MAP_FACTORY);
+        return readList(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
         requireSupportsList();
-        skipToListStart(this);
-        return readListUnsafe(this, ORDERED_MAP_FACTORY);
+        return readList(this, ORDERED_MAP_FACTORY);
     }
 
     private static final Supplier<Map<String, Object>> SIMPLE_MAP_FACTORY = HashMap::new;
 
     private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
-    private Map<String, Object> readMapSafe(Supplier<Map<String, Object>> mapFactory) throws IOException {
-        requireSupportsMap();
+    /**
+     * Reads a map like {@link #map()}, advancing {@code parser} directly so wrapper parsers see every token.
+     */
+    public static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         final Map<String, Object> map = mapFactory.get();
-        final String firstKey = findNonEmptyMapStart(this);
-        return firstKey == null ? map : readMapEntries(this, mapFactory, map, firstKey);
+        final String firstKey = findNonEmptyMapStart(parser);
+        return firstKey == null ? map : readMapEntries(parser, mapFactory, map, firstKey);
+    }
+
+    /**
+     * Reads a map the way {@link #map(Supplier, CheckedFunction)} does, reading every token through {@code parser}.
+     */
+    public static <T> Map<String, T> readMap(
+        XContentParser parser,
+        Supplier<Map<String, T>> mapFactory,
+        CheckedFunction<XContentParser, T, IOException> mapValueParser
+    ) throws IOException {
+        final Map<String, T> map = mapFactory.get();
+        String fieldName = findNonEmptyMapStart(parser);
+        if (fieldName == null) {
+            return map;
+        }
+        assert parser.currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + parser.currentToken() + "]";
+        do {
+            parser.nextToken();
+            T value = mapValueParser.apply(parser);
+            map.put(fieldName, value);
+        } while ((fieldName = parser.nextFieldName()) != null);
+        return map;
+    }
+
+    /**
+     * Reads a list the way {@link #list()} does, reading every token through {@code parser}.
+     */
+    public static List<Object> readList(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        skipToListStart(parser);
+        return readListUnsafe(parser, mapFactory);
     }
 
     private static Map<String, Object> readMapEntries(

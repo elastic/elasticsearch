@@ -206,7 +206,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     private static String serializeMapping(MapperService mapperService) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        mapperService.documentMapper().mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(mapperService, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         return Strings.toString(builder);
     }

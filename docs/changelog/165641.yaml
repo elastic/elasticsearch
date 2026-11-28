@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165641
+summary: Add Arrow output for dense vectors
+type: enhancement

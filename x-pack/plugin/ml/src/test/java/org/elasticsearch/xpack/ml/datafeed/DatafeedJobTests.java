@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -51,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -71,6 +75,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -78,20 +83,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -108,6 +117,11 @@ public class DatafeedJobTests extends ESTestCase {
     private static final long DELAYED_DATA_WINDOW = TimeValue.timeValueMinutes(15).millis();
     private static final long DELAYED_DATA_FREQ = TimeValue.timeValueMinutes(2).millis();
     private static final long DELAYED_DATA_FREQ_HALF = TimeValue.timeValueMinutes(1).millis();
+    private static final long HOUR_MS = TimeValue.timeValueHours(1).millis();
+    private static final LongUnaryOperator BUCKET_STAMPED = recordMs -> recordMs + HOUR_MS - 1;
+    private static final long MINUTE_MS = TimeValue.timeValueMinutes(1).millis();
+    // 1972-09-27T00:00:00Z: about 1.44 million one-minute buckets after records near the epoch.
+    private static final long SPARSE_NOW = TimeValue.timeValueDays(1000).millis();
 
     private AnomalyDetectionAuditor auditor;
     private DataExtractorFactory dataExtractorFactory;
@@ -124,6 +138,10 @@ public class DatafeedJobTests extends ESTestCase {
     private String annotationDocId;
 
     private long currentTime;
+    private LongUnaryOperator lastEndTimeForRecord;
+    private boolean skipLongEmptyGaps;
+    private long bucketSpanMs;
+    private long latencyMs;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -148,6 +166,10 @@ public class DatafeedJobTests extends ESTestCase {
         delayedDataDetector = mock(DelayedDataDetector.class);
         when(delayedDataDetector.getWindow()).thenReturn(DELAYED_DATA_WINDOW);
         currentTime = 0;
+        lastEndTimeForRecord = LongUnaryOperator.identity();
+        skipLongEmptyGaps = false;
+        bucketSpanMs = HOUR_MS;
+        latencyMs = 0;
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
@@ -728,6 +750,252 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
+    public void testEsqlBucketStampedLookBackFromResumePointShouldStartAtNextBucket() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        lastEndTimeForRecord = BUCKET_STAMPED;
+
+        // The bucket-start record 06:00 means the whole 06:00 bucket was posted.
+        createDatafeedJob(1000, 500, -1, 6 * HOUR_MS, true).runLookBack(0L, null);
+
+        verify(dataExtractorFactory).newExtractor(7 * HOUR_MS, currentTime - 500);
+    }
+
+    public void testEsqlRawLookBackFromResumePointShouldStartRightAfterLatestRow() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        long rawRecord = 8 * HOUR_MS + TimeValue.timeValueMinutes(30).millis();
+
+        createDatafeedJob(1000, 500, -1, rawRecord, true).runLookBack(0L, null);
+
+        verify(dataExtractorFactory).newExtractor(rawRecord + 1, currentTime - 500);
+    }
+
+    public void testEsqlBucketStampedRealtimeFromResumePointShouldStartAtNextBucket() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        lastEndTimeForRecord = BUCKET_STAMPED;
+
+        createDatafeedJob(1000, 500, -1, 6 * HOUR_MS, true).runRealtime();
+
+        verify(dataExtractorFactory).newExtractor(7 * HOUR_MS, (currentTime - 500) / 1000 * 1000);
+    }
+
+    public void testEsqlRawRealtimeFromResumePointShouldStartRightAfterLatestRow() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        long rawRecord = 8 * HOUR_MS + TimeValue.timeValueMinutes(30).millis();
+
+        createDatafeedJob(1000, 500, -1, rawRecord, true).runRealtime();
+
+        verify(dataExtractorFactory).newExtractor(rawRecord + 1, (currentTime - 500) / 1000 * 1000);
+    }
+
+    public void testEsqlLookBackWithEmptyWindowShouldAdvanceLastEndTimeToExtractorEnd() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        when(dataExtractor.hasNext()).thenReturn(false);
+        // The extractor stopped at 10:00 because the requested end 10:30 lies inside the next, still open, bucket.
+        when(dataExtractor.getEndTime()).thenReturn(10 * HOUR_MS);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, true);
+        long requestedEnd = 10 * HOUR_MS + TimeValue.timeValueMinutes(30).millis();
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, requestedEnd));
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(10 * HOUR_MS - 1));
+
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory).newExtractor(10 * HOUR_MS, (currentTime - 500) / 1000 * 1000);
+    }
+
+    public void testEsqlRealtimeAfterLookBackShouldContinueAtLookBackWindowEnd() throws Exception {
+        long queryDelayMs = 500;
+        long resumeEnd = 7 * HOUR_MS - 1;
+        currentTime = 20 * HOUR_MS;
+        long lookBackEnd = currentTime - queryDelayMs;
+        // The lookback posts nothing, so only the window end can move lastEndTimeMs.
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(new DataCounts(jobId)));
+        when(dataExtractor.getEndTime()).thenReturn(lookBackEnd);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, resumeEnd, true);
+        // An empty window is reported after lastEndTimeMs has advanced.
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, null));
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(lookBackEnd - 1));
+
+        currentTime = 21 * HOUR_MS;
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(7 * HOUR_MS, lookBackEnd);
+        verify(dataExtractorFactory).newExtractor(lookBackEnd, (currentTime - queryDelayMs) / 1000 * 1000);
+    }
+
+    public void testEsqlLookBackPostingRawRowsShouldNotMoveLastEndTimeBeforeWindowEnd() throws Exception {
+        long queryDelayMs = 500;
+        currentTime = 20 * HOUR_MS;
+        long lookBackEnd = currentTime - queryDelayMs;
+        long postedRow = 9 * HOUR_MS + TimeValue.timeValueMinutes(14).millis();
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(postedRow)));
+        when(dataExtractor.getEndTime()).thenReturn(lookBackEnd);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, 6 * HOUR_MS, true);
+        datafeedJob.runLookBack(0L, null);
+
+        // The latest posted row only sets lastEndTimeMs transiently; the completed window then moves it to the window end.
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(lookBackEnd - 1));
+    }
+
+    public void testEsqlBucketStampedRunFailingAfterFirstBatchShouldResumeAtNextBucket() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        lastEndTimeForRecord = BUCKET_STAMPED;
+
+        DatafeedJob datafeedJob = createDatafeedJobFailingAfterBatchWithRecord(3 * HOUR_MS);
+
+        // Bucket 03:00 was posted in full, so reading it again would double its count.
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(4 * HOUR_MS - 1));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory).newExtractor(eq(4 * HOUR_MS), anyLong());
+    }
+
+    public void testEsqlRawRunFailingAfterFirstBatchShouldResumeRightAfterLatestRow() throws Exception {
+        currentTime = 20 * HOUR_MS;
+        lastEndTimeForRecord = LongUnaryOperator.identity();
+        long latestRow = 3 * HOUR_MS + TimeValue.timeValueMinutes(14).millis();
+
+        DatafeedJob datafeedJob = createDatafeedJobFailingAfterBatchWithRecord(latestRow);
+
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(latestRow));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+        verify(dataExtractorFactory).newExtractor(eq(latestRow + 1), anyLong());
+    }
+
+    public void testEsqlBucketStampedDatafeedWithoutLatestRecordShouldNotSetLastEndTime() {
+        lastEndTimeForRecord = BUCKET_STAMPED;
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+
+        assertThat(datafeedJob.lastEndTimeMs(), nullValue());
+    }
+
+    public void testEsqlTruncatedChunkShouldAuditWarningAndAdvancePastInterval() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        try (var mockLog = MockLog.capture(DatafeedJob.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "truncated chunk logged at WARN",
+                    DatafeedJob.class.getCanonicalName(),
+                    Level.WARN,
+                    ".*\\[" + jobId + "\\].*reached its row limit.*"
+                )
+            );
+            datafeedJob.runLookBack(0L, 1000L);
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        String expectedMessage =
+            "Within [1970-01-01T00:00:00.100Z, 1970-01-01T00:00:00.200Z) at least one ES|QL datafeed chunk reached its row limit. "
+                + "Rows beyond the limit were not retrieved and will not be extracted again. "
+                + "Use a smaller grouping interval in esql_query. "
+                + "Aggregate the data or add a filter to reduce the number of rows per chunk.";
+        verify(auditor).warning(jobId, expectedMessage);
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(999L));
+    }
+
+    public void testEsqlTruncatedChunkWithFlushFailureShouldNotAudit() {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+        when(flushJobFuture.actionGet()).thenThrow(new RuntimeException("flush failed"));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkWithPostFailureShouldNotAudit() {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+        when(postDataFuture.actionGet()).thenThrow(new RuntimeException("post failed"));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkAbsentShouldNotAudit() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.empty());
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        datafeedJob.runLookBack(0L, 1000L);
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkWithConsecutiveCyclesShouldAuditOncePerEpisode() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(2000L).thenReturn(4000L).thenReturn(6000L).thenReturn(8000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)))
+            .thenReturn(Optional.of(new SearchInterval(300L, 400L)))
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(new SearchInterval(500L, 600L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        runRealtimeCycleAt(datafeedJob, 3000L);
+        runRealtimeCycleAt(datafeedJob, 5000L);
+        verify(auditor, times(1)).warning(any(), any());
+
+        runRealtimeCycleAt(datafeedJob, 7000L);
+        runRealtimeCycleAt(datafeedJob, 9000L);
+        verify(auditor, times(2)).warning(any(), any());
+        verify(dataExtractor, times(4)).getIncompleteSearchInterval();
+    }
+
+    public void testEsqlIncompleteChunkShouldNotAuditAgainWithinOneDay() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(2000L).thenReturn(4000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        runRealtimeCycleAt(datafeedJob, 3_600_000L);
+        runRealtimeCycleAt(datafeedJob, 3_600_000L + TimeValue.timeValueHours(23).millis());
+
+        verify(auditor, times(1)).warning(any(), any());
+    }
+
+    public void testEsqlIncompleteChunkShouldAuditAgainAfterOneDay() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(2000L).thenReturn(4000L);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        long start = 10_000_000L;
+        runRealtimeCycleAt(datafeedJob, start);
+        runRealtimeCycleAt(datafeedJob, start + TimeValue.timeValueHours(25).millis());
+
+        verify(auditor, times(2)).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkWithIsolateDuringExtractionShouldNotAudit() throws Exception {
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.isolate();
+            return new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testEsqlTruncatedChunkWithCancelledExtractorShouldNotAudit() throws Exception {
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+        when(dataExtractor.isCancelled()).thenReturn(true);
+        when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        datafeedJob.runLookBack(0L, 1000L);
+
+        verify(auditor, never()).warning(any(), any());
+    }
+
     public void testFlushAnalysisProblem() {
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenThrow(new RuntimeException());
 
@@ -1174,6 +1442,17 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(warningCaptor.getValue(), containsString("flapping"));
     }
 
+    public void testRealtimeWhenEndEqualsStartShouldNotExtractOrFlush() throws Exception {
+        long hourMs = TimeValue.timeValueHours(1).millis();
+        currentTime = hourMs + TimeValue.timeValueMinutes(30).millis();
+        DatafeedJob datafeedJob = createDatafeedJob(hourMs, 0L, hourMs - 1, -1, true, DELAYED_DATA_FREQ);
+
+        datafeedJob.runRealtime();
+
+        verify(dataExtractorFactory, never()).newExtractor(anyLong(), anyLong());
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
     public void testBaselineCycleDoesNotTriggerAnnotation() throws Exception {
         CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
@@ -1258,6 +1537,566 @@ public class DatafeedJobTests extends ESTestCase {
         expectedRequest.setContent(new BytesArray(contentBytes), XContentType.JSON);
         when(client.execute(same(PostDataAction.INSTANCE), eq(expectedRequest))).thenReturn(postDataFuture);
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
+    }
+
+    public void testEffectiveMaxConsecutiveExtractionFailures() {
+        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
+        long searchesPerDay = createDatafeedJobWithExtractionFailureThreshold(frequencyMs, null).numberOfSearchesIn24Hours();
+        assertThat(searchesPerDay, equalTo(TimeValue.timeValueDays(1).millis() / frequencyMs));
+
+        // Unset defaults to a day's worth of searches so a persistently broken datafeed surfaces within a day.
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, null).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(searchesPerDay)
+        );
+
+        // An explicit positive value is used verbatim.
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, 42).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(42L)
+        );
+
+        // -1 is no longer a user-facing option (the config builder maps it to the default), but a legacy -1 arriving over the
+        // wire from an older node is returned verbatim; DatafeedRunner treats any non-positive threshold as "never stop".
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, -1).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(-1L)
+        );
+
+        // When the frequency is longer than a day, numberOfSearchesIn24Hours() is 0, so the default floors at 1.
+        long lowFrequencyMs = TimeValue.timeValueDays(2).millis();
+        assertThat(createDatafeedJobWithExtractionFailureThreshold(lowFrequencyMs, null).numberOfSearchesIn24Hours(), equalTo(0L));
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(lowFrequencyMs, null).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(1L)
+        );
+    }
+
+    public void testFirstRealtimeAfterLongGapShouldFinalizeLastRecordBucketThenSkipGap() throws Exception {
+        // Raw row inside a bucket: autodetect has finalized only up to floor(record), so the bucket [10m, 11m) is still open.
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "advance 86400120000")));
+    }
+
+    public void testBucketStampedLastRecordShouldBeFinalizedBeforeSkip() throws Exception {
+        // A bucket-stamped row sits on the bucket start, which equals the finalized end while its bucket is still open.
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "advance 86400120000")));
+    }
+
+    public void testJobLatencyShouldExtendAdvanceBeforeSkip() throws Exception {
+        latencyMs = 2 * MINUTE_MS;
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 8 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 780000", "skip 86400000000", "advance 86400120000")));
+    }
+
+    public void testUnalignedRealtimeStartShouldSkipOnlyToStartOfItsBucket() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 30_000, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86399940000", "advance 86400060000")));
+    }
+
+    public void testAdvanceOverExactlyMaxEmptyBucketsShouldNotSkip() throws Exception {
+        // The real-time advance target is 10,000 buckets after 11m, the end of the last record's bucket.
+        long realtimeEnd = 11 * MINUTE_MS + 10_000 * MINUTE_MS;
+        DatafeedJob datafeedJob = jobAfterLookback(realtimeEnd - 2 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, realtimeEnd);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 600660000")));
+    }
+
+    public void testAdvanceOverOneBucketMoreThanMaxShouldSkip() throws Exception {
+        long realtimeEnd = 11 * MINUTE_MS + 10_001 * MINUTE_MS;
+        DatafeedJob datafeedJob = jobAfterLookback(realtimeEnd - 2 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, realtimeEnd);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 600720000", "advance 600720000")));
+    }
+
+    public void testDslDatafeedAfterLongGapShouldNotSkip() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS, false);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 86400120000")));
+    }
+
+    public void testJobWithoutRecordsShouldNotSkip() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, -1, 0);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 86400120000")));
+    }
+
+    public void testRestartWithNoNewRecordsShouldSkipFromJobLatestRecord() throws Exception {
+        // Restart state: last finalized bucket starts at 9m (inclusive end 10m - 1), latest record at 10m30s.
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, 10 * MINUTE_MS - 1, 10 * MINUTE_MS + 30_000, -1, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "advance 86400120000")));
+    }
+
+    public void testRestartWithModelClockNearNowShouldNotSkip() throws Exception {
+        // Earlier real-time runs already advanced the model clock to a minute ago, long after the last record.
+        DatafeedJob datafeedJob = jobAfterLookback(
+            SPARSE_NOW,
+            0,
+            SPARSE_NOW - MINUTE_MS - 1,
+            10 * MINUTE_MS + 30_000,
+            -1,
+            SPARSE_NOW - MINUTE_MS
+        );
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 86400120000")));
+    }
+
+    public void testCatchUpWindowEndingLongAfterLastRecordShouldSkipBeforeAdvance() throws Exception {
+        // A failed lookback leaves real-time to read the whole range. Its window ends long after the last record.
+        skipLongEmptyGaps = true;
+        bucketSpanMs = MINUTE_MS;
+        when(delayedDataDetector.getWindow()).thenReturn(0L);
+        currentTime = SPARSE_NOW;
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(10 * MINUTE_MS + 30_000)));
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW);
+        givenFlushAcks(11 * MINUTE_MS, SPARSE_NOW, SPARSE_NOW);
+        DatafeedJob datafeedJob = createDatafeedJob(MINUTE_MS, 0, -1, -1, false);
+
+        datafeedJob.runRealtime();
+
+        assertThat(flushes(), equalTo(List.of("advance 660000", "skip 86400000000", "advance 86400000000")));
+    }
+
+    public void testFailedSkipShouldRetryBeforeAdvancingToEnd() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(flushJobFuture.actionGet()).thenThrow(new RuntimeException("flush failed"))
+            .thenReturn(flushAck(11 * MINUTE_MS), flushAck(SPARSE_NOW), flushAck(SPARSE_NOW + 4 * MINUTE_MS));
+
+        currentTime = SPARSE_NOW + 2 * MINUTE_MS;
+        expectThrows(DatafeedJob.AnalysisProblemException.class, datafeedJob::runRealtime);
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000")));
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 4 * MINUTE_MS);
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "advance 660000", "skip 86400000000", "advance 86400240000")));
+    }
+
+    public void testFailedSkipShouldNameGapAndBucketSpanAndKeepShouldStop() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(flushJobFuture.actionGet()).thenThrow(new ElasticsearchStatusException("job is closed", RestStatus.CONFLICT));
+
+        currentTime = SPARSE_NOW + 2 * MINUTE_MS;
+        DatafeedJob.AnalysisProblemException e = expectThrows(DatafeedJob.AnalysisProblemException.class, datafeedJob::runRealtime);
+
+        assertThat(e.shouldStop, is(true));
+        String message = ExceptionsHelper.unwrapCause(e).getMessage();
+        assertThat(message, containsString("could not skip 1439989 empty bucket spans of 1m"));
+        assertThat(message, containsString("from 1970-01-01T00:11:00.000Z to 1972-09-27T00:00:00.000Z"));
+        assertThat(message, containsString("The cause is: job is closed."));
+    }
+
+    public void testDelayedDataWindowShouldKeepCheckWindowBucketsOutOfSkip() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(delayedDataDetector.getWindow()).thenReturn(5 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        // The skip stops 5 minutes before the real-time start, so those buckets are written for the delayed data check.
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86399700000", "advance 86400120000")));
+    }
+
+    public void testLatencyLongerThanGapShouldNotSkip() throws Exception {
+        latencyMs = SPARSE_NOW - 20 * MINUTE_MS;
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        // The last record's bucket only finalizes at its end plus latency, which leaves fewer than the limit of empty buckets.
+        assertThat(flushes(), equalTo(List.of("interim", "advance 86400120000")));
+    }
+
+    public void testSkipShouldAuditGapAndRange() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        ArgumentCaptor<String> messages = ArgumentCaptor.forClass(String.class);
+        verify(auditor, atLeastOnce()).info(eq(jobId), messages.capture());
+        assertThat(
+            messages.getAllValues(),
+            hasItem(
+                "Datafeed skipped 1439989 empty bucket spans of 1m from 1970-01-01T00:11:00.000Z to 1972-09-27T00:00:00.000Z."
+                    + " The job has no results for this period. Detectors such as count and low_count do not report it."
+            )
+        );
+    }
+
+    public void testFailedSkipAfterSuccessfulAdvanceShouldRetrySkipBeforePostingData() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        // The lookback posted once. Real-time has a batch ready on each cycle.
+        when(dataExtractor.hasNext()).thenReturn(true, false, true, false);
+        when(dataExtractor.next()).thenAnswer(
+            invocation -> new DataExtractor.Result(
+                new SearchInterval(SPARSE_NOW, SPARSE_NOW + 1000L),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW + 4 * MINUTE_MS);
+        when(flushJobFuture.actionGet()).thenReturn(flushAck(11 * MINUTE_MS))
+            .thenThrow(new RuntimeException("skip failed"))
+            .thenReturn(flushAck(SPARSE_NOW), flushAck(SPARSE_NOW + 4 * MINUTE_MS));
+
+        currentTime = SPARSE_NOW + 2 * MINUTE_MS;
+        expectThrows(DatafeedJob.AnalysisProblemException.class, datafeedJob::runRealtime);
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000")));
+        verify(postDataFuture, times(1)).actionGet();
+
+        currentTime = SPARSE_NOW + 4 * MINUTE_MS;
+        datafeedJob.runRealtime();
+
+        // The advance is not repeated: its acknowledgement was recorded. The retried skip comes before the second post.
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "skip 86400000000", "advance 86400240000")));
+        verify(postDataFuture, times(2)).actionGet();
+    }
+
+    public void testSecondRealtimeCycleAfterSkipShouldNotSkipAgain() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        givenFlushAcks(11 * MINUTE_MS, SPARSE_NOW, SPARSE_NOW + 2 * MINUTE_MS, SPARSE_NOW + 4 * MINUTE_MS);
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 4 * MINUTE_MS);
+
+        assertThat(
+            flushes(),
+            equalTo(List.of("interim", "advance 660000", "skip 86400000000", "advance 86400120000", "advance 86400240000"))
+        );
+    }
+
+    public void testRestartWithStartNowAfterLongGapShouldOnlySkipToStartTime() throws Exception {
+        skipLongEmptyGaps = true;
+        bucketSpanMs = MINUTE_MS;
+        when(delayedDataDetector.getWindow()).thenReturn(TimeValue.timeValueHours(2).millis());
+        // No lookback range exists, so only skipToStartTime tells the datafeed where the model clock is.
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(new DataCounts(jobId)));
+        currentTime = SPARSE_NOW;
+        givenFlushAcks(SPARSE_NOW, SPARSE_NOW + 2 * MINUTE_MS);
+        DatafeedJob datafeedJob = createDatafeedJob(MINUTE_MS, 0, 10 * MINUTE_MS - 1, 10 * MINUTE_MS + 30_000, true);
+
+        datafeedJob.runLookBack(SPARSE_NOW, null);
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("skip " + SPARSE_NOW, "advance " + (SPARSE_NOW + 2 * MINUTE_MS))));
+        ArgumentCaptor<String> messages = ArgumentCaptor.forClass(String.class);
+        verify(auditor, atLeastOnce()).info(eq(jobId), messages.capture());
+        assertThat(messages.getAllValues().toString(), not(containsString("Datafeed skipped")));
+    }
+
+    public void testIsolatedDatafeedAfterLongGapShouldNotFlush() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        datafeedJob.isolate();
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim")));
+    }
+
+    public void testGapFullSizeAboveLimitShouldSkipEvenWhenDelayedDataWindowTrimsItBelowLimit() throws Exception {
+        long realtimeEnd = 11 * MINUTE_MS + 11_000 * MINUTE_MS;
+        DatafeedJob datafeedJob = jobAfterLookback(realtimeEnd - 2 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        // The gap holds 10,998 buckets. Without the 1,440 bucket window kept for the delayed data check the skip covers 9,558.
+        when(delayedDataDetector.getWindow()).thenReturn(1_440 * MINUTE_MS);
+
+        runFirstRealtime(datafeedJob, realtimeEnd);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 574140000", "advance 660660000")));
+    }
+
+    public void testEmptyGapBetweenLookbackChunksShouldSkipBeforePostingSecondChunk() throws Exception {
+        skipLongEmptyGaps = true;
+        bucketSpanMs = MINUTE_MS;
+        when(delayedDataDetector.getWindow()).thenReturn(0L);
+        currentTime = SPARSE_NOW + HOUR_MS;
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(10 * MINUTE_MS + 30_000)));
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW + HOUR_MS);
+        when(dataExtractor.hasNext()).thenReturn(true, true, false);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(0L, 11 * MINUTE_MS),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            ),
+            new DataExtractor.Result(
+                new SearchInterval(SPARSE_NOW, SPARSE_NOW + MINUTE_MS),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        givenFlushAcks(11 * MINUTE_MS, SPARSE_NOW, SPARSE_NOW + HOUR_MS);
+        DatafeedJob datafeedJob = createDatafeedJob(MINUTE_MS, 0, -1, -1, false);
+
+        datafeedJob.runLookBack(0L, null);
+
+        assertThat(flushes(), equalTo(List.of("advance 660000", "skip 86400000000", "interim")));
+        verify(postDataFuture, times(2)).actionGet();
+    }
+
+    public void testCatchUpChunkStartingLongAfterLastRecordShouldSkipBeforePostingIt() throws Exception {
+        // The real-time start is near the last record, so only the chunk start shows the gap.
+        DatafeedJob datafeedJob = jobAfterLookback(12 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(dataExtractor.hasNext()).thenReturn(true, false);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(SPARSE_NOW, SPARSE_NOW + 1000L),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW + 2 * MINUTE_MS);
+        List<String> events = new ArrayList<>();
+        FlushJobAction.Response[] acks = { flushAck(11 * MINUTE_MS), flushAck(SPARSE_NOW), flushAck(SPARSE_NOW + 2 * MINUTE_MS) };
+        int[] next = { 0 };
+        when(flushJobFuture.actionGet()).thenAnswer(invocation -> {
+            events.add("flush");
+            return acks[next[0]++];
+        });
+        when(postDataFuture.actionGet()).thenAnswer(invocation -> {
+            events.add("post");
+            return new PostDataAction.Response(countsWithLatestRecord(SPARSE_NOW + 500));
+        });
+
+        currentTime = SPARSE_NOW + 2 * MINUTE_MS;
+        datafeedJob.runRealtime();
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000", "skip 86400000000", "advance 86400120000")));
+        // Real-time sends the preservation advance, then the skip, then the post, then the final advance.
+        assertThat(events, equalTo(List.of("flush", "flush", "post", "flush")));
+    }
+
+    public void testDatafeedIsolatedDuringSkipShouldNotPostChunk() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(12 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(dataExtractor.hasNext()).thenReturn(true, false);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(SPARSE_NOW, SPARSE_NOW + 1000L),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW + 2 * MINUTE_MS);
+        int[] flushCount = { 0 };
+        when(flushJobFuture.actionGet()).thenAnswer(invocation -> {
+            // The second real-time flush is the skip: isolate while it is in flight.
+            if (++flushCount[0] == 2) {
+                datafeedJob.isolate();
+            }
+            return flushAck(flushCount[0] == 1 ? 11 * MINUTE_MS : SPARSE_NOW);
+        });
+
+        currentTime = SPARSE_NOW + 2 * MINUTE_MS;
+        datafeedJob.runRealtime();
+
+        // Only the lookback posted.
+        verify(postDataFuture, times(1)).actionGet();
+    }
+
+    public void testDatafeedIsolatedDuringPreservationAdvanceShouldNotSendSkipOrFinalAdvance() throws Exception {
+        DatafeedJob datafeedJob = jobAfterLookback(SPARSE_NOW, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        int[] flushCount = { 0 };
+        when(flushJobFuture.actionGet()).thenAnswer(invocation -> {
+            // The first real-time flush is the preservation advance: isolate while it is in flight.
+            if (++flushCount[0] == 1) {
+                datafeedJob.isolate();
+            }
+            return flushAck(11 * MINUTE_MS);
+        });
+
+        runFirstRealtime(datafeedJob, SPARSE_NOW + 2 * MINUTE_MS);
+
+        assertThat(flushes(), equalTo(List.of("interim", "advance 660000")));
+    }
+
+    public void testGapInsideOneChunkShouldNotSkip() throws Exception {
+        // Known limitation: only the gap before a chunk is checked, so a gap between records of one posted batch is written.
+        DatafeedJob datafeedJob = jobAfterLookback(12 * MINUTE_MS, 0, -1, -1, 10 * MINUTE_MS + 30_000, 10 * MINUTE_MS);
+        when(dataExtractor.hasNext()).thenReturn(true, false);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(12 * MINUTE_MS, SPARSE_NOW),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        );
+        when(dataExtractor.getEndTime()).thenReturn(SPARSE_NOW);
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(SPARSE_NOW - 500)));
+        when(flushJobFuture.actionGet()).thenReturn(flushAck(11 * MINUTE_MS), flushAck(SPARSE_NOW));
+
+        currentTime = SPARSE_NOW;
+        datafeedJob.runRealtime();
+
+        assertThat(flushes().stream().noneMatch(f -> f.startsWith("skip")), equalTo(true));
+    }
+
+    private DatafeedJob jobAfterLookback(
+        long nowMs,
+        long queryDelayMs,
+        long jobFinalizedEndMs,
+        long jobLatestRecordMs,
+        long lookbackLatestRecordMs,
+        long lookbackFinalizedEndMs
+    ) throws Exception {
+        return jobAfterLookback(
+            nowMs,
+            queryDelayMs,
+            jobFinalizedEndMs,
+            jobLatestRecordMs,
+            lookbackLatestRecordMs,
+            lookbackFinalizedEndMs,
+            true
+        );
+    }
+
+    /**
+     * Runs a continuous lookback that ends at {@code nowMs - queryDelayMs} and posts records up to {@code lookbackLatestRecordMs}
+     * (none if negative). The lookback flush acknowledges {@code lookbackFinalizedEndMs}, as autodetect does after the last record.
+     */
+    private DatafeedJob jobAfterLookback(
+        long nowMs,
+        long queryDelayMs,
+        long jobFinalizedEndMs,
+        long jobLatestRecordMs,
+        long lookbackLatestRecordMs,
+        long lookbackFinalizedEndMs,
+        boolean skipLongEmptyGaps
+    ) throws Exception {
+        this.skipLongEmptyGaps = skipLongEmptyGaps;
+        bucketSpanMs = MINUTE_MS;
+        when(delayedDataDetector.getWindow()).thenReturn(0L);
+        currentTime = nowMs;
+        DataCounts counts = lookbackLatestRecordMs < 0 ? new DataCounts(jobId) : countsWithLatestRecord(lookbackLatestRecordMs);
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(counts));
+        when(dataExtractor.getEndTime()).thenReturn(nowMs - queryDelayMs);
+        // Acknowledgements after the lookback follow autodetect: the skip target, then the real-time advance target.
+        long realtimeStart = nowMs - queryDelayMs;
+        givenFlushAcks(
+            lookbackFinalizedEndMs,
+            Intervals.alignToCeil(Math.max(lookbackLatestRecordMs, jobLatestRecordMs) + 1, MINUTE_MS),
+            Intervals.alignToFloor(realtimeStart, MINUTE_MS),
+            nowMs
+        );
+        DatafeedJob datafeedJob = createDatafeedJob(MINUTE_MS, queryDelayMs, jobFinalizedEndMs, jobLatestRecordMs, false);
+        try {
+            datafeedJob.runLookBack(0L, null);
+        } catch (DatafeedJob.EmptyDataCountException e) {
+            // A lookback that posts nothing still flushes and then reports no data.
+        }
+        return datafeedJob;
+    }
+
+    private void runFirstRealtime(DatafeedJob datafeedJob, long nowMs) {
+        currentTime = nowMs;
+        // The extractor mock has no more data after the lookback, so real-time flushes and then reports no data.
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+    }
+
+    private void givenFlushAcks(long... finalizedEndsMs) {
+        FlushJobAction.Response[] acks = new FlushJobAction.Response[finalizedEndsMs.length];
+        for (int i = 0; i < finalizedEndsMs.length; i++) {
+            acks[i] = flushAck(finalizedEndsMs[i]);
+        }
+        when(flushJobFuture.actionGet()).thenReturn(acks[0], Arrays.copyOfRange(acks, 1, acks.length));
+    }
+
+    private static FlushJobAction.Response flushAck(long finalizedEndMs) {
+        return new FlushJobAction.Response(true, Instant.ofEpochMilli(finalizedEndMs));
+    }
+
+    /** Flush requests sent so far, as {@code skip <ms>}, {@code advance <ms>} or {@code interim}. */
+    private List<String> flushes() {
+        return flushJobRequests.getAllValues().stream().map(request -> {
+            if (request.getSkipTime() != null) {
+                return "skip " + request.getSkipTime();
+            }
+            return request.getAdvanceTime() == null ? "interim" : "advance " + request.getAdvanceTime();
+        }).toList();
+    }
+
+    private void runRealtimeCycleAt(DatafeedJob datafeedJob, long now) throws Exception {
+        currentTime = now;
+        try {
+            datafeedJob.runRealtime();
+        } catch (DatafeedJob.EmptyDataCountException expected) {
+            // Mock yields data only on the extractor's first next(); later cycles are empty but still reach the audit path.
+        }
+    }
+
+    private static DataCounts countsWithLatestRecord(long latestRecordMs) {
+        DataCounts counts = new DataCounts(jobId);
+        counts.incrementProcessedRecordCount(1);
+        counts.setLatestRecordTimeStamp(new Date(latestRecordMs));
+        return counts;
+    }
+
+    /** Runs a realtime cycle that posts one batch whose latest record is {@code latestRecordMs}, then fails extracting the next. */
+    private DatafeedJob createDatafeedJobFailingAfterBatchWithRecord(long latestRecordMs) throws Exception {
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(countsWithLatestRecord(latestRecordMs)));
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(
+                new SearchInterval(1000L, 2000L),
+                Optional.of(new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8))),
+                List.of()
+            )
+        ).thenThrow(new RuntimeException("extraction failed"));
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, true);
+        expectThrows(DatafeedJob.ExtractionProblemException.class, datafeedJob::runRealtime);
+        return datafeedJob;
+    }
+
+    private DatafeedJob createDatafeedJobWithExtractionFailureThreshold(long frequencyMs, Integer maxConsecutiveExtractionFailures) {
+        Supplier<Long> currentTimeSupplier = () -> currentTime;
+        return new DatafeedJob(
+            "datafeed-" + jobId,
+            null,
+            jobId,
+            null,
+            dataDescription.build(),
+            frequencyMs,
+            500,
+            dataExtractorFactory,
+            timingStatsReporter,
+            client,
+            auditor,
+            new AnnotationPersister(resultsPersisterService),
+            currentTimeSupplier,
+            delayedDataDetector,
+            null,
+            maxConsecutiveExtractionFailures,
+            -1,
+            -1,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            LongUnaryOperator.identity(),
+            false,
+            HOUR_MS,
+            0
+        );
     }
 
     private DatafeedJob createDatafeedJob(
@@ -1398,11 +2237,16 @@ public class DatafeedJobTests extends ESTestCase {
             currentTimeSupplier,
             delayedDataDetector,
             null,
+            null,
             latestFinalBucketEndTimeMs,
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            lastEndTimeForRecord,
+            skipLongEmptyGaps,
+            bucketSpanMs,
+            latencyMs
         );
     }
 

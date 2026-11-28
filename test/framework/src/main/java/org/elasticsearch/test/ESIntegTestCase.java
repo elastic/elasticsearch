@@ -91,6 +91,7 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -103,6 +104,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -474,15 +476,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards()).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
-
-            // if the test class is annotated with SuppressCodecs("*"), it means don't use lucene's codec randomization
-            // otherwise, use it, it has assertions and so on that can find bugs.
-            SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
-            if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
-                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
-            } else {
-                randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
-            }
+            randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
 
             for (String setting : randomSettingsBuilder.keys()) {
                 assertThat("non index. prefix setting set on index template, its a node setting...", setting, startsWith("index."));
@@ -1297,6 +1291,33 @@ public abstract class ESIntegTestCase extends ESTestCase {
         ClusterServiceUtils.awaitClusterState(statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
     }
 
+    /**
+     * Executes a noop cluster state update (only bumping a version) so that a new cluster state version is published.
+     * This is useful in tests that disrupt cluster state publication. We want nodes that were disrupted to receive
+     * the latest state and as such publications they missed for clean test teardown. This helper achieves that and is cheap.
+     */
+    public static void bumpClusterStateVersion() {
+        safeAwait(
+            l -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                .submitUnbatchedStateUpdateTask("bump cluster state version", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return ClusterState.builder(currentState).build();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        l.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        l.onResponse(null);
+                    }
+                })
+        );
+    }
+
     public static String getNodeId(String nodeName) {
         return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
     }
@@ -1414,7 +1435,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             || engineConfig.getIndexSettings().seqNoIndexOptions().equals(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
 
         final var docs = new ArrayList<DocIdSeqNoAndSource>();
-        try (var searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL)) {
+        try (var searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT)) {
             final var reader = searcher.getDirectoryReader();
             for (LeafReaderContext leaf : reader.leaves()) {
                 final var leafReader = leaf.reader();
@@ -3359,6 +3380,35 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var circuitBreaker = internalCluster().getInstance(CircuitBreakerService.class, targetNode).getBreaker(breakerName);
         final long totalAllocated = fullyAllocate(circuitBreaker);
         return () -> circuitBreaker.addWithoutBreaking(-totalAllocated);
+    }
+
+    /**
+     * Bytes the request breaker of {@code node} holds.
+     */
+    protected static long getRequestBreakerUsed(String node) {
+        return internalCluster().getInstance(CircuitBreakerService.class, node).getBreaker(CircuitBreaker.REQUEST).getUsed();
+    }
+
+    /**
+     * Bytes the request breakers of all nodes hold.
+     */
+    protected static long getRequestBreakerUsed() {
+        long used = 0;
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            used += service.getBreaker(CircuitBreaker.REQUEST).getUsed();
+        }
+        return used;
+    }
+
+    /**
+     * How many times the request breakers of all nodes have tripped.
+     */
+    protected static long getRequestBreakerTrippedCount() {
+        long tripped = 0;
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            tripped += service.getBreaker(CircuitBreaker.REQUEST).getTrippedCount();
+        }
+        return tripped;
     }
 
     /**

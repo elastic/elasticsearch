@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166288
+summary: "ES|QL:[Nested] Add server groundwork for NESTED_EXPAND"
+type: feature

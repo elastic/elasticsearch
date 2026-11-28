@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -51,7 +52,8 @@ public class Irate extends TimeSeriesAggregateFunction
         TimestampAware,
         TemporalityAware,
         TransportVersionAware,
-        AnyNullIsNull {
+        AnyNullIsNull,
+        UnitAware.PerSecond {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Irate_v2",
@@ -67,6 +69,7 @@ public class Irate extends TimeSeriesAggregateFunction
         .extendedDescription(PromqlFunctionDefinition.COUNTER_RATE_BEHAVIOR)
         .example("irate(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .stdDivergence("`irate` on native histograms, such as `irate(h[5m])`, isn't supported yet.")
         .name("irate");
 
     private static final TransportVersion IRATE_V2 = TransportVersion.fromName("esql_irate_v2");

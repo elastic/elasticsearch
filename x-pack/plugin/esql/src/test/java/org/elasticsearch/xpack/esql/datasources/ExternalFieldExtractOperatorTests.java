@@ -49,8 +49,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -918,6 +921,84 @@ public class ExternalFieldExtractOperatorTests extends AsyncOperatorTestCase {
             driverContext.finish();
         }
         assertEquals(0, registry.size());
+    }
+
+    /**
+     * Materialize runs on the read executor, so a cancel that arrives while extract is parked
+     * is invisible unless the operator installs a {@link StorageRetryCancellation} scope keyed to
+     * the driver's early-termination checker. The stub extract polls that ambient signal the
+     * same way a blocking prefetch wait should.
+     */
+    public void testMaterializeRunsInsideACancellationScope() throws Exception {
+        CountDownLatch inExtract = new CountDownLatch(1);
+        AtomicBoolean stop = new AtomicBoolean();
+        AtomicReference<Boolean> sawScope = new AtomicReference<>();
+        AtomicBoolean sawCancel = new AtomicBoolean();
+        AtomicReference<RuntimeException> termination = new AtomicReference<>();
+
+        ColumnExtractor blocking = new ColumnExtractor() {
+            @Override
+            public long rowCount() {
+                return 1;
+            }
+
+            @Override
+            public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory factory)
+                throws IOException {
+                sawScope.set(StorageRetryCancellation.current() != null);
+                inExtract.countDown();
+                while (stop.get() == false) {
+                    if (StorageRetryCancellation.isCancelled()) {
+                        sawCancel.set(true);
+                        throw new TaskCancelledException("extract observed cancel");
+                    }
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(10);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted while waiting for cancel", e);
+                    }
+                }
+                throw new AssertionError("extract released without cancel");
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        SourceExtractors registry = new SourceExtractors();
+        int id = registry.register(blocking);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        driverContext.initializeEarlyTerminationChecker(() -> {
+            RuntimeException e = termination.get();
+            if (e != null) {
+                throw e;
+            }
+        });
+        ExternalFieldExtractOperator op = new ExternalFieldExtractOperator(
+            1,
+            List.of(0, 2),
+            List.of("col"),
+            List.of(DataType.INTEGER),
+            registry,
+            driverContext,
+            null,
+            threadPool.executor(TEST_EXECUTOR_NAME)
+        );
+        try {
+            op.addInput(newPage(new long[] { 1 }, new long[] { SourceExtractors.encode(id, 0) }, new int[] { 2 }));
+            assertTrue("extract never started", inExtract.await(15, TimeUnit.SECONDS));
+            assertEquals("materialize must install a StorageRetryCancellation scope", Boolean.TRUE, sawScope.get());
+            termination.set(new TaskCancelledException("cancelled"));
+            assertBusy(() -> assertTrue(op.isBlocked().listener().isDone()), 5, TimeUnit.SECONDS);
+            expectThrows(TaskCancelledException.class, op::getOutput);
+            assertTrue("extract must observe the driver cancel through the ambient scope", sawCancel.get());
+        } finally {
+            stop.set(true);
+            op.close();
+            driverContext.finish();
+            registry.close();
+        }
     }
 
     /**

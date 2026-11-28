@@ -13,12 +13,12 @@ import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerPlainRestTestTask;
 
 /**
  * Adds a {@code heapPressureTest} source set for tests that require a heap-constrained
@@ -29,6 +29,9 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerT
  *
  * <p>Consumers must declare their own compile dependencies (e.g. {@code :test:framework},
  * {@code :test:test-clusters}) on the {@code heapPressureTestImplementation} configuration.
+ *
+ * <p>The {@code heapPressureTest} task is not part of {@code check}, so CI does not run it.
+ * Run it by name, for example {@code ./gradlew :modules:lang-painless:heapPressureTest}.
  */
 public class InternalHeapPressureTestPlugin implements Plugin<Project> {
 
@@ -41,14 +44,12 @@ public class InternalHeapPressureTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet sourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, sourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
+        TaskProvider<Test> testTask = registerPlainRestTestTask(project, sourceSet, SOURCE_SET_NAME);
 
         testTask.configure(task -> {
             // Each class runs in its own JVM so heap-constrained clusters are fully isolated.
             task.setForkEvery(1L);
         });
-
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
 
         GradleUtils.setupIdeForTestSourceSet(project, sourceSet);
     }

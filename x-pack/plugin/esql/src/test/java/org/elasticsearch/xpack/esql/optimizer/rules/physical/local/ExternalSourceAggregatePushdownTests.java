@@ -426,6 +426,60 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
     }
 
     /**
+     * One unservable aggregate abandons the substitution for the whole list rather than serving its servable
+     * siblings and scanning only for itself, so a query mixing the two reads every row. Both halves are
+     * asserted here because only the pair discriminates: COUNT(*) and MIN(age) each serve on their own
+     * against this summary, and putting MIN(score) -- a column the summary never harvested -- beside them
+     * leaves the AggregateExec unsubstituted.
+     */
+    public void testOneUnservableAggregateStopsTheWholeList() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+        metadata.put("_stats.columns.age.max", 99);
+
+        var countStar = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countStarAlias());
+        as(applyRuleText(countStar), LocalSourceExec.class);
+        var minAge = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mn", new Min(Source.EMPTY, AGE)));
+        as(applyRuleText(minAge), LocalSourceExec.class);
+
+        var mixed = aggregateExec(
+            AggregatorMode.SINGLE,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, AGE)),
+            alias("un", new Min(Source.EMPTY, SCORE))
+        );
+        as(applyRuleText(mixed), AggregateExec.class);
+    }
+
+    /**
+     * A withheld extremum leaves its column present, carrying counts and the end that was published. That is a
+     * different branch from an absent column: {@code resolveMax} clears {@code columnStatUnservable} and then
+     * fails on the null value, so serving the published end for the missing one would pass the test above.
+     */
+    public void testAWithheldExtremumIsUnservableWhileItsColumnStaysPresent() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+
+        var published = aggregateExec(
+            AggregatorMode.SINGLE,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, AGE))
+        );
+        as(applyRuleText(published), LocalSourceExec.class);
+
+        var withheld = aggregateExec(
+            AggregatorMode.SINGLE,
+            externalSource(metadata),
+            countStarAlias(),
+            alias("mn", new Min(Source.EMPTY, AGE)),
+            alias("mx", new Max(Source.EMPTY, AGE))
+        );
+        as(applyRuleText(withheld), AggregateExec.class);
+    }
+
+    /**
      * gate/fold servability ALIGNMENT. The skip-discovery gate ({@code ComputeService.canSkipSplitDiscovery}) and the
      * fold rule previously diverged: the gate's type-only
      * {@code AggregatePushdownSupport.canPushAggregates} said {@code MIN(score)} was pushable while the fold
@@ -895,6 +949,82 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         var minBoth = aggregateExec(AggregatorMode.SINGLE, extBoth, alias("mn", new Min(Source.EMPTY, value)));
         LocalSourceExec minLocal = as(applyRuleText(minBoth), LocalSourceExec.class);
         assertEquals(0, as(minLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
+    }
+
+    public void testMinMaxTimestampServedFromRescaledEpochStats() {
+        ReferenceAttribute ts = referenceAttribute("@timestamp", DataType.DATETIME);
+        long minMillis = 1_763_596_800_000L;
+        long maxMillis = 1_763_597_100_000L;
+        Map<String, Object> metadata = statsMetadata(12L, "@timestamp", 0L);
+        metadata.put(SourceStatisticsSerializer.columnMinKey("@timestamp"), minMillis);
+        metadata.put(SourceStatisticsSerializer.columnMaxKey("@timestamp"), maxMillis);
+        metadata.put(SourceStatisticsSerializer.columnValueCountKey("@timestamp"), 12L);
+
+        List<Attribute> attrs = List.of(ts);
+        ExternalSourceExec extMin = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            attrs,
+            Map.of(),
+            metadata,
+            null
+        );
+        LocalSourceExec minLocal = as(
+            applyRule(aggregateExec(AggregatorMode.SINGLE, extMin, alias("mn", new Min(Source.EMPTY, ts)))),
+            LocalSourceExec.class
+        );
+        assertEquals(minMillis, as(minLocal.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        ExternalSourceExec extMax = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            attrs,
+            Map.of(),
+            new HashMap<>(metadata),
+            null
+        );
+        LocalSourceExec maxLocal = as(
+            applyRule(aggregateExec(AggregatorMode.SINGLE, extMax, alias("mx", new Max(Source.EMPTY, ts)))),
+            LocalSourceExec.class
+        );
+        assertEquals(maxMillis, as(maxLocal.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    public void testYyyyMMddTimestampStillScans() {
+        ReferenceAttribute ts = referenceAttribute("@timestamp", DataType.DATETIME);
+        Map<String, Object> metadata = statsMetadata(12L, "@timestamp", 0L);
+        metadata.put(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp"), Boolean.TRUE);
+        metadata.put(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp"), Boolean.TRUE);
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            List.of(ts),
+            Map.of(),
+            metadata,
+            null
+        );
+        as(applyRule(aggregateExec(AggregatorMode.SINGLE, ext, alias("mn", new Min(Source.EMPTY, ts)))), AggregateExec.class);
+    }
+
+    /** Same poison marker as calendar formats; the producer (resolver overlay) is what distinguishes OOB from yyyyMMdd. */
+    public void testOutOfRangeEpochTimestampStillScans() {
+        ReferenceAttribute ts = referenceAttribute("@timestamp", DataType.DATETIME);
+        Map<String, Object> metadata = statsMetadata(12L, "@timestamp", 0L);
+        metadata.put(SourceStatisticsSerializer.columnMinUnservableKey("@timestamp"), Boolean.TRUE);
+        metadata.put(SourceStatisticsSerializer.columnMaxUnservableKey("@timestamp"), Boolean.TRUE);
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            List.of(ts),
+            Map.of(),
+            metadata,
+            null
+        );
+        as(applyRule(aggregateExec(AggregatorMode.SINGLE, ext, alias("mx", new Max(Source.EMPTY, ts)))), AggregateExec.class);
     }
 
     public void testCountFieldNotPushedWhenMergedNullCountPoisoned() {

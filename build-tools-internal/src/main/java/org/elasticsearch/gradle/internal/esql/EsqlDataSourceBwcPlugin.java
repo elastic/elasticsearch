@@ -14,13 +14,14 @@ import groovy.lang.Closure;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
+import org.elasticsearch.gradle.internal.test.rest.RestIntegTestsExtension;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -58,7 +59,7 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
         // convention owns a separate source set and must preserve current task state. The
         // distribution opt-out is not cosmetic: the owning suites' own csvSpecTests and
         // javaRestTest tasks already call usesDefaultDistribution, and the generic plugin applies
-        // it to every standalone REST task in the project, which registers the default_distro
+        // it to every REST integ test task in the project, which registers the default_distro
         // inputs twice and fails the build. The versioned tasks below request it individually.
         project.getExtensions().getExtraProperties().set("bwcTestDisableBaseTestTask", false);
         project.getExtensions().getExtraProperties().set("bwcTestDisableBaseJavaRestTestTask", false);
@@ -78,6 +79,7 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
     private static void configureTasks(Project project, EsqlDataSourceBwcExtension extension) {
         BuildParameterExtension buildParams = loadBuildParams(project).get();
         BwcVersions bwcVersions = buildParams.getBwcVersions();
+        RestIntegTestsExtension restTests = project.getExtensions().getByType(RestIntegTestsExtension.class);
 
         TaskProvider<Task> all = registerAggregate(project, "esqlDataSourceBwc", "Runs ES|QL data-source BWC coverage.");
 
@@ -86,9 +88,9 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
                 continue;
             }
 
-            List<TaskProvider<StandaloneRestIntegTestTask>> tasks = new ArrayList<>();
+            List<TaskProvider<Test>> tasks = new ArrayList<>();
             for (String coordinator : List.of("current", "old")) {
-                tasks.add(registerTestTask(project, extension, buildParams, bwcVersions, version, coordinator));
+                tasks.add(registerTestTask(project, restTests, extension, buildParams, bwcVersions, version, coordinator));
             }
 
             TaskProvider<Task> versionAggregate = registerAggregate(
@@ -107,8 +109,9 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
         }
     }
 
-    private static TaskProvider<StandaloneRestIntegTestTask> registerTestTask(
+    private static TaskProvider<Test> registerTestTask(
         Project project,
+        RestIntegTestsExtension restTests,
         EsqlDataSourceBwcExtension extension,
         BuildParameterExtension buildParams,
         BwcVersions bwcVersions,
@@ -117,7 +120,7 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
     ) {
         String coordinatorName = coordinator.substring(0, 1).toUpperCase(Locale.ROOT) + coordinator.substring(1);
         String taskName = "v" + version + "#esqlDataSourceBwc" + coordinatorName + "Coordinator";
-        return project.getTasks().register(taskName, StandaloneRestIntegTestTask.class, task -> {
+        return restTests.register(taskName, task -> {
             validate(extension);
             if (version.before(extension.getMinimumVersion().get()) || normalizedCoordinators(extension).contains(coordinator) == false) {
                 task.setEnabled(false);
@@ -162,11 +165,11 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
         });
     }
 
-    private static void useBwcDistribution(StandaloneRestIntegTestTask task, Version version) {
+    private static void useBwcDistribution(Test task, Version version) {
         callExtensionMethod(task, "usesBwcDistribution", version);
     }
 
-    private static void useDefaultDistribution(StandaloneRestIntegTestTask task, String reason) {
+    private static void useDefaultDistribution(Test task, String reason) {
         callExtensionMethod(task, "usesDefaultDistribution", reason);
     }
 
@@ -174,13 +177,13 @@ public class EsqlDataSourceBwcPlugin implements Plugin<Project> {
      * Invokes one of the distribution-selection methods that the REST test plugins add to a task as
      * a Groovy closure extra property, since they have no Java-visible interface.
      */
-    private static void callExtensionMethod(StandaloneRestIntegTestTask task, String name, Object argument) {
+    private static void callExtensionMethod(Test task, String name, Object argument) {
         Object method = task.getExtensions().getExtraProperties().get(name);
         if (method instanceof Closure<?> closure) {
             closure.call(argument);
             return;
         }
-        throw new IllegalStateException("Standalone REST task is missing " + name);
+        throw new IllegalStateException("REST integ test task " + task.getName() + " is missing " + name);
     }
 
     private static boolean effectiveBwcSnapshot() {

@@ -10,13 +10,15 @@ import org.elasticsearch.core.TimeValue;
 
 record ChunkedDataExtractorContext(
     String jobId,
-    int scrollSize,
+    Integer scrollSize,
     long start,
     long end,
     TimeValue chunkSpan,
     TimeAligner timeAligner,
     boolean hasAggregations,
-    Long histogramInterval
+    Long histogramInterval,
+    boolean hasEsqlQuery,
+    long singleChunkSpan
 ) {
     interface TimeAligner {
         long alignToFloor(long value);

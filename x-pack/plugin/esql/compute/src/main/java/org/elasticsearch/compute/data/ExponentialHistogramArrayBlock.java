@@ -266,6 +266,26 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
     }
 
     @Override
+    public DoubleBlock getMinBlock() {
+        return minima;
+    }
+
+    @Override
+    public DoubleBlock getMaxBlock() {
+        return maxima;
+    }
+
+    @Override
+    public DoubleBlock getSumBlock() {
+        return sums;
+    }
+
+    @Override
+    public DoubleBlock getCountBlock() {
+        return valueCounts;
+    }
+
+    @Override
     public DoubleBlock buildHistogramComponentBlock(Component component) {
         if (mayHaveMultivaluedFields()) {
             throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");

@@ -57,6 +57,6 @@ final class RoutingPathExtractor extends RoutingExtractor {
 
     @Override
     public int computeShardId(IndexRequest indexRequest) {
-        return strategy.shardIdForRoutingHash(hashBuilder);
+        return strategy.shardIdForRoutingHash(hashBuilder, indexRequest);
     }
 }

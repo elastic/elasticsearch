@@ -64,6 +64,23 @@ public class QueryFailureTelemetryTests extends ESTestCase {
         EXPECTED_BY_CONDITION.put(Condition.LISTING_FAILED, "discovery");
         EXPECTED_BY_CONDITION.put(Condition.CLOCK_SKEW, "storage_auth");
         EXPECTED_BY_CONDITION.put(Condition.CLIENT_BUG, "other");
+        EXPECTED_BY_CONDITION.put(Condition.WORKER_NOT_READY, "other");
+    }
+
+    /**
+     * A worker that could not apply the cluster state in time is the node's own lag, not a storage failure: {@code other}, with
+     * the retryable status. Raised without a path, and the condition still crosses the wire.
+     */
+    public void testWorkerNotReadyIsOtherAndRetryable() throws IOException {
+        ExternalUnavailableException notReady = new ExternalUnavailableException(Condition.WORKER_NOT_READY, "waited [10s]", "");
+        assertThat(notReady.objectName(), equalTo(""));
+        assertThat(notReady.getMessage(), equalTo("Node not ready to serve external data (waited [10s])"));
+        Failure expected = new Failure("other", "503");
+        assertThat(QueryFailureTelemetry.classify(notReady), equalTo(expected));
+        Exception received = roundTrip(notReady);
+        assertThat(QueryFailureTelemetry.classify(received), equalTo(expected));
+        assertThat(ExternalException.hasCondition(received, Condition.WORKER_NOT_READY), equalTo(true));
+        assertThat(QueryFailureTelemetry.storeStatus(notReady), nullValue());
     }
 
     public void testEveryConditionHasAnExpectedErrorType() {
@@ -206,6 +223,19 @@ public class QueryFailureTelemetryTests extends ESTestCase {
      * The compute layer reports its preferred failure (a client error over a server error) and attaches the others as
      * suppressed. The query is labelled after the failure the client gets, never after a merely suppressed one.
      */
+    /**
+     * The decorator's refusal (429) with the store fault suppressed must stay {@code resource_limit}.
+     * Walking suppressed exceptions would label the query {@code storage_unavailable} while the
+     * response stays 429.
+     */
+    public void testDecoratorRefusalStaysResourceLimit() {
+        ExternalUnavailableException store = new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, PATH, "HTTP 503", "", false, 0L);
+        EsRejectedExecutionException refused = new EsRejectedExecutionException("retry start rejected", true);
+        ExternalFailures.attachRecorded(refused, store);
+        assertThat(QueryFailureTelemetry.classify(refused), equalTo(new Failure("resource_limit", "429")));
+        assertThat(QueryFailureTelemetry.classify(ExternalFailures.classify(refused)), equalTo(new Failure("resource_limit", "429")));
+    }
+
     public void testSuppressedFailuresDoNotDecideTheClassification() {
         ExternalUnavailableException unavailable = new ExternalUnavailableException(
             Condition.STORE_UNAVAILABLE,

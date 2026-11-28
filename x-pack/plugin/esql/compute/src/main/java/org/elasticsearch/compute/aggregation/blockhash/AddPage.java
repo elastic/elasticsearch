@@ -59,7 +59,7 @@ public class AddPage implements Releasable {
         this.emitBatchSize = emitBatchSize;
         this.addInput = addInput;
 
-        this.ords = blockFactory.newIntBlockBuilder(emitBatchSize);
+        this.ords = blockFactory.newIntBlockBuilder(emitBatchSize, true);
     }
 
     long added() {
@@ -166,7 +166,7 @@ public class AddPage implements Releasable {
     private void rollover(int position) {
         emitOrds();
         positionOffset = position;
-        ords = blockFactory.newIntBlockBuilder(Math.toIntExact(emitBatchSize));
+        ords = blockFactory.newIntBlockBuilder(Math.toIntExact(emitBatchSize), true);
     }
 
     @Override

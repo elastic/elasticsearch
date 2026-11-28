@@ -89,6 +89,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
             Duration.ofDays(1L)
         );
         dateTruncCases(suppliers);
+        includeEmptyBucketsCases(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -157,6 +158,24 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                 }));
             }
         }
+    }
+
+    /**
+     * Adds a copy of every range case ({@code buckets, from, to, @timestamp}) that also passes the
+     * {@code include_empty_buckets} option. The option doesn't change the bucket of a single row,
+     * so the expected results are the same. These cases make the options param show up in the docs.
+     */
+    private static void includeEmptyBucketsCases(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> rangeCases = suppliers.stream().filter(s -> s.types().size() == 4).toList();
+        suppliers.addAll(TestCaseSupplier.mapTestCases(rangeCases, tc -> {
+            List<TestCaseSupplier.TypedData> data = new ArrayList<>(tc.getData());
+            data.add(3, BucketTests.includeEmptyBucketsOption(randomBoolean()));
+            return tc.withData(data);
+        }, s -> {
+            List<DataType> types = new ArrayList<>(s.types());
+            types.add(3, DataType.OBJECT);
+            return types;
+        }));
     }
 
     private static TestCaseSupplier.TypedData dateBound(String name, DataType type, String date) {
@@ -326,6 +345,9 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        if (args.size() == 5) {
+            return new TBucket(source, args.get(0), args.get(1), args.get(2), args.get(3), args.get(4), configuration);
+        }
         if (args.size() == 4) {
             return new TBucket(source, args.get(0), args.get(1), args.get(2), args.get(3), configuration);
         }
@@ -338,7 +360,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
-        assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
+        assertThat(params.size(), anyOf(equalTo(2), equalTo(4), equalTo(5)));
         int tsIndex = params.size() - 1;
         assertThat(params.get(tsIndex).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
         return params.subList(0, tsIndex);
@@ -349,7 +371,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
      * only checks declared @Param arguments.
      */
     public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
-        assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
+        assertThat(params.size(), anyOf(equalTo(2), equalTo(4), equalTo(5)));
         int tsIndex = params.size() - 1;
         assertThat(params.get(tsIndex).type(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
         return params.subList(0, tsIndex);

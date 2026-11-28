@@ -9,12 +9,14 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -258,6 +261,166 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor("", "some_value", null, false, false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("path cannot be null nor empty"));
+    }
+
+    public void testSetWithConstantFieldTemplate() throws Exception {
+        // unlike the mock template that the other tests use, a template that really is constant is one that can be pre-parsed
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("foo.bar.baz", "value", null, true, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("value"));
+    }
+
+    public void testSetWithConstantFieldTemplateAndOverrideDisabled() throws Exception {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("foo.bar", "existing");
+        Processor processor = createSetProcessorWithCompiledField("foo.bar", "new", null, false, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo.bar", String.class), equalTo("existing"));
+        processor = createSetProcessorWithCompiledField("foo.baz", "new", null, false, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo.baz", String.class), equalTo("new"));
+    }
+
+    public void testCopyFromWithConstantFieldTemplate() throws Exception {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("source.field", List.of("a", "b"));
+        Processor processor = createSetProcessorWithCompiledField("target.field", null, "source.field", true, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target.field", List.class), equalTo(List.of("a", "b")));
+    }
+
+    public void testCopyFromMissingFieldWithIgnoreEmptyValue() throws Exception {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("target.field", null, "source.missing", true, true);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField("target.field"), equalTo(false));
+        Processor strict = createSetProcessorWithCompiledField("target.field", null, "source.missing", true, false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> strict.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("field [source] not present as part of path [source.missing]"));
+    }
+
+    /**
+     * Pipelines are stored, so one that has a malformed path in it has to still be loadable (that is, creating the processor must not
+     * throw), and then it has to fail, as it always has, when a document is run through it.
+     */
+    public void testMalformedConstantFieldFailsAtExecutionTime() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("a..b", "value", null, true, false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    public void testMalformedCopyFromFailsAtExecutionTime() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("target", null, "a..b", true, false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    /**
+     * Where a value is written to is only looked at when there turns out to be something to write (which, with ignore_empty_value, it
+     * might not be, for example because the field that it is copied from is missing). That matters for a field that is a template, as
+     * it can render as nothing (or as something that is not a path) for some documents and not for others.
+     */
+    public void testFieldIsNotLookedAtIfThereIsNothingToWrite() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            SetProcessor.TYPE,
+            "tag",
+            "field",
+            "",
+            TestTemplateService.instance()
+        );
+        List<TemplateScript.Factory> fields = List.of(
+            constantEmpty,
+            new TestTemplateService.MockTemplateScript.Factory(""),
+            new TestTemplateService.MockTemplateScript.Factory("a..b")
+        );
+        for (TemplateScript.Factory field : fields) {
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            Processor processor = new SetProcessor("tag", null, field, null, "source.missing", true, true);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of()));
+        }
+    }
+
+    public void testMalformedFieldIsReportedIfThereIsSomethingToWrite() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("source.present", "value");
+        Processor processor = createSetProcessorWithCompiledField("a..b", null, "source.present", true, true);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    /**
+     * A field that is a template is rendered as often as it has to be and no more: once if there is something to write (whether or not
+     * override is on), and not at all if there is nothing to write and nothing else needs to look at it.
+     */
+    public void testTemplatedFieldIsRenderedAsOftenAsItHasToBe() throws Exception {
+        AtomicInteger renders = new AtomicInteger();
+        TemplateScript.Factory field = params -> new TemplateScript(params) {
+            @Override
+            public String execute() {
+                renders.incrementAndGet();
+                return "target";
+            }
+        };
+        for (boolean overrideEnabled : new boolean[] { true, false }) {
+            // something to write
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            ingestDocument.setFieldValue("source", "value");
+            renders.set(0);
+            new SetProcessor("tag", null, field, null, "source", overrideEnabled, true).execute(ingestDocument);
+            assertThat(ingestDocument.getFieldValue("target", String.class), equalTo("value"));
+            assertThat("override " + overrideEnabled, renders.get(), equalTo(1));
+
+            // nothing to write: with override the field is not looked at at all, without it the field has to be looked at (once)
+            ingestDocument = TestIngestDocument.emptyIngestDocument();
+            renders.set(0);
+            new SetProcessor("tag", null, field, null, "source.missing", overrideEnabled, true).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of()));
+            assertThat("override " + overrideEnabled, renders.get(), equalTo(overrideEnabled ? 0 : 1));
+        }
+    }
+
+    /**
+     * Without override the field has to be looked at before anything is written, to see whether there is something there already.
+     */
+    public void testMalformedFieldIsReportedWithoutOverrideEvenIfThereIsNothingToWrite() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("a..b", null, "source.missing", false, true);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    public void testEmptyConstantFieldFailsAtExecutionTime() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("", "value", null, true, false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path cannot be null nor empty"));
+    }
+
+    /**
+     * Like {@link #createSetProcessor}, except that the field template is compiled the way that the processor factory compiles it,
+     * which (for a field name that has no templating in it) gives a constant template rather than a mock one.
+     */
+    private static Processor createSetProcessorWithCompiledField(
+        String fieldName,
+        Object fieldValue,
+        String copyFrom,
+        boolean overrideEnabled,
+        boolean ignoreEmptyValue
+    ) {
+        String tag = randomAlphaOfLength(10);
+        return new SetProcessor(
+            tag,
+            null,
+            ConfigurationUtils.compileTemplate(SetProcessor.TYPE, tag, "field", fieldName, TestTemplateService.instance()),
+            fieldValue == null ? null : ValueSource.wrap(fieldValue, TestTemplateService.instance()),
+            copyFrom,
+            overrideEnabled,
+            ignoreEmptyValue
+        );
     }
 
     private static Processor createSetProcessor(

@@ -2,6 +2,9 @@
 navigation_title: "Min"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-min-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Min aggregation [search-aggregations-metrics-min-aggregation]

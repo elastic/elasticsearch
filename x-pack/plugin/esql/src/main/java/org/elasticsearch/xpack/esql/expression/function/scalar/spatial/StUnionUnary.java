@@ -95,11 +95,8 @@ public class StUnionUnary extends SpatialUnaryDocValuesFunction implements AnyNu
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         Object leftVal = spatialField().fold(ctx);
-        if (leftVal == null) {
-            return null;
-        }
         return switch (leftVal) {
             case BytesRef wkb -> wkb; // single value: return unchanged
             case List<?> list -> {

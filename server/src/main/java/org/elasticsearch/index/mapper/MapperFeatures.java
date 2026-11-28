@@ -138,6 +138,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature DOC_VALUES_ON_FAILURE = new NodeFeature("mapper.doc_values.on_failure");
     public static final NodeFeature DOC_VALUES_TOP_LEVEL_ATTRIBUTES = new NodeFeature("mapper.doc_values.top_level_attributes");
     public static final NodeFeature COLUMNAR_BARE_NULL_IS_ABSENCE = new NodeFeature("mapper.columnar.bare_null_is_absence");
+    public static final NodeFeature FLATTENED_COLUMNAR_ROOT_VALUES = new NodeFeature("mapper.flattened.columnar_root_values");
     public static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -158,6 +159,9 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature COLUMNAR_REJECTS_RUNTIME_DYNAMIC = new NodeFeature("mapper.columnar_rejects_runtime_dynamic");
     public static final NodeFeature COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE = new NodeFeature("mapper.columnar.accepts_subobjects_false");
+    public static final NodeFeature COLUMNAR_REJECTS_UNREACHABLE_DOTTED_FIELD = new NodeFeature(
+        "mapper.columnar.rejects_unreachable_dotted_field"
+    );
     public static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER = new NodeFeature("mapper.columnar.maintain_array_order");
     public static final NodeFeature KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY = new NodeFeature(
         "mapper.keyword.columnar_default_high_cardinality"
@@ -175,9 +179,19 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
+    public static final NodeFeature COLUMNAR_DOC_VALUES_NO_OP = new NodeFeature("mapper.columnar.doc_values_no_op");
+    public static final NodeFeature COLUMNAR_DOC_VALUES_NO_OP_ALL_MAPPERS = new NodeFeature("mapper.columnar.doc_values_no_op_all_mappers");
+    public static final NodeFeature COLUMNAR_ROUTING_DOC_VALUES_NO_OP = new NodeFeature("mapper.columnar.routing_doc_values_no_op");
     public static final NodeFeature COLUMNAR_STORED_SOURCE_FILTER_FIX = new NodeFeature("mapper.columnar_stored.source_filter_fix");
+    public static final NodeFeature COLUMNAR_STORED_SOURCE_FLS_FIX = new NodeFeature("mapper.columnar_stored.source_fls_fix");
+    public static final NodeFeature TEMPLATE_INDEX_MODE_VALIDATION_FIX = new NodeFeature("mapper.template_index_mode_validation_fix");
     public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
+    /**
+     * The node knows the {@code index.time_series.tsid_prefixed_dimensions} index setting. Templates that set it must not be installed
+     * until all nodes have this feature, since a node that does not know the setting cannot create indices from such templates.
+     */
+    public static final NodeFeature TSDB_TSID_PREFIXED_DIMENSIONS = new NodeFeature("mapper.tsdb.tsid_prefixed_dimensions");
     public static final NodeFeature COMBINE_DYNAMIC_MAPPING_UPDATES = new NodeFeature("mapper.combine_dynamic_updates");
     public static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature(
         "mapper.dynamic_template.warn_on_duplicate_names"
@@ -202,11 +216,15 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK = new NodeFeature(
         "mapper.oversized_array_offsets_ignored_source_fallback"
     );
+    public static final NodeFeature EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE = new NodeFeature(
+        "mapper.exclude_source_vectors_from_ignored_source"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
             TSDB_METRIC_TEMPORALITY_SUPPORT,
+            TSDB_TSID_PREFIXED_DIMENSIONS,
             DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES,
             COMBINE_DYNAMIC_MAPPING_UPDATES,
             BBQ_DISK_UPDATABLE_AUTO_CALIBRATE
@@ -294,6 +312,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_MAINTAIN_ARRAY_ORDER,
             COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
             COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE,
+            COLUMNAR_REJECTS_UNREACHABLE_DOTTED_FIELD,
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
             TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
@@ -302,7 +321,12 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
             COLUMNAR_SUPPORTS_SHAPE_FIELDS,
             COLUMNAR_IGNORE_ABOVE_NO_OP,
+            COLUMNAR_DOC_VALUES_NO_OP,
+            COLUMNAR_DOC_VALUES_NO_OP_ALL_MAPPERS,
+            COLUMNAR_ROUTING_DOC_VALUES_NO_OP,
             COLUMNAR_STORED_SOURCE_FILTER_FIX,
+            COLUMNAR_STORED_SOURCE_FLS_FIX,
+            TEMPLATE_INDEX_MODE_VALIDATION_FIX,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
@@ -313,6 +337,7 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_ON_FAILURE,
             DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
             COLUMNAR_BARE_NULL_IS_ABSENCE,
+            FLATTENED_COLUMNAR_ROOT_VALUES,
             DISK_BBQ_STABLE_FORMAT_SELECTION,
             PUT_MAPPING_NO_TYPES_CHECK,
             MAPPING_LIMIT_CHECKS_AT_PARSE_TIME,
@@ -322,7 +347,8 @@ public class MapperFeatures implements FeatureSpecification {
             RANGE_DOCVALUE_FIELDS_FIX,
             TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG,
             NUMERIC_FETCH_EMPTY_STRING_AS_NULL,
-            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK
+            OVERSIZED_ARRAY_OFFSETS_IGNORED_SOURCE_FALLBACK,
+            EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE
         );
     }
 }

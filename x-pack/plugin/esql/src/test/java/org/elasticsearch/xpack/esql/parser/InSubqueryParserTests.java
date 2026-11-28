@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -3596,5 +3597,476 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("x", as(inSubquery.value(), Attribute.class).name());
         Keep keep = as(inSubquery.subquery(), Keep.class);
         as(keep.child(), Row.class);
+    }
+
+    // ---- FORK scope: a subquery in an IN is a FORK scope of its own, whichever command holds it ----
+
+    /*
+     * EVAL with a (NOT) IN subquery that contains a FORK, and no FORK in the main query:
+     * {@code FROM main_index | EVAL is_match = x IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))}
+     *
+     * Eval[is_match = (NOT) InSubquery[?x, Fork[[]]]]
+     * \_UnresolvedRelation[main_index]
+     *
+     * The Fork of the subquery:
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#5]]
+     * | \_Filter[?a > 1[INTEGER]]
+     * |   \_UnresolvedRelation[sub_index]
+     * \_Eval[[fork2[KEYWORD] AS _fork#5]]
+     *   \_Filter[?a < 0[INTEGER]]
+     *     \_UnresolvedRelation[sub_index]
+     */
+    public void testForkInInSubqueryInEval() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = x " + notClause + "IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        assertEquals("is_match", alias.name());
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(alias.child(), Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(alias.child(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertForkBranchesOverRelation(as(inSubquery.subquery(), Fork.class), "sub_index");
+
+        UnresolvedRelation mainRelation = as(eval.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * STATS aggregation filter with a (NOT) IN subquery that contains a FORK, and no FORK in the main query:
+     * {@code FROM main_index | STATS c = COUNT(*) WHERE x IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))}
+     *
+     * Aggregate[c = COUNT(*) WHERE (NOT) InSubquery[?x, Fork[[]]]]
+     * \_UnresolvedRelation[main_index]
+     *
+     * The Fork of the subquery:
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#5]]
+     * | \_Filter[?a > 1[INTEGER]]
+     * |   \_UnresolvedRelation[sub_index]
+     * \_Eval[[fork2[KEYWORD] AS _fork#5]]
+     *   \_Filter[?a < 0[INTEGER]]
+     *     \_UnresolvedRelation[sub_index]
+     */
+    public void testForkInInSubqueryInStatsAggFilter() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | STATS c = COUNT(*) WHERE x "
+            + notClause
+            + "IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))";
+
+        LogicalPlan plan = query(query);
+        Aggregate aggregate = as(plan, Aggregate.class);
+        Alias alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertEquals("c", alias.name());
+        FilteredExpression filtered = as(alias.child(), FilteredExpression.class);
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(filtered.filter(), Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(filtered.filter(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertForkBranchesOverRelation(as(inSubquery.subquery(), Fork.class), "sub_index");
+
+        UnresolvedRelation mainRelation = as(aggregate.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * INLINE STATS aggregation filter with a (NOT) IN subquery that contains a FORK, and no FORK in the main query:
+     * {@code FROM main_index | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))}
+     *
+     * InlineStats
+     * \_Aggregate[c = COUNT(*) WHERE (NOT) InSubquery[?x, Fork[[]]]]
+     *   \_UnresolvedRelation[main_index]
+     *
+     * The Fork of the subquery:
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#5]]
+     * | \_Filter[?a > 1[INTEGER]]
+     * |   \_UnresolvedRelation[sub_index]
+     * \_Eval[[fork2[KEYWORD] AS _fork#5]]
+     *   \_Filter[?a < 0[INTEGER]]
+     *     \_UnresolvedRelation[sub_index]
+     */
+    public void testForkInInSubqueryInInlineStatsAggFilter() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | INLINE STATS c = COUNT(*) WHERE x "
+            + notClause
+            + "IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))";
+
+        LogicalPlan plan = query(query);
+        InlineStats inlineStats = as(plan, InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        Alias alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertEquals("c", alias.name());
+        FilteredExpression filtered = as(alias.child(), FilteredExpression.class);
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(filtered.filter(), Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(filtered.filter(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertForkBranchesOverRelation(as(inSubquery.subquery(), Fork.class), "sub_index");
+
+        UnresolvedRelation mainRelation = as(aggregate.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * Multi-column (NOT) IN subquery that contains a FORK, and no FORK in the main query:
+     * {@code FROM main_index | WHERE (x, y) IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0) | KEEP x, y)}
+     *
+     * Filter[(NOT) MultiColumnInSubquery[[?x, ?y], Keep[Fork[[]]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testForkInMultiColumnInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE (x, y) " + notClause + "IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0) | KEEP x, y)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(filter.condition(), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(filter.condition(), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+        Keep keep = as(mcs.subquery(), Keep.class);
+        assertForkBranchesOverRelation(as(keep.child(), Fork.class), "sub_index");
+
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * A FORK in the main query before an IN subquery that contains a FORK:
+     * {@code FROM main_index | FORK (WHERE c > 1) (WHERE c < 0) | WHERE x IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))}
+     *
+     * Filter[(NOT) InSubquery[?x, Fork[[]]]]
+     * \_Fork[[]]
+     *   |_Eval[[fork1[KEYWORD] AS _fork#5]]
+     *   | \_Filter[?c > 1[INTEGER]]
+     *   |   \_UnresolvedRelation[main_index]
+     *   \_Eval[[fork2[KEYWORD] AS _fork#5]]
+     *     \_Filter[?c < 0[INTEGER]]
+     *       \_UnresolvedRelation[main_index]
+     */
+    public void testForkBeforeInSubqueryWithFork() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | FORK (WHERE c > 1) (WHERE c < 0) | WHERE x "
+            + notClause
+            + "IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(filter.condition(), Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(filter.condition(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertForkBranchesOverRelation(as(inSubquery.subquery(), Fork.class), "sub_index");
+        assertForkBranchesOverRelation(as(filter.child(), Fork.class), "main_index");
+    }
+
+    /*
+     * A FORK in the main query after an IN subquery that contains a FORK. The FORK of the main query repeats the Filter with the
+     * IN subquery, and so the FORK of the subquery, in every branch:
+     * {@code FROM main_index | WHERE x IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0)) | FORK (WHERE c > 1) (WHERE c < 0)}
+     *
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#9]]
+     * | \_Filter[?c > 1[INTEGER]]
+     * |   \_Filter[(NOT) InSubquery[?x, Fork[[]]]]
+     * |     \_UnresolvedRelation[main_index]
+     * \_Eval[[fork2[KEYWORD] AS _fork#9]]
+     *   \_Filter[?c < 0[INTEGER]]
+     *     \_Filter[(NOT) InSubquery[?x, Fork[[]]]]
+     *       \_UnresolvedRelation[main_index]
+     */
+    public void testForkAfterInSubqueryWithFork() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE x "
+            + notClause
+            + "IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0)) | FORK (WHERE c > 1) (WHERE c < 0)";
+
+        LogicalPlan plan = query(query);
+        Fork fork = as(plan, Fork.class);
+        assertEquals(2, fork.children().size());
+        for (LogicalPlan branch : fork.children()) {
+            Eval forkEval = as(branch, Eval.class);
+            Filter forkFilter = as(forkEval.child(), Filter.class);
+            Filter filter = as(forkFilter.child(), Filter.class);
+            InSubquery inSubquery;
+            if (negated) {
+                Not not = as(filter.condition(), Not.class);
+                inSubquery = as(not.field(), InSubquery.class);
+            } else {
+                inSubquery = as(filter.condition(), InSubquery.class);
+            }
+            assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+            assertForkBranchesOverRelation(as(inSubquery.subquery(), Fork.class), "sub_index");
+            UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+            assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+        }
+    }
+
+    /*
+     * An IN subquery that contains a FORK, inside a FORK branch of the main query:
+     * {@code FROM main_index | FORK (WHERE x IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))) (WHERE true)}
+     *
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#9]]
+     * | \_Filter[(NOT) InSubquery[?x, Fork[[]]]]
+     * |   \_UnresolvedRelation[main_index]
+     * \_Eval[[fork2[KEYWORD] AS _fork#9]]
+     *   \_Filter[true[BOOLEAN]]
+     *     \_UnresolvedRelation[main_index]
+     */
+    public void testInSubqueryWithForkInForkBranch() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | FORK (WHERE x "
+            + notClause
+            + "IN (FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0))) (WHERE true)";
+
+        LogicalPlan plan = query(query);
+        Fork fork = as(plan, Fork.class);
+        assertEquals(2, fork.children().size());
+
+        Eval firstEval = as(fork.children().get(0), Eval.class);
+        Filter firstFilter = as(firstEval.child(), Filter.class);
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(firstFilter.condition(), Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(firstFilter.condition(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertForkBranchesOverRelation(as(inSubquery.subquery(), Fork.class), "sub_index");
+        UnresolvedRelation firstRelation = as(firstFilter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", firstRelation.indexPattern().indexPattern());
+
+        Eval secondEval = as(fork.children().get(1), Eval.class);
+        Filter secondFilter = as(secondEval.child(), Filter.class);
+        assertEquals(true, as(secondFilter.condition(), Literal.class).value());
+        UnresolvedRelation secondRelation = as(secondFilter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", secondRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * An IN subquery with a TS source that contains a FORK:
+     * {@code FROM main_index | WHERE x IN (TS sub_index | STATS m = MAX(y) BY z | FORK (WHERE m > 1) (WHERE m < 0) | KEEP z)}
+     *
+     * Filter[(NOT) InSubquery[?x, Keep[Fork[[]]]]]
+     * \_UnresolvedRelation[main_index]
+     *
+     * The Fork of the subquery:
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#7]]
+     * | \_Filter[?m > 1[INTEGER]]
+     * |   \_Aggregate[[?z],[?MAX[?y] AS m#3, ?z]]
+     * |     \_UnresolvedRelation[sub_index]
+     * \_Eval[[fork2[KEYWORD] AS _fork#7]]
+     *   \_Filter[?m < 0[INTEGER]]
+     *     \_Aggregate[[?z],[?MAX[?y] AS m#3, ?z]]
+     *       \_UnresolvedRelation[sub_index]
+     */
+    public void testForkInTsInSubquery() {
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | WHERE x "
+            + notClause
+            + "IN (TS sub_index | STATS m = MAX(y) BY z | FORK (WHERE m > 1) (WHERE m < 0) | KEEP z)";
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        InSubquery inSubquery;
+        if (negated) {
+            Not not = as(filter.condition(), Not.class);
+            inSubquery = as(not.field(), InSubquery.class);
+        } else {
+            inSubquery = as(filter.condition(), InSubquery.class);
+        }
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        Keep keep = as(inSubquery.subquery(), Keep.class);
+        Fork fork = as(keep.child(), Fork.class);
+        assertEquals(2, fork.children().size());
+        for (LogicalPlan branch : fork.children()) {
+            Eval forkEval = as(branch, Eval.class);
+            Filter forkFilter = as(forkEval.child(), Filter.class);
+            Aggregate aggregate = as(forkFilter.child(), Aggregate.class);
+            UnresolvedRelation subqueryRelation = as(aggregate.child(), UnresolvedRelation.class);
+            assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        }
+        UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    // ---- two FORKs on one pipeline are rejected in an IN subquery, at every command that can hold one ----
+
+    public void testMultipleForksInWhereInSubqueryRejected() {
+        for (String subquery : new String[] {
+            "FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0) | FORK (WHERE b > 1) (WHERE b < 0)",
+            "FROM sub_index | FORK (FORK (WHERE a > 1) (WHERE a < 0)) (WHERE b > 1)" }) {
+            String query = LoggerMessageFormat.format(
+                null,
+                "FROM main_index | WHERE x {} ({})",
+                randomBoolean() ? "IN" : "NOT IN",
+                subquery
+            );
+
+            expectThrows(
+                VerificationException.class,
+                containsString("Only a single FORK command is supported, but found multiple"),
+                () -> query(query)
+            );
+        }
+    }
+
+    public void testMultipleForksInEvalInSubqueryRejected() {
+        for (String subquery : new String[] {
+            "FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0) | FORK (WHERE b > 1) (WHERE b < 0)",
+            "FROM sub_index | FORK (FORK (WHERE a > 1) (WHERE a < 0)) (WHERE b > 1)" }) {
+            String query = LoggerMessageFormat.format(
+                null,
+                "FROM main_index | EVAL is_match = x {} ({})",
+                randomBoolean() ? "IN" : "NOT IN",
+                subquery
+            );
+
+            expectThrows(
+                VerificationException.class,
+                containsString("Only a single FORK command is supported, but found multiple"),
+                () -> query(query)
+            );
+        }
+    }
+
+    public void testMultipleForksInStatsAggFilterInSubqueryRejected() {
+        for (String subquery : new String[] {
+            "FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0) | FORK (WHERE b > 1) (WHERE b < 0)",
+            "FROM sub_index | FORK (FORK (WHERE a > 1) (WHERE a < 0)) (WHERE b > 1)" }) {
+            String query = LoggerMessageFormat.format(
+                null,
+                "FROM main_index | STATS c = COUNT(*) WHERE x {} ({})",
+                randomBoolean() ? "IN" : "NOT IN",
+                subquery
+            );
+
+            expectThrows(
+                VerificationException.class,
+                containsString("Only a single FORK command is supported, but found multiple"),
+                () -> query(query)
+            );
+        }
+    }
+
+    public void testMultipleForksInInlineStatsAggFilterInSubqueryRejected() {
+        for (String subquery : new String[] {
+            "FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0) | FORK (WHERE b > 1) (WHERE b < 0)",
+            "FROM sub_index | FORK (FORK (WHERE a > 1) (WHERE a < 0)) (WHERE b > 1)" }) {
+            String query = LoggerMessageFormat.format(
+                null,
+                "FROM main_index | INLINE STATS c = COUNT(*) WHERE x {} ({})",
+                randomBoolean() ? "IN" : "NOT IN",
+                subquery
+            );
+
+            expectThrows(
+                VerificationException.class,
+                containsString("Only a single FORK command is supported, but found multiple"),
+                () -> query(query)
+            );
+        }
+    }
+
+    public void testMultipleForksInMultiColumnInSubqueryRejected() {
+        for (String subquery : new String[] {
+            "FROM sub_index | FORK (WHERE a > 1) (WHERE a < 0) | FORK (WHERE b > 1) (WHERE b < 0) | KEEP x, y",
+            "FROM sub_index | FORK (FORK (WHERE a > 1) (WHERE a < 0)) (WHERE b > 1) | KEEP x, y" }) {
+            String query = LoggerMessageFormat.format(
+                null,
+                "FROM main_index | WHERE (x, y) {} ({})",
+                randomBoolean() ? "IN" : "NOT IN",
+                subquery
+            );
+
+            expectThrows(
+                VerificationException.class,
+                containsString("Only a single FORK command is supported, but found multiple"),
+                () -> query(query)
+            );
+        }
+    }
+
+    public void testMultipleForksInTsInSubqueryRejected() {
+        String query = LoggerMessageFormat.format(null, """
+            FROM main_index
+            | WHERE x {} (TS sub_index
+                          | STATS m = MAX(y) BY z
+                          | FORK (WHERE m > 1) (WHERE m < 0)
+                          | FORK (WHERE m > 2) (WHERE m < 1)
+                          | KEEP z)
+            """, randomBoolean() ? "IN" : "NOT IN");
+
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> query(query)
+        );
+    }
+
+    public void testMultipleForksAroundInSubqueriesRejected() {
+        String in = randomBoolean() ? "IN" : "NOT IN";
+        String query = LoggerMessageFormat.format(null, """
+            FROM main_index
+            | FORK (WHERE c > 1) (WHERE c < 0)
+            | WHERE x {} (FROM sub_index)
+            | EVAL is_match = x {} (FROM sub_index)
+            | INLINE STATS ic = COUNT(*) WHERE x {} (FROM sub_index)
+            | STATS c = COUNT(*) WHERE x {} (FROM sub_index)
+            | FORK (WHERE c > 1) (WHERE c < 0)
+            """, in, in, in, in);
+
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> query(query)
+        );
+    }
+
+    /** Each branch of the FORK is {@code Eval[_fork] -> Filter -> UnresolvedRelation} of the given index pattern. */
+    private static void assertForkBranchesOverRelation(Fork fork, String indexPattern) {
+        assertEquals(2, fork.children().size());
+        for (LogicalPlan branch : fork.children()) {
+            Eval forkEval = as(branch, Eval.class);
+            assertEquals("_fork", as(forkEval.fields().get(0), Alias.class).name());
+            Filter forkFilter = as(forkEval.child(), Filter.class);
+            UnresolvedRelation relation = as(forkFilter.child(), UnresolvedRelation.class);
+            assertEquals(indexPattern, relation.indexPattern().indexPattern());
+        }
     }
 }

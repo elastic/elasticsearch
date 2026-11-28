@@ -48,7 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -287,11 +286,11 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
             SearchPhaseExecutionException.class,
             internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { index }, source))
         );
-        assertThat(e.shardFailures().length, greaterThan(0));
-        assertThat(e.shardFailures()[0].getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.shardFailures(), not(empty()));
+        assertThat(e.shardFailures().getFirst().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
             message,
-            e.shardFailures()[0].getCause().getMessage(),
+            e.shardFailures().getFirst().getCause().getMessage(),
             equalTo(
                 "Field ["
                     + fieldName

@@ -22,12 +22,14 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -939,6 +941,23 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
+    /**
+     * A column with conflicting types in a nested union, next to a sibling branch of the outer union that produces it as
+     * {@code keyword} ({@code first_name}) or as another type ({@code avg_worked_seconds}). Under {@code unmapped_fields} with an
+     * unmapped reference, the nested union's conflict is null-filled as {@code keyword}, so the outer union sees {@code first_name} as
+     * {@code keyword} in every branch and returns the sibling's values, while {@code avg_worked_seconds} conflicts. This pins the
+     * behaviour from before merge branches were left unaligned until the optimizer; see the TODO in
+     * {@code ResolveUnionTypesInUnionAll}, which expects this to change once {@code UNSUPPORTED} columns are no longer null-filled as
+     * {@code keyword}.
+     */
+    public void testNestedUnionTypeConflictNextToSiblingWithUnmappedReference() {
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM (FROM employees), (FROM employees, employees_incompatible) | EVAL x = 1), (FROM employees)
+            | KEEP first_name, avg_worked_seconds, does_not_exist
+            """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+    }
+
     public void testSameConversionResolvedOnLaterPassOverViewAndMultiTypedBranch() {
         builder("""
             SET unmapped_fields="nullify";
@@ -1257,6 +1276,68 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // FORK after a subquery, view or LET named subquery that contains a FORK. They are different FORK scopes, so they are not consecutive
+    // FORKs.
+
+    public void testForkAfterSingleSubqueryWithFork() {
+        runGoldenTest("""
+            FROM (FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, STAGES);
+    }
+
+    public void testForkAfterViewWithFork() {
+        runGoldenTest(
+            "FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)",
+            STAGES,
+            Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)")
+        );
+    }
+
+    public void testForkAfterNestedViewWithFork() {
+        runGoldenTest(
+            "FROM outer_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)",
+            STAGES,
+            Map.of(
+                "inner_view",
+                "FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)",
+                "outer_view",
+                "FROM inner_view | WHERE emp_no > 0"
+            )
+        );
+    }
+
+    public void testForkAfterLetWithFork() {
+        runGoldenTest("""
+            LET q = (FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10));
+            FROM q
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, STAGES);
+    }
+
+    public void testForkAfterChainedLetsWithFork() {
+        runGoldenTest("""
+            LET q = (FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10));
+            LET r = (FROM q | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5));
+            FROM r
+            """, STAGES);
+    }
+
+    // a time series subquery in FROM with a FORK, and a FORK in the main query after it
+
+    public void testForkInsideFromTimeSeriesSubquery() {
+        builder("""
+            FROM employees, (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0))
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testForkAfterFromTimeSeriesSubqueryWithFork() {
+        builder("""
+            FROM employees, (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0))
+            | FORK (WHERE m > 5) (WHERE m <= 5)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
     // helpers
 
     private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
@@ -1306,7 +1387,8 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     private static ExternalSourceResolution salariesExternalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            salariesDatasetMetadata(),
             Map.of(
                 SALARIES_INT_RESOURCE,
                 salariesSource(SALARIES_INT_RESOURCE, DataType.INTEGER),
@@ -1352,7 +1434,8 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     private static ExternalSourceResolution heavyExternalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            heavyDatasetMetadata(),
             Map.of(
                 RESOURCE_A,
                 new ExternalSourceResolution.ResolvedSource(schemaFor(RESOURCE_A), FileList.UNRESOLVED, Map.of()),

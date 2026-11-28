@@ -28,10 +28,13 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
 
     @Override
     protected SpanContainingQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof SpanContainingQueryBuilder) {
-            return new SpanContainingQueryBuilder((SpanContainingQueryBuilder) queryBuilder, (SpanContainingQueryBuilder) queryBuilder);
-        }
-        return new SpanContainingQueryBuilder(new SpanTermQueryBuilder("field", "value"), new SpanTermQueryBuilder("field", "value"));
+        assertThat(queryBuilder, instanceOf(SpanQueryBuilder.class));
+        return new SpanContainingQueryBuilder((SpanQueryBuilder) queryBuilder, (SpanQueryBuilder) queryBuilder);
+    }
+
+    @Override
+    protected QueryBuilder createInnerQuery() {
+        return new SpanTermQueryBuilder("field", "value");
     }
 
     @Override

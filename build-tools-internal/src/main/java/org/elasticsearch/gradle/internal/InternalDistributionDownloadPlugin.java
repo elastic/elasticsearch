@@ -47,7 +47,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
     public void apply(Project project) {
         // this is needed for isInternal
         applyGlobalBuildInfoIfRoot(project);
-        project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        project.getPluginManager().apply(DockerSupportPlugin.class);
         var buildParams = loadBuildParams(project).get();
 
         DistributionDownloadPlugin distributionDownloadPlugin = project.getPlugins().apply(DistributionDownloadPlugin.class);

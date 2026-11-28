@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -35,33 +36,36 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
-import java.io.BufferedReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
@@ -164,6 +168,15 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         PreviewDatafeedAction.Request request,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
+        // reject configs that can't be run (for example aggregations without a summary count field) with a bad request instead of failing
+        // later when creating the extractor
+        try {
+            DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(e);
+            return;
+        }
+
         // The datafeed preview runs in its own context with the provided
         // headers for auth. When security is not enabled the context
         // preserving listener is required to restore the request/response
@@ -212,22 +225,72 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
+                DatafeedSearchTelemetry.NOOP,
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewClient,
                         effectiveDatafeedConfig,
                         job.getDataDescription().getTimeField(),
-                        l.delegateFailure((l2, isDateNanos) -> {
-                            final long start = request.getStartTime().orElse(0);
-                            final long end = request.getEndTime()
-                                .orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
-                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
-                            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, l2));
-                        })
+                        l.delegateFailure(
+                            (l2, isDateNanos) -> runPreview(effectiveDatafeedConfig, dataExtractorFactory, request, isDateNanos, l2)
+                        )
                     )
                 )
             );
         });
+    }
+
+    private void runPreview(
+        DatafeedConfig datafeed,
+        DataExtractorFactory dataExtractorFactory,
+        PreviewDatafeedAction.Request request,
+        boolean isDateNanos,
+        ActionListener<PreviewDatafeedAction.Response> listener
+    ) {
+        final long start = request.getStartTime().orElse(0);
+        final long end = resolvePreviewEndTime(request, isDateNanos, datafeed, dataExtractorFactory.timeBucketMillis());
+        if (isEmptyEsqlPreviewWindow(datafeed, start, end)) {
+            listener.onResponse(new PreviewDatafeedAction.Response(new BytesArray("[]")));
+            return;
+        }
+        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, listener));
+    }
+
+    /**
+     * Whether the date_nanos cap in {@link #resolvePreviewEndTime} left an ES|QL window that ends before it starts, which
+     * the extractor factory rejects. Visible for testing.
+     */
+    static boolean isEmptyEsqlPreviewWindow(DatafeedConfig datafeed, long start, long end) {
+        return datafeed.getEsqlQuery() != null && start > end;
+    }
+
+    /**
+     * {@code describedBucketMs} is the bucket interval DESCRIBE reported for the ES|QL time column, 0 when the rows keep source
+     * timestamps. Visible for testing.
+     */
+    static long resolvePreviewEndTime(
+        PreviewDatafeedAction.Request request,
+        boolean isDateNanos,
+        DatafeedConfig datafeed,
+        long describedBucketMs
+    ) {
+        long cap = isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE;
+        if (request.getEndTime().isPresent() == false) {
+            return cap;
+        }
+        long end = request.getEndTime().getAsLong();
+        if (describedBucketMs <= 0) {
+            // Raw ES|QL still needs the date_nanos cap; DSL keeps the requested end.
+            return datafeed.getEsqlQuery() != null ? Math.min(end, cap) : end;
+        }
+        // A bucketed ES|QL datafeed emits one row per DESCRIBE-interval bucket, stamped with the bucket start, and the
+        // extractor factory floors the window end so an open bucket is never extracted. A preview is a
+        // diagnostic view of the requested range, so round the end up to keep the bucket containing it
+        // (otherwise a range that ends or sits inside a single bucket previews as empty even though it has data).
+        long alignedEnd = Intervals.alignToCeil(end, describedBucketMs);
+        // alignToCeil overflows (wraps negative) near Long.MAX_VALUE and may exceed the date_nanos max.
+        return (alignedEnd < end || alignedEnd > cap) ? cap : alignedEnd;
     }
 
     /**
@@ -268,6 +331,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     }
 
     private void isDateNanos(Client previewClient, DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
+        if (datafeed.getEsqlQuery() != null) {
+            // ES|QL datafeeds have no backing index for field caps; treat time as date_nanos-capable so the
+            // default preview end is MAX_NANOSECOND_INSTANT.
+            listener.onResponse(true);
+            return;
+        }
         executeWithHeadersAsync(
             datafeed.getHeaders(),
             ML_ORIGIN,
@@ -310,23 +379,27 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
      */
     static void previewDatafeed(DataExtractor dataExtractor, ActionListener<PreviewDatafeedAction.Response> listener) {
         try {
-            Optional<InputStream> inputStream = dataExtractor.next().data();
-            // DataExtractor returns single-line JSON but without newline characters between objects.
-            // Instead, it has a space between objects due to how JSON XContentBuilder works.
-            // In order to return a proper JSON array from preview, we surround with square brackets and
-            // we stick in a comma between objects.
-            // Also, the stream is expected to be a single line but in case it is not, we join lines
-            // using space to ensure the comma insertion works correctly.
-            StringBuilder responseBuilder = new StringBuilder("[");
-            if (inputStream.isPresent()) {
-                try (BufferedReader buffer = new BufferedReader(new InputStreamReader(inputStream.get(), StandardCharsets.UTF_8))) {
-                    responseBuilder.append(buffer.lines().collect(Collectors.joining(" ")).replace("} {", "},{"));
+            // An extractor over a window with nothing to extract reports hasNext() == false and next() would throw
+            // NoSuchElementException (a 500); an empty window previews as an empty array.
+            Optional<InputStream> inputStream = dataExtractor.hasNext() ? dataExtractor.next().data() : Optional.empty();
+            // Extractors write JSON objects separated only by whitespace; preview returns them as one array.
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startArray();
+                if (inputStream.isPresent()) {
+                    try (
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream.get())
+                    ) {
+                        while (parser.nextToken() != null) {
+                            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                throw new IllegalStateException("expected a JSON object but found [" + parser.currentToken() + "]");
+                            }
+                            builder.copyCurrentStructure(parser);
+                        }
+                    }
                 }
+                builder.endArray();
+                listener.onResponse(new PreviewDatafeedAction.Response(BytesReference.bytes(builder)));
             }
-            responseBuilder.append("]");
-            listener.onResponse(
-                new PreviewDatafeedAction.Response(new BytesArray(responseBuilder.toString().getBytes(StandardCharsets.UTF_8)))
-            );
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {

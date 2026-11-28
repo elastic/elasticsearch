@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
@@ -131,6 +132,9 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
             builder.setIndicesOptions(
@@ -364,38 +368,18 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(exception.getMessage(), containsString("cannot add [esql_query] to non-ES|QL datafeed [classic-datafeed]"));
     }
 
-    public void testApplyEsqlSourceTimeFieldUpdateToClassicDatafeedShouldReject() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
-        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("t").build();
-
-        ElasticsearchStatusException exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
+    public void testParseUpdateWithSourceTimeFieldShouldReject() throws IOException {
+        String json = """
+            {"datafeed_id": "esql-datafeed", "source_time_field": "@timestamp"}""";
+        XContentParseException exception = expectThrows(
+            XContentParseException.class,
+            () -> DatafeedUpdate.PARSER.apply(createParser(JsonXContent.jsonXContent, json), null)
         );
-
-        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString("source_time_field can only be set when esql_query is configured"));
-    }
-
-    public void testApplyEsqlGroupingIntervalUpdateToClassicDatafeedShouldReject() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(List.of("source-index")).build();
-        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueHours(1)).build();
-
-        ElasticsearchStatusException exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> update.apply(datafeed, Collections.emptyMap(), clusterState)
-        );
-
-        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString("grouping_interval can only be set when esql_query is configured"));
+        assertThat(exception.getMessage(), containsString("unknown field [source_time_field]"));
     }
 
     public void testMinRequiredTransportVersionShouldCoverAllEsqlFields() {
-        List<DatafeedUpdate> esqlUpdates = List.of(
-            new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build(),
-            new DatafeedUpdate.Builder("test-datafeed").setSourceTimeField("t").build(),
-            new DatafeedUpdate.Builder("test-datafeed").setGroupingInterval(TimeValue.timeValueHours(1)).build()
-        );
+        List<DatafeedUpdate> esqlUpdates = List.of(new DatafeedUpdate.Builder("test-datafeed").setEsqlQuery("FROM logs").build());
         for (DatafeedUpdate update : esqlUpdates) {
             assertThat(update.minRequiredTransportVersion().orElseThrow().v1(), equalTo(DatafeedConfig.ML_DATAFEED_ESQL_QUERY));
         }
@@ -407,8 +391,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig datafeed = createEsqlDatafeed("esql-datafeed");
         List<DatafeedUpdate> queryShapeUpdates = List.of(
             new DatafeedUpdate.Builder(datafeed.getId()).setEsqlQuery("FROM different-index").build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setSourceTimeField("event.ingested").build(),
-            new DatafeedUpdate.Builder(datafeed.getId()).setGroupingInterval(TimeValue.timeValueMinutes(30)).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setIndices(Collections.emptyList()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setQuery(QueryProvider.defaultQuery()).build(),
             new DatafeedUpdate.Builder(datafeed.getId()).setAggregations(AggProvider.fromParsedAggs(new AggregatorFactories.Builder()))
@@ -450,10 +432,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     private static DatafeedConfig createEsqlDatafeed(String id) {
-        return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
+        return new DatafeedConfig.Builder(id, "esql-job").setEsqlQuery("FROM source-index").build();
     }
 
     public void testApply_GivenRandomUpdates_AssertImmutability() {
@@ -528,7 +507,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 13)) {
+        switch (between(1, 14)) {
             case 1:
                 builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
                 break;
@@ -655,10 +634,35 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setProjectRouting(randomAlphaOfLength(20));
                 }
                 break;
+            case 14:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, 10));
+                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
+                    builder.setMaxConsecutiveExtractionFailures(10);
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 100);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    public void testApplyMaxConsecutiveExtractionFailures() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
+            .setMaxConsecutiveExtractionFailures(null)
+            .build();
+        assertThat(datafeed.getMaxConsecutiveExtractionFailures(), is(nullValue()));
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(25).build();
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+        assertThat(updated.getMaxConsecutiveExtractionFailures(), equalTo(25));
+
+        // -1 resets the setting back to its default, so a user can clear a configured value via the _update API.
+        DatafeedUpdate reset = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
+        DatafeedConfig wasReset = reset.apply(updated, Collections.emptyMap(), clusterState);
+        assertThat(wasReset.getMaxConsecutiveExtractionFailures(), is(nullValue()));
     }
 
     public void testApplyWithProjectRouting() {
@@ -825,6 +829,50 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 in.setTransportVersion(oldVersion);
                 DatafeedUpdate deserialized = new DatafeedUpdate(in);
                 assertThat(deserialized.getForceRekeying(), nullValue());
+            }
+        }
+    }
+
+    // The max_consecutive_extraction_failures field was introduced (#159554), reverted via a move-forward marker
+    // (#160471), then re-introduced. It is therefore only on the wire in the feature era (before the revert) and once
+    // re-added. These round trips exercise all four eras so a stream-alignment regression in either read or write path
+    // is caught - the generic serialization test above only exercises the current transport version.
+
+    public void testMaxConsecutiveExtractionFailuresOmittedOnPreFeatureTransportVersion() throws IOException {
+        // Before the field existed it is not on the wire, so it drains to null.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(TransportVersion.minimumCompatible(), false);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresRoundTripsOnFeatureEraTransportVersion() throws IOException {
+        // Original feature-era peers, predating the revert, carry the field.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES, true);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresOmittedOnRevertedTransportVersion() throws IOException {
+        // Within the reverted window the field is drained from the wire, so it deserializes to null.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED, false);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresRoundTripsOnReAddedTransportVersion() throws IOException {
+        // Re-introduced peers carry the field again.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_READDED, true);
+    }
+
+    private void assertMaxConsecutiveExtractionFailuresWireRoundTrip(TransportVersion version, boolean expectedOnWire) throws IOException {
+        int value = randomBoolean() ? -1 : randomIntBetween(1, 100);
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setMaxConsecutiveExtractionFailures(value).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(version);
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                if (expectedOnWire) {
+                    assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(value));
+                } else {
+                    assertThat(deserialized.getMaxConsecutiveExtractionFailures(), nullValue());
+                }
             }
         }
     }

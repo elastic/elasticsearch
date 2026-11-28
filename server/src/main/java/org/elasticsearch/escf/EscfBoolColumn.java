@@ -9,7 +9,9 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
@@ -46,6 +48,30 @@ final class EscfBoolColumn extends EscfColumn {
     private boolean bitSet(int row) {
         // values is null or covers [0, docCount), so no length guard is needed.
         return values != null && values.get(row);
+    }
+
+    // A boolean is one bit, which rounds to 0 bytes (SourceValueType.elemDataSize(TRUE/FALSE) == 0).
+    @Override
+    public int sizeInBytes(int row) {
+        return 0;
+    }
+
+    @Override
+    public void addSizesInBytes(int[] sizes) {}
+
+    @Override
+    public void addMeteredSizes(long[] sizes, MeteringModel model) {
+        final long booleanBytes = model.booleanBytes();
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += booleanBytes;
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += booleanBytes;
+        }
     }
 
     @Override

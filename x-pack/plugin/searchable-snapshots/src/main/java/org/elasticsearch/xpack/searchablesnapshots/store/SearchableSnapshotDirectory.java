@@ -34,6 +34,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
@@ -667,7 +669,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return blobStoreCacheService.get(repository, snapshotId, indexId, shardId, name, range);
     }
 
-    public void putCachedBlob(String name, ByteRange range, BytesReference content, ActionListener<Void> listener) {
+    public void putCachedBlob(String name, ByteRange range, BytesReference content, Releasable onComplete) {
         blobStoreCacheService.putAsync(
             repository,
             snapshotId,
@@ -677,7 +679,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             range,
             content,
             threadPool.absoluteTimeInMillis(),
-            listener
+            Releasables.assertOnce(onComplete)
         );
     }
 

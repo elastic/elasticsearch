@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VEC
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EQL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE;
@@ -136,19 +137,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         CsvTestCase testCase,
         String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, maybeOptionalWarnings(convertToRemoteIndices(testCase)), instructions);
-    }
-
-    /**
-     * Released 9.0 to 9.3 coordinators keep warnings in a thread-local and can drop them from the response.
-     * 8.19.23, 9.4.8 and 9.5.5 onwards carry them on the driver instead.
-     */
-    private static CsvTestCase maybeOptionalWarnings(CsvTestCase testCase) {
-        Version local = Clusters.localClusterVersion();
-        if (local.onOrAfter(Version.V_9_0_0) && local.before(Version.V_9_4_0)) {
-            testCase.makeWarningsOptional();
-        }
-        return testCase;
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions);
     }
 
     // TODO: think how to handle this better
@@ -160,6 +149,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "statsAndLookupMessageFromIndex",
         "mvJoinKeyOnTheLookupIndexAfterStats",
         "mvJoinKeyOnFromAfterStats",
+        "lookupBlocksAfterStatsWithRenamesAndLimit",
         // Lookup join after SORT is not supported in CCS yet
         "nullifiedJoinKeyToPurgeTheJoin",
         "sortBeforeAndAfterJoin",
@@ -178,6 +168,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin",
         // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
         "Inline stats by and lookup join",
+        "lookupBlocksAroundInlineStats",
+        "aggFilter_NoGroupMatches_ThenLookupJoin_PastInlineJoin",
+        "aggFilter_ThenLookupJoin_PastInlineJoin",
         // Lookup join after STATS (coordinator-only) is not supported in CCS yet
         "Lookup join after stats by",
         // The second LOOKUP JOIN (after STATS) is not supported in CCS yet.
@@ -209,6 +202,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        assumeFalse("query parameters in the source command aren't supported in CCS tests", hasParamsInSourceCommand(testCase));
         boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
         if (remoteMetadata) {
             // remove the capability from the test to enable it
@@ -308,6 +302,14 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_COMMAND.capabilityName())
         );
 
+        // This harness rewrites a FROM command's index pattern to the remote (*:index) form, but does not rewrite the
+        // EQL command's leading index pattern the same way, so its specs cannot target the remote here. The EQL command
+        // itself supports CCS (a remote:pattern in its leading argument, see CrossClusterEqlCommandIT); this is only a
+        // spec-harness limitation. Skip in CCS.
+        assumeFalse(
+            "EQL command specs are not rewritten for CCS by this harness",
+            testCase.requiredCapabilities.contains(EQL_COMMAND.capabilityName())
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -464,11 +466,28 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     /**
+     * Whether the query parameters are used in the source command, like {@code PROMQL index=?idx ...}. The conversion to remote
+     * indices parses the source command without the parameters, and can't rewrite an index name passed as a parameter.
+     */
+    private static boolean hasParamsInSourceCommand(CsvSpecReader.CsvTestCase testCase) {
+        if (testCase.params.isEmpty()) {
+            return false;
+        }
+        String sourceCommand = EsqlTestUtils.sourceCommand(testCase.query);
+        // Also true for a "?" inside a string literal: a rare case, where it only skips a test that could run.
+        return sourceCommand != null && sourceCommand.contains("?");
+    }
+
+    /**
      * Convert FROM employees ... => FROM *:employees,employees
      */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
+        }
+        if (hasParamsInSourceCommand(testCase)) {
+            // skipped in shouldSkipTest
+            return testCase;
         }
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
             || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
@@ -542,6 +561,15 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return false;
+    }
+
+    /**
+     * The local cluster coordinates and the remote cluster runs the part of the query that reads its indices,
+     * so an older cluster on either side can drop warnings.
+     */
+    @Override
+    protected boolean mayDropWarnings() {
+        return versionMayDropWarnings(Clusters.bwcVersion());
     }
 
     @Override

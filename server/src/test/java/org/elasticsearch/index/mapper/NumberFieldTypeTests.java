@@ -226,7 +226,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             false,
-            true
+            true,
+            false
         );
     }
 
@@ -284,7 +285,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             false,
-            true
+            true,
+            false
         );
     }
 
@@ -351,6 +353,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             null,
             null,
+            false,
             false,
             false,
             false

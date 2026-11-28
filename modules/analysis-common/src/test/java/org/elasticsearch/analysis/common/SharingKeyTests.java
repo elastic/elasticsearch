@@ -12,6 +12,9 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -20,8 +23,12 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -46,15 +53,17 @@ import static org.hamcrest.Matchers.containsString;
 
 /**
  * Analyzer-sharing cases in analysis-common that {@code CommonAnalysisFactoryTests}' settings contract
- * cannot express: keys that depend on the index created version, and per-index validation that must
- * still run when a sibling index already cached the same recipe. Builds real {@link IndexAnalyzers}
- * through {@link AnalysisRegistry}, the path index creation takes.
+ * cannot express: keys that depend on the index created version, per-index validation that must
+ * still run when a sibling index already cached the same recipe, and the synonym filters, which need
+ * the plugin's services. Builds real {@link IndexAnalyzers} through {@link AnalysisRegistry}, the path
+ * index creation takes.
  */
 public class SharingKeyTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private Path configDir;
     private AnalysisRegistry registry;
+    private String synonymType;
     private final List<IndexAnalyzers> tracked = new ArrayList<>();
 
     @Before
@@ -63,6 +72,7 @@ public class SharingKeyTests extends ESTestCase {
             "analyzer sharing feature flag disabled (release build); instance propagation is not observable",
             AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled()
         );
+        synonymType = randomFrom("synonym", "synonym_graph");
         threadPool = new TestThreadPool(getTestName());
         Path home = createTempDir();
         configDir = Files.createDirectory(home.resolve("config"));
@@ -170,6 +180,155 @@ public class SharingKeyTests extends ESTestCase {
             () -> registry.build(IndexService.IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("b", strict))
         );
         assertThat(e.getMessage(), containsString("max_gram and min_gram"));
+    }
+
+    private Settings synonymChain(String source, Object value, boolean updateable) {
+        Settings.Builder b = Settings.builder()
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "syn")
+            .put("index.analysis.filter.syn.type", synonymType)
+            .put("index.analysis.filter.syn.updateable", updateable);
+        if (value instanceof List<?> list) {
+            b.putList("index.analysis.filter.syn." + source, list.stream().map(Object::toString).toList());
+        } else {
+            b.put("index.analysis.filter.syn." + source, value.toString());
+        }
+        return b.build();
+    }
+
+    private void writeConfigFile(String name, String content) throws IOException {
+        Files.writeString(configDir.resolve(name), content);
+    }
+
+    /** Every inline-rule setting the key reads must split the instance; {@code format} only matters when it is wordnet. */
+    public void testInlineSynonymsKey() throws IOException {
+        List<String> rules = List.of("a, b", "c, d");
+        Analyzer base = build(IndexVersion.current(), synonymChain("synonyms", rules, false));
+        assertSame(base, build(IndexVersion.current(), synonymChain("synonyms", rules, false)));
+        // The key keeps the rule list as written.
+        assertNotSame(base, build(IndexVersion.current(), synonymChain("synonyms", List.of("c, d", "a, b"), false)));
+        assertNotSame(base, build(IndexVersion.current(), synonymChain("synonyms", List.of("a, b"), false)));
+        assertNotSame(base, build(IndexVersion.current(), synonymChain("synonyms", rules, true)));
+        for (String setting : List.of("expand=false", "lenient=true")) {
+            String[] kv = setting.split("=");
+            Settings varied = Settings.builder()
+                .put(synonymChain("synonyms", rules, false))
+                .put("index.analysis.filter.syn." + kv[0], kv[1])
+                .build();
+            assertNotSame(setting, base, build(IndexVersion.current(), varied));
+        }
+        Settings solr = Settings.builder()
+            .put(synonymChain("synonyms", rules, false))
+            .put("index.analysis.filter.syn.format", "solr")
+            .build();
+        assertSame("solr is the default format", base, build(IndexVersion.current(), solr));
+    }
+
+    /** The rules are fetched in one query sorted by rule id, so neither set order nor repeats change them. */
+    public void testSynonymsSetKeyIgnoresOrderAndRepeats() throws IOException {
+        Analyzer s1s2 = build(IndexVersion.current(), synonymChain("synonyms_set", List.of("s1", "s2"), true));
+        assertSame(s1s2, build(IndexVersion.current(), synonymChain("synonyms_set", List.of("s2", "s1", "s2"), true)));
+        assertNotSame(s1s2, build(IndexVersion.current(), synonymChain("synonyms_set", List.of("s1"), true)));
+    }
+
+    /** Non-updateable file rules are read once at index creation, so the key is their content, not their path. */
+    public void testNonUpdateableSynonymsFileKeysOnContent() throws IOException {
+        writeConfigFile("one.txt", "a, b");
+        writeConfigFile("two.txt", "a, b");
+        Analyzer one = build(IndexVersion.current(), synonymChain("synonyms_path", "one.txt", false));
+        assertSame("same rules under another path", one, build(IndexVersion.current(), synonymChain("synonyms_path", "two.txt", false)));
+
+        writeConfigFile("one.txt", "a, c");
+        assertNotSame(
+            "an index created after the file changed must not join an analyzer built from the old rules",
+            one,
+            build(IndexVersion.current(), synonymChain("synonyms_path", "one.txt", false))
+        );
+    }
+
+    /** Nothing reloads an updateable file on change, so a shared instance could serve rules the file no longer has. */
+    public void testUpdateableSynonymsFileNeverShares() throws IOException {
+        writeConfigFile("one.txt", "a, b");
+        Settings chain = synonymChain("synonyms_path", "one.txt", true);
+        assertNotSame(build(IndexVersion.current(), chain), build(IndexVersion.current(), chain));
+    }
+
+    /**
+     * A non-updateable synonyms file inside a chain that ANOTHER filter makes reloadable must not share:
+     * an in-place reload re-reads the file into the shared instance while its cache entry stays keyed on
+     * the original content, so a later index whose file matches that content would join the wrong rules.
+     */
+    public void testFixedFileInReloadableChainDoesNotShare() throws IOException {
+        writeConfigFile("fixed.txt", "a, b");
+        Settings chain = Settings.builder()
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "fsyn", "usyn")
+            .put("index.analysis.filter.fsyn.type", synonymType)
+            .put("index.analysis.filter.fsyn.synonyms_path", "fixed.txt")
+            .put("index.analysis.filter.usyn.type", synonymType)
+            .putList("index.analysis.filter.usyn.synonyms", "c, d")
+            .put("index.analysis.filter.usyn.updateable", true)
+            .build();
+        assertNotSame(build(IndexVersion.current(), chain), build(IndexVersion.current(), chain));
+    }
+
+    /** A wrapper must report a wrapped filter's lenient fallback, which only the wrapped filter can see. */
+    public void testWrappersReportDegradedSynonymFilter() throws IOException {
+        CircuitBreaker tripping = new NoopCircuitBreaker(CircuitBreaker.FIELDDATA) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                throw new CircuitBreakingException("tripped", CircuitBreaker.Durability.TRANSIENT);
+            }
+        };
+        CircuitBreakerService breakers = new NoneCircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return tripping;
+            }
+        };
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(newScriptService())
+            .circuitBreakerService(breakers)
+            .build();
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), configDir.getParent()).build();
+        AnalysisRegistry trippingRegistry = new AnalysisModule(
+            TestEnvironment.newEnvironment(nodeSettings),
+            List.of(plugin),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
+        try {
+            Settings.Builder synonyms = Settings.builder()
+                .put("index.analysis.analyzer.a.tokenizer", "standard")
+                .putList("index.analysis.analyzer.a.filter", "w")
+                .put("index.analysis.filter.syn.type", synonymType)
+                .putList("index.analysis.filter.syn.synonyms", "a, b")
+                .put("index.analysis.filter.syn.lenient", true);
+            Settings multiplexer = Settings.builder()
+                .put(synonyms.build())
+                .put("index.analysis.filter.w.type", "multiplexer")
+                .putList("index.analysis.filter.w.filters", "syn")
+                .build();
+            Settings condition = Settings.builder()
+                .put(synonyms.build())
+                .put("index.analysis.filter.w.type", "condition")
+                .put("index.analysis.filter.w.script.source", "token.position > 1")
+                .putList("index.analysis.filter.w.filter", "syn")
+                .build();
+            for (Settings wrapper : List.of(multiplexer, condition)) {
+                Settings s = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(wrapper).build();
+                try (
+                    IndexAnalyzers ia = trippingRegistry.build(
+                        IndexService.IndexCreationContext.CREATE_INDEX,
+                        IndexSettingsModule.newIndexSettings("test", s)
+                    )
+                ) {
+                    TokenFilterFactory[] filters = ((CustomAnalyzer) ia.get("a").analyzer()).getComponents().getTokenFilters();
+                    assertTrue(wrapper.get("index.analysis.filter.w.type"), filters[0].isDegraded());
+                }
+            }
+            trippingRegistry.assertNoCachedEntries();
+        } finally {
+            trippingRegistry.close();
+        }
     }
 
     /** Since Lucene 10 the persian analyzer also stems, so the version fork must be part of the key. */

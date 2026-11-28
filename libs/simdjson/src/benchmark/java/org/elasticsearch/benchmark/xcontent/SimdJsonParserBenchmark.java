@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -83,8 +84,14 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * thread shares one warm field name cache, so the cost of a bulk fanning out across indices with
  * differing mappings is not exercised.
  *
- * <p><strong>Running.</strong> Defaults cover two document shapes; {@code otel_nested} and other
- * parameters are available via {@code -p}.
+ * <p><strong>Shapes.</strong> {@code analytics} is {@link AnalyticsDocs}: wide, flat documents whose field count,
+ * string mix, integer widths and escape density were measured on real web-analytics data, so it exercises
+ * the escaped-string path as well as the plain ones. {@code small_sparse} and {@code otel_nested} are hand-written.
+ * {@code arrays} is hand-written too, and is the only shape with arrays: string arrays with and without escapes,
+ * numeric arrays, an array of objects and a mixed-type array.
+ *
+ * <p><strong>Running.</strong> Defaults cover two document shapes; {@code otel_nested}, {@code arrays} and
+ * other parameters are available via {@code -p}.
  * <pre>{@code
  * # Single-threaded (default):
  * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
@@ -96,11 +103,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  *
  * # All shapes, single bulk size:
  * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
- *   -p shape=clickbench_flat,otel_nested,small_sparse -p docCount=1000"
+ *   -p shape=analytics,otel_nested,small_sparse,arrays -p docCount=1000"
  *
  * # Index fan-out, which is what prices the shared field name table:
  * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
- *   -p mappingCount=1,5,20 -p docCount=1000 -p shape=clickbench_flat"
+ *   -p mappingCount=1,5,20 -p docCount=1000 -p shape=analytics"
  * }</pre>
  */
 @Fork(value = 1, jvmArgsAppend = { "--add-modules=jdk.incubator.vector" })
@@ -142,11 +149,19 @@ public class SimdJsonParserBenchmark {
     private int mappingCount;
 
     /**
-     * Document shape. {@code otel_nested} is omitted by default to keep the parameter matrix small;
-     * pass it explicitly with {@code -p shape=...}.
+     * Document shape. {@code otel_nested} and {@code arrays} are omitted by default to keep the parameter
+     * matrix small; pass them explicitly with {@code -p shape=...}.
      */
-    @Param({ "clickbench_flat", "small_sparse" })
+    @Param({ "analytics", "small_sparse" })
     private String shape;
+
+    /**
+     * Percentage of generated string values that carry a {@code \n} escape. Defaults to 0 so the
+     * standard matrix is unchanged; pass {@code -p escapePercent=0,10} to measure the unescaping
+     * path, which no shape exercises otherwise.
+     */
+    @Param({ "0" })
+    private int escapePercent;
 
     private static final Recycler<BytesRef> RECYCLER = new BytesRefRecycler(new PageCacheRecycler(Settings.EMPTY));
 
@@ -161,7 +176,7 @@ public class SimdJsonParserBenchmark {
         int minLen = Integer.MAX_VALUE, maxLen = 0;
         long totalLen = 0;
         for (int i = 0; i < docCount; i++) {
-            byte[] raw = applyMapping(generateDoc(random, shape, i), i % mappingCount).getBytes(UTF_8);
+            byte[] raw = applyMapping(generateDoc(random, shape, i, escapePercent), i % mappingCount).getBytes(UTF_8);
             docs[i] = new BytesArray(raw);
             minLen = Math.min(minLen, raw.length);
             maxLen = Math.max(maxLen, raw.length);
@@ -280,163 +295,57 @@ public class SimdJsonParserBenchmark {
         return renamed;
     }
 
-    private static String generateDoc(Random random, String shape, int docIndex) {
-        return switch (shape) {
-            case "clickbench_flat" -> generateClickBenchFlat(random);
+    /**
+     * Package-private so {@link Stage1IndexingBenchmark} can measure stage 1 in isolation.
+     */
+    static String generateDoc(Random random, String shape, int docIndex, int escapePercent) {
+        String json = switch (shape) {
+            case "analytics" -> AnalyticsDocs.generate(random);
             case "otel_nested" -> generateOtelNested(random);
             case "small_sparse" -> generateSmallSparse(random, docIndex);
+            case "arrays" -> generateArrays(random);
             default -> throw new IllegalArgumentException("unknown shape: " + shape);
         };
+        return escapePercent > 0 ? injectEscapes(json, random, escapePercent) : json;
     }
 
-    private static String generateClickBenchFlat(Random random) {
-        return String.format(
-            Locale.ROOT,
-            """
-                {
-                  "WatchID": %d, "JavaEnable": %d, "Title": "%s",
-                  "GoodEvent": %d, "EventTime": %d, "EventDate": %d,
-                  "CounterID": %d, "ClientIP": %d, "ClientIP6": "%s",
-                  "RegionID": %d, "UserID": %d,
-                  "CounterClass": %d, "OS": %d, "UserAgent": %d,
-                  "URL": "https://example.com/%s", "Referer": "https://ref.example.com/%s",
-                  "URLDomain": "example.com", "RefererDomain": "ref.example.com",
-                  "Refresh": %d, "IsRobot": %d, "RefererCategories": %d,
-                  "URLCategories": %d, "URLRegions": %d, "RefererRegions": %d,
-                  "ResolutionWidth": %d, "ResolutionHeight": %d, "ResolutionDepth": %d,
-                  "FlashMajor": %d, "FlashMinor": %d, "FlashMinor2": "%d",
-                  "NetMajor": %d, "NetMinor": %d, "UserAgentMajor": %d,
-                  "UserAgentMinor": %d, "CookieEnable": %d, "JavascriptEnable": %d,
-                  "IsMobile": %d, "MobilePhone": %d, "MobilePhoneModel": "%s",
-                  "Params": "", "IPNetworkID": %d,
-                  "TraficSourceID": %d, "SearchEngineID": %d,
-                  "SearchPhrase": "%s",
-                  "AdvEngineID": %d, "IsArtifical": %d, "WindowClientWidth": %d,
-                  "WindowClientHeight": %d, "ClientTimeZone": %d,
-                  "ClientEventTime": %d, "SilverlightVersion1": %d, "SilverlightVersion2": %d,
-                  "SilverlightVersion3": %d, "SilverlightVersion4": %d,
-                  "PageCharset": "UTF-8", "CodeVersion": %d, "IsLink": %d,
-                  "IsDownload": %d, "IsNotBounce": %d, "FUniqID": %d,
-                  "HID": %d, "IsOldCounter": %d, "IsEvent": %d,
-                  "IsParameter": %d, "DontCountHits": %d, "WithHash": %d,
-                  "HitColor": "W", "UTCEventTime": %d,
-                  "Age": %d, "Sex": %d, "Income": %d,
-                  "Interests": %d, "Robotness": %d, "GeneralInterests": %d,
-                  "RemoteIP": %d, "RemoteIP6": "%s",
-                  "WindowName": %d, "OpenerName": %d, "HistoryLength": %d,
-                  "BrowserLanguage": "en", "BrowserCountry": "US",
-                  "SocialNetwork": "", "SocialAction": "", "HTTPError": %d,
-                  "SendTiming": %d, "DNSTiming": %d, "ConnectTiming": %d,
-                  "ResponseStartTiming": %d, "ResponseEndTiming": %d,
-                  "FetchTiming": %d, "RedirectTiming": %d, "DOMInteractiveTiming": %d,
-                  "ContentLoadTiming": %d, "OnLoadTiming": %d,
-                  "RequestNum": %d, "RequestTry": %d,
-                  "NetErrorCode": %d, "SocialShareNetwork": "", "SocialSharePage": "",
-                  "ParamPrice": %d, "ParamOrderID": "", "ParamCurrency": "USD",
-                  "ParamCurrencyID": %d,
-                  "GoalsReached": %d, "OpenstatServiceName": "", "OpenstatCampaignID": "",
-                  "OpenstatAdID": "", "OpenstatSourceID": "",
-                  "UTMSource": "", "UTMMedium": "", "UTMCampaign": "", "UTMContent": "", "UTMTerm": "",
-                  "FromTag": "", "HasGCLID": %d, "RefererHash": %d, "URLHash": %d,
-                  "CLID": %d, "YCLID": %d, "ShareService": "", "ShareURL": "", "ShareTitle": ""
-                }""",
-            random.nextLong(),
-            random.nextInt(2),
-            randomWord(random),
-            random.nextInt(2),
-            random.nextLong(),
-            random.nextInt(19000),
-            random.nextInt(100000),
-            (long) (random.nextDouble() * 4_294_967_295L),
-            "::1",
-            random.nextInt(200000),
-            random.nextLong(),
-            random.nextInt(10),
-            random.nextInt(255),
-            random.nextInt(255),
-            randomWord(random),
-            randomWord(random),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(1000),
-            random.nextInt(1000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(3840),
-            random.nextInt(2160),
-            random.nextInt(32),
-            random.nextInt(33),
-            random.nextInt(10),
-            random.nextInt(10),
-            random.nextInt(10),
-            random.nextInt(10),
-            random.nextInt(100),
-            random.nextInt(100),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            randomWord(random),
-            random.nextInt(1000000),
-            random.nextInt(30),
-            random.nextInt(100),
-            randomWord(random),
-            random.nextInt(10),
-            random.nextInt(2),
-            random.nextInt(3840),
-            random.nextInt(2160),
-            random.nextInt(720),
-            random.nextLong(),
-            random.nextInt(4),
-            random.nextInt(4),
-            random.nextInt(4000),
-            random.nextInt(10000),
-            random.nextInt(1000000),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextLong(),
-            random.nextInt(1000000),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextLong(),
-            random.nextInt(90),
-            random.nextInt(2),
-            random.nextInt(5),
-            random.nextInt(10000),
-            random.nextInt(10),
-            random.nextInt(1000),
-            (long) (random.nextDouble() * 4_294_967_295L),
-            "::1",
-            random.nextInt(1000),
-            random.nextInt(1000),
-            random.nextInt(100),
-            random.nextInt(1000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100),
-            random.nextInt(10),
-            random.nextInt(10),
-            random.nextLong(),
-            random.nextInt(1000),
-            random.nextInt(10),
-            random.nextInt(2),
-            random.nextLong(),
-            random.nextLong(),
-            random.nextInt(100),
-            random.nextLong(),
-            random.nextLong(),
-            random.nextInt(100),
-            random.nextLong()
-        );
+    /**
+     * Rewrites {@code escapePercent} of the document's string <em>values</em> to carry a {@code \n}
+     * escape, so the walker's unescaping path is exercised.
+     *
+     * <p>The rewrite is done as a pass over the finished document, to cover all strings produced by
+     * the generators.
+     *
+     * <p>Keys are left alone: escaped field names are a separate concern from
+     * escaped values. The escape is placed mid-value so the scan for it can terminate neither on
+     * the first nor the last byte.
+     */
+    private static String injectEscapes(String json, Random random, int escapePercent) {
+        StringBuilder out = new StringBuilder(json.length() + 16);
+        int i = 0;
+        while (i < json.length()) {
+            char c = json.charAt(i);
+            if (c != '"') {
+                out.append(c);
+                i++;
+                continue;
+            }
+            int close = json.indexOf('"', i + 1);
+            String content = json.substring(i + 1, close);
+            int after = close + 1;
+            while (after < json.length() && Character.isWhitespace(json.charAt(after))) {
+                after++;
+            }
+            boolean isKey = after < json.length() && json.charAt(after) == ':';
+            if (isKey == false && content.length() >= 2 && random.nextInt(100) < escapePercent) {
+                int at = content.length() / 2;
+                out.append('"').append(content, 0, at).append("\\n").append(content, at, content.length()).append('"');
+            } else {
+                out.append('"').append(content).append('"');
+            }
+            i = close + 1;
+        }
+        return out.toString();
     }
 
     private static String generateOtelNested(Random random) {
@@ -529,6 +438,86 @@ public class SimdJsonParserBenchmark {
                 random.nextInt(600)
             );
         };
+    }
+
+    /**
+     * An observability-style document whose fields are mostly arrays of varying length, one per array path of the
+     * encoder: string arrays without escapes (at the top level and inside an object), string arrays with {@code \/} and
+     * {@code \"} escapes, integer and floating-point arrays, an array of objects, and a mixed-type array.
+     */
+    private static String generateArrays(Random random) {
+        StringBuilder sb = new StringBuilder(1024);
+        sb.append(
+            String.format(
+                Locale.ROOT,
+                "{\"@timestamp\":\"2025-09-23T%02d:%02d:%02dZ\",\"service\":\"%s\"",
+                random.nextInt(24),
+                random.nextInt(60),
+                random.nextInt(60),
+                randomService(random)
+            )
+        );
+        appendArrayField(sb, "tags", 1 + random.nextInt(6), random, r -> quoted(randomWord(r)));
+        sb.append(",\"event\":{\"outcome\":\"success\"");
+        appendArrayField(sb, "category", 1 + random.nextInt(3), random, r -> quoted(randomWord(r)));
+        sb.append('}');
+        appendArrayField(
+            sb,
+            "files",
+            1 + random.nextInt(4),
+            random,
+            r -> quoted("\\/var\\/log\\/" + randomService(r) + "\\/" + randomWord(r) + ".log")
+        );
+        appendArrayField(
+            sb,
+            "messages",
+            1 + random.nextInt(3),
+            random,
+            r -> r.nextBoolean() ? quoted(randomMessage(r)) : quoted("said \\\"" + randomWord(r) + "\\\"")
+        );
+        sb.append(",\"related\":{\"service\":\"").append(randomService(random)).append('"');
+        appendArrayField(
+            sb,
+            "ip",
+            1 + random.nextInt(4),
+            random,
+            r -> quoted("10." + r.nextInt(256) + "." + r.nextInt(256) + "." + r.nextInt(256))
+        );
+        sb.append('}');
+        appendArrayField(sb, "ports", 1 + random.nextInt(5), random, r -> Integer.toString(1024 + r.nextInt(64512)));
+        appendArrayField(sb, "latency_ms", 1 + random.nextInt(5), random, r -> String.format(Locale.ROOT, "%.3f", r.nextDouble() * 1000));
+        appendArrayField(
+            sb,
+            "spans",
+            1 + random.nextInt(4),
+            random,
+            r -> String.format(
+                Locale.ROOT,
+                "{\"name\":\"%s\",\"duration_us\":%d,\"ok\":%b}",
+                randomWord(r),
+                r.nextInt(100_000),
+                r.nextBoolean()
+            )
+        );
+        sb.append(
+            String.format(Locale.ROOT, ",\"attributes\":[\"%s\",%d,%b]", randomWord(random), random.nextInt(1000), random.nextBoolean())
+        );
+        return sb.append('}').toString();
+    }
+
+    private static void appendArrayField(StringBuilder sb, String name, int count, Random random, Function<Random, String> element) {
+        sb.append(",\"").append(name).append("\":[");
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(element.apply(random));
+        }
+        sb.append(']');
+    }
+
+    private static String quoted(String value) {
+        return '"' + value + '"';
     }
 
     // ------------------------------------------------------------------

@@ -47,10 +47,6 @@ public final class DatafeedJobValidator {
             }
         }
 
-        if (datafeedConfig.getEsqlQuery() != null) {
-            checkGroupingIntervalMatchesBucketSpan(datafeedConfig.getGroupingInterval(), bucketSpan);
-        }
-
         checkTimeFieldIsNotASearchRuntimeField(datafeedConfig, job.getDataDescription().getTimeField());
     }
 
@@ -78,18 +74,6 @@ public final class DatafeedJobValidator {
         if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD)
-            );
-        }
-    }
-
-    private static void checkGroupingIntervalMatchesBucketSpan(TimeValue groupingInterval, TimeValue bucketSpan) {
-        if (groupingInterval.millis() != bucketSpan.millis()) {
-            throw ExceptionsHelper.badRequestException(
-                Messages.getMessage(
-                    Messages.DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN,
-                    groupingInterval.getStringRep(),
-                    bucketSpan.getStringRep()
-                )
             );
         }
     }

@@ -21,11 +21,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 
 public class NumberColumnTransformTests extends ESTestCase {
@@ -243,6 +246,34 @@ public class NumberColumnTransformTests extends ESTestCase {
             long[] vals = readValues(out, 2);
             assertEquals((long) NumericUtils.floatToSortableInt(1.5f), vals[0]);
             assertEquals((long) NumericUtils.floatToSortableInt(-2.25f), vals[1]);
+        }
+    }
+
+    /**
+     * Texts on either side of the midpoint between two floats parse to the double that is the midpoint, which a cast narrows to the
+     * even float. The transform narrows them to the float the row path parses from each text, as in
+     * https://github.com/elastic/elasticsearch/issues/165790; the last text is the canonical rendering of the midpoint itself.
+     */
+    public void testDoubleToFloat_midpoint() throws IOException {
+        String[] texts = { "1.0000001788139343261718749", "1.0000001788139343261718751", "1.0000001788139343" };
+        String[] docs = java.util.Arrays.stream(texts).map(t -> "{\"f\": " + t + "}").toArray(String[]::new);
+        try (EscfBatch batch = encode(docs)) {
+            EscfColumn src = column(batch, "f");
+            long[] floats = readValues(
+                NumberColumnTransform.toSortableLongColumn(src, NumberType.FLOAT, false, BytesRefRecycler.NON_RECYCLING_INSTANCE),
+                texts.length
+            );
+            long[] halfFloats = readValues(
+                NumberColumnTransform.toSortableLongColumn(src, NumberType.HALF_FLOAT, false, BytesRefRecycler.NON_RECYCLING_INSTANCE),
+                texts.length
+            );
+            for (int i = 0; i < texts.length; i++) {
+                float expected = Float.parseFloat(texts[i]);
+                assertEquals(texts[i], (long) NumericUtils.floatToSortableInt(expected), floats[i]);
+                assertEquals(texts[i], (long) HalfFloatPoint.halfFloatToSortableShort(expected), halfFloats[i]);
+            }
+            assertEquals(Math.nextUp(1f), Float.parseFloat(texts[0]), 0f);
+            assertEquals(Math.nextUp(Math.nextUp(1f)), Float.parseFloat(texts[1]), 0f);
         }
     }
 
@@ -855,23 +886,26 @@ public class NumberColumnTransformTests extends ESTestCase {
     }
 
     /**
-     * Empty strings with coerce=true and no null_value throw when the caller records an offsets sidecar: the row
-     * path records a null slot for them, which the columnar sidecar cannot emit.
+     * A scalar empty string with coerce=true and no null_value becomes absent even when the caller records an offsets sidecar: it is a
+     * bare null, for which the row path records no offsets slot. An empty array element still throws; see
+     * {@link #testStringArray_emptyString_rejectDroppedValues_throws}.
      */
-    public void testStringToLong_emptyString_rejectDroppedValues_throws() {
-        EscfColumnData src = stringColumnData("10", "", "30");
-        UnsupportedOperationException ex = expectThrows(
-            UnsupportedOperationException.class,
-            () -> NumberColumnTransform.toSortableLongColumn(
-                EscfColumn.from(src),
-                NumberType.LONG,
-                true,
-                BytesRefRecycler.NON_RECYCLING_INSTANCE,
-                null,
-                true
-            )
+    public void testStringToLongEmptyStringWithOffsetsBecomesAbsent() {
+        long first = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+        long last = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+        EscfColumnData src = stringColumnData(Long.toString(first), "", Long.toString(last));
+        EscfColumnData out = NumberColumnTransform.toSortableLongColumn(
+            EscfColumn.from(src),
+            NumberType.LONG,
+            true,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            null,
+            true
         );
-        assertTrue("expected offsets message but got: " + ex.getMessage(), ex.getMessage().contains("records a null offsets slot"));
+        long[] vals = readValues(out, 3);
+        assertEquals(first, vals[0]);
+        assertEquals(Long.MIN_VALUE, vals[1]);
+        assertEquals(last, vals[2]);
     }
 
     public void testStringToLong_emptyString_coerceFalse_throws() {
@@ -1227,6 +1261,181 @@ public class NumberColumnTransformTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> NumberColumnTransform.toSortableLongColumn(EscfColumn.from(src), NumberType.LONG, true, recycler)
         );
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    private static EscfColumnData fromUnion(EscfBatch batch, NumberType type, boolean coerce, Long nullValue) {
+        EscfColumn src = column(batch, "f");
+        assertEquals(EscfColumnKind.UNION, src.kind());
+        return NumberColumnTransform.toSortableLongColumn(src, type, coerce, BytesRefRecycler.NON_RECYCLING_INSTANCE, nullValue, false);
+    }
+
+    public void testUnion_longAndDouble_toFloat() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 0}", "{\"f\": 2.5}", "{}", "{\"f\": -3}", "{\"f\": 0.15600073}")) {
+            long[] vals = readValues(fromUnion(batch, NumberType.FLOAT, false, null), 5);
+            assertEquals(NumericUtils.floatToSortableInt(0f), vals[0]);
+            assertEquals(NumericUtils.floatToSortableInt(2.5f), vals[1]);
+            assertEquals(Long.MIN_VALUE, vals[2]);
+            assertEquals(NumericUtils.floatToSortableInt(-3f), vals[3]);
+            assertEquals(NumericUtils.floatToSortableInt(0.15600073f), vals[4]);
+        }
+    }
+
+    public void testUnion_longAndDouble_toDouble() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 7}", "{\"f\": 2.5}")) {
+            long[] vals = readValues(fromUnion(batch, NumberType.DOUBLE, false, null), 2);
+            assertEquals(NumericUtils.doubleToSortableLong(7d), vals[0]);
+            assertEquals(NumericUtils.doubleToSortableLong(2.5d), vals[1]);
+        }
+    }
+
+    public void testUnion_longAndDouble_toHalfFloat() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 7}", "{\"f\": 2.5}")) {
+            long[] vals = readValues(fromUnion(batch, NumberType.HALF_FLOAT, false, null), 2);
+            assertEquals(HalfFloatPoint.halfFloatToSortableShort(7f), vals[0]);
+            assertEquals(HalfFloatPoint.halfFloatToSortableShort(2.5f), vals[1]);
+        }
+    }
+
+    public void testUnion_longAndDouble_toLong() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 7}", "{\"f\": 2.0}", "{\"f\": 2.9}")) {
+            long[] vals = readValues(fromUnion(batch, NumberType.LONG, true, null), 3);
+            assertEquals(7L, vals[0]);
+            assertEquals(2L, vals[1]);
+            assertEquals(2L, vals[2]);
+        }
+    }
+
+    public void testUnion_fractionalDouble_coerceFalse_throws() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 7}", "{\"f\": 2.5}")) {
+            expectThrows(IllegalArgumentException.class, () -> fromUnion(batch, NumberType.INTEGER, false, null));
+        }
+    }
+
+    public void testUnion_longOutOfRange_throws() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 1.5}", "{\"f\": 300}")) {
+            expectThrows(IllegalArgumentException.class, () -> fromUnion(batch, NumberType.BYTE, true, null));
+        }
+    }
+
+    public void testUnion_null_withoutNullValue_isAbsent() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": null}", "{\"f\": 2.5}")) {
+            long[] vals = readValues(fromUnion(batch, NumberType.DOUBLE, false, null), 3);
+            assertEquals(NumericUtils.doubleToSortableLong(1d), vals[0]);
+            assertEquals(Long.MIN_VALUE, vals[1]);
+            assertEquals(NumericUtils.doubleToSortableLong(2.5d), vals[2]);
+        }
+    }
+
+    public void testUnion_null_withNullValue_usesNullValue() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": null}", "{\"f\": 2.5}")) {
+            long nullValue = NumericUtils.doubleToSortableLong(-1d);
+            long[] vals = readValues(fromUnion(batch, NumberType.DOUBLE, false, nullValue), 3);
+            assertEquals(nullValue, vals[1]);
+        }
+    }
+
+    public void testUnion_stringAndLong_coerceTrue() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": \"20\"}", "{\"f\": \"\"}", "{\"f\": \"3.5\"}")) {
+            long[] vals = readValues(fromUnion(batch, NumberType.LONG, true, null), 4);
+            assertEquals(1L, vals[0]);
+            assertEquals(20L, vals[1]);
+            assertEquals(Long.MIN_VALUE, vals[2]);
+            assertEquals(3L, vals[3]);
+        }
+    }
+
+    public void testUnion_string_coerceFalse_throws() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": \"20\"}")) {
+            expectThrows(IllegalArgumentException.class, () -> fromUnion(batch, NumberType.LONG, false, null));
+        }
+    }
+
+    public void testUnion_unsupportedRowTypes_throw() throws IOException {
+        // An empty object is the only object that stays in "f"; a non-empty one is flattened into separate "f.a" columns.
+        for (String other : new String[] { "true", "false", "{}", "[1, 2]", "[1, \"x\"]" }) {
+            try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": " + other + "}")) {
+                // fromUnion asserts that the column is a UNION, so that no case is skipped silently.
+                expectThrows(UnsupportedOperationException.class, () -> fromUnion(batch, NumberType.LONG, true, null));
+            }
+        }
+    }
+
+    public void testUnion_emptyString_withNullValue_usesNullValue() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": \"\"}", "{\"f\": 2.5}")) {
+            long[] vals = readValues(fromUnion(batch, NumberType.DOUBLE, true, NumericUtils.doubleToSortableLong(-1d)), 3);
+            assertEquals(NumericUtils.doubleToSortableLong(-1d), vals[1]);
+        }
+    }
+
+    /** A union column with raw FLOAT rows, which the encoders do not produce for scalars, next to LONG rows. */
+    private static EscfColumn longAndFloatUnion(float floatValue) {
+        try (EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE)) {
+            builder.hintUnion();
+            builder.addLong(3);
+            byte[] payload = new byte[Float.BYTES];
+            ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN).putFloat(floatValue);
+            builder.addRawUnionRow(SourceValueType.FLOAT, new BytesRef(payload));
+            return EscfColumn.from(builder.finish(2));
+        }
+    }
+
+    public void testUnion_floatRows() {
+        final float value = 0.1f;
+        final EscfColumn source = longAndFloatUnion(value);
+        assertEquals(SourceValueType.FLOAT, source.getTypeByte(1));
+        final BytesRefRecycler recycler = BytesRefRecycler.NON_RECYCLING_INSTANCE;
+
+        long[] floats = readValues(NumberColumnTransform.toSortableLongColumn(source, NumberType.FLOAT, false, recycler), 2);
+        assertEquals(NumericUtils.floatToSortableInt(3f), floats[0]);
+        assertEquals(NumericUtils.floatToSortableInt(value), floats[1]);
+
+        long[] halfFloats = readValues(NumberColumnTransform.toSortableLongColumn(source, NumberType.HALF_FLOAT, false, recycler), 2);
+        assertEquals(HalfFloatPoint.halfFloatToSortableShort(value), halfFloats[1]);
+
+        // A double field gets the widened float, as the row path parses it, not the decimal literal.
+        long[] doubles = readValues(NumberColumnTransform.toSortableLongColumn(source, NumberType.DOUBLE, false, recycler), 2);
+        assertEquals(NumericUtils.doubleToSortableLong((double) value), doubles[1]);
+
+        long[] longs = readValues(NumberColumnTransform.toSortableLongColumn(longAndFloatUnion(2.5f), NumberType.LONG, true, recycler), 2);
+        assertEquals(2L, longs[1]);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> NumberColumnTransform.toSortableLongColumn(longAndFloatUnion(2.5f), NumberType.INTEGER, false, recycler)
+        );
+    }
+
+    public void testUnion_nonFiniteFloatRows_throw() {
+        final BytesRefRecycler recycler = BytesRefRecycler.NON_RECYCLING_INSTANCE;
+        for (float nonFinite : new float[] { Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY }) {
+            for (NumberType type : NumberType.values()) {
+                expectThrows(
+                    IllegalArgumentException.class,
+                    nonFinite + " into " + type,
+                    () -> NumberColumnTransform.toSortableLongColumn(longAndFloatUnion(nonFinite), type, true, recycler)
+                );
+            }
+        }
+    }
+
+    public void testUnion_doubleMidpoint_throws() throws IOException {
+        try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": 1.0000001788139343}")) {
+            expectThrows(UnsupportedOperationException.class, () -> fromUnion(batch, NumberType.FLOAT, false, null));
+            // double and long are exact, so the midpoint only matters for the float types.
+            long[] vals = readValues(fromUnion(batch, NumberType.DOUBLE, false, null), 2);
+            assertEquals(NumericUtils.doubleToSortableLong(1.0000001788139343d), vals[1]);
+        }
+    }
+
+    public void testLeakFree_unionException_midBatch() throws Exception {
+        BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        try (EscfBatch batch = encode("{\"f\": 1}", "{\"f\": 2.5}", "{\"f\": true}")) {
+            EscfColumn src = column(batch, "f");
+            expectThrows(
+                UnsupportedOperationException.class,
+                () -> NumberColumnTransform.toSortableLongColumn(src, NumberType.DOUBLE, false, recycler)
+            );
+        }
         MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 }

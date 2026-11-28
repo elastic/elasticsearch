@@ -88,13 +88,23 @@ public class S3AddressingStyleInterceptorTests extends ESTestCase {
         assertBucketInHost(captureUri(NAMED_ENDPOINT, "virtual_hosted"), "virtual_hosted, endpoint set");
     }
 
+    public void testExplicitRegionKeepsThatRegionsEndpoint() {
+        URI uri = captureUri(null, null, "eu-west-1");
+        assertEquals(BUCKET + ".s3.eu-west-1.amazonaws.com", uri.getHost());
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private URI captureUri(String endpoint, String addressingStyle) {
+        return captureUri(endpoint, addressingStyle, null);
+    }
+
+    private URI captureUri(String endpoint, String addressingStyle, String region) {
         Map<String, Object> raw = new HashMap<>();
         raw.put("auth", "anonymous");
         if (endpoint != null) raw.put("endpoint", endpoint);
         if (addressingStyle != null) raw.put("addressing_style", addressingStyle);
+        if (region != null) raw.put("region", region);
         S3Configuration config = S3Configuration.fromMap(raw);
 
         CapturingInterceptor interceptor = new CapturingInterceptor();

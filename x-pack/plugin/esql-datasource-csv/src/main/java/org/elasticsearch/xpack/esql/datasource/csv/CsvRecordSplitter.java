@@ -392,7 +392,7 @@ final class CsvRecordSplitter implements RecordSplitter {
             if (++sinceCancelCheck >= CANCEL_CHECK_INTERVAL_BYTES) {
                 sinceCancelCheck = 0;
                 if (isCancelled.getAsBoolean()) {
-                    throw new TaskCancelledException("split discovery cancelled");
+                    throw new TaskCancelledException(RECORD_WALK_CANCELLED_MESSAGE);
                 }
             }
             if (consumed - recordStart > maxRecordBytes) {

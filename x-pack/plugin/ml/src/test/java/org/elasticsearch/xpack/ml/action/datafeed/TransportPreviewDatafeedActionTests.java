@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.SystemIndices;
@@ -45,15 +46,18 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -61,10 +65,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportPreviewDatafeedActionTests extends ESTestCase {
+
+    /** The interval DESCRIBE reports for the BUCKET(@timestamp, 1 hour) time column of {@link #esqlDatafeedBuilder}. */
+    private static final long ONE_HOUR_BUCKET_MS = Duration.ofHours(1).toMillis();
 
     public void testEsqlDatafeedWhenFlagOnShouldAllowPreview() {
         assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
@@ -95,10 +103,123 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, ClusterState.builder(new ClusterName("test")).build());
     }
 
+    public void testPreviewShouldUseRequestWindowNotPersistedCheckpoint() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 7_200_000L);
+        assertThat(request.getStartTime(), equalTo(OptionalLong.of(1_000L)));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS), equalTo(7_200_000L));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedWithUnalignedEndShouldCoverBucketContainingEnd() {
+        long nineHours = Duration.ofHours(9).toMillis();
+        long tenHours = Duration.ofHours(10).toMillis();
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        // 09:29:53: the bucket [09:00, 10:00) overlaps the requested range and must be part of the preview
+        long unalignedEnd = Duration.ofHours(9).plusMinutes(29).plusSeconds(53).toMillis();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nineHours, unalignedEnd);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS), equalTo(tenHours));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedWithAlignedEndShouldKeepEnd() {
+        long nineHours = Duration.ofHours(9).toMillis();
+        long tenHours = Duration.ofHours(10).toMillis();
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nineHours, tenHours);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS), equalTo(tenHours));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedWithNoEndShouldStayUnbounded() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, null, null);
+
+        assertThat(
+            TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed, ONE_HOUR_BUCKET_MS),
+            equalTo(Long.MAX_VALUE)
+        );
+    }
+
+    public void testResolvePreviewEndTimeRawEsqlDatafeedShouldNotAlignEnd() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        long unalignedEnd = Duration.ofHours(9).plusMinutes(29).plusSeconds(53).toMillis();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, unalignedEnd);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, 0L), equalTo(unalignedEnd));
+    }
+
+    public void testResolvePreviewEndTimeRawEsqlDatafeedBeyondDateNanosMaxShouldCapAtNanosMax() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, nanosMax + 1_000L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, 0L), equalTo(nanosMax));
+    }
+
+    public void testRawEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nanosMax + 2_000L, nanosMax + 5_000L);
+
+        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, 0L);
+
+        assertThat(end, equalTo(nanosMax));
+        assertTrue(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, nanosMax + 2_000L, end));
+    }
+
+    public void testAggregatingEsqlPreviewWithBothBoundsAboveDateNanosMaxShouldBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, nanosMax + 2_000L, nanosMax + 5_000L);
+
+        long end = TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS);
+
+        assertTrue(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, nanosMax + 2_000L, end));
+    }
+
+    public void testEsqlPreviewWithStartBelowEndShouldNotBeEmptyWindow() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 1_000L, 1_000L));
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 0L, 5_000L));
+    }
+
+    public void testClassicPreviewWithStartAboveEndShouldNotBeEmptyWindow() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
+
+        assertFalse(TransportPreviewDatafeedAction.isEmptyEsqlPreviewWindow(datafeed, 9_000L, 5_000L));
+    }
+
+    public void testResolvePreviewEndTimeClassicDatafeedShouldNotAlignEnd() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 5_123L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, 0L), equalTo(5_123L));
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedNearLongMaxShouldCapAtLongMaxValue() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long endNearMax = Long.MAX_VALUE - 1_000L;
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, endNearMax);
+
+        assertThat(
+            TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false, datafeed, ONE_HOUR_BUCKET_MS),
+            equalTo(Long.MAX_VALUE)
+        );
+    }
+
+    public void testResolvePreviewEndTimeEsqlDatafeedNearDateNanosMaxShouldCapAtNanosMax() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, nanosMax - 1L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed, ONE_HOUR_BUCKET_MS), equalTo(nanosMax));
+    }
+
     private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
-        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1));
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery(
+            "FROM logs | STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1 hour)"
+        );
     }
 
     private static ClusterState currentCompatibleClusterState() {
@@ -292,7 +413,19 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(previewDatafeed.getChunkingConfig(), equalTo(datafeed.build().getChunkingConfig()));
     }
 
+    public void testPreviewDatafeedExtractorWithNothingToExtractShouldReturnEmptyArray() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(false);
+
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
+
+        assertThat(capturedResponse, equalTo("[]"));
+        assertThat(capturedFailure, is(nullValue()));
+        verify(dataExtractor, never()).next();
+        verify(dataExtractor).destroy();
+    }
+
     public void testPreviewDatafeed_GivenEmptyStream() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.empty(), List.of()));
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
@@ -305,16 +438,62 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     public void testPreviewDatafeed_GivenNonEmptyStream() throws IOException {
         String streamAsString = "{\"a\":1, \"b\":2} {\"c\":3, \"d\":4}\n{\"e\":5, \"f\":6}";
         InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
+        when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.of(stream), List.of()));
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
 
-        assertThat(capturedResponse, equalTo("[{\"a\":1, \"b\":2},{\"c\":3, \"d\":4},{\"e\":5, \"f\":6}]"));
+        assertThat(capturedResponse, equalTo("[{\"a\":1,\"b\":2},{\"c\":3,\"d\":4},{\"e\":5,\"f\":6}]"));
         assertThat(capturedFailure, is(nullValue()));
         verify(dataExtractor).destroy();
     }
 
+    public void testEsqlRowsOnSeparateLinesWithLeadingSpaceShouldReturnJsonArray() throws IOException {
+        // The ES|QL extractor writes one row per line and the JSON generator prefixes each row after the first with a space.
+        String streamAsString = "{\"a\":1}\n {\"b\":2}\n {\"c\":3}\n";
+        InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.of(stream), List.of()));
+
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
+
+        assertThat(capturedResponse, equalTo("[{\"a\":1},{\"b\":2},{\"c\":3}]"));
+        assertThat(capturedFailure, is(nullValue()));
+        verify(dataExtractor).destroy();
+    }
+
+    public void testObjectsWithBraceSpaceInsideStringShouldBeReturnedUnchanged() throws IOException {
+        previewStream("{\"m\":\"a} {b\"}\n {\"m\":\"say \\\"} {\\\" twice\"}\n");
+
+        assertThat(capturedResponse, equalTo("[{\"m\":\"a} {b\"},{\"m\":\"say \\\"} {\\\" twice\"}]"));
+        assertThat(capturedFailure, is(nullValue()));
+    }
+
+    public void testBlankLinesBetweenRowsShouldBeIgnored() throws IOException {
+        previewStream("{\"a\":1}\n\n   \n {\"b\":2}\n\n");
+
+        assertThat(capturedResponse, equalTo("[{\"a\":1},{\"b\":2}]"));
+        assertThat(capturedFailure, is(nullValue()));
+    }
+
+    public void testNonObjectRootValueShouldFailPreview() throws IOException {
+        previewStream("{\"a\":1}\n 2\n");
+
+        assertThat(capturedResponse, is(nullValue()));
+        assertThat(capturedFailure, is(instanceOf(IllegalStateException.class)));
+        verify(dataExtractor).destroy();
+    }
+
+    private void previewStream(String streamAsString) throws IOException {
+        InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.of(stream), List.of()));
+
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
+    }
+
     public void testPreviewDatafeed_GivenFailure() throws IOException {
+        when(dataExtractor.hasNext()).thenReturn(true);
         doThrow(new RuntimeException("failed")).when(dataExtractor).next();
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);

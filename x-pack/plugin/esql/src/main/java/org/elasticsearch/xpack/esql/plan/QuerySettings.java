@@ -58,6 +58,12 @@ import java.util.function.Supplier;
  *
  * Then add the constant to {@link #ALL} to register it. Read anywhere via
  * {@code MY_SETTING.get(resolvedSettings)}.
+ *
+ * <p>The documentation section of the setting is generated from its {@code @Param} annotation, and the list of
+ * places where it can also be set from its declaration, by running {@code QuerySettingsTests}. A setting that opts in with
+ * {@code withRequestBody()} must also be added to {@code EsqlQuerySettings} in the
+ * <a href="https://github.com/elastic/elasticsearch-specification">elasticsearch-specification</a> repository;
+ * {@code QuerySettingsTests#testRequestBodyExposedSettings} fails as a reminder.
  */
 public final class QuerySettings {
 
@@ -85,10 +91,10 @@ public final class QuerySettings {
         since = "9.4+",
         description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. "
             + "See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones).\n\n"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a timezone, the "
             + "`esql.query.settings.time_zone` cluster setting supplies it. If that cluster setting is not configured "
-            + "either, the timezone is UTC. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "either, the timezone is UTC."
     )
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef.string("time_zone", QuerySettings::parseZoneId)
@@ -99,7 +105,6 @@ public final class QuerySettings {
         .canonicalize(ZoneId::normalized)
         .build();
 
-    // LOAD_ALL is not documented here yet; its docs follow separately.
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
         Determines how unmapped fields are treated.
         For a conceptual overview and use cases, including performance considerations, refer to
@@ -121,12 +126,19 @@ public final class QuerySettings {
           absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
           even if the query doesn't reference them.
         {applies_to}`stack: preview =9.4, ga 9.5+`
+        - `LOAD_ALL` : Does everything `LOAD` does, and also returns all unmapped fields in a
+          single `_unmapped_fields` column. That column holds, for each row, a JSON object of the row's unmapped `_source` fields.
+          Refer to [Load all unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all).
+          {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
-        Special notes about the `LOAD` option:
-        - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD`.
+        Special notes about the `LOAD` and `LOAD_ALL` options:
+        - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD` or `LOAD_ALL`.
         - Referencing subfields of `flattened` parents is not supported.
+        - `LOAD_ALL` supports a subset of commands.
+          Other commands fail with an error that lists the supported ones.
+          {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
         - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
           although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
           {applies_to}`stack: ga 9.5+`
@@ -139,10 +151,10 @@ public final class QuerySettings {
           - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
             `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
 
+        {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
         The default itself is configurable. If a query does not specify a value, the
         `esql.query.settings.unmapped_fields` cluster setting supplies it. If that cluster setting is not configured
         either, the value is `DEFAULT`.
-        {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
@@ -162,6 +174,7 @@ public final class QuerySettings {
     )
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
+        .withRequestBody()
         .withTelemetryLabels(
             Arrays.stream(UnmappedResolution.values()).map(UnmappedResolution::settingValue).toList(),
             UnmappedResolution::settingValue
@@ -173,12 +186,16 @@ public final class QuerySettings {
         type = { "boolean" },
         since = "9.5.0",
         description = "When enabled, column metadata is added to the `_query` response as additional `_meta` properties."
-            + " Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function"
+            + " Defaults to `false`. `_meta.bucket` is added for columns corresponding to the `BUCKET` function"
             + " and contains bucket interval and unit for queries where it can be determined.\n\n"
+            + "{applies_to}`{\"stack\": \"preview 9.7+\", \"serverless\": \"preview\"}` "
+            + "Every column also reports what `DESCRIBE` reports about it, other than its name and type, under the same names:"
+            + " `role`, `field`, `origin`, `metric_type`, `unit`, `interval`, `time_zone` and `description`. Values that are not"
+            + " known are left out, and a value with several entries is a list.\n\n"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.column_metadata` cluster setting supplies it. If that cluster setting is not "
-            + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "configured either, the value is `false`."
     )
     public static final QuerySettingDef<Boolean> COLUMN_METADATA = QuerySettingDef.bool("column_metadata")
         .withDefault(Boolean.FALSE)
@@ -190,18 +207,17 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_datasets",
         type = { "boolean" },
-        // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, and
-        // every page documenting that feature is stack: experimental / serverless: unavailable. Deriving it from
-        // preview() would instead claim the setting is available in preview on serverless, where the feature is not
-        // enabled at all. applies_to carries the version, so declaring since too is rejected by the renderer.
-        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, so its
+        // applies_to follows the Data Federation pages rather than the setting's own lifecycle.
+        // applies_to carries the version, so declaring since too is rejected by the renderer.
+        applies_to = "serverless: preview\nstack: preview 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "{applies_to}`{\"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not "
-            + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "configured either, the value is `false`."
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_DATASETS = QuerySettingDef.bool("wildcards_match_datasets")
         .withDefault(Boolean.FALSE)
@@ -213,19 +229,18 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_views",
         type = { "boolean" },
-        applies_to = "serverless: preview\nstack: experimental 9.6+",
+        since = "9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered views."
             + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "{applies_to}`{\"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
-            + "configured either, the value is `false`. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"preview\"}`"
+            + "configured either, the value is `false`."
     )
     public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
         .withDefault(Boolean.FALSE)
         .withClusterDefault()
-        .withPreview()
         .withRequestBody()
         .build();
 
@@ -236,11 +251,16 @@ public final class QuerySettings {
         description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
             + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
             + "default settings. Map values enable query approximation with custom settings.\n\n"
+            + "When `approximation` is set in more than one place, for example in the request body and with `SET`, `rows` "
+            + "falls back to the less specific place if the more specific one doesn't set it. `confidence_level` always "
+            + "comes from the most specific place, so it resets to `0.90` when that place doesn't set it. A `false` value "
+            + "discards the values of the less specific places, so if a more specific place enables approximation "
+            + "again without setting `rows`, `rows` is the system default.\n\n"
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not "
             + "configured either, query approximation is off. Enabling it cluster-wide requires an Enterprise "
-            + "license; without one the cluster default does not apply and queries run exactly. "
-            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}`"
+            + "license; without one the cluster default does not apply and queries run exactly."
     )
     @MapParam(
         name = "approximation",
@@ -279,10 +299,23 @@ public final class QuerySettings {
         .build();
 
     @Param(
+        name = "time_series_reduce_per_index",
+        type = { "boolean" },
+        description = "When enabled, time-series aggregates are reduced separately in each index before results are combined. This uses "
+            + "less memory and can improve query performance, but results may be approximate for time buckets that overlap index rollover "
+            + "boundaries and for windowed aggregates whose windows reach across those boundaries. Defaults to `false`."
+    )
+    public static final QuerySettingDef<Boolean> TIME_SERIES_REDUCE_PER_INDEX = QuerySettingDef.bool("time_series_reduce_per_index")
+        .withTelemetryLabels(List.of("false", "true"), value -> Boolean.toString(Boolean.TRUE.equals(value)))
+        .build();
+
+    @Param(
         name = "exemplars",
         type = { "boolean", "map_param" },
+        since = "9.7+",
         description = "When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. Instead, exemplars considered"
             + " relevant to the query are returned based on heuristics that take the selected metrics and series into account."
+            + " For details, refer to [Query exemplars](/reference/query-languages/esql/commands/ts.md#esql-ts-exemplars)."
     )
     @MapParam(
         name = "exemplars",
@@ -291,6 +324,12 @@ public final class QuerySettings {
                 name = "limit",
                 type = { "integer" },
                 description = "Maximum number of exemplars to return. Without it the default limit of a regular query applies."
+            ),
+            @MapParam.MapParamEntry(
+                name = "include_timeseries",
+                type = { "boolean" },
+                description = "When enabled, a `_timeseries` column is returned, holding the dimensions that identify the series each"
+                    + " exemplar belongs to. Defaults to `false`."
             ) }
     )
     public static final QuerySettingDef<ExemplarsSettings> EXEMPLARS = QuerySettingDef.object(
@@ -300,7 +339,7 @@ public final class QuerySettings {
     )
         .withRequestBody()
         .withDefault(ExemplarsSettings.DISABLED)
-        .withSnapshotOnly()
+        .withPreview()
         .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)
         .build();
 
@@ -317,6 +356,7 @@ public final class QuerySettings {
         WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,
         TIME_ZONE,
+        TIME_SERIES_REDUCE_PER_INDEX,
         UNMAPPED_FIELDS
     );
 
@@ -564,8 +604,13 @@ public final class QuerySettings {
         }
     }
 
-    // Parameterized over the registry so the fold is testable against a purpose-built setting, as byName(List) is.
-    static ResolvedSettings resolve(
+    /**
+     * {@link #resolve(Settings, Settings, Map, EsqlStatement, SettingsValidationContext)} over {@code defs} only; every other
+     * setting reads as its registry default. A view definition resolves the settings it may {@code SET} with this, so that
+     * its body sees them folded exactly as a query would. Parameterized over the registry also so the fold is testable
+     * against a purpose-built setting, as byName(List) is.
+     */
+    public static ResolvedSettings resolve(
         List<QuerySettingDef<?>> defs,
         Settings clusterState,
         Settings nodeSettings,

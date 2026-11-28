@@ -87,6 +87,9 @@ Currently, flattened object fields can be used with the following query types:
 
 * `term`, `terms`, and `terms_set`
 * `prefix`
+* `wildcard`, `regexp`, and `fuzzy`:
+  * on the root field, such as `labels`
+  * {applies_to}`stack: ga 9.7` on keys, such as `labels.release`
 * `range`
 * `match` and `multi_match`
 * `query_string` and `simple_query_string`
@@ -210,8 +213,8 @@ Because `labels` is a `flattened` field type, the entire object is mapped as a s
 ## Query with {{esql}} [flattened-esql]
 
 ```{applies_to}
-stack: preview 9.5+
-serverless: preview
+stack: preview 9.5, ga 9.6
+serverless: ga
 ```
 
 {{esql}} reads a `flattened` field as a single column and extracts individual keys with the [`FIELD_EXTRACT`](/reference/query-languages/esql/functions-operators/string-functions/field_extract.md) function. Pass the flattened field and the dotted path to the key:
@@ -355,7 +358,7 @@ The following mapping parameters are accepted:
 :   Which scoring algorithm or *similarity* should be used. Defaults to `BM25`.
 
 `split_queries_on_whitespace`
-:   Whether [full text queries](/reference/query-languages/query-dsl/full-text-queries.md) should split the input on whitespace when building a query for this field. Accepts `true` or `false` (default).
+:   Whether [full text queries](/reference/query-languages/query-dsl/full-text-queries.md) should split the input on whitespace when building a query for this field. Accepts `true` or `false` (default). Each whitespace-separated piece is also split every 255 UTF-16 code units (about 127 emoji), counted after any character filters. A `match` query for a longer value without whitespace may not match it. Use a [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) query for such values.
 
 `time_series_dimensions`
 :   (Optional, array of strings) A list of fields inside the flattened object, where each field is a dimension of the time series. Each field is specified using the relative path from the root field and does not include the root field name.

@@ -51,6 +51,8 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -71,6 +73,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1831,10 +1834,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     public void testNumericEpochFormatCoercionUnderDeferredExtraction() throws Exception {
-        // The deferred-extraction twin of testDeclaredEpochSecondFormatOnParquetLongCoerces: ParquetColumnExtractor
-        // never consults fusedInDecode — it always decodes at the file type and coerces through castBlock with the
-        // column's declared formatter — so the deferred (TopN-materialized) read of an int64 + epoch_second column must
-        // produce the SAME instant as the eager scan. Pins extractor/eager parity for the new numeric-format arm.
+        // The deferred-extraction twin of testDeclaredEpochSecondFormatOnParquetLongCoerces. A declared format
+        // defuses the long -> datetime pair specifically, so this int64 column coerces through castBlock while a
+        // formatted string column stays fused and decodes natively; either way the deferred read must produce the
+        // SAME instant as the eager scan.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetDeferredCoerceFixture(); // physical int64 id = 1,2,3
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -3402,6 +3405,79 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(rows.get(0).get(0), equalTo(1000L)); // emp_no=1 -> 1 second -> 1000 ms
+        }
+    }
+
+    /**
+     * Hive-style day of 12 five-minute {@code epoch_second} Parquet files. An hourly filter must plan
+     * exactly the overlapping files (footer min/max rescaled to millis), not the whole day.
+     */
+    public void testDeclaredEpochSecondHourlyFilterPlansOnlyOverlappingFiles() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        ZonedDateTime day = ZonedDateTime.of(2025, 11, 20, 0, 0, 0, 0, ZoneOffset.UTC);
+        Path dayDir = createTempDir().resolve("year=2025").resolve("month=11").resolve("day=20");
+        Files.createDirectories(dayDir);
+        for (int hour = 0; hour < 24; hour += 2) {
+            long hourStart = day.plusHours(hour).toEpochSecond();
+            Path file = dayDir.resolve(String.format(java.util.Locale.ROOT, "%02d00.parquet", hour));
+            writeParquet(file, "message m { required int64 start; }", 5, 1024, (g, i) -> g.add("start", hourStart + i * 60L));
+        }
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("@timestamp", DatasetFieldMapping.withFormat("date", "start", "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "epoch_day_files",
+                    "local_ds",
+                    StoragePath.fileUri(dayDir) + "/*.parquet",
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // STATS COUNT(*) (not KEEP): KEEP + default LIMIT sets filteredLimit, which caps footer
+        // discovery at taskConcurrency and emits whole-file splits for the rest — that masks prune.
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T10:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-20T11:00:00Z")
+            | STATS c = COUNT(*)
+            """, 5L, 1);
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T11:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-20T12:00:00Z")
+            | STATS c = COUNT(*)
+            """, 0L, 0);
+        assertEpochPrune("""
+            FROM epoch_day_files
+            | WHERE @timestamp >= TO_DATETIME("2025-11-20T00:00:00Z")
+              AND @timestamp < TO_DATETIME("2025-11-21T00:00:00Z")
+            | STATS c = COUNT(*)
+            """, 60L, 12);
+    }
+
+    /**
+     * COUNT must match the overlapping rows. {@code filesScanned} is 0 when discovery folds, otherwise
+     * exactly the overlapping files — never the rest of the day.
+     */
+    private void assertEpochPrune(String query, long expectedCount, int expectedFilesIfNotFolded) {
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertEquals(expectedCount, ((Number) rows.get(0).get(0)).longValue());
+            int scanned = response.getExecutionInfo().queryProfile().filesScanned();
+            if (expectedFilesIfNotFolded == 0) {
+                assertEquals("non-overlapping filter must not scan", 0, scanned);
+            } else {
+                assertThat(scanned, either(equalTo(0)).or(equalTo(expectedFilesIfNotFolded)));
+            }
         }
     }
 
@@ -5123,6 +5199,55 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * The sibling of the two-formats case, for the pair the statistics reconcile cannot tell apart by read
+     * configuration alone. Both datasets read the one file as CSV and resolve the same columns, so their
+     * read-config fingerprints are equal and only the reader's own configuration -- the error policy -- differs.
+     * What this pins is that such a pair no longer trips an assertion in {@code mergeWholeFileContributions} and
+     * the query completes; whether the merge refused the pair or merged it is invisible here, because
+     * {@code COUNT(a) == 4} is the scan's own answer and the reconcile only decides what is cached.
+     * On {@code main} the same query never reaches the reconcile, because the data node refuses it first with
+     * {@code external dataset [policy_default] definition changed while the query was planned}.
+     */
+    public void testTwoErrorPoliciesOverOneFileDoNotTripTheReconcile() throws Exception {
+        Path fixture = createTempFile("dataset-two-policies-", ".csv");
+        Files.writeString(fixture, String.join("\n", "a,b", "1,2", "3,4") + "\n");
+        String uri = fixture.toUri().toString();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("policy_default", "local_ds", uri, Map.of("format", "csv"));
+        registerDataset("policy_skip", "local_ds", uri, Map.of("format", "csv", "error_mode", "skip_row"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM policy_default, policy_skip | STATS n = COUNT(a)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(4L))));
+        }
+    }
+
+    /**
+     * One file, two datasets over it, read as CSV and as TSV in one query: each gets the format it was registered with.
+     * <p>
+     * {@code COUNT(a) == 2} is uniquely determined. The TSV read of the same bytes finds no tab, so its only column is
+     * named {@code a,b} and it contributes no {@code a}. Reading both as CSV would give 4 instead.
+     * <p>
+     * With {@code ExternalSourceSpec} equality narrowed to the path this fails on the data node with
+     * {@code external dataset [two_formats_tsv] definition changed while the query was planned}.
+     */
+    public void testOneFileReadAsCsvAndAsTsvKeepsEachFormat() throws Exception {
+        // Neutral extension: the resolver refuses a .csv file claimed as tsv, which is a different check.
+        Path fixture = createTempFile("dataset-two-formats-", ".txt");
+        // Untyped header: a typed one is a single field to the TSV read, rejected as a column name.
+        Files.writeString(fixture, String.join("\n", "a,b", "1,2", "3,4") + "\n");
+        String uri = fixture.toUri().toString();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("two_formats_csv", "local_ds", uri, Map.of("format", "csv"));
+        registerDataset("two_formats_tsv", "local_ds", uri, Map.of("format", "tsv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM two_formats_csv, two_formats_tsv | STATS n = COUNT(a)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2L))));
+        }
+    }
+
     /** TSV (shares the CSV reader via the tsv preset): a declared type coerces the file value like CSV/Parquet. */
     public void testTsvDeclaredTypeCoercionReadsAsDeclared() throws Exception {
         Path root = createTempDir();
@@ -5466,14 +5591,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // Off (the default): the wildcard reaches neither dataset. Unlike the bare-wildcard case, the
-        // exclusion carries no wildcard of its own, so a concrete index counts as requested and a pattern
-        // matching nothing is fatal rather than empty.
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT).close()
-        );
-        assertThat(e.getMessage(), containsString("Unknown index [employees*,-employees_alt]"));
+        // Off (the default): the wildcard reaches neither dataset. An exclusion only removes names, so it is
+        // never a concrete request of its own, and the query is an empty success as in the bare-wildcard case.
+        try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+        }
 
         // On: employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
         try (

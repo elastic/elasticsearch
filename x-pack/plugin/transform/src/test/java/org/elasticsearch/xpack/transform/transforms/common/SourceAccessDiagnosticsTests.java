@@ -44,7 +44,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
     }
 
     public void testEmptyClusters_returnsFallbackMessage() {
-        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of());
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, equalTo(SourceAccessDiagnostics.SOURCE_INDICES_MISSING));
@@ -73,7 +73,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
         );
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("my_remote_cluster", skippedCluster));
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(clusters, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse response = createResponseWithClustersAndShardFailures(clusters, List.of());
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, containsString("lacks the required permissions"));
@@ -103,7 +103,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
         );
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("my_remote_cluster", failedCluster));
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(clusters, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse response = createResponseWithClustersAndShardFailures(clusters, List.of());
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, containsString("lacks the required permissions"));
@@ -124,10 +124,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
             shardTarget
         );
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(
-            SearchResponse.Clusters.EMPTY,
-            new ShardSearchFailure[] { securityFailure }
-        );
+        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of(securityFailure));
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, containsString("lacks the required permissions"));
@@ -148,10 +145,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
             shardTarget
         );
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(
-            SearchResponse.Clusters.EMPTY,
-            new ShardSearchFailure[] { forbiddenFailure }
-        );
+        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of(forbiddenFailure));
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, containsString("lacks the required permissions"));
@@ -171,10 +165,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
             shardTarget
         );
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(
-            SearchResponse.Clusters.EMPTY,
-            new ShardSearchFailure[] { unauthorizedFailure }
-        );
+        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of(unauthorizedFailure));
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, containsString("lacks the required permissions"));
@@ -189,10 +180,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
             new ElasticsearchSecurityException("unauthorized", RestStatus.FORBIDDEN)
         );
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(
-            SearchResponse.Clusters.EMPTY,
-            new ShardSearchFailure[] { securityFailure }
-        );
+        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of(securityFailure));
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, equalTo("User lacks the required permissions to read from the source indices."));
@@ -212,10 +200,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
             new SearchShardTarget("nodeId", shardId, null)
         );
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(
-            SearchResponse.Clusters.EMPTY,
-            new ShardSearchFailure[] { unavailableFailure }
-        );
+        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of(unavailableFailure));
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, equalTo(SourceAccessDiagnostics.SOURCE_INDICES_MISSING));
@@ -254,10 +239,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
     }
 
     private static void assertPermissionProblemReported(ShardSearchFailure failure) {
-        SearchResponse response = createResponseWithClustersAndShardFailures(
-            SearchResponse.Clusters.EMPTY,
-            new ShardSearchFailure[] { failure }
-        );
+        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of(failure));
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, equalTo("User lacks the required permissions to read source index [my_index]."));
@@ -269,10 +251,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
     public void testNonSecurityShardFailure_returnsFallbackMessage() {
         ShardSearchFailure nonSecurityFailure = new ShardSearchFailure(new IndexNotFoundException("missing_index"));
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(
-            SearchResponse.Clusters.EMPTY,
-            new ShardSearchFailure[] { nonSecurityFailure }
-        );
+        SearchResponse response = createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of(nonSecurityFailure));
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, equalTo(SourceAccessDiagnostics.SOURCE_INDICES_MISSING));
@@ -300,7 +279,7 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
         );
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("my_remote_cluster", successfulCluster));
 
-        SearchResponse response = createResponseWithClustersAndShardFailures(clusters, ShardSearchFailure.EMPTY_ARRAY);
+        SearchResponse response = createResponseWithClustersAndShardFailures(clusters, List.of());
         try {
             String message = SourceAccessDiagnostics.diagnoseSourceAccessFailure(response);
             assertThat(message, equalTo(SourceAccessDiagnostics.SOURCE_INDICES_MISSING));
@@ -310,12 +289,12 @@ public class SourceAccessDiagnosticsTests extends ESTestCase {
     }
 
     private static SearchResponse createResponseWithNoFailures() {
-        return createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, ShardSearchFailure.EMPTY_ARRAY);
+        return createResponseWithClustersAndShardFailures(SearchResponse.Clusters.EMPTY, List.of());
     }
 
     private static SearchResponse createResponseWithClustersAndShardFailures(
         SearchResponse.Clusters clusters,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         return new SearchResponse(
             SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f),

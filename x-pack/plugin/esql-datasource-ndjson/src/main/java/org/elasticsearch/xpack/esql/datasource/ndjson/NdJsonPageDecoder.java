@@ -136,10 +136,12 @@ public class NdJsonPageDecoder implements Closeable {
      * ({@code floor(offset / B)}) — exactly as the CSV reader uses its per-row {@code rowStartBytes}. The
      * page is NOT capped at stripe lines: byte-range cover attribution by record offset needs no page
      * alignment. {@code baseOffset} is this read's first byte in file/decompressed coordinates; the absolute
-     * offset of the START of the parser's current token (a record's opening brace) is {@code baseOffset +
-     * parserSliceStart + parser.getTokenLocation().getByteOffset()} — see {@link #tokenStartOffset()}, which
-     * uses the token-start location (not the current/end location) so attribution is scan-invariant. Disabled
-     * by default — a pure stats overlay, never affecting page contents.
+     * offset of the START of the parser's current token (a record's opening brace) is
+     * {@code statsBaseOffset + (parserSliceStart - initialSliceStart) + jacksonOffset} — see
+     * {@link #tokenStartOffset()}, which uses the token-start location (not the current/end location) so
+     * attribution is scan-invariant. Subtracting {@link #initialSliceStart} keeps the result file-relative
+     * when the parser was created over a non-zero slice of a pooled buffer. Disabled by default — a pure
+     * stats overlay, never affecting page contents.
      */
     private long statsBaseOffset = 0L;
     private boolean recordOffsetTracking = false;
@@ -304,6 +306,15 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
+     * Backing array of the byte[] fast path, including any pooled prefix before
+     * {@link #initialSliceStart}, or {@code null} on the streaming path. Visible for tests.
+     */
+    @Nullable
+    byte[] sourceBytes() {
+        return sourceBytes;
+    }
+
+    /**
      * Enables per-record offset tracking so {@link #decodePage()} fills {@link #lastPageRecordOffsets} with
      * each row's own file-global start byte. Does NOT cap pages at stripe lines — the iterator attributes
      * rows to stripes by their recorded offsets via the byte-range cover model.
@@ -317,9 +328,13 @@ public class NdJsonPageDecoder implements Closeable {
      * Absolute file offset of the START of the most recently read token — for a record's {@code START_OBJECT}
      * this is the byte of its opening brace. A record's own start is independent of how the file is chunked,
      * so {@code floor(thisOffset / B)} attributes the record to the same stripe under every scan.
+     * Shares the {@code (parserSliceStart - initialSliceStart)} prefix with {@link #recordFileOffset}
+     * so a pooled-buffer slice does not inflate the file offset. This uses the token-start location
+     * (the opening brace); {@code recordFileOffset} uses the current location after that token, typically
+     * one byte later. On the streaming path {@code initialSliceStart} is 0 and the subtract is a no-op.
      */
     private long tokenStartOffset() {
-        return statsBaseOffset + parserSliceStart + parser.getTokenLocation().getByteOffset();
+        return statsBaseOffset + (parserSliceStart - initialSliceStart) + parser.getTokenLocation().getByteOffset();
     }
 
     /** Per-record file-global start offsets of the last decoded page; valid for the first {@link #lastPageRecordCount()} rows. */
@@ -2363,7 +2378,7 @@ public class NdJsonPageDecoder implements Closeable {
                 try {
                     // Double.parseDouble accepts NaN/Infinity — an external read preserves the IEEE value the
                     // file holds, matching the native columnar double read and CSV (see DeclaredTypeCoercions).
-                    ((DoubleBlock.Builder) blockBuilder).appendDouble(Double.parseDouble(parser.getValueAsString()));
+                    ((DoubleBlock.Builder) blockBuilder).appendDouble(DeclaredTypeCoercions.parseDoubleText(parser.getValueAsString()));
                 } catch (NumberFormatException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DOUBLE);
                 }

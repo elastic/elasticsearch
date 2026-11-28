@@ -1140,19 +1140,24 @@ public class TrainedModelProvider {
                                 : "mismatch between search response size and models requested";
                             for (MultiSearchResponse.Item response : responses.getResponses()) {
                                 if (response.isFailure()) {
-                                    if (ExceptionsHelper.unwrapCause(response.getFailure()) instanceof ResourceNotFoundException) {
+                                    Exception failure = response.getFailure();
+                                    if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
                                         modelIndex++;
                                         continue;
                                     }
-                                    logger.warn(
-                                        () -> "[" + Strings.arrayToCommaDelimitedString(modelIds) + "] search failed for models",
-                                        response.getFailure()
-                                    );
+                                    // Carry the failure's own status: a plain ElasticsearchException wrapper would turn
+                                    // e.g. a client-cancelled request (400) into a 500
+                                    RestStatus status = org.elasticsearch.ExceptionsHelper.status(failure);
+                                    var modelIdsString = Strings.arrayToCommaDelimitedString(modelIds);
+                                    if (status.getStatus() >= 500) {
+                                        logger.warn(() -> "[" + modelIdsString + "] search failed for models", failure);
+                                    }
                                     delegate.onFailure(
-                                        ExceptionsHelper.serverError(
+                                        new ElasticsearchStatusException(
                                             "Searching for stats for models [{}] failed",
-                                            response.getFailure(),
-                                            Strings.arrayToCommaDelimitedString(modelIds)
+                                            status,
+                                            failure,
+                                            modelIdsString
                                         )
                                     );
                                     return;

@@ -13,6 +13,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.query.IntervalQueryBuilder;
@@ -20,6 +23,7 @@ import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
@@ -32,6 +36,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IntervalQueriesIT extends ESIntegTestCase {
 
@@ -114,6 +120,41 @@ public class IntervalQueriesIT extends ESIntegTestCase {
                 )
             );
             assertSearchHits(res, "1");
+        }
+    }
+
+    /**
+     * A regexp rule matching more distinct terms of a segment than the max clause count fails the search with a 400 that
+     * names the field and keeps Lucene's message. The internal cluster runs in this JVM, so lowering
+     * {@link IndexSearcher#setMaxClauseCount(int)} lowers the limit its nodes apply.
+     */
+    public void testExpansionLimitIsBadRequest() {
+        assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0)).setMapping("""
+            {
+                "_doc" : {
+                    "properties" : {
+                        "text" : { "type" : "text" }
+                    }
+                }
+            }
+            """));
+        indexRandom(true, prepareIndex("index").setId("1").setSource("text", "t0 t1 t2 t3 t4 t5"));
+
+        int originalMaxClauses = IndexSearcher.getMaxClauseCount();
+        try {
+            IndexSearcher.setMaxClauseCount(5);
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                prepareSearch("index").setQuery(new IntervalQueryBuilder("text", new IntervalsSourceProvider.Regexp("t.*", null, null)))
+            );
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.toString(), containsString("[intervals] rule on field [text]"));
+            assertThat(e.toString(), containsString("expanded to too many terms (limit 5); use a more selective pattern"));
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+            }
+        } finally {
+            IndexSearcher.setMaxClauseCount(originalMaxClauses);
         }
     }
 

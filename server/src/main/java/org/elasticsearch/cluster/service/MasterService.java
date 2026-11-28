@@ -54,6 +54,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -108,8 +109,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     public static final String STATE_UPDATE_ACTION_NAME = "publish_cluster_state_update";
 
-    // Total metric count in {@link #registerMasterServiceMetrics()}: 4 aggregate gauges + their per-priority values.
-    private static final int MASTER_METRICS_COUNT = 4 + Priority.values().length * 4;
+    // Total metric count in {@link #registerMasterServiceMetrics()}: 4 aggregate gauges + their per-priority values + 1 counter.
+    private static final int MASTER_METRICS_COUNT = 4 + Priority.values().length * 4 + 1;
 
     private final ClusterStateTaskExecutor<ClusterStateUpdateTask> unbatchedExecutor;
 
@@ -253,6 +254,17 @@ public class MasterService extends AbstractLifecycleComponent {
                 () -> queuesByPriority.get(priority).queuedTasksCount.get()
             );
         }
+
+        registerLongAsyncCounterMetric(
+            "es.cluster.state_update.published.total",
+            "count",
+            "Total number of cluster states published by this node while it was the elected master",
+            measurement -> {
+                final var stats = clusterStateUpdateStatsTracker.getStatistics();
+                measurement.record(stats.getPublicationSuccessCount(), Map.of("es_cluster_state_publication_outcome", "success"));
+                measurement.record(stats.getPublicationFailureCount(), Map.of("es_cluster_state_publication_outcome", "failure"));
+            }
+        );
     }
 
     static String pendingTasksMetricName(String metric) {
@@ -269,6 +281,19 @@ public class MasterService extends AbstractLifecycleComponent {
         metricsToUnregister.add(() -> {
             try {
                 longGauge.close();
+            } catch (Exception e) {
+                assert false : e;
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void registerLongAsyncCounterMetric(String name, String unit, String description, Consumer<LongAsyncMeasurement> callback) {
+        @SuppressWarnings("resource")
+        final var longAsyncCounter = meterRegistry.registerLongAsyncCounter(name, description, unit, callback);
+        metricsToUnregister.add(() -> {
+            try {
+                longAsyncCounter.close();
             } catch (Exception e) {
                 assert false : e;
                 throw new RuntimeException(e);

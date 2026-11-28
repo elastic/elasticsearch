@@ -115,6 +115,32 @@ public class VersionTests extends ESTestCase {
         VersionStringDocValuesField empty = versionField();
         assertEquals(0, VersionAllocationEstimators.versionStringsBytes(empty));
         assertEquals(0, VersionAllocationEstimators.versionStringBytes(empty, null));
+
+        // Iterating or streaming decodes every value, charged up front with a 48 byte iterator.
+        assertEquals(
+            48 + VersionAllocationEstimators.versionReadBytes(values, 0) + VersionAllocationEstimators.versionReadBytes(values, 1),
+            VersionAllocationEstimators.versionIteratorBytes(values)
+        );
+        assertEquals(
+            48 + VersionAllocationEstimators.versionObjectBytes(field, 0, null) + VersionAllocationEstimators.versionObjectBytes(
+                field,
+                1,
+                null
+            ),
+            VersionAllocationEstimators.versionIteratorBytes(field)
+        );
+        assertEquals(48, VersionAllocationEstimators.versionIteratorBytes((VersionScriptDocValues) empty.toScriptDocValues()));
+        assertEquals(48, VersionAllocationEstimators.versionIteratorBytes(empty));
+        // iterator() and stream() are inherited, so the lookup passes the receiver as a list or collection.
+        assertEquals(
+            VersionAllocationEstimators.versionIteratorBytes(values),
+            VersionAllocationEstimators.versionIteratorBytes((java.util.AbstractList<?>) values)
+        );
+        assertEquals(
+            VersionAllocationEstimators.versionIteratorBytes(values),
+            VersionAllocationEstimators.versionIteratorBytes((java.util.Collection<?>) values)
+        );
+        assertEquals(48, VersionAllocationEstimators.versionIteratorBytes(new java.util.ArrayList<>(java.util.List.of("1.0"))));
     }
 
     /** A version field over one document holding {@code versions}, already on that document. */

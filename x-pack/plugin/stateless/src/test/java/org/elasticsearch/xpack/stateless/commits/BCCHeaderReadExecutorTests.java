@@ -16,13 +16,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
 import static org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor.MAX_CONCURRENCY_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor.maxConcurrency;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,6 +62,7 @@ public class BCCHeaderReadExecutorTests extends ESTestCase {
     public void testReadsTheOverrideFromNodeSettings() {
         final var nodeSettings = Settings.builder()
             .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(DiscoveryNodeRole.INDEX_ROLE.roleName()))
             .build();
         final var executorBuilders = new StatelessPlugin(nodeSettings).getExecutorBuilders(nodeSettings).toArray(new ExecutorBuilder<?>[0]);
@@ -84,6 +86,7 @@ public class BCCHeaderReadExecutorTests extends ESTestCase {
     public void testRecordsMetrics() throws Exception {
         final var nodeSettings = Settings.builder()
             .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(DiscoveryNodeRole.INDEX_ROLE.roleName()))
             // set to 1 so second task gets queued up
             .put(MAX_CONCURRENCY_SETTING.getKey(), 1)

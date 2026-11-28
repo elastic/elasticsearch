@@ -68,7 +68,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
         settings.add(MAX_VIEWS_COUNT_SETTING);
         settings.add(MAX_VIEW_LENGTH_SETTING);
         settings.add(MAX_VIEW_DEPTH_SETTING);
-        settings.add(EsqlFlags.ESQL_MAX_COMMAND_COUNT);
+        settings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         ALL_SETTINGS = settings;
     }
 
@@ -92,7 +92,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, ViewMetadata metadata) {
-        super(clusterService, TEST_PARSER);
+        super(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onResponse(null));
         this.threadPool = threadPool;
         this.viewMetadata = metadata;
     }

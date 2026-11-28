@@ -9,6 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
@@ -44,11 +45,11 @@ public final class ToBooleanFromUnsignedLongEvaluator extends AbstractConvertFun
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+    try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendBoolean(evalValue(vector, p));
+        builder.appendBoolean(p, evalValue(vector, p));
       }
-      return builder.build();
+      return builder.build().asBlock();
     }
   }
 

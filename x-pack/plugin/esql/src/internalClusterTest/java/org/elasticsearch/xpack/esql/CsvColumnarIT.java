@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -319,12 +321,8 @@ public class CsvColumnarIT extends CsvIT {
         .collect(
             java.util.stream.Collectors.toUnmodifiableMap(
                 Map.Entry::getKey,
-                // View bodies may open with SET statements (set_in_view_definitions), which hide
-                // the FROM from the pattern extractor's anchors; strip them like test queries.
-                e -> EsqlQueryDatasetResolver.resolveDatasets(
-                    EsqlQueryDatasetResolver.extractIndexPatterns(stripLeadingSetStatements(e.getValue().loadQuery())),
-                    CSV_DATASET
-                )
+                // View bodies are read like test queries, so a PROMQL body (index=...) resolves too.
+                e -> EsqlQueryDatasetResolver.resolveDatasets(sourcePatterns(e.getValue().loadQuery()), CSV_DATASET)
             )
         );
 
@@ -369,6 +367,33 @@ public class CsvColumnarIT extends CsvIT {
     }
 
     /**
+     * The normalised index patterns that {@code query} reads directly, not through a view: the first three extraction paths of
+     * {@link #resolveAllDatasets}. Also used for view bodies by {@link #VIEW_BACKING_DATASETS}, so it must only use static
+     * fields declared before that one.
+     */
+    private static Set<String> sourcePatterns(String query) {
+        String stripped = stripLeadingSetStatements(query);
+        // Collect raw patterns from FROM/TS and PROMQL, then normalise each one.
+        Set<String> rawPatterns = new LinkedHashSet<>(EsqlQueryDatasetResolver.extractIndexPatterns(stripped));
+        Matcher m = PROMQL_INDEX.matcher(stripped);
+        while (m.find()) {
+            rawPatterns.add(m.group(1).trim());
+        }
+        // Double-quoted index names (e.g. TS "k8s" | ...) are masked to spaces before the shared
+        // SOURCE_COMMAND regex runs, so extractIndexPatterns captures only a 1-char fragment that
+        // normalizeIndexPattern cannot de-quote. Match directly on the unmasked stripped text.
+        Matcher dq = DOUBLE_QUOTED_SOURCE.matcher(stripped);
+        while (dq.find()) {
+            rawPatterns.add(dq.group(1).trim());
+        }
+        Set<String> patterns = new LinkedHashSet<>();
+        for (String raw : rawPatterns) {
+            patterns.add(normalizeIndexPattern(raw));
+        }
+        return patterns;
+    }
+
+    /**
      * Resolves all {@link CsvTestsDataLoader.TestDataset} entries that the given query touches,
      * combining five extraction paths that {@link EsqlQueryDatasetResolver#extractIndexPatterns}
      * alone would miss:
@@ -390,24 +415,7 @@ public class CsvColumnarIT extends CsvIT {
      * the method never throws.
      */
     private static Set<CsvTestsDataLoader.TestDataset> resolveAllDatasets(String query) {
-        String stripped = stripLeadingSetStatements(query);
-        // Collect raw patterns from FROM/TS and PROMQL, then normalise each one.
-        Set<String> rawPatterns = new LinkedHashSet<>(EsqlQueryDatasetResolver.extractIndexPatterns(stripped));
-        Matcher m = PROMQL_INDEX.matcher(stripped);
-        while (m.find()) {
-            rawPatterns.add(m.group(1).trim());
-        }
-        // Double-quoted index names (e.g. TS "k8s" | ...) are masked to spaces before the shared
-        // SOURCE_COMMAND regex runs, so extractIndexPatterns captures only a 1-char fragment that
-        // normalizeIndexPattern cannot de-quote. Match directly on the unmasked stripped text.
-        Matcher dq = DOUBLE_QUOTED_SOURCE.matcher(stripped);
-        while (dq.find()) {
-            rawPatterns.add(dq.group(1).trim());
-        }
-        Set<String> patterns = new LinkedHashSet<>();
-        for (String raw : rawPatterns) {
-            patterns.add(normalizeIndexPattern(raw));
-        }
+        Set<String> patterns = sourcePatterns(query);
         Set<CsvTestsDataLoader.TestDataset> datasets = new LinkedHashSet<>(EsqlQueryDatasetResolver.resolveDatasets(patterns, CSV_DATASET));
         for (String pattern : patterns) {
             // Exact-key view lookup (e.g. FROM country_airports).
@@ -486,6 +494,10 @@ public class CsvColumnarIT extends CsvIT {
         if (testCase.skipColumnar != null) {
             return false;
         }
+        // The dataset resolution below doesn't see an index name in a parameter's value.
+        if (testCase.hasPromqlIndexParam()) {
+            return true;
+        }
         // Wildcard view patterns (e.g. view_k8s_max_*) are not resolvable via the exact-key
         // VIEW_BACKING_DATASETS lookup in resolveAllDatasets; check them first against the known
         // TS-backed view set via glob matching. Normalise (strip quotes / ::suffix) so that
@@ -554,7 +566,13 @@ public class CsvColumnarIT extends CsvIT {
      * {@code CsvLogsdbColumnarIT}) may override to choose a different mode.
      */
     protected static Settings modeSettings() {
-        return Settings.builder().put(INDEX_MODE_SETTING, "columnar").build();
+        Settings.Builder settings = Settings.builder().put(INDEX_MODE_SETTING, "columnar");
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            // TODO: remove once ESCF preserves the original text of floating point numbers
+            // (https://github.com/elastic/elasticsearch/issues/163401).
+            settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+        }
+        return settings.build();
     }
 
     private static final String INDEX_MODE_SETTING = "index.mode";
@@ -568,7 +586,7 @@ public class CsvColumnarIT extends CsvIT {
     private static final String STANDARD_INDEX_MODE = "standard";
 
     /**
-     * Installs the columnar index-load strategy.
+     * Installs the columnar differential test strategy.
      *
      * <p>Runs after {@link CsvIT#setupCluster()} (JUnit guarantees the superclass
      * {@code @BeforeClass} runs first) and replaces the identity strategy with one that creates
@@ -581,7 +599,7 @@ public class CsvColumnarIT extends CsvIT {
      */
     @BeforeClass
     public static void installColumnarStrategy() {
-        indexLoadStrategy = new ColumnarStrategy(modeSettings());
+        differentialTestStrategy = new ColumnarStrategy(modeSettings());
     }
 
     @AfterClass
@@ -624,7 +642,7 @@ public class CsvColumnarIT extends CsvIT {
     // -----------------------------------------------------------------------------------------
 
     /**
-     * {@link CsvIT.IndexLoadStrategy} that creates each dataset in columnar index mode.
+     * {@link CsvIT.DifferentialTestStrategy} that creates each dataset in columnar index mode.
      *
      * <p>The strategy:
      * <ul>
@@ -640,7 +658,7 @@ public class CsvColumnarIT extends CsvIT {
      *   <li>Honours the {@code skip_columnar:} preamble directive to silence individual tests.</li>
      * </ul>
      */
-    static final class ColumnarStrategy implements IndexLoadStrategy {
+    static final class ColumnarStrategy implements DifferentialTestStrategy {
 
         private final Settings extraSettings;
 
@@ -720,11 +738,7 @@ public class CsvColumnarIT extends CsvIT {
          * rather than being masked.
          */
         @Override
-        public CsvTestUtils.ExpectedResults transformExpectedResults(
-            String testId,
-            CsvTestCase testCase,
-            CsvTestUtils.ExpectedResults expected
-        ) {
+        public CsvTestUtils.TestResults transformExpectedResults(String testId, CsvTestCase testCase, CsvTestUtils.TestResults expected) {
             int modeIdx = expected.columnNames().indexOf(INDEX_MODE_COLUMN);
             if (modeIdx < 0) {
                 return expected;
@@ -749,7 +763,7 @@ public class CsvColumnarIT extends CsvIT {
             if (anyChanged == false) {
                 return expected;
             }
-            return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+            return new CsvTestUtils.TestResults(expected.columnNames(), expected.columnTypes(), newValues);
         }
 
         /**

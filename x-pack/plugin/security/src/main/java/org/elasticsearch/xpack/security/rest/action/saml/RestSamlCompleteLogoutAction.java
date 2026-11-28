@@ -67,6 +67,12 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
+
+    @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/_security/saml/complete_logout"));
     }

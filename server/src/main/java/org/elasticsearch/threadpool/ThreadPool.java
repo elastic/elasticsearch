@@ -93,9 +93,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
          * <p>
          * This pool is for instance used for recovery-related work, which is a mix of CPU-bound and IO-bound work and does not block on
          * futures. The recovery subsystem bounds its own concurrency, and therefore the amount of recovery work done on the {@code
-         * #GENERIC} pool, via {@code cluster.routing.allocation.node_concurrent_recoveries} and related settings. This pool is a good
-         * choice for recovery work because the threads used by recovery will be used by other {@code #GENERIC} work too rather than mostly
-         * sitting idle until cleaned up. Idle threads are surprisingly costly sometimes.
+         * #GENERIC} pool, via {@link org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider} and related classes,
+         * and/or via {@link org.elasticsearch.indices.recovery.ThrottlingRecoveryService},
+         * {@link org.elasticsearch.indices.recovery.PeerRecoverySourceService}, and related classes. This pool is a good choice for
+         * recovery work because the threads used by recovery will be used by other {@code #GENERIC} work too rather than mostly sitting
+         * idle until cleaned up. Idle threads are surprisingly costly sometimes.
          * <p>
          * This pool does not reject any task. Tasks you submit to this executor after the pool starts to shut down may simply never run.
          */
@@ -292,6 +294,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public ThreadPool(
+        ThreadContext threadContext,
         final Settings settings,
         MeterRegistry meterRegistry,
         BuiltInExecutorBuilders builtInExecutorBuilders,
@@ -312,7 +315,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         }
         this.builders = Collections.unmodifiableMap(builders);
 
-        threadContext = new ThreadContext(settings);
+        this.threadContext = threadContext;
 
         // Now that all the thread pools have been defined, actually build them.
         final Map<String, ExecutorHolder> executors = new HashMap<>();

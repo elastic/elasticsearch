@@ -146,6 +146,11 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         throw new UnsupportedOperationException("reconfiguration at runtime is not supported");
     }
 
+    /**
+     * Execute the {@code command}. If {@code command} is an instance of {@link AbstractRunnable} then on rejection this method invokes
+     * {@link AbstractRunnable#onRejection} on the calling thread instead of throwing an exception. If {@code command} is not an instance of
+     * {@link AbstractRunnable} then this method throws the rejection exception.
+     */
     @Override
     public void execute(Runnable command) {
         final Runnable wrappedRunnable = command != WORKER_PROBE ? wrapRunnable(command) : WORKER_PROBE;

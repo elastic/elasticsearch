@@ -20,7 +20,7 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
-import org.elasticsearch.action.search.SearchLogContext;
+import org.elasticsearch.action.search.SearchCaptureContext;
 import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -67,8 +67,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_CPU;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS_GTE;
+import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_LOAD;
+import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_WAITING;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
@@ -97,6 +100,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
@@ -156,7 +160,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertSearchHitsWithoutFailures(prepareSearch().setQuery(simpleQueryStringQuery("fox")), "1");
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertMessageSuccess(message, SearchLogContext.TYPE, "fox");
+            assertMessageSuccess(message, SearchCaptureContext.TYPE, "fox");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(""));
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
@@ -170,9 +174,16 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
+            assertMessageSuccess(message, SearchCaptureContext.TYPE, "quick");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
+            // the shards it searched were charged its load
+            assertThat(Long.valueOf(message.get(QUERY_FIELD_SEARCH_LOAD)), greaterThan(0L));
+            assertThat(
+                Long.valueOf(message.get(QUERY_FIELD_SEARCH_CPU)),
+                lessThanOrEqualTo(Long.valueOf(message.get(QUERY_FIELD_SEARCH_LOAD)))
+            );
+            assertThat(Long.valueOf(message.get(QUERY_FIELD_SEARCH_WAITING)), greaterThanOrEqualTo(0L));
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
             assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
             assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));
@@ -186,7 +197,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             );
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
+            assertMessageSuccess(message, SearchCaptureContext.TYPE, "quick");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_SEARCH_HITS), equalTo("2"));
             assertThat(message.get(QUERY_FIELD_SEARCH_HITS_GTE), equalTo("true"));
@@ -197,7 +208,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
 
     /**
      * Verifies that when the request succeeds with partial results (some shards fail), the activity log
-     * records shards.successful and shards.failed correctly from SearchLogContext.shardInfo().
+     * records shards.successful and shards.failed correctly from SearchCaptureContext.shardInfo().
      * Uses more shards than data nodes so that stopping one node guarantees unassigned shards.
      */
     public void testSearchLogShardInfoPartialFailure() throws Exception {
@@ -221,7 +232,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
-        assertMessageSuccess(message, SearchLogContext.TYPE, "size");
+        assertMessageSuccess(message, SearchCaptureContext.TYPE, "size");
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThan(0));
         assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
@@ -262,7 +273,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         );
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
-        assertMessageFailure(message, SearchLogContext.TYPE, "quick brown", SearchPhaseExecutionException.class, "all shards failed");
+        assertMessageFailure(message, SearchCaptureContext.TYPE, "quick brown", SearchPhaseExecutionException.class, "all shards failed");
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
     }
@@ -272,7 +283,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         expectThrows(IndexNotFoundException.class, prepareSearch(missingIndex).setQuery(matchAllQuery()));
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
-        assertMessageFailure(message, SearchLogContext.TYPE, "match_all", IndexNotFoundException.class, "no such index");
+        assertMessageFailure(message, SearchCaptureContext.TYPE, "match_all", IndexNotFoundException.class, "no such index");
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(missingIndex));
     }
@@ -292,7 +303,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         ensureSearchWasCancelled(searchResponse);
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
-        assertMessageFailure(message, SearchLogContext.TYPE, "mockscript", SearchPhaseExecutionException.class, null);
+        assertMessageFailure(message, SearchCaptureContext.TYPE, "mockscript", SearchPhaseExecutionException.class, null);
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
     }
@@ -309,7 +320,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         appender.events.forEach(ev -> {
             Map<String, String> message = getMessageData(ev);
             assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
-            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo(SearchLogContext.TYPE));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo(SearchCaptureContext.TYPE));
             assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took")), greaterThan(0L));
             assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
@@ -336,7 +347,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             );
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertMessageSuccess(message, SearchLogContext.TYPE, "fox");
+            assertMessageSuccess(message, SearchCaptureContext.TYPE, "fox");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
         } finally {
@@ -425,7 +436,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
         var eventNoAgg = appender.getLastEventAndReset();
         Map<String, String> messageNoAgg = getMessageData(eventNoAgg);
-        assertMessageSuccess(messageNoAgg, SearchLogContext.TYPE, "quick");
+        assertMessageSuccess(messageNoAgg, SearchCaptureContext.TYPE, "quick");
         assertThat(messageNoAgg.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
         assertNull(messageNoAgg.get(SearchLogProducer.QUERY_FIELD_HAS_AGGREGATIONS));
 
@@ -436,7 +447,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         );
         var eventWithAgg = appender.getLastEventAndReset();
         Map<String, String> messageWithAgg = getMessageData(eventWithAgg);
-        assertMessageSuccess(messageWithAgg, SearchLogContext.TYPE, "match_all");
+        assertMessageSuccess(messageWithAgg, SearchCaptureContext.TYPE, "match_all");
         assertThat(messageWithAgg.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
         assertThat(messageWithAgg.get(QUERY_FIELD_SEARCH_HITS), equalTo("3"));
         assertNull(messageWithAgg.get(QUERY_FIELD_SEARCH_HITS_GTE));
@@ -463,7 +474,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         }
         var eventTimedOut = appender.getLastEventAndReset();
         Map<String, String> messageTimedOut = getMessageData(eventTimedOut);
-        assertMessageSuccess(messageTimedOut, SearchLogContext.TYPE, "timeout");
+        assertMessageSuccess(messageTimedOut, SearchCaptureContext.TYPE, "timeout");
         assertThat(messageTimedOut.get(timedOutField), equalTo("true"));
     }
 

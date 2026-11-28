@@ -411,6 +411,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         for (Map.Entry<String, String> setting : settings.entrySet()) {
             templateSettings.put(setting.getKey(), setting.getValue());
         }
+        randomBatchIndexing(templateSettings);
         final TransportPutComposableIndexTemplateAction.Request putComposableTemplateRequest =
             new TransportPutComposableIndexTemplateAction.Request(templateName);
         putComposableTemplateRequest.indexTemplate(

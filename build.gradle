@@ -15,8 +15,10 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.internal.checks.ValidateBuildGradleScriptsTask
+import org.elasticsearch.gradle.internal.info.DevelopmentBranchesValueSource
 import org.elasticsearch.gradle.util.GradleUtils
 
 import groovy.xml.XmlParser;
@@ -90,6 +92,13 @@ tasks.named('nmcpZipAggregation').configure {
 
   dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
   from(zipTree("build-tools/build/nmcp/zip/allPublications.zip"))
+}
+
+tasks.named('prepareDraSnapshotMavenAggregation').configure {
+  // This task reuses nmcpZipAggregation's copy-spec source, which includes the build-tools
+  // zip above via a plain file path. That path carries no task dependency, and the dependsOn
+  // declared on nmcpZipAggregation is not inherited, so wire the build-tools zip task explicitly.
+  dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
 }
 
 /**
@@ -228,48 +237,64 @@ tasks.register("updateCIBwcVersions") {
 }
 
 tasks.register("verifyVersions") {
-  def verifyCiYaml = { File file, List<Version> versions ->
-    String ciYml = file.text
-    versions.each {
-      if (ciYml.contains("\"$it\"\n") == false) {
-        throw new Exception("${file} is outdated, run `./gradlew updateCIBwcVersions` and check in the results")
-      }
-    }
-  }
+  // Capture everything needed at execution time during configuration to stay compatible with the configuration cache
+  boolean offline = gradle.startParameter.offline
+  // BwcVersions does not serialize its full version list, so capture the plain version data. Use the version list that does not
+  // depend on branches.json, as this task loads the development branches itself below.
+  Version currentVersion = VersionProperties.elasticsearchVersion
+  def allVersionsProvider = buildParams.allVersionsProvider
+  // branches.json is a remote file that can change without any local change. Querying this provider only at execution time
+  // makes Gradle fetch it on every run, also when reusing the configuration cache, so we always validate the latest state.
+  def developmentBranchesProvider = DevelopmentBranchesValueSource.developmentBranches(project)
+  File bwcVersionsFile = file(".ci/bwcVersions")
+  File snapshotBwcVersionsFile = file(".ci/snapshotBwcVersions")
+  File backportConfigFile = file(".backportrc.json")
+  String elasticsearchVersion = VersionProperties.elasticsearch
   doLast {
-    if (gradle.startParameter.isOffline()) {
+    if (offline) {
       throw new GradleException("Must run in online mode to verify versions")
     }
+    def bwcVersions = new BwcVersions(currentVersion, allVersionsProvider.get(), developmentBranchesProvider.get())
     // Read the list from maven central.
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      buildParams.bwcVersions.compareToAuthoritative(
+      bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
-    verifyCiYaml(file(".ci/snapshotBwcVersions"), buildParams.bwcVersions.unreleasedIndexCompatible)
+    [
+      (bwcVersionsFile): filterIntermediatePatches(bwcVersions.indexCompatible),
+      (snapshotBwcVersionsFile): bwcVersions.unreleasedIndexCompatible
+    ].each { File ciFile, List<Version> expectedVersions ->
+      String ciYml = ciFile.text
+      expectedVersions.each {
+        if (ciYml.contains("\"$it\"\n") == false) {
+          throw new GradleException("${ciFile} is outdated, run `./gradlew updateCIBwcVersions` and check in the results")
+        }
+      }
+    }
 
     // Make sure backport bot config file is up to date
-    JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))
-    buildParams.bwcVersions.forPreviousUnreleased { unreleasedVersion ->
+    JsonNode backportConfig = new ObjectMapper().readTree(backportConfigFile)
+    bwcVersions.forPreviousUnreleased { unreleasedVersion ->
+      String unreleasedBranch = unreleasedVersion.branch
       boolean valid = backportConfig.get("targetBranchChoices").elements().any { branchChoice ->
         if (branchChoice.isObject()) {
-          return branchChoice.get("name").textValue() == unreleasedVersion.branch
+          return branchChoice.get("name").textValue() == unreleasedBranch
         } else {
-          return branchChoice.textValue() == unreleasedVersion.branch
+          return branchChoice.textValue() == unreleasedBranch
         }
       }
       if (valid == false) {
-        throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
+        throw new GradleException("No branch choice exists for development branch ${unreleasedBranch} in .backportrc.json.")
       }
     }
     String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
-    String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
+    String expectedMapping = "^v${elasticsearchVersion.replaceAll('-SNAPSHOT', '')}\$"
     if (versionMapping != expectedMapping) {
       throw new GradleException(
         "Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
@@ -540,7 +565,12 @@ tasks.named("checkPart1").configure {
 
 tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).configure {
   scriptFiles.from(fileTree(project.layout.settingsDirectory) {
-    include "**/build.gradle"
+    // all Gradle scripts (build, settings and precompiled script plugins); most rules only apply to build.gradle files
+    include "**/*.gradle"
+    // Groovy build logic, where dynamic Ant calls are invisible to the ArchUnit checks
+    include "build-conventions/src/main/**/*.groovy"
+    include "build-tools/src/main/**/*.groovy"
+    include "build-tools-internal/src/main/**/*.groovy"
     exclude "**/build/**"
     // Fixture build scripts under test resources model external repositories rather than this repository's build logic.
     exclude "**/src/**/resources/**"
@@ -563,11 +593,53 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/qa/smoke-test-plugins/build.gradle',
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
     ],
-    'distribution-closure-assignment': [
-      'distribution/build.gradle::6',
+    // Measured on main ff3ed1ce5a62. Counts are direct model references, not action counts.
+    'execution-closure-project-reference': [
+      'build.gradle::2',
+      'modules/lang-painless/build.gradle::4',
+      'qa/vector/build.gradle::1',
     ],
-    'distribution-ext-closure-api': [
-      'distribution/build.gradle::1',
+    // Legacy test-clusters REST integ test task types. Counted so new usages fail even in baselined
+    // files; migrate to JUnit rule based clusters and lower or remove the entry.
+    'legacy-rest-integ-test-task': [
+      'modules/ip-location/qa/full-cluster-restart/build.gradle::2',
+      'modules/ip-location/qa/geoip-reindexed/build.gradle::2',
+      'modules/repository-azure/build.gradle::3',
+      'qa/ccs-rolling-upgrade-remote-cluster/build.gradle::2',
+      'qa/full-cluster-restart/build.gradle::3',
+      'qa/mixed-cluster/build.gradle::2',
+      'qa/multi-cluster-search/build.gradle::3',
+      'qa/repository-multi-version/build.gradle::2',
+      'qa/rolling-upgrade/build.gradle::3',
+      'qa/verify-version-constants/build.gradle::2',
+      'x-pack/plugin/downsample/qa/mixed-cluster/build.gradle::2',
+      'x-pack/plugin/ent-search/qa/full-cluster-restart/build.gradle::2',
+      'x-pack/plugin/eql/qa/ccs-rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/eql/qa/mixed-node/build.gradle::2',
+      'x-pack/plugin/esql-datasource-csv/qa/build.gradle::2',
+      'x-pack/plugin/esql-datasource-ndjson/qa/build.gradle::2',
+      'x-pack/plugin/esql-datasource-orc/qa/build.gradle::2',
+      'x-pack/plugin/esql-datasource-parquet/qa/build.gradle::2',
+      'x-pack/plugin/esql/qa/server/mixed-cluster/build.gradle::5',
+      'x-pack/plugin/esql/qa/server/multi-clusters/build.gradle::7',
+      'x-pack/plugin/esql/qa/server/multi-node/build.gradle::3',
+      'x-pack/plugin/esql/qa/server/single-node/build.gradle::4',
+      'x-pack/plugin/inference/qa/mixed-cluster/build.gradle::2',
+      'x-pack/plugin/inference/qa/rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/logsdb/qa/legacy-rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/logsdb/qa/rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/security/qa/multi-cluster/build.gradle::2',
+      'x-pack/plugin/shutdown/qa/full-cluster-restart/build.gradle::2',
+      'x-pack/plugin/shutdown/qa/rolling-upgrade/build.gradle::2',
+      'x-pack/plugin/snapshot-repo-test-kit/qa/azure/build.gradle::3',
+      'x-pack/plugin/sql/qa/jdbc/build.gradle::2',
+      'x-pack/plugin/sql/qa/mixed-node/build.gradle::2',
+      'x-pack/qa/full-cluster-restart/build.gradle::2',
+      'x-pack/qa/mixed-tier-cluster/build.gradle::2',
+      'x-pack/qa/repository-old-versions/build.gradle::2',
+      'x-pack/qa/rolling-upgrade-basic/build.gradle::2',
+      'x-pack/qa/rolling-upgrade-multi-cluster/build.gradle::2',
+      'x-pack/qa/rolling-upgrade/build.gradle::3',
     ],
   ])
 }
@@ -585,6 +657,7 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql:compute:ann',
     ':x-pack:plugin:esql:compute:gen',
     ':x-pack:plugin:esql:compute:test',
+    ':x-pack:plugin:esql:profile-schema',
     ':x-pack:plugin:esql:qa:testFixtures',
     ':x-pack:plugin:esql:tools',
     ':x-pack:plugin:esql-core',

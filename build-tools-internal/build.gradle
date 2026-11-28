@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo
 import org.gradle.process.CommandLineArgumentProvider
 
@@ -51,6 +51,10 @@ gradlePlugin {
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
+    }
+    distributionLayout {
+      id = 'elasticsearch.distribution-layout'
+      implementationClass = 'org.elasticsearch.gradle.internal.distribution.DistributionLayoutPlugin'
     }
     distroTest {
       id = 'elasticsearch.distro-test'
@@ -99,6 +103,10 @@ gradlePlugin {
     internalDistributionBwcSetup {
       id = 'elasticsearch.internal-distribution-bwc-setup'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin'
+    }
+    internalDistributionPackageCheck {
+      id = 'elasticsearch.internal-distribution-package-check'
+      implementationClass = 'org.elasticsearch.gradle.internal.distribution.InternalDistributionPackageCheckPlugin'
     }
     internalDistributionDownload {
       id = 'elasticsearch.internal-distribution-download'
@@ -236,9 +244,9 @@ gradlePlugin {
       id = 'elasticsearch.yaml-rest-compat-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
     }
-    cacheTestFixtures {
-        id = 'elasticsearch.cache-test-fixtures'
-        implementationClass = 'org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin'
+    dockerImageCache {
+        id = 'elasticsearch.docker-image-cache'
+        implementationClass = 'org.elasticsearch.gradle.internal.docker.DockerImageCachePlugin'
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
@@ -421,6 +429,17 @@ tasks.register("integTest", Test) {
   def testKitDir = new File(temporaryDir, ".gradle-test-kit")
   jvmArgumentProviders.add({
     ["-Djava.io.tmpdir=${tempDir}", "-Dorg.gradle.testkit.dir=${testKitDir}"] as List<String>
+  } as CommandLineArgumentProvider)
+
+  // Func tests of plugins that work on test tasks run their fixture projects with the real runner of the Elasticsearch tests. This
+  // build is built before the :test:vintage-randomized-runner project that holds it, so the project cannot be a dependency here. The runner only
+  // needs the randomized runner and JUnit 4, which the fixtures have anyway, so they compile a copy of its source.
+  // The source is a task input, so that the tests run again when the runner changes, and the path is not, for cache relocatability.
+  def esRandomizedRunnerSource =
+    layout.projectDirectory.file("../test/vintage-randomized-runner/src/main/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java")
+  inputs.file(esRandomizedRunnerSource).withPropertyName("esRandomizedRunnerSource").withPathSensitivity(PathSensitivity.NONE)
+  jvmArgumentProviders.add({
+    ["-Des.randomized.runner.source=${esRandomizedRunnerSource.asFile}".toString()]
   } as CommandLineArgumentProvider)
 }
 

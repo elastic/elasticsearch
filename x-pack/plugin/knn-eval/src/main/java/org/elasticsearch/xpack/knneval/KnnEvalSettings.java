@@ -95,7 +95,7 @@ record KnnEvalSettings(@Nullable Float visitPercentage, @Nullable Integer numCan
         return PARSER.apply(parser, null);
     }
 
-    /** Percent of DiskBBQ postings to visit; an explicit {@code 0} means the codec's automatic choice, not none. */
+    /** Percent of DiskBBQ postings to visit (bbq_disk only); an explicit {@code 0} means the codec's automatic choice, not none. */
     @Nullable
     public Float getVisitPercentage() {
         return visitPercentage;

@@ -82,6 +82,16 @@ import java.util.function.Consumer;
  *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
  *                         setting); the compact constructor collapses {@code null} to that default so
  *                         readers do one check.
+ * @param statsMaxExtremumBytes the widest text extremum a harvest publishes, in bytes (see
+ *                         {@code ExternalSourceCacheSettings#STATS_MAX_EXTREMUM_SIZE}). A negative width means
+ *                         unset and the compact constructor collapses it to
+ *                         {@link #DEFAULT_MAX_EXTREMUM_BYTES}; zero is meaningful and withholds every text
+ *                         extremum that has any bytes at all.
+ * @param statsStripeSink  where this chunk hands its pieces of the stripes it overlapped, so the pieces of one
+ *                         stripe become a single contribution instead of one per chunk (see
+ *                         {@link StripeStatsSink}). {@code null} — a reader driven outside a parallel read, in a
+ *                         test or a benchmark — makes each chunk publish its own pieces directly. Ignored when
+ *                         {@code statsStripeSize <= 0}, which disables stripe addressing altogether.
  * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
  *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
  *                         leaves sink-only informational warnings disabled; {@link SkipWarnings}-based
@@ -119,12 +129,19 @@ public record FormatReadContext(
     long statsStripeSize,
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
+    int statsMaxExtremumBytes,
+    @Nullable StripeStatsSink statsStripeSink,
     @Nullable Consumer<String> informationalWarningSink,
     @Nullable List<String> fileHeaderColumns,
     @Nullable CircuitBreaker breaker,
     @Nullable SharedErrorBudget sharedErrorBudget,
     @Nullable FormatReadCounters readCounters
 ) {
+
+    /**
+     * Default for {@code esql.external.cache.stats.max_extremum_size}; a negative width normalises to it.
+     */
+    public static final int DEFAULT_MAX_EXTREMUM_BYTES = 1024;
 
     public FormatReadContext {
         if (readSchema != null && readSchema.isEmpty()) {
@@ -135,6 +152,9 @@ public record FormatReadContext(
         }
         if (statsColumnScope == null) {
             statsColumnScope = StripeColumnScope.PROJECTED;
+        }
+        if (statsMaxExtremumBytes < 0) {
+            statsMaxExtremumBytes = DEFAULT_MAX_EXTREMUM_BYTES;
         }
     }
 
@@ -168,6 +188,8 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsMaxExtremumBytes,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -195,6 +217,8 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsMaxExtremumBytes,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -222,6 +246,8 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsMaxExtremumBytes,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -255,6 +281,9 @@ public record FormatReadContext(
         private List<String> fileHeaderColumns = null;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        private int statsMaxExtremumBytes = DEFAULT_MAX_EXTREMUM_BYTES;
+        @Nullable
+        private StripeStatsSink statsStripeSink = null;
         @Nullable
         private Consumer<String> informationalWarningSink = null;
         @Nullable
@@ -346,6 +375,25 @@ public record FormatReadContext(
         }
 
         /**
+         * The widest text extremum this read may publish. Negative leaves the default; zero withholds every
+         * one that has any bytes.
+         */
+        public Builder statsMaxExtremumBytes(int statsMaxExtremumBytes) {
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
+            return this;
+        }
+
+        /**
+         * Where this chunk hands its pieces of the stripes it overlapped (see
+         * {@link FormatReadContext#statsStripeSink()}). {@code null} makes the chunk publish them itself, one per
+         * stripe it touched. Orthogonal to {@link #stats}, which decides the grid.
+         */
+        public Builder statsStripeSink(@Nullable StripeStatsSink statsStripeSink) {
+            this.statsStripeSink = statsStripeSink;
+            return this;
+        }
+
+        /**
          * See {@link FormatReadContext#informationalWarningSink()}; {@code null} disables sink-only
          * warnings and retains legacy direct-header behavior for {@link SkipWarnings}-based paths.
          */
@@ -407,6 +455,8 @@ public record FormatReadContext(
                 statsStripeSize,
                 statsFileFinal,
                 statsColumnScope,
+                statsMaxExtremumBytes,
+                statsStripeSink,
                 informationalWarningSink,
                 fileHeaderColumns,
                 breaker,

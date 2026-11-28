@@ -15,39 +15,58 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 
 /**
  * Slowdown function - for debug purposes only.
  * Syntax: WAIT(ms) - will sleep for ms milliseconds.
  */
-public class Delay extends UnaryScalarFunction {
+public class Delay extends UnaryScalarFunction implements PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delay", Delay::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Delay.class).unary(Delay::new).name("delay");
 
     @FunctionInfo(
         returnType = { "boolean" },
+        signatures = { @Signature(params = { "time_duration" }, returnType = "boolean") },
         briefSummary = "Sleeps for a duration for every row, for debug purposes only.",
-        description = "Sleeps for a duration for every row. For debug purposes only."
+        description = "Sleeps for a duration for every row. For debug purposes only.",
+        examples = { @Example(description = "Sleep for one millisecond for every row:", file = "delay", tag = "docsDelay") }
     )
-    public Delay(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {
+    public Delay(
+        Source source,
+        @Param(
+            name = "ms",
+            type = { "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "For how long"
+        ) Expression ms
+    ) {
         super(source, ms);
     }
 
@@ -76,7 +95,19 @@ public class Delay extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
+        TypeResolution resolution = isNotNull(field(), sourceText(), FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
         return isType(field(), t -> t == DataType.TIME_DURATION, sourceText(), FIRST, "time_duration");
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        failures.add(isFoldable(field(), sourceText(), FIRST));
+        if (field() instanceof Literal literal && literal.value() == null) {
+            failures.add(fail(field(), "first argument of [{}] cannot be null, received [{}]", sourceText(), Expressions.name(field())));
+        }
     }
 
     @Override
@@ -100,10 +131,10 @@ public class Delay extends UnaryScalarFunction {
     }
 
     private long msValue(FoldContext ctx) {
-        if (field().foldable() == false) {
+        var ms = field().foldable() ? field().fold(ctx) : null;
+        if (ms == null) {
             throw new IllegalArgumentException("function [" + sourceText() + "] has invalid argument [" + field().sourceText() + "]");
         }
-        var ms = field().fold(ctx);
         if (ms instanceof Duration duration) {
             return duration.toMillis();
         }
@@ -112,10 +143,22 @@ public class Delay extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        return context -> new DelayEvaluator(context, msValue(toEvaluator.foldCtx()));
+        return new DelayEvaluator.Factory(msValue(toEvaluator.foldCtx()));
     }
 
     static final class DelayEvaluator implements ExpressionEvaluator {
+        record Factory(long ms) implements ExpressionEvaluator.Factory {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new DelayEvaluator(context, ms);
+            }
+
+            @Override
+            public String toString() {
+                return "DelayEvaluator[ms=" + ms + "]";
+            }
+        }
+
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DelayEvaluator.class);
 
         private final DriverContext driverContext;
@@ -145,6 +188,11 @@ public class Delay extends UnaryScalarFunction {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+
+        @Override
+        public String toString() {
+            return "DelayEvaluator[ms=" + ms + "]";
         }
 
         @Override

@@ -232,17 +232,13 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     }
 
     /**
-     * A poisoned MIN/MAX taints ONLY that extremum (per-statistic), not the whole column: a sibling cannot
-     * resurrect it (the marker is a PRESENT key that OR-folds, unlike a bare key removal which the next fold
-     * level can't tell from "never observed"), AND the column's COUNT-family (null_count/value_count) survives
-     * -- an incompatible/NaN extremum does not invalidate a count. This is the two-level fold (stripe fragments
-     * -&gt; per-stripe, then per-stripe -&gt; whole-file): a NaN in one fragment must not let another stripe's finite
-     * value become the served file MIN, but COUNT(v) must still short-circuit.
+     * A NaN extremum is skipped by the fold, matching the runtime MIN/MAX aggregators, at both levels of the
+     * two-level fold (stripe fragments -&gt; per-stripe, then per-stripe -&gt; whole-file). The finite extrema are
+     * served and the COUNT-family (null_count/value_count) folds as usual.
      */
-    public void testMergeStatisticsPoisonedExtremumTaintsOnlyExtremumNotCount() {
+    public void testMergeStatisticsNaNFragmentIsSkippedAndCountsHold() {
         // Level 1 (text path, implicitNullsForAbsentColumn=false): two fragments of ONE stripe; the NaN
-        // fragment poisons the finite fragment's MIN/MAX. null_count/value_count are present, as the real
-        // harvest always emits them.
+        // fragment is skipped. null_count/value_count are present, as the real harvest always emits them.
         Map<String, Object> finiteFragment = new HashMap<>();
         finiteFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
         finiteFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
@@ -260,20 +256,24 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         Map<String, Object> poisonedStripe = SourceStatisticsSerializer.mergeStatistics(List.of(finiteFragment, nanFragment), false);
         assertNotNull(poisonedStripe);
         assertEquals(20L, poisonedStripe.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-        // The extremum value is cleared and a PRESENT unservable marker is set.
-        assertNull("poisoned min value must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMinKey("v")));
-        assertNull("poisoned max value must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMaxKey("v")));
-        assertEquals(Boolean.TRUE, poisonedStripe.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
-        assertEquals(Boolean.TRUE, poisonedStripe.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
+        // NaN is skipped: the finite fragment's extrema are served and no unservable marker is set.
+        assertEquals(5.0, poisonedStripe.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9.0, poisonedStripe.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        assertNull(poisonedStripe.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        assertNull(poisonedStripe.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
         // COUNT-family SURVIVES -- an extremum taint does not invalidate a count.
-        assertEquals("null_count survives an extremum taint", 0L, poisonedStripe.get(SourceStatisticsSerializer.columnNullCountKey("v")));
         assertEquals(
-            "value_count survives an extremum taint",
+            "null_count folds across the NaN fragment",
+            0L,
+            poisonedStripe.get(SourceStatisticsSerializer.columnNullCountKey("v"))
+        );
+        assertEquals(
+            "value_count folds across the NaN fragment",
             20L,
             poisonedStripe.get(SourceStatisticsSerializer.columnValueCountKey("v"))
         );
 
-        // Level 2: fold the poisoned stripe with a finite sibling stripe; MIN/MAX must NOT resurrect, COUNT holds.
+        // Level 2: fold the stripe with a finite sibling stripe; the finite extrema still serve and COUNT holds.
         Map<String, Object> finiteStripe = new HashMap<>();
         finiteStripe.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
         finiteStripe.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
@@ -283,29 +283,18 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
 
         Map<String, Object> wholeFile = SourceStatisticsSerializer.mergeStatistics(List.of(poisonedStripe, finiteStripe), false);
         assertNotNull(wholeFile);
-        assertNull(
-            "a finite sibling stripe must not resurrect a NaN-poisoned MIN",
-            wholeFile.get(SourceStatisticsSerializer.columnMinKey("v"))
-        );
-        assertNull(
-            "a finite sibling stripe must not resurrect a NaN-poisoned MAX",
-            wholeFile.get(SourceStatisticsSerializer.columnMaxKey("v"))
-        );
-        assertEquals(Boolean.TRUE, wholeFile.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
-        // COUNT-family folds through both levels: value_count = 20 (poisoned stripe) + 10 (sibling) = 30.
-        assertEquals(
-            "value_count still folds and serves through an extremum taint",
-            30L,
-            wholeFile.get(SourceStatisticsSerializer.columnValueCountKey("v"))
-        );
+        assertEquals(5.0, wholeFile.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9.0, wholeFile.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        assertNull(wholeFile.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        // COUNT-family folds through both levels: value_count = 20 (first stripe) + 10 (sibling) = 30.
+        assertEquals("value_count still folds and serves", 30L, wholeFile.get(SourceStatisticsSerializer.columnValueCountKey("v")));
     }
 
     /**
-     * Per-extremum independence: a fragment whose MIN is NaN (unmergeable) but whose MAX is finite must poison
-     * ONLY the min. The two extrema carry independent servability -- the max still serves. Characterization test
-     * pinning current behavior before the fold is refactored to carry servability as a compact-model bit.
+     * A fragment whose MIN is NaN but whose MAX is finite contributes only its MAX: the NaN min is skipped in
+     * favour of the sibling's finite min.
      */
-    public void testMergeStatisticsPoisonedMinLeavesMaxServable() {
+    public void testMergeStatisticsNaNMinIsSkipped() {
         Map<String, Object> nanMinFragment = new HashMap<>();
         nanMinFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
         nanMinFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
@@ -320,12 +309,11 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
 
         Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(nanMinFragment, finiteFragment), false);
         assertNotNull(merged);
-        // MIN poisoned by the NaN operand -> value cleared, marker set.
-        assertNull("NaN min poisons the min value", merged.get(SourceStatisticsSerializer.columnMinKey("v")));
-        assertEquals(Boolean.TRUE, merged.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
-        // MAX folds independently (8.0, 9.0 both finite) -> serves 9.0, no marker.
-        assertEquals("max is independent of the poisoned min", 9.0, merged.get(SourceStatisticsSerializer.columnMaxKey("v")));
-        assertNull("max is NOT marked unservable", merged.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
+        // The NaN min is skipped in favour of the finite min; neither extremum is marked unservable.
+        assertEquals("NaN min is skipped", 5.0, merged.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertNull(merged.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        assertEquals(9.0, merged.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        assertNull(merged.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
         // COUNT-family unaffected by an extremum taint.
         assertEquals(0L, merged.get(SourceStatisticsSerializer.columnNullCountKey("v")));
     }
@@ -762,6 +750,175 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertSame(stats, SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of(), Set.of()));
     }
 
+    /**
+     * Table-driven pin of {@link SourceStatisticsSerializer#rescaleDeclaredEpochColumns}: physical keys
+     * are rewritten in the declared unit; overlay is the only rekey. INTEGER extrema {@code longValue()};
+     * out-of-range / already-marked / calendar / compound stay poisoned.
+     */
+    public void testRescaleDeclaredEpochColumns() {
+        long rawMin = 1_763_596_800L;
+        long rawMax = 1_763_597_100L;
+        SourceStatisticsSerializer.EpochScale datetimeSeconds = new SourceStatisticsSerializer.EpochScale(DataType.DATETIME, 1_000L);
+        SourceStatisticsSerializer.EpochScale nanosSeconds = new SourceStatisticsSerializer.EpochScale(DataType.DATE_NANOS, 1_000_000_000L);
+
+        // in-range exact, no rename
+        {
+            Map<String, Object> stats = epochStats("start", rawMin, rawMax, 12L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("start", datetimeSeconds),
+                Map.of("start", DataType.LONG)
+            );
+            assertEquals(Set.of("start"), out.unpoisoned());
+            assertEquals(rawMin * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("start")));
+            assertEquals(rawMax * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("start")));
+            assertEquals(12L, out.stats().get(SourceStatisticsSerializer.columnValueCountKey("start")));
+            assertEquals(rawMin, stats.get(SourceStatisticsSerializer.columnMinKey("start"))); // input not mutated
+        }
+
+        // path rename: physical start scaled in place; overlay will rekey to @timestamp
+        {
+            Map<String, Object> stats = epochStats("start", rawMin, rawMax, 12L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of("start", "@timestamp"),
+                Map.of("@timestamp", datetimeSeconds),
+                Map.of("start", DataType.LONG)
+            );
+            assertEquals(Set.of("@timestamp"), out.unpoisoned());
+            assertEquals(rawMin * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("start")));
+            assertEquals(rawMax * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("start")));
+            assertNull("helper does not write logical keys", out.stats().get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+            Map<String, Object> overlaid = SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(
+                out.stats(),
+                Map.of("start", "@timestamp"),
+                Set.of()
+            );
+            assertEquals(rawMin * 1_000L, overlaid.get(SourceStatisticsSerializer.columnMinKey("@timestamp")));
+            assertEquals(rawMax * 1_000L, overlaid.get(SourceStatisticsSerializer.columnMaxKey("@timestamp")));
+            assertNull(overlaid.get(SourceStatisticsSerializer.columnMinKey("start")));
+        }
+
+        // INTEGER extrema
+        {
+            Map<String, Object> stats = new HashMap<>();
+            stats.put(SourceStatisticsSerializer.columnMinKey("ts"), Integer.valueOf(1_704_067_200));
+            stats.put(SourceStatisticsSerializer.columnMaxKey("ts"), Integer.valueOf(1_704_067_299));
+            stats.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 10L);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.INTEGER)
+            );
+            assertEquals(Set.of("ts"), out.unpoisoned());
+            assertEquals(1_704_067_200L * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMinKey("ts")));
+            assertEquals(1_704_067_299L * 1_000L, out.stats().get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        }
+
+        // min below range / max above range / DATE_NANOS pre-epoch / DATETIME overflow → poison
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", Math.ceilDiv(Long.MIN_VALUE, 1_000L) - 1, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, Long.MAX_VALUE / 1_000L + 1, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", -1L, 10L, 1L),
+                Map.of(),
+                Map.of("ts", nanosSeconds),
+                Map.of("ts", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+
+        // existing unservable marker stays; column not unpoisoned
+        {
+            Map<String, Object> stats = epochStats("ts", rawMin, rawMax, 1L);
+            stats.put(SourceStatisticsSerializer.columnMinUnservableKey("ts"), Boolean.TRUE);
+            SourceStatisticsSerializer.EpochRescale out = SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                stats,
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.LONG)
+            );
+            assertTrue(out.unpoisoned().isEmpty());
+            assertSame(stats, out.stats());
+        }
+
+        // absent column / UNSIGNED_LONG / DOUBLE / calendar / compound → never unpoisoned
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("other", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("other", DataType.LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.UNSIGNED_LONG)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            SourceStatisticsSerializer.rescaleDeclaredEpochColumns(
+                epochStats("ts", rawMin, rawMax, 1L),
+                Map.of(),
+                Map.of("ts", datetimeSeconds),
+                Map.of("ts", DataType.DOUBLE)
+            ).unpoisoned().isEmpty()
+        );
+        assertTrue(
+            "calendar formats have no scale",
+            SourceStatisticsSerializer.epochScales(Map.of("ts", "yyyyMMdd"), Map.of("ts", DataType.DATETIME)).isEmpty()
+        );
+        assertTrue(
+            "compound formats have no scale",
+            SourceStatisticsSerializer.epochScales(Map.of("ts", "epoch_second||epoch_millis"), Map.of("ts", DataType.DATETIME)).isEmpty()
+        );
+    }
+
+    public void testRestoreVerifiedExtremaSurvivesFoldPoison() {
+        Map<String, Object> before = epochStats("ts", 1_000L, 2_000L, 12L);
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("ts"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("ts"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 12L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
+        Map<String, Object> afterFold = SourceStatisticsSerializer.alignHarvestWithFold(before, folded);
+        assertEquals(Boolean.TRUE, afterFold.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertNull(afterFold.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        Map<String, Object> restored = SourceStatisticsSerializer.restoreVerifiedExtrema(afterFold, before, Set.of("ts"));
+        assertEquals(1_000L, restored.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals(2_000L, restored.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertNull(restored.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertEquals(12L, restored.get(SourceStatisticsSerializer.columnValueCountKey("ts")));
+    }
+
+    private static Map<String, Object> epochStats(String column, long min, long max, long valueCount) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, valueCount);
+        stats.put(SourceStatisticsSerializer.columnMinKey(column), min);
+        stats.put(SourceStatisticsSerializer.columnMaxKey(column), max);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey(column), valueCount);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey(column), 0L);
+        return stats;
+    }
+
     public void testRewriteColumnAsAllNullCopiesAndStripsLeftoverUnservableMarkers() {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
@@ -838,6 +995,52 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
         assertEquals(2L, out.get(SourceStatisticsSerializer.columnValueCountKey("x")));
         assertEquals(0L, out.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+    }
+
+    public void testAlignHarvestWithFoldKeepsTheExtremumTheFoldStillServes() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), 1.0);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 100.0);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnMaxKey("x"), 100.0);
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("x"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("x"), 4L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> out = SourceStatisticsSerializer.alignHarvestWithFold(harvest, folded);
+
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(100.0, out.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+    }
+
+    public void testAlignHarvestWithFoldKeepsTheMinimumWhenOnlyTheMaximumIsUnservable() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), -100.0);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), -1.0);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnMinKey("x"), -100.0);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("x"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("x"), 4L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> out = SourceStatisticsSerializer.alignHarvestWithFold(harvest, folded);
+
+        assertEquals(-100.0, out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
     }
 
     public void testAlignHarvestWithFoldIsIdentityWhenFoldServedTheColumn() {
@@ -965,7 +1168,7 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     /** The one licensed crossing: under FAIL_FAST the physical record count is the same number for every read. */
     public void testRestrictToReadConfigKeepsOnlyTheLicensedCount() {
         Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
-        stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
 
         Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
 
@@ -974,6 +1177,28 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
             "a column extremum depends on the type the column was read at and never crosses",
             restricted.containsKey(SourceStatisticsSerializer.columnMinKey("id"))
         );
+    }
+
+    /**
+     * The licence is granted under a decode-semantics revision and honoured only under the same one. A producer
+     * from before the value carried a revision wrote {@code Boolean.TRUE}; one from a later revision writes that
+     * revision. Either way the count measured rows this node would not produce, and the rolling upgrade across a
+     * revision bump is exactly when both appear, so the count is refused rather than served under a rule it never
+     * ran. Without this the fingerprint bump separates only the per-column statistics, since the count is the one
+     * measurement licensed to cross a fingerprint mismatch.
+     */
+    public void testRestrictToReadConfigRefusesACountLicensedUnderAnotherRevision() {
+        for (Object foreign : List.of(Boolean.TRUE, ExternalStats.ROW_COUNT_LICENCE + 1)) {
+            Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+            stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, foreign);
+
+            Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+            assertFalse(
+                "a count licensed under [" + foreign + "] must not cross: " + restricted,
+                restricted.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
     }
 
     /** Its own configuration serves everything, or the gate would take every warm read cold. */
@@ -1078,12 +1303,12 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
      */
     public void testMergeStatisticsLicenceRequiresEveryInput() {
         Map<String, Object> first = statsWithReadConfig("aaa", 100L, 7L);
-        first.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        first.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         Map<String, Object> second = statsWithReadConfig("ccc", 200L, 9L);
-        second.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        second.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
 
         Map<String, Object> allLicensed = SourceStatisticsSerializer.mergeStatistics(List.of(first, second));
-        assertEquals(Boolean.TRUE, allLicensed.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        assertEquals(ExternalStats.ROW_COUNT_LICENCE, allLicensed.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
         Map<String, Object> served = SourceStatisticsSerializer.restrictToReadConfig(allLicensed, "foreign");
         assertEquals("the licensed count crosses", 300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertFalse("the extrema do not", served.containsKey(SourceStatisticsSerializer.columnMinKey("id")));

@@ -22,6 +22,12 @@ public final class Messages {
     public static final String DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD =
         "A job configured with an ES|QL datafeed and delayed_data_check_config enabled must set "
             + "summary_count_field_name; the field must be produced as a column by the esql_query";
+    public static final String DATAFEED_ESQL_DELAYED_DATA_MISSING_SUMMARY_COUNT_COLUMN =
+        "The ES|QL query must produce the summary_count_field_name [{0}] as a numeric count column when delayed-data checking is "
+            + "enabled; produce a numeric count column and set summary_count_field_name, or disable delayed-data checking";
+    public static final String DATAFEED_ESQL_DELAYED_DATA_SUMMARY_COUNT_NOT_INTEGER =
+        "The summary_count_field_name column [{0}] has type [{1}]. When delayed-data checking is enabled, this column must have type "
+            + "long or integer. Use COUNT(*) to produce the column, or disable delayed-data checking";
     public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "Cannot delete datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "Cannot update datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS =
@@ -35,12 +41,67 @@ public final class Messages {
     public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
     public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD = "{0} cannot be used in combination with esql_query";
     public static final String DATAFEED_CONFIG_FIELD_REQUIRES_ESQL_QUERY = "{0} can only be set when esql_query is configured";
-    public static final String DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD =
-        "ES|QL datafeeds require source_time_field; set the indexed timestamp field used for request range filters";
-    public static final String DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL =
-        "ES|QL datafeeds require grouping_interval; set a fixed interval equal to the job bucket_span";
-    public static final String DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN =
-        "grouping_interval [{0}] must equal the job bucket_span [{1}]";
+    /** Arg {0} of the ES|QL datafeed messages below: the subject without and with the datafeed id. */
+    public static final String DATAFEED_ESQL_SUBJECT = "ES|QL datafeed";
+    public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
+    public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
+    public static final String DATAFEED_ESQL_TIME_COLUMN_RENAMED =
+        "{0} time column [{1}] is the field [{2}] renamed. The datafeed filters the source on the job time_field, so the time column "
+            + "must keep the name of its source field. Keep the column as [{2}] and set data_description.time_field to [{2}].";
+    public static final String DATAFEED_ESQL_TIME_BUCKET_CALENDAR_INTERVAL =
+        "{0} time column [{1}] is bucketed by the calendar interval [{2}]. A calendar interval has no fixed length. "
+            + "Use a fixed interval such as [1 hour] or [1 day].";
+    public static final String DATAFEED_ESQL_TIME_BUCKET_UNSUPPORTED_INTERVAL =
+        "{0} time column [{1}] is bucketed by the interval [{2}]. ML does not support this interval. "
+            + "Use a fixed interval such as [1 hour] or [1 day].";
+    public static final String DATAFEED_ESQL_TIME_BUCKET_NOT_UTC =
+        "{0} time column [{1}] is bucketed in the time zone [{2}]. ML requires the time zone UTC. "
+            + "Set the time zone of the query to UTC explicitly, for example with SET time_zone=\"UTC\";, "
+            + "because the cluster default time zone may not be UTC.";
+    public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
+        "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "
+            + "project [{1}] in the final ES|QL output.";
+    public static final String DATAFEED_ESQL_TIME_BUCKET_NOT_DIVISOR_OF_BUCKET_SPAN =
+        "{0} time column [{1}] is bucketed by the interval [{2}]. The interval must be a divisor of the job bucket_span [{3}].";
+    public static final String DATAFEED_ESQL_FREQUENCY_NOT_MULTIPLE_OF_TIME_BUCKET =
+        "{0} frequency [{1}] must be a multiple of the interval [{2}] of the time column [{3}].";
+    private static final String DATAFEED_ESQL_EMITTED_TIME_FAILED = "Job [{0}] ES|QL extraction failed for emitted time field [{1}].";
+    private static final String DATAFEED_ESQL_EMITTED_TIME_WINDOW = "Source window is [{2,number,#}, {3,number,#}).";
+    private static final String DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT =
+        "Check grouping alignment so emitted timestamps fall within the queried source range.";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_NULL = DATAFEED_ESQL_EMITTED_TIME_FAILED
+        + " "
+        + "The value is null. "
+        + DATAFEED_ESQL_EMITTED_TIME_WINDOW
+        + " "
+        + "Ensure the ES|QL query returns a non-null scalar timestamp for every row.";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_MULTI_VALUED = DATAFEED_ESQL_EMITTED_TIME_FAILED
+        + " "
+        + "The value is multi-valued. "
+        + DATAFEED_ESQL_EMITTED_TIME_WINDOW
+        + " "
+        + "Ensure the emitted time field contains exactly one timestamp per row.";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_UNSUPPORTED_TYPE = DATAFEED_ESQL_EMITTED_TIME_FAILED
+        + " "
+        + "The value has an unsupported type. "
+        + DATAFEED_ESQL_EMITTED_TIME_WINDOW
+        + " "
+        + "Ensure the emitted time field is a date.";
+    public static final String DATAFEED_ESQL_EMITTED_TIME_BEFORE_WINDOW = DATAFEED_ESQL_EMITTED_TIME_FAILED
+        + " "
+        + "The value [{4}] is before the source window start. "
+        + DATAFEED_ESQL_EMITTED_TIME_WINDOW
+        + " "
+        + DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT;
+    public static final String DATAFEED_ESQL_EMITTED_TIME_AT_OR_AFTER_WINDOW_END = DATAFEED_ESQL_EMITTED_TIME_FAILED
+        + " "
+        + "The value [{4}] is at or after the source window end. "
+        + DATAFEED_ESQL_EMITTED_TIME_WINDOW
+        + " "
+        + DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT;
+    public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";
+    public static final String DATAFEED_ESQL_QUERY_CANCELLED = "ES|QL query was cancelled";
+    public static final String DATAFEED_ESQL_RESPONSE_MISSING_COLUMN = "ESQL query response is missing the required columns: {0}";
     public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =
         "Cannot preview ES|QL datafeed [{0}] while a cluster upgrade is in progress; "
             + "wait for every node to support ES|QL datafeeds before previewing it.";
@@ -56,8 +117,12 @@ public final class Messages {
     public static final String DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS =
         "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
+    public static final String DATAFEED_ESQL_CLUSTERS_UNAVAILABLE =
+        "{0} cannot run because ES|QL skipped the clusters {1} and returned none of the required columns {2}. "
+            + "Make sure that the clusters are connected, that the indices in the query exist on them, "
+            + "and that the query returns the required columns.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
-        "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
+        "Recreate ES|QL datafeed [{0}] to change esql_query, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "
             + "settings: query delay, frequency, maximum empty searches, chunking, and delayed data checks.";
     public static final String DATAFEED_ESQL_UPDATE_ADD_QUERY_NOT_ALLOWED =
@@ -65,6 +130,11 @@ public final class Messages {
     public static final String DATAFEED_ESQL_UPDATE_UPGRADE_IN_PROGRESS =
         "Cannot update datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
+    public static final String DATAFEED_ESQL_INCOMPLETE_CHUNK =
+        "Within [{0}, {1}) at least one ES|QL datafeed chunk reached its row limit. "
+            + "Rows beyond the limit were not retrieved and will not be extracted again. "
+            + "Use a smaller grouping interval in esql_query. "
+            + "Aggregate the data or add a filter to reduce the number of rows per chunk.";
     public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
         "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
             + "depend on it; do not set chunking_config.mode to off";
@@ -204,10 +274,21 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "Datafeed lookback completed";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
+    public static final String JOB_AUDIT_DATAFEED_STOPPED_CONSECUTIVE_EXTRACTION_FAILURES =
+        "Datafeed auto-stopped after {0} consecutive real-time extraction failures. Last error: {1}. "
+            + "Job remains open. Fix the source problem, then start the datafeed. "
+            + "To change the threshold, set max_consecutive_extraction_failures on the datafeed (-1 resets it to the default).";
     public static final String JOB_AUDIT_DATAFEED_MISSING_DATA =
         "Datafeed has missed {0} documents due to ingest latency, latest bucket with missing data is [{1}]."
             + " Consider increasing query_delay and investigate the cause of high latency in your ingestion process.";
     public static final String JOB_AUDIT_DATAFEED_RECOVERED = "Datafeed has recovered data extraction and analysis";
+    public static final String JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_GAP = "Datafeed skipped {0} empty bucket spans of {1} from {2} to {3}."
+        + " The job has no results for this period."
+        + " Detectors such as count and low_count do not report it.";
+    public static final String DATAFEED_SKIP_EMPTY_GAP_FAILED = "Datafeed [{0}] for job [{1}] could not skip {2} empty bucket spans of {3}"
+        + " from {4} to {5}. The cause is: {6}."
+        + " The datafeed does not send more data to the job until the skip succeeds."
+        + " If the datafeed stops, make sure that the job is open. Then start the datafeed again.";
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";

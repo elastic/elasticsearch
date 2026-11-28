@@ -30,9 +30,18 @@ public final class SimdJsonSupport {
     /** Whether native library loading succeeded during class initialization. */
     private static final boolean nativeLoadAttempted;
 
+    /**
+     * Padding, in bytes, that a destination buffer must have past the end of a string value simdjson copies into it.
+     * The copy loop stores a whole vector at a time even when only part of it belongs to the string, so a destination
+     * sized exactly to the result would be overrun on the final chunk. {@code 0} when simdjson is not supported, as
+     * nothing is then copied a vector at a time.
+     */
+    public static final int DESTINATION_PADDING;
+
     static {
         initVectorSupport();
         nativeLoadAttempted = SimdJsonNativeSupport.isLoaded();
+        DESTINATION_PADDING = isSupported() ? SimdJsonVectorSupport.byteSpecies().vectorByteSize() : 0;
     }
 
     private static void initVectorSupport() {

@@ -38,11 +38,16 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Encodes XContentType documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
  * column per leaf field. Numbers upcast aggressively (JSON int/long → {@code long}, float/double →
- * {@code double}); a type conflict or an explicit null promotes the column to
+ * {@code double});
+ * A floating-point value whose spelling is not the canonical {@code Double.toString}
+ * rendering keeps that spelling next to the double, so string consumers such as {@code keyword}
+ * sub-fields index what the client wrote.
+ * A type conflict or an explicit null promotes the column to
  * {@link EscfColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
  * other arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
  *
@@ -87,6 +92,24 @@ public final class EscfEncoder implements SourceBatchEncoder {
      */
     private byte[] scratch;
 
+    /**
+     * Where the canonical rendering of a floating-point value is written, to compare it with the value's token and
+     * find out whether the token has to be stored as the value's spelling. One buffer serves every value of every
+     * document, since a {@code String} per value was most of what a floating-point value allocated. Like
+     * {@link #scratch}, it is owned by this encoder and so has the one thread of the encoder as its only writer.
+     */
+    private final StringBuilder doubleBuffer = new StringBuilder(SourceBatchEncodeHelper.MAX_DOUBLE_RENDERING_LENGTH);
+
+    /**
+     * The full paths of the fields whose array elements are parsed straight to float (see
+     * {@link SourceBatchEncodeHelper#packArray(XContentParser, SourceBatchEncodeHelper.ArrayScratch, boolean)}); empty when the
+     * caller knows none, in which case paths are not tracked at all.
+     */
+    private final Set<String> floatElementPaths;
+
+    /** Element buffers reused by every top-level array this encoder packs on the Jackson path. */
+    private final SourceBatchEncodeHelper.ArrayScratch arrayScratch = new SourceBatchEncodeHelper.ArrayScratch();
+
     public EscfEncoder() {
         this(BytesRefRecycler.NON_RECYCLING_INSTANCE, true);
     }
@@ -100,8 +123,42 @@ public final class EscfEncoder implements SourceBatchEncoder {
      *                  to obtain a baseline for differential comparison
      */
     public EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd) {
+        this(recycler, allowSimd, Set.of());
+    }
+
+    /**
+     * @param floatElementPaths the full paths of the fields whose array elements the row path parses as floats, such as
+     *                          {@code float} {@code dense_vector}s. Their number elements are parsed straight to float, so that
+     *                          the batch carries the value the row path indexes instead of a double the shard would round a
+     *                          second time, and so that each element is parsed once.
+     */
+    public EscfEncoder(Recycler<BytesRef> recycler, Set<String> floatElementPaths) {
+        this(recycler, true, floatElementPaths);
+    }
+
+    /**
+     * @param allowSimd         pass {@code false} to force the Jackson path; used by tests and benchmarks
+     * @param floatElementPaths see {@link #EscfEncoder(Recycler, Set)}
+     */
+    public EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd, Set<String> floatElementPaths) {
         this.backend = new EscfBatchBuilder(recycler);
         this.docParser = allowSimd && isSimdEnabled() ? SimdJsonParserPool.getDefault().forCurrentThread() : null;
+        this.floatElementPaths = Set.copyOf(floatElementPaths);
+    }
+
+    /** The root path of {@link #flattenObject} when array paths are tracked, or {@code null} when no path needs them. */
+    @Nullable
+    private String rootPath() {
+        return floatElementPaths.isEmpty() ? null : "";
+    }
+
+    /** The full path of {@code fieldName} under {@code parentPath}, as a mapping names the field; {@code null} when not tracked. */
+    @Nullable
+    static String childPath(@Nullable String parentPath, String fieldName) {
+        if (parentPath == null) {
+            return null;
+        }
+        return parentPath.isEmpty() ? fieldName : parentPath + "." + fieldName;
     }
 
     /**
@@ -127,7 +184,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                 parser.allowDuplicateKeys(true);
             }
             parser.nextToken(); // START_OBJECT
-            flattenObject(row, parser, parser.nextToken(), sink);
+            flattenObject(row, parser, parser.nextToken(), sink, rootPath());
             XContentParser.Token trailing = parser.nextToken();
             if (trailing != null) {
                 throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + trailing);
@@ -160,7 +217,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             )
         ) {
             parser.nextToken(); // START_OBJECT
-            flattenObject(row, parser, parser.nextToken(), sink);
+            flattenObject(row, parser, parser.nextToken(), sink, rootPath());
         }
         row.finishRow();
     }
@@ -193,15 +250,18 @@ public final class EscfEncoder implements SourceBatchEncoder {
         try {
             EscfRowBuffer row = backend.beginRow();
             boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
-            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
+            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode, floatElementPaths, doubleBuffer);
             docParser.parseDocument(buf, offset, len, handler);
             row.finishRow();
             return true;
         } catch (JsonParsingException e) {
             // The handler may have written part of the row already; the next beginRow() discards it.
+            // It may also have reported leaves to the sink, which the Jackson pass reports again.
+            sink.reset();
             logger.debug(() -> "Direct walk failed, falling back to Jackson: " + e.getMessage());
             return false;
         } catch (RuntimeException e) {
+            sink.reset();
             logger.warn("Unexpected direct walk failure, falling back to Jackson", e);
             return false;
         }
@@ -260,6 +320,9 @@ public final class EscfEncoder implements SourceBatchEncoder {
      */
     @Override
     public void close() {
+        // The buffer is sized for the longest rendering of a double, so nothing rendered into it may have grown it.
+        assert doubleBuffer.capacity() == SourceBatchEncodeHelper.MAX_DOUBLE_RENDERING_LENGTH
+            : "the double buffer grew to [" + doubleBuffer.capacity() + "]";
         try {
             if (docParser != null) {
                 docParser.publishFieldNames();
@@ -279,8 +342,16 @@ public final class EscfEncoder implements SourceBatchEncoder {
         }
     }
 
-    private void flattenObject(EscfRowBuffer row, XContentParser parser, XContentParser.Token firstToken, LeafSink sink)
-        throws IOException {
+    /**
+     * @param path the full path of the object being flattened, {@code ""} for the root; {@code null} when no path is tracked
+     */
+    private void flattenObject(
+        EscfRowBuffer row,
+        XContentParser parser,
+        XContentParser.Token firstToken,
+        LeafSink sink,
+        @Nullable String path
+    ) throws IOException {
         XContentParser.Token token = firstToken;
         while (token != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
@@ -297,7 +368,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                     row.emptyObject(fieldName);
                 } else {
                     row.startObject(fieldName);
-                    flattenObject(row, parser, inner, sink);
+                    flattenObject(row, parser, inner, sink, childPath(path, fieldName));
                     row.endObject();
                 }
                 token = parser.nextToken();
@@ -308,7 +379,8 @@ public final class EscfEncoder implements SourceBatchEncoder {
             final boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
-                    SourceBatchEncodeHelper.PackedArray arr = SourceBatchEncodeHelper.packArray(parser);
+                    final boolean floatElements = path != null && floatElementPaths.contains(childPath(path, fieldName));
+                    SourceBatchEncodeHelper.PackedArray arr = SourceBatchEncodeHelper.packArray(parser, arrayScratch, floatElements);
                     int colIdx = row.arrayField(fieldName, arr.arrayType(), arr.packed());
                     if (firePathSink) {
                         sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));
@@ -335,10 +407,11 @@ public final class EscfEncoder implements SourceBatchEncoder {
                             }
                         }
                         case FLOAT, DOUBLE -> {
+                            String text = parser.text();
                             double val = parser.doubleValue();
                             float fval = (float) val;
                             byte type = ((double) fval == val) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-                            int colIdx = row.doubleField(fieldName, val);
+                            int colIdx = row.doubleField(fieldName, val, SourceBatchEncodeHelper.lexicalForm(text, val, doubleBuffer));
                             if (rawTextMode) {
                                 sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, parser.optimizedText().bytes());
                             } else if (firePathSink) {

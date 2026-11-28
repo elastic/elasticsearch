@@ -45,4 +45,17 @@ ROW s = "1.1.010.1" | EVAL ip = TO_IP(s, {"leading_zeros":"decimal"})
 
 Parse v4 addresses with leading zeros as decimal. Java's `InetAddress.getByName`.
 
+```esql
+ROW i = -1062731519, l = 3232235777
+| EVAL ip_from_int = TO_IP(i), ip_from_long = TO_IP(l)
+```
+
+| i:integer | l:long | ip_from_int:ip | ip_from_long:ip |
+| --- | --- | --- | --- |
+| -1062731519 | 3232235777 | 192.168.1.1 | 192.168.1.1 |
+
+
+Convert IPv4 addresses stored as numbers. The `integer` holds the same address as the `long`,
+stored as a signed 32-bit value.
+
 

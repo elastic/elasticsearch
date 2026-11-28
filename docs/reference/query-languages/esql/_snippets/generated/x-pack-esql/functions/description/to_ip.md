@@ -2,5 +2,5 @@
 
 ## Description
 
-Converts an input string to an IP value.
+Converts an input string or number to an IP value. A number is read as an IPv4 address with the first octet in the most significant byte, so `3232235777` becomes `192.168.1.1`. Negative `integer` and `long` values are read as a signed 32-bit integer, so `-1` becomes `255.255.255.255`. A number outside the range `-2147483648` to `4294967295` returns `null` with a warning.
 

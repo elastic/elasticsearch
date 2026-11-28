@@ -3,5 +3,5 @@
 ### Supported function named parameters
 
 `leading_zeros`
-:   (keyword) What to do with leading 0s in IPv4 addresses.
+:   (keyword) What to do with leading 0s in IPv4 addresses. Applies only to string input. Ignored for numeric input.
 

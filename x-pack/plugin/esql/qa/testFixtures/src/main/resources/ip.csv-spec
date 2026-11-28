@@ -360,6 +360,160 @@ FROM logs
 2023-10-23T13:55:01.546Z | java           | More java stuff                     | null
 ;
 
+convertFromNumericExample
+required_capability: fn_to_ip_from_numeric
+// tag::to_ip_from_numeric[]
+ROW i = -1062731519, l = 3232235777
+| EVAL ip_from_int = TO_IP(i), ip_from_long = TO_IP(l)
+// end::to_ip_from_numeric[]
+;
+
+// tag::to_ip_from_numeric-result[]
+i:integer   | l:long     | ip_from_int:ip | ip_from_long:ip
+-1062731519 | 3232235777 | 192.168.1.1    | 192.168.1.1
+// end::to_ip_from_numeric-result[]
+;
+
+convertFromInteger
+required_capability: fn_to_ip_from_numeric
+ROW src_ip_int = 1062731519
+| EVAL src_ip = TO_IP(src_ip_int), src_ip_cast=src_ip_int::ip
+| WHERE CIDR_MATCH(src_ip, "63.0.0.0/8")
+| KEEP src_ip, src_ip_cast
+;
+
+src_ip:ip     | src_ip_cast:ip
+63.87.254.255 | 63.87.254.255
+;
+
+convertFromIntegerNegative
+required_capability: fn_to_ip_from_numeric
+ROW src_ip_int = -1062731519
+| EVAL src_ip = TO_IP(src_ip_int), src_ip_cast=src_ip_int::ip
+| KEEP src_ip, src_ip_cast
+;
+
+src_ip:ip   | src_ip_cast:ip
+192.168.1.1 | 192.168.1.1
+;
+
+convertFromLong
+required_capability: fn_to_ip_from_numeric
+ROW src_ip_long = to_long(3232235777)
+| EVAL src_ip = TO_IP(src_ip_long), src_ip_cast=src_ip_long::ip
+| KEEP src_ip, src_ip_cast
+;
+
+src_ip:ip   | src_ip_cast:ip
+192.168.1.1 | 192.168.1.1
+;
+
+convertFromLongNegative
+required_capability: fn_to_ip_from_numeric
+ROW src_ip_long = TO_LONG(-1062731519)
+| EVAL src_ip = TO_IP(src_ip_long), src_ip_cast = src_ip_long::ip
+| KEEP src_ip, src_ip_cast
+;
+
+src_ip:ip   | src_ip_cast:ip
+192.168.1.1 | 192.168.1.1
+;
+
+convertFromLongOutOfRange
+required_capability: fn_to_ip_from_numeric
+ROW src_ip_long_negative = -3232235777, src_ip_long_out_of_range=4294967395
+| EVAL src_ip_negative = TO_IP(src_ip_long_negative), src_ip_out_of_range=TO_IP(src_ip_long_out_of_range)
+| KEEP src_ip_negative, src_ip_out_of_range
+;
+warning:Line 2:26: evaluation of [TO_IP(src_ip_long_negative)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:26: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [-3232235777] out of IPv4 range [-2147483648, 4294967295]
+warning:Line 2:75: evaluation of [TO_IP(src_ip_long_out_of_range)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:75: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [4294967395] out of IPv4 range [-2147483648, 4294967295]
+
+src_ip_negative:ip   | src_ip_out_of_range:ip
+null                 | null
+;
+
+convertFromUnsignedLong
+required_capability: fn_to_ip_from_numeric
+ROW src_ip_ul = to_unsigned_long(3232235777)
+| EVAL src_ip = TO_IP(src_ip_ul), src_ip_cast=src_ip_ul::ip
+| KEEP src_ip, src_ip_cast
+;
+
+src_ip:ip   | src_ip_cast:ip
+192.168.1.1 | 192.168.1.1
+;
+
+convertFromUnsignedLongOutOfRange
+required_capability: fn_to_ip_from_numeric
+ROW src_ip_ul_out_of_range=to_unsigned_long(4294967395)
+| EVAL src_ip_out_of_range=TO_IP(src_ip_ul_out_of_range)
+| KEEP src_ip_out_of_range
+;
+warning:Line 2:28: evaluation of [TO_IP(src_ip_ul_out_of_range)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:28: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [4294967395] out of IPv4 range [0, 4294967295]
+
+src_ip_out_of_range:ip
+null
+;
+
+convertFromIntegerIgnoresLeadingZeros
+required_capability: fn_to_ip_from_numeric
+ROW x = -1062731519
+| EVAL a = TO_IP(x, {"leading_zeros":"octal"}), b = TO_IP(x)
+;
+
+x:integer   | a:ip        | b:ip
+-1062731519 | 192.168.1.1 | 192.168.1.1
+;
+
+convertFromUnionIntegerShort
+required_capability: fn_to_ip_from_numeric
+required_capability: union_types
+FROM apps, apps_short
+| EVAL ip = TO_IP(id, {"leading_zeros":"octal"})
+| KEEP ip
+| SORT ip
+| LIMIT 3
+;
+
+ip:ip
+0.0.0.1
+0.0.0.1
+0.0.0.2
+;
+
+convertFromIndexedNumeric
+required_capability: fn_to_ip_from_numeric
+FROM ip_numeric
+| EVAL from_int = TO_IP(ip_as_int), from_long = TO_IP(ip_as_long), from_ul = TO_IP(ip_as_ul)
+| KEEP from_int, from_long, from_ul
+| SORT from_long
+;
+
+from_int:ip     | from_long:ip    | from_ul:ip
+0.0.0.0         | 0.0.0.0         | 0.0.0.0
+10.0.0.1        | 10.0.0.1        | 10.0.0.1
+192.168.1.1     | 192.168.1.1     | 192.168.1.1
+192.168.200.10  | 192.168.200.10  | 192.168.200.10
+255.255.255.255 | 255.255.255.255 | 255.255.255.255
+;
+
+cidrMatchOnIndexedNumeric
+required_capability: fn_to_ip_from_numeric
+FROM ip_numeric
+| EVAL ip = TO_IP(ip_as_long)
+| WHERE CIDR_MATCH(ip, "192.168.0.0/16")
+| KEEP ip
+| SORT ip
+;
+
+ip:ip
+192.168.1.1
+192.168.200.10
+;
+
 toIpInAgg
 ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
 ;

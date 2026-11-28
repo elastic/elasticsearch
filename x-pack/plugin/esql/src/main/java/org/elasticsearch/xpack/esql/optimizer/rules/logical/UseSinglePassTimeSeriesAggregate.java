@@ -64,7 +64,7 @@ public final class UseSinglePassTimeSeriesAggregate extends OptimizerRules.Param
         boolean requiredSorted = false;
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
-                if (af.hasWindow() && reducePerIndex == false) {
+                if (af.hasWindow()) {
                     return false;
                 }
                 requiredSorted |= (af instanceof TimeSeriesAggregateFunction ts && ts.requiredTimeSeriesSource());

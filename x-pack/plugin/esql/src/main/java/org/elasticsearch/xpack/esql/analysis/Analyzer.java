@@ -95,6 +95,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -247,6 +249,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
@@ -972,6 +975,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
+            if (plan.anyMatch(ExternalRelation.class::isInstance)) {
+                refuseNestedAnyOverDatasets(plan);
+                // A dataset's scope is stripped from every query, whether or not it expands: the scan reads the expanded
+                // collection itself, and a scope attribute cannot be serialized to the data nodes
+                plan = plan.transformUp(ExternalRelation.class, HideNestedScopeFields::withoutNestedScope);
+            }
             if (plan.anyMatch(NestedExpand.class::isInstance) == false && plan.anyMatch(NestedPredicate::usedBy) == false) {
                 return plan;
             }
@@ -983,6 +992,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static boolean isNestedScope(Attribute attribute) {
             return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
+        }
+
+        /**
+         * Datasets support only {@code NESTED_EXPAND}. A dataset builds its nested scope when the plan expands, and
+         * {@code NESTED_ANY} elsewhere in that plan could bind to it, then fail at run time for want of parent documents, so it
+         * is refused here, where the dataset's scope is removed.
+         */
+        private static void refuseNestedAnyOverDatasets(LogicalPlan plan) {
+            List<Failure> failures = new ArrayList<>();
+            plan.forEachDown(node -> {
+                Set<String> datasetPaths = null;
+                for (Expression expression : node.expressions()) {
+                    List<NestedPredicate> predicates = new ArrayList<>();
+                    expression.forEachDown(NestedPredicate.class, predicates::add);
+                    for (NestedPredicate predicate : predicates) {
+                        if (datasetPaths == null) {
+                            datasetPaths = datasetScopePaths(node);
+                        }
+                        if (datasetPaths.contains(predicate.path())) {
+                            failures.add(Failure.fail(predicate, "NESTED_ANY cannot read [" + predicate.path() + "] from a dataset"));
+                        }
+                    }
+                }
+            });
+            if (failures.isEmpty() == false) {
+                throw new VerificationException(failures);
+            }
+        }
+
+        /** The nested collections of the datasets {@code node} reads, which is where a predicate on {@code node} binds. */
+        private static Set<String> datasetScopePaths(LogicalPlan node) {
+            Set<String> paths = new HashSet<>();
+            node.forEachDown(ExternalRelation.class, relation -> {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute instanceof FieldAttribute field
+                        && field.field() instanceof NestedScopeField scope
+                        && scope.kind() == NestedScopeField.Kind.COLLECTION) {
+                        paths.add(scope.path());
+                    }
+                }
+            });
+            return paths;
+        }
+
+        /** {@code relation} without the private nested schema, which only the analysis of {@code NESTED_EXPAND} reads. */
+        private static ExternalRelation withoutNestedScope(ExternalRelation relation) {
+            List<Attribute> visible = relation.output().stream().filter(a -> isNestedScope(a) == false).toList();
+            return visible.size() == relation.output().size() ? relation : relation.withAttributes(visible);
         }
     }
 
@@ -1032,10 +1089,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * and a warning is deferred; the engine-generated value is used. Unknown names propagate as-is
      * for the verifier to flag with the existing "Unresolved metadata pattern" diagnostic.
      */
-    private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
+    private static class ResolveExternalRelations extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
+        /**
+         * A dataset shows its nested scope only to a plan that names {@code NESTED_EXPAND}, the one nested operator datasets
+         * support, decided by {@link FieldNameUtils#expandsNestedCollection}, the test pre-analysis applies before it asks
+         * for an index's nested mapping. Once the plan names one anywhere, even over an index in another branch, every
+         * dataset in it gets a scope for every one of its nested columns, not only for the paths expanded. {@code NESTED_ANY}
+         * over a dataset finds no scope in a plan that does not expand, and is refused by {@link HideNestedScopeFields} in
+         * one that does.
+         * <p>
+         * An {@link UnresolvedExternalRelation} is never resolved or analyzed, so each is resolved here, or kept as it is to
+         * report why it could not be.
+         */
         @Override
-        protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            boolean expands = FieldNameUtils.expandsNestedCollection(plan);
+            return plan.transformUp(UnresolvedExternalRelation.class, relation -> resolve(relation, context, expands));
+        }
+
+        private LogicalPlan resolve(UnresolvedExternalRelation plan, AnalyzerContext context, boolean expands) {
             // Extract the table path from the expression
             String tablePath = extractTablePath(plan.tablePath());
             if (tablePath == null) {
@@ -1054,11 +1127,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var metadata = resolvedSource.metadata();
             MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), context);
+            NestedColumns nested = metadata.nestedColumns();
             ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
                 metadata,
-                bindResult.schema(),
+                withCollectionScope(
+                    withoutNestedColumns(
+                        bindResult.schema(),
+                        nested,
+                        SourceStatisticsSerializer.partitionColumnNames(metadata.sourceMetadata())
+                    ),
+                    expands ? nested : NestedColumns.NONE,
+                    context.minimumVersion().supports(NestedExpand.DATASET_VERSION),
+                    plan.source()
+                ),
                 resolvedSource.fileList(),
                 resolvedSource.schemaMap(),
                 plan.datasetName(),
@@ -1066,6 +1149,67 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedSource.declaredReadSpec()
             );
             return relation;
+        }
+
+        /**
+         * A dataset's nested column is not one of its columns, as an index's {@code nested} field is not: it is reached only
+         * through {@code NESTED_EXPAND}, which finds it in the nested scope.
+         */
+        private static List<Attribute> withoutNestedColumns(List<Attribute> schema, NestedColumns nested, Set<String> partitionColumns) {
+            if (nested.isEmpty()) {
+                return schema;
+            }
+            List<Attribute> visible = schema.stream()
+                .filter(attribute -> isNestedColumn(attribute, nested, partitionColumns) == false)
+                .toList();
+            // As FROM over an index whose every field is hidden: a relation always has at least one column
+            return visible.isEmpty() ? NO_FIELDS : visible;
+        }
+
+        /**
+         * Whether {@code attribute} is the dataset's own column for a nested column: the unsupported column a list of
+         * structures reads as, or, where the files disagree, whatever type the files' columns merged to. A nested column whose
+         * files disagree, or that the reader cannot read, is hidden as an index's is: a {@code NESTED_EXPAND} of it is told
+         * why through its scope's conflict. A partition column the path shadows the nested column with is a column of its own
+         * whatever the files say, as is a column of the same name the files agree is not unsupported.
+         */
+        private static boolean isNestedColumn(Attribute attribute, NestedColumns nested, Set<String> partitionColumns) {
+            NestedColumns.NestedColumn column = nested.get(attribute.name());
+            return column != null
+                && partitionColumns.contains(attribute.name()) == false
+                && (attribute.dataType() == DataType.UNSUPPORTED || column.conflict() != null);
+        }
+
+        /**
+         * Adds a dataset's nested columns, as its schema describes them, to its output as the private nested schema an index has
+         * for its {@code nested} fields, so {@code NESTED_EXPAND} binds to them as it binds to an index's.
+         * The attributes are synthetic, and {@link HideNestedScopeFields} removes them before the plan runs.
+         * <p>
+         * Why a collection cannot be expanded is its scope's conflict, which {@code resolveNestedExpand} raises at the
+         * {@code NESTED_EXPAND} that binds it, as it raises an index's: files that disagree, a shape the reader cannot read,
+         * or a node that cannot read a dataset's collections.
+         */
+        private static List<Attribute> withCollectionScope(
+            List<Attribute> schema,
+            NestedColumns nested,
+            boolean allNodesReadCollections,
+            Source source
+        ) {
+            if (nested.isEmpty()) {
+                return schema;
+            }
+            List<NestedScopeField.Collection> collections = new ArrayList<>();
+            for (NestedColumns.NestedColumn collection : nested.columns().values()) {
+                String conflict = allNodesReadCollections == false ? "NESTED_EXPAND over a dataset requires all nodes to support it"
+                    : collection.conflict() != null ? collection.conflict()
+                    : collection.unreadable();
+                collections.add(new NestedScopeField.Collection(collection.path(), collection.leaves(), conflict));
+            }
+            List<Attribute> scope = new ArrayList<>();
+            mappingAsAttributes(scope, source, null, Map.of(NestedScopeField.NAMESPACE, NestedScopeField.namespace(collections)));
+            List<Attribute> withScope = new ArrayList<>(schema);
+            withScope.addAll(scope);
+            return withScope;
         }
 
         /**

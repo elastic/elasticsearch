@@ -747,6 +747,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .pushdownSupport(pushdownSupport)
                     .onClose(onClose)
                     .deferredExtraction(deferredExtraction)
+                    // NESTED_EXPAND over the dataset, read at element grain by the format reader; refused unless the reader supports it
+                    .expandRead(context.expandRead(), context.expandParentLimit())
                     // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
                     .renames(context.declaredReadSpec().renames())
                     // How a file's bytes get interpreted, bound to this query's declaration and applied per file by

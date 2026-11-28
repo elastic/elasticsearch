@@ -280,6 +280,16 @@ public final class ColumnarRowDropHelper {
     }
 
     /**
+     * The positions of the current batch that {@link #filterBlocks} keeps, ascending, or {@code null} when it keeps
+     * them all. A layer that reads something positioned by these rows beside the blocks, such as a collection's
+     * elements, narrows it to the same rows with this.
+     */
+    @Nullable
+    public int[] survivorPositions() {
+        return failedCount == 0 ? null : buildSurvivorPositions(batchSize - failedCount);
+    }
+
+    /**
      * Builds the sorted survivor-position array: indices in [0, {@link #batchSize}) where
      * {@code failed[i]} is false, in ascending order.
      */

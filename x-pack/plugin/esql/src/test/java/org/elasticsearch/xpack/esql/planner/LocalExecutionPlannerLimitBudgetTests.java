@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Split;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExpandingExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
@@ -146,6 +147,26 @@ public class LocalExecutionPlannerLimitBudgetTests extends ESTestCase {
         AggregateExec stats = new AggregateExec(Source.EMPTY, source, List.of(), List.of(), AggregatorMode.SINGLE, List.of(), null);
         assertFalse(canObserveExternalLimit(stats));
         assertFalse(canObserveExternalLimit(new ProjectExec(Source.EMPTY, stats, List.of(value))));
+    }
+
+    /** A limit over an expanding scan is observed too: the limiter is the LIMIT's own, so it counts the element rows. */
+    public void testCanObserveExternalLimitOverAnExpandingScan() {
+        FieldAttribute value = attr("value");
+        ExternalSourceExec source = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "file",
+            List.of(value),
+            Map.of(),
+            Map.of(),
+            null
+        );
+        ExpandingExternalSourceExec expanding = source.withExpansion(
+            List.of(attr("items.qty")),
+            new ExpandingExternalSourceExec.Expansion("items", List.of("qty"), FormatReader.NO_LIMIT)
+        );
+        assertTrue(canObserveExternalLimit(expanding));
+        assertTrue(canObserveExternalLimit(new FilterExec(Source.EMPTY, expanding, Literal.TRUE)));
     }
 
     public void testObserveExternalLimitWiresConnectorFactory() {

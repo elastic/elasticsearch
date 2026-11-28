@@ -121,6 +121,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExpandRead;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -157,6 +158,7 @@ import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExpandingExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
@@ -431,6 +433,70 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(captured.get(), notNullValue());
         assertThat(captured.get().sliceQueue(), notNullValue());
         assertThat(captured.get().sliceQueue().totalSlices(), equalTo(1));
+    }
+
+    /**
+     * An expanding scan is planned by the same method and operator factory as the scan it was made from: the factory reads
+     * the scan's own columns and is handed the read of the elements and the parent limit, which the plain scan does not
+     * get (positive control).
+     */
+    public void testExpandingScanIsPlannedLikeTheScanWithItsRead() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        // Captures the context ahead of the registry's own dispatch, which hands an expand read to the file factory only
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of(), Runnable::run) {
+            @Override
+            public SourceOperator.SourceOperatorFactory factory(SourceOperatorContext context) {
+                return provider.create(context);
+            }
+        };
+        FieldAttribute id = new FieldAttribute(
+            Source.EMPTY,
+            "id",
+            new EsField("id", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        FieldAttribute qty = new FieldAttribute(
+            Source.EMPTY,
+            "items.qty",
+            new EsField("items.qty", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ExternalSourceExec scan = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/orders.parquet",
+            "file",
+            List.of(id),
+            Map.of(),
+            Map.of(),
+            10
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            scan,
+            EmptyIndexedByShardId.instance(),
+            false
+        );
+        assertThat(captured.get().expandRead(), nullValue());
+
+        ExpandingExternalSourceExec expanding = scan.withExpansion(
+            List.of(qty),
+            new ExpandingExternalSourceExec.Expansion("items", List.of("qty"), 4)
+        );
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            expanding,
+            EmptyIndexedByShardId.instance(),
+            false
+        );
+        SourceOperatorContext context = captured.get();
+        assertThat(context.expandRead(), equalTo(new ExpandRead("items", List.of(new ExpandRead.Leaf("qty", DataType.LONG)))));
+        assertThat(context.expandParentLimit(), equalTo(4));
+        assertThat(context.attributes(), equalTo(List.<Attribute>of(id)));
+        assertThat(context.projectedColumns(), equalTo(List.of("id")));
     }
 
     /**

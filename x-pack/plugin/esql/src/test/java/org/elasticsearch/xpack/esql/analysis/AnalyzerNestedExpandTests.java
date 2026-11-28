@@ -66,6 +66,8 @@ import static org.hamcrest.Matchers.startsWith;
  *     <li>{@code ne_types}: two indices that disagree on the type of {@code v} and {@code items.v} ({@code integer} and
  *     {@code keyword}), and of {@code n} and {@code items.n} ({@code short} and {@code integer}); {@code items.small} is a
  *     {@code short} in both.</li>
+ *     <li>{@code ne_unsupported}: {@code id} and nested {@code items} with {@code qty} and {@code span}, an {@code ip_range},
+ *     which is unsupported.</li>
  * </ul>
  */
 public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
@@ -319,6 +321,14 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         nestedAnalyzer().error("FROM ne | NESTED_EXPAND items.parts", equalTo("1:25: NESTED_EXPAND supports one nesting level"));
     }
 
+    /** The expansion of a collection takes the private schema of every collection inside it, so none can be expanded after. */
+    public void testInnerCollectionAfterItsOuter() {
+        nestedAnalyzer().error(
+            "FROM ne | NESTED_EXPAND items | NESTED_EXPAND items.parts",
+            containsString("1:47: Unknown column [items.parts]")
+        );
+    }
+
     /** A second collection keeps its private schema after the first expands, so it can be expanded in turn. */
     public void testSiblingCollection() {
         LogicalPlan plan = nestedAnalyzer().query("FROM ne | NESTED_EXPAND items | NESTED_EXPAND events");
@@ -445,6 +455,20 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
                 resolution("ne_types", typesIndex("ne_types_a", "integer", "short"), typesIndex("ne_types_b", "keyword", "integer"))
             )
             .addIndex("ne_ts", resolution("ne_ts", timeSeriesIndex()))
+            .addIndex(
+                "ne_unsupported",
+                resolution(
+                    "ne_unsupported",
+                    index(
+                        "ne_unsupported",
+                        IndexMode.STANDARD,
+                        field("id", "keyword"),
+                        field("items", "nested"),
+                        field("items.qty", "long"),
+                        field("items.span", "ip_range")
+                    )
+                )
+            )
             .addLookupIndex(
                 "ne_lookup",
                 resolution(

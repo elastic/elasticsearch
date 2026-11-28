@@ -29,8 +29,9 @@ import java.util.function.Consumer;
  *                         means "the optimizer pruned every column" (e.g. {@code COUNT(*)}); format
  *                         readers may take a fast path that skips type conversion and emits row-
  *                         count-only {@link org.elasticsearch.compute.data.Page Page}s.
- * @param batchSize        target number of rows per page
- * @param rowLimit         maximum total rows to return ({@link FormatReader#NO_LIMIT} for unlimited)
+ * @param batchSize        target number of rows per page; for an {@code expandRead}, of expanded rows
+ * @param rowLimit         maximum total rows to return ({@link FormatReader#NO_LIMIT} for unlimited); for an
+ *                         {@code expandRead}, the maximum file rows (parents) to expand, not the expanded rows
  * @param errorPolicy      how to handle malformed rows
  * @param firstSplit       whether this is the first split for the file (consistent with {@code lastSplit};
  *                         format-agnostic replacement for the legacy {@code skipFirstLine} parameter)
@@ -113,6 +114,13 @@ import java.util.function.Consumer;
  *                         {@code max_error_ratio} budget is enforced against the combined total rather than
  *                         independently per layer. {@code null} for text-based readers (CSV, NDJSON) and
  *                         for non-{@code SKIP_ROW} policies.
+ * @param expandRead       the collection to read at element grain, or {@code null} to read one row per file row. See
+ *                         {@link ExpandRead} for the page layout. With one, {@code rowLimit} counts the file's rows (the
+ *                         parents) before they are expanded; the read harvests no statistics, since its rows are not
+ *                         the file's ({@code statsColumnScope} becomes {@link StripeColumnScope#NONE} and
+ *                         {@code statsStripeSink} {@code null}); and a projection of
+ *                         {@link ColumnExtractor#ROW_POSITION_COLUMN} is refused, since a row position addresses a file
+ *                         row and an expanded row is not one.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -135,7 +143,8 @@ public record FormatReadContext(
     @Nullable List<String> fileHeaderColumns,
     @Nullable CircuitBreaker breaker,
     @Nullable SharedErrorBudget sharedErrorBudget,
-    @Nullable FormatReadCounters readCounters
+    @Nullable FormatReadCounters readCounters,
+    @Nullable ExpandRead expandRead
 ) {
 
     /**
@@ -156,12 +165,19 @@ public record FormatReadContext(
         if (statsMaxExtremumBytes < 0) {
             statsMaxExtremumBytes = DEFAULT_MAX_EXTREMUM_BYTES;
         }
+        if (expandRead != null) {
+            requireNoRowPositions(expandRead, projectedColumns);
+            // The rows of an expanding read are elements, so any statistics or row count harvested from them would be
+            // published as the file's and be wrong
+            statsColumnScope = StripeColumnScope.NONE;
+            statsStripeSink = null;
+        }
     }
 
     /**
      * Creates a minimal context for the common non-split case. Leaves {@code errorPolicy} as
      * {@code null} so the reader falls back to its own default — typically the policy resolved
-     * from the user's {@code WITH} options via {@link FormatReader#withConfig}, or the
+     * from the dataset's options via {@link FormatReader#withConfig}, or the
      * {@link FormatReader#defaultErrorPolicy()} when no user options are set. Callers that need
      * to override the policy should use {@link #builder()} or {@link #withErrorPolicy(ErrorPolicy)}.
      */
@@ -194,7 +210,8 @@ public record FormatReadContext(
             fileHeaderColumns,
             breaker,
             sharedErrorBudget,
-            readCounters
+            readCounters,
+            expandRead
         );
     }
 
@@ -223,7 +240,8 @@ public record FormatReadContext(
             fileHeaderColumns,
             breaker,
             sharedErrorBudget,
-            readCounters
+            readCounters,
+            expandRead
         );
     }
 
@@ -252,8 +270,21 @@ public record FormatReadContext(
             fileHeaderColumns,
             breaker,
             sharedErrorBudget,
-            readCounters
+            readCounters,
+            expandRead
         );
+    }
+
+    /**
+     * Refuses a row-position projection on an expanding read: deferred extraction binds a row position back to a file
+     * row, and the rows of an expanding read are elements, several to a file row.
+     */
+    static void requireNoRowPositions(ExpandRead expandRead, @Nullable List<String> projectedColumns) {
+        if (projectedColumns != null && projectedColumns.contains(ColumnExtractor.ROW_POSITION_COLUMN)) {
+            throw new IllegalArgumentException(
+                "a read that expands [" + expandRead.path() + "] cannot carry [" + ColumnExtractor.ROW_POSITION_COLUMN + "]"
+            );
+        }
     }
 
     public static Builder builder() {
@@ -265,7 +296,7 @@ public record FormatReadContext(
         private int batchSize;
         private int rowLimit = FormatReader.NO_LIMIT;
         // Defaults to null so the reader falls back to its own resolved policy
-        // (typically the WITH-options policy from withConfig). Callers that want to override
+        // (typically the dataset-options policy from withConfig). Callers that want to override
         // explicitly should call errorPolicy(...).
         private ErrorPolicy errorPolicy = null;
         private boolean firstSplit = true;
@@ -292,6 +323,8 @@ public record FormatReadContext(
         private SharedErrorBudget sharedErrorBudget = null;
         @Nullable
         private FormatReadCounters readCounters = null;
+        @Nullable
+        private ExpandRead expandRead = null;
 
         private Builder() {}
 
@@ -431,6 +464,12 @@ public record FormatReadContext(
             return this;
         }
 
+        /** The collection to read at element grain; see {@link FormatReadContext#expandRead()}. */
+        public Builder expandRead(@Nullable ExpandRead expandRead) {
+            this.expandRead = expandRead;
+            return this;
+        }
+
         public Builder readCounters(@Nullable FormatReadCounters readCounters) {
             this.readCounters = readCounters;
             return this;
@@ -461,7 +500,8 @@ public record FormatReadContext(
                 fileHeaderColumns,
                 breaker,
                 sharedErrorBudget,
-                readCounters
+                readCounters,
+                expandRead
             );
         }
     }

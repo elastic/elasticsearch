@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -1153,6 +1154,107 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("omitted schema_resolution must match first_file_wins width", 2, omittedNames.size());
         assertEquals("omitted schema_resolution must match first_file_wins columns", List.of("emp_no", "name"), omittedNames);
         assertFalse("omitted config must drop later-file extra columns", omittedNames.contains("extra"));
+    }
+
+    /**
+     * A multi-file dataset merges its files' nested columns by its schema resolution: {@code strict} refuses files whose
+     * list of structures holds different fields, {@code union_by_name} unites the fields.
+     */
+    public void testNestedColumnsMergedBySchemaResolution() throws Exception {
+        String f1 = "s3://bucket/data/f1.parquet";
+        String f2 = "s3://bucket/data/f2.parquet";
+        String glob = "s3://bucket/data/*.parquet";
+        List<Attribute> schema = List.of(attr("id", DataType.LONG), attr("items", DataType.UNSUPPORTED));
+        Map<String, List<Attribute>> schemasByPath = Map.of(f1, schema, f2, schema);
+        NestedColumns qty = NestedColumns.of(List.of(new NestedColumns.NestedColumn("items", Map.of("qty", DataType.LONG), null)));
+        NestedColumns qtyAndSku = NestedColumns.of(
+            List.of(new NestedColumns.NestedColumn("items", Map.of("qty", DataType.LONG, "sku", DataType.KEYWORD), null))
+        );
+        Map<String, NestedColumns> nestedByPath = Map.of(f1, qty, f2, qtyAndSku);
+        FormatReader reader = new StubFormatReaderWithStats(schemasByPath, Map.of()) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                String path = object.path().toString();
+                Map<String, Object> described = nestedByPath.get(path).writeTo(null);
+                return new SimpleSourceMetadata(schemasByPath.get(path), "parquet", path, null, null, described, null);
+            }
+        };
+        List<StorageEntry> listing = List.of(entry(f1, 10), entry(f2, 20));
+
+        ExternalSourceResolution union = resolveMultiFileWithReader(
+            glob,
+            reader,
+            schemasByPath,
+            listing,
+            configFor(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+        NestedColumns unioned = NestedColumns.read(soleResolvedSource(union, glob).metadata().sourceMetadata());
+        assertEquals(qtyAndSku, unioned);
+
+        Map<String, Object> strict = configFor(FormatReader.SchemaResolution.STRICT);
+        Exception e = expectThrows(Exception.class, () -> resolveMultiFileWithReader(glob, reader, schemasByPath, listing, strict));
+        StringBuilder causes = new StringBuilder();
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            causes.append(t.getMessage()).append('\n');
+        }
+        assertThat(causes.toString(), containsString("nested field [items.sku] is [keyword] in [f2.parquet], [absent] in [f1.parquet]"));
+    }
+
+    /**
+     * Shadowing a physical column with a partition key rebuilds the reconciliation's result; the rebuilt result keeps the
+     * merged nested columns, so a {@code union_by_name} dataset's list of structures is widened and united across its
+     * files rather than described as its first file describes it.
+     */
+    public void testNestedColumnsSurvivePartitionShadowing() throws Exception {
+        String f1 = "s3://bucket/data/year=2024/f1.parquet";
+        String f2 = "s3://bucket/data/year=2023/f2.parquet";
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("id", DataType.LONG), attr("items", DataType.UNSUPPORTED));
+        Map<String, List<Attribute>> schemasByPath = Map.of(f1, schema, f2, schema);
+        // Each file holds a field the other lacks, so whichever file is the anchor, its own description is not the merged one
+        Map<String, NestedColumns> nestedByPath = Map.of(
+            f1,
+            NestedColumns.of(
+                List.of(new NestedColumns.NestedColumn("items", Map.of("qty", DataType.INTEGER, "sku", DataType.KEYWORD), null))
+            ),
+            f2,
+            NestedColumns.of(List.of(new NestedColumns.NestedColumn("items", Map.of("qty", DataType.LONG, "note", DataType.KEYWORD), null)))
+        );
+        FormatReader reader = new StubFormatReaderWithStats(schemasByPath, Map.of()) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                String path = object.path().toString();
+                Map<String, Object> described = nestedByPath.get(path).writeTo(null);
+                return new SimpleSourceMetadata(schemasByPath.get(path), "parquet", path, null, null, described, null);
+            }
+        };
+        List<StorageEntry> listing = List.of(entry(f1, 10), entry(f2, 20));
+
+        ExternalSourceResolution union = resolveMultiFileWithReader(
+            glob,
+            reader,
+            schemasByPath,
+            listing,
+            configFor(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(union, glob);
+        assertEquals(
+            "the physical [year] is shadowed by the partition key",
+            List.of("id:long", "items:unsupported", "year:integer"),
+            resolved.metadata().schema().stream().map(a -> a.name() + ":" + a.dataType().typeName()).toList()
+        );
+        assertEquals(
+            NestedColumns.of(
+                List.of(
+                    new NestedColumns.NestedColumn(
+                        "items",
+                        Map.of("note", DataType.KEYWORD, "qty", DataType.LONG, "sku", DataType.KEYWORD),
+                        null
+                    )
+                )
+            ),
+            NestedColumns.read(resolved.metadata().sourceMetadata())
+        );
     }
 
     /**
@@ -8369,11 +8471,27 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<StorageEntry> listing,
         Map<String, Object> config
     ) throws Exception {
+        return resolveMultiFileWithReader(
+            globPattern,
+            new StubFormatReaderWithStats(schemasByPath, rowCountsByPath),
+            schemasByPath,
+            listing,
+            config
+        );
+    }
+
+    /** As {@link #resolveMultiFileWithStats}, with the files' metadata read by {@code formatReader}. */
+    private ExternalSourceResolution resolveMultiFileWithReader(
+        String globPattern,
+        FormatReader formatReader,
+        Map<String, List<Attribute>> schemasByPath,
+        List<StorageEntry> listing,
+        Map<String, Object> config
+    ) throws Exception {
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
         StoragePath sp = StoragePath.of(globPattern);
         listingsByPrefix.put(sp.patternPrefix().toString(), listing);
 
-        StubFormatReaderWithStats formatReader = new StubFormatReaderWithStats(schemasByPath, rowCountsByPath);
         StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
 
         DataSourcePlugin plugin = new DataSourcePlugin() {

@@ -1,0 +1,1410 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.apache.parquet.conf.PlainParquetConfiguration;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.MessageTypeParser;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.Before;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.nullValue;
+
+/**
+ * {@code NESTED_EXPAND} over Parquet collections, each a {@code LIST} of structures,
+ * running the queries of the collection representation specification over files written here, each against the table
+ * the specification prints beneath it.
+ */
+public class ExternalParquetCollectionsIT extends AbstractExternalDataSourceIT {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(ParquetDataSourcePlugin.class);
+    }
+
+    @Before
+    public void requireNestedExpandOverDatasets() {
+        assumeTrue("NESTED_EXPAND over datasets is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled());
+    }
+
+    @Override
+    protected QueryPragmas getPragmas() {
+        return QueryPragmas.EMPTY;
+    }
+
+    private static final MessageType DNS = MessageTypeParser.parseMessageType("""
+        message dns {
+          required binary question (UTF8);
+          optional group answers (LIST) {
+            repeated group list {
+              optional group element {
+                optional binary name (UTF8);
+                optional binary type (UTF8);
+                optional int64 ttl;
+                optional binary data (UTF8);
+              }
+            }
+          }
+        }
+        """);
+
+    private static final MessageType EMAIL = MessageTypeParser.parseMessageType("""
+        message email {
+          optional group email {
+            optional binary subject (UTF8);
+          }
+          optional group attachments (LIST) {
+            repeated group list {
+              optional group element {
+                optional group file {
+                  optional binary name (UTF8);
+                  optional int64 size;
+                  optional binary mime_type (UTF8);
+                }
+              }
+            }
+          }
+        }
+        """);
+
+    public void testDnsAnswers() throws Exception {
+        String dns = registerDataset("dns", StoragePath.fileUri(write("dns", DNS, List.of(g -> {
+            g.add("question", "www.example.com");
+            Group answers = g.addGroup("answers");
+            answer(answers, "www.example.com", "CNAME", 30L, "lb.example.net");
+            answer(answers, "lb.example.net", "A", 300L, "93.184.1.1");
+        }, g -> {
+            g.add("question", "api.example.com");
+            answer(g.addGroup("answers"), "api.example.com", "A", 60L, "93.184.1.2");
+        }, g -> {
+            g.add("question", "nx.example.com");
+            g.addGroup("answers");
+        }, g -> {
+            g.add("question", "cdn.example.com");
+            Group answers = g.addGroup("answers");
+            answer(answers, null, "A", 10L, null);
+            answer(answers, null, "CNAME", 300L, null);
+        }))), Map.of());
+
+        // Which queries got a CNAME with a short TTL? Both conditions hold on the same answer, which is one row once expanded.
+        assertRows(
+            "FROM " + dns + " | NESTED_EXPAND answers | WHERE answers.type == \"CNAME\" AND answers.ttl < 60 | KEEP question",
+            row("www.example.com")
+        );
+
+        // Show me the answers.
+        assertRows(
+            "FROM " + dns + " | NESTED_EXPAND answers | KEEP question, answers.name, answers.type, answers.ttl",
+            row("www.example.com", "www.example.com", "CNAME", 30L),
+            row("www.example.com", "lb.example.net", "A", 300L),
+            row("api.example.com", "api.example.com", "A", 60L),
+            row("nx.example.com", null, null, null),
+            row("cdn.example.com", null, "A", 10L),
+            row("cdn.example.com", null, "CNAME", 300L)
+        );
+
+        // What record types does this file return? The response with no answers keeps one row of nulls, so it is a group too.
+        assertRows(
+            "FROM " + dns + " | NESTED_EXPAND answers | STATS n = COUNT() BY answers.type",
+            row(3L, "A"),
+            row(2L, "CNAME"),
+            row(1L, null)
+        );
+
+        // What is the shortest TTL in each response?
+        assertRows(
+            "FROM " + dns + " | NESTED_EXPAND answers | STATS min_ttl = MIN(answers.ttl) BY question",
+            row(30L, "www.example.com"),
+            row(60L, "api.example.com"),
+            row(10L, "cdn.example.com"),
+            row(null, "nx.example.com")
+        );
+
+        // A query naming no collection operator reads the dataset as it did before.
+        assertRows("FROM " + dns + " | KEEP question | SORT question | LIMIT 1", row("api.example.com"));
+    }
+
+    public void testEmailAttachments() throws Exception {
+        String email = registerDataset("email", StoragePath.fileUri(write("email", EMAIL, List.of(g -> {
+            g.addGroup("email").add("subject", "quarterly report");
+            Group attachments = g.addGroup("attachments");
+            attachment(attachments, "report.pdf", 20_000_000L, "application/pdf");
+            attachment(attachments, "logo.png", 30_000L, "image/png");
+        }, g -> {
+            g.addGroup("email").add("subject", "small pdf");
+            attachment(g.addGroup("attachments"), "note.pdf", 1_000L, "application/pdf");
+        }, g -> {
+            g.addGroup("email").add("subject", "large image and a small pdf");
+            Group attachments = g.addGroup("attachments");
+            attachment(attachments, "photo.png", 50_000_000L, "image/png");
+            attachment(attachments, "memo.pdf", 2_000L, "application/pdf");
+        }))), Map.of());
+
+        // Which emails carry a large PDF? The element's structure gives further columns of the same relation.
+        assertRows(Strings.format("""
+            FROM %s
+            | NESTED_EXPAND attachments
+            | WHERE attachments.file.mime_type == "application/pdf" AND attachments.file.size > 10000000
+            | KEEP email.subject""", email), row("quarterly report"));
+    }
+
+    /** A {@code MAP} is not a collection: neither operator reads it. */
+    public void testMapIsNotACollection() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message spans {
+              required binary span_id (UTF8);
+              optional group attributes (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional binary value (UTF8);
+                }
+              }
+            }
+            """);
+        String spans = registerDataset("spans", StoragePath.fileUri(write("spans", schema, List.of(g -> {
+            g.add("span_id", "s1");
+            g.addGroup("attributes").addGroup("key_value").append("key", "service.name").append("value", "checkout");
+        }))), Map.of());
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM " + spans + " | NESTED_EXPAND attributes | KEEP span_id")).close()
+        );
+        assertThat(e.getMessage(), containsString("NESTED_EXPAND requires a mapped nested field, not [attributes]"));
+        // A map stays a column, unsupported and null, as an unsupported type does on an index
+        assertRows("FROM " + spans + " | KEEP span_id, attributes", row("s1", null));
+    }
+
+    /** A map inside each element is an unsupported field of the expansion, unsupported and null as on an index. */
+    public void testMapInsideAnElementIsUnsupported() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message spans {
+              required binary span_id (UTF8);
+              optional group events (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary name (UTF8);
+                    optional group attributes (MAP) {
+                      repeated group key_value {
+                        required binary key (UTF8);
+                        optional binary value (UTF8);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        String spans = registerDataset("span_events", StoragePath.fileUri(write("span_events", schema, List.of(g -> {
+            g.add("span_id", "s1");
+            Group element = g.addGroup("events").addGroup("list").addGroup("element");
+            element.add("name", "retry");
+            element.addGroup("attributes").addGroup("key_value").append("key", "attempt").append("value", "2");
+        }))), Map.of());
+        assertRows("FROM " + spans + " | NESTED_EXPAND events | KEEP span_id, events.name, events.attributes", row("s1", "retry", null));
+    }
+
+    /**
+     * A dataset's list of structures is not one of its columns, as an index's {@code nested} field is not: it is reached only
+     * through {@code NESTED_EXPAND}. {@code NESTED_ANY} does not read it.
+     */
+    public void testNestedColumnIsNotAColumn() throws Exception {
+        String dns = registerDataset("dns_hidden", StoragePath.fileUri(write("dns", DNS, List.of(g -> {
+            g.add("question", "www.example.com");
+            answer(g.addGroup("answers"), "www.example.com", "CNAME", 30L, "lb.example.net");
+        }, g -> {
+            g.add("question", "api.example.com");
+            answer(g.addGroup("answers"), "api.example.com", "A", 60L, "93.184.1.2");
+        }))), Map.of());
+        assertRows("FROM " + dns, row("www.example.com"), row("api.example.com"));
+        assertRows("FROM " + dns + " | KEEP *", row("www.example.com"), row("api.example.com"));
+        assertQueryFails("FROM " + dns + " | KEEP question, answers", "Unknown column [answers]");
+        assertQueryFails("FROM " + dns + " | DROP answers", "Unknown column [answers]");
+        assertQueryFails("FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\")", "Unknown column [answers.type]");
+        assertRows(
+            "FROM " + dns + " | NESTED_EXPAND answers | KEEP question, answers.type | SORT question",
+            row("api.example.com", "A"),
+            row("www.example.com", "CNAME")
+        );
+        // A plan that expands gives the dataset its nested scope; NESTED_ANY elsewhere in it must not bind to that scope
+        assertQueryFails(
+            "FROM " + dns + " | WHERE NESTED_ANY(answers, answers.type == \"CNAME\") | NESTED_EXPAND answers | KEEP question",
+            "NESTED_ANY cannot read [answers] from a dataset"
+        );
+        assertQueryFails(
+            "FROM " + dns + " | EVAL m = NESTED_ANY(answers, answers.ttl < 60) | NESTED_EXPAND answers",
+            "NESTED_ANY cannot read [answers] from a dataset"
+        );
+    }
+
+    /**
+     * A Hive partition key that shares a list's name shadows the file's column, as it shadows any column: the partition value
+     * reads in its place, and the list is not expanded.
+     */
+    public void testPartitionShadowsNestedColumn() throws Exception {
+        Path root = createTempDir().resolve("shadow");
+        write(root.resolve("answers=2024"), "f", DNS, List.of(g -> {
+            g.add("question", "www.example.com");
+            answer(g.addGroup("answers"), "www.example.com", "CNAME", 30L, "lb.example.net");
+        }));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.parquet";
+        String dataset = registerDataset("shadow", glob, Map.of("partition_detection", "hive"));
+        assertRows("FROM " + dataset + " | KEEP question, answers", row("www.example.com", 2024L));
+        assertQueryFails(
+            "FROM " + dataset + " | NESTED_EXPAND answers",
+            "NESTED_EXPAND cannot use [answers]: a column of that name replaces it here"
+        );
+    }
+
+    /** A sort and limit after the operator, over a dataset wide enough that the scan may defer the columns the sort does not read. */
+    public void testCollectionBeforeTopN() throws Exception {
+        MessageType wide = MessageTypeParser.parseMessageType("""
+            message wide {
+              required binary question (UTF8);
+              optional binary c1 (UTF8);
+              optional binary c2 (UTF8);
+              optional binary c3 (UTF8);
+              optional group answers (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary type (UTF8);
+                    optional int64 ttl;
+                  }
+                }
+              }
+            }
+            """);
+        List<Consumer<Group>> rows = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            int n = i;
+            rows.add(g -> {
+                g.add("question", "q" + (char) ('a' + n));
+                g.add("c1", "x");
+                g.add("c2", "y");
+                g.add("c3", "z");
+                Group element = g.addGroup("answers").addGroup("list").addGroup("element");
+                element.append("type", n % 2 == 0 ? "A" : "CNAME").append("ttl", (long) n);
+            });
+        }
+        String dataset = registerDataset("wide", StoragePath.fileUri(write("wide", wide, rows)), Map.of());
+        assertRows(
+            "FROM " + dataset + " | NESTED_EXPAND answers | SORT question | LIMIT 3 | KEEP question, c1, answers.type, answers.ttl",
+            row("qa", "x", "A", 0L),
+            row("qb", "x", "CNAME", 1L),
+            row("qc", "x", "A", 2L)
+        );
+    }
+
+    /**
+     * An element field's type is inferred, as a column's is: a later file that stores a type widening to the first
+     * file's converts each value, as a top-level column does, and one that stores a type it does not widen to reads as
+     * null there, with a warning, under every error policy.
+     */
+    public void testElementTypeDiffersBetweenFiles() throws Exception {
+        String template = """
+            message spans {
+              required binary span_id (UTF8);
+              optional group measurements (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary name (UTF8);
+                    optional %s value;
+                  }
+                }
+              }
+            }
+            """;
+        Path dir = createTempDir();
+        write(dir, "a", MessageTypeParser.parseMessageType(Strings.format(template, "double")), List.of(g -> {
+            g.add("span_id", "s1");
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency").append("value", 1.5);
+        }));
+        write(dir, "b", MessageTypeParser.parseMessageType(Strings.format(template, "int64")), List.of(g -> {
+            g.add("span_id", "s2");
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency").append("value", 500L);
+        }));
+        String widening = registerDataset(
+            "mixed",
+            StoragePath.fileUri(dir) + "/*.parquet",
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        assertRows(
+            "FROM " + widening + " | NESTED_EXPAND measurements | KEEP span_id, measurements.value",
+            row("s1", 1.5),
+            row("s2", 500.0)
+        );
+
+        Path narrowing = createTempDir();
+        write(narrowing, "a", MessageTypeParser.parseMessageType(Strings.format(template, "int64")), List.of(g -> {
+            g.add("span_id", "s1");
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency").append("value", 500L);
+        }));
+        write(narrowing, "b", MessageTypeParser.parseMessageType(Strings.format(template, "double")), List.of(g -> {
+            g.add("span_id", "s2");
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency").append("value", 1.5);
+        }));
+        String narrowed = registerDataset(
+            "narrowed",
+            StoragePath.fileUri(narrowing) + "/*.parquet",
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        Result result = runWithWarnings("FROM " + narrowed + " | NESTED_EXPAND measurements | KEEP span_id, measurements.value");
+        assertThat(result.rows(), containsInAnyOrder(row("s1", 500L), row("s2", null)));
+        assertThat(result.warnings(), hasItem(containsString("[measurements.value]")));
+    }
+
+    /**
+     * Under {@code union_by_name} the element's fields are the union of every file's, so a field only a later file holds is
+     * readable, and is null on the elements of the files that lack it.
+     */
+    public void testUnionByNameUnitesElementFields() throws Exception {
+        Path dir = writeMeasurementFiles();
+        String dataset = registerDataset("united", StoragePath.fileUri(dir) + "/*.parquet", Map.of("schema_resolution", "union_by_name"));
+        assertRows("FROM " + dataset + " | NESTED_EXPAND measurements | WHERE measurements.unit == \"ms\" | KEEP span_id", row("s2"));
+        assertRows(
+            "FROM " + dataset + " | NESTED_EXPAND measurements | KEEP span_id, measurements.name, measurements.unit",
+            row("s1", "latency", null),
+            row("s2", "latency", "ms")
+        );
+    }
+
+    /** Under {@code strict} every file must describe the same element fields. */
+    public void testStrictRefusesDifferentElementFields() throws Exception {
+        Path dir = writeMeasurementFiles();
+        String dataset = registerDataset("strict", StoragePath.fileUri(dir) + "/*.parquet", Map.of("schema_resolution", "strict"));
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM " + dataset + " | NESTED_EXPAND measurements | KEEP span_id")).close()
+        );
+        assertThat(e.getMessage(), containsString("nested field [measurements.unit] is [keyword] in [b.parquet], [absent] in [a.parquet]"));
+    }
+
+    /** Two files whose measurements differ in one field: the second also records the unit. */
+    private Path writeMeasurementFiles() throws IOException {
+        String template = """
+            message spans {
+              required binary span_id (UTF8);
+              optional group measurements (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary name (UTF8);
+                    %s
+                  }
+                }
+              }
+            }
+            """;
+        Path dir = createTempDir();
+        write(dir, "a", MessageTypeParser.parseMessageType(Strings.format(template, "")), List.of(g -> {
+            g.add("span_id", "s1");
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency");
+        }));
+        write(dir, "b", MessageTypeParser.parseMessageType(Strings.format(template, "optional binary unit (UTF8);")), List.of(g -> {
+            g.add("span_id", "s2");
+            g.addGroup("measurements").addGroup("list").addGroup("element").append("name", "latency").append("unit", "ms");
+        }));
+        return dir;
+    }
+
+    /**
+     * A collection inside the element is one of its own, as an index's nested field inside another is: expanding the outer
+     * reads its fields without the inner one's, expanding the inner one directly is one level too deep, and a second
+     * expansion of it after the outer finds no such column.
+     */
+    public void testCollectionInsideElementIsItsOwn() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message traces {
+              required binary id (UTF8);
+              optional group hops (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary host (UTF8);
+                    optional group links (LIST) {
+                      repeated group list {
+                        optional group element {
+                          optional binary to (UTF8);
+                          optional int64 ms;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        String traces = registerDataset("traces", StoragePath.fileUri(write("traces", schema, List.of(g -> {
+            g.add("id", "a");
+            Group hop = g.addGroup("hops").addGroup("list").addGroup("element").append("host", "web01");
+            hop.addGroup("links").addGroup("list").addGroup("element").append("to", "db01").append("ms", 3L);
+        }))), Map.of());
+        assertRows("FROM " + traces + " | NESTED_EXPAND hops | KEEP id, hops.*", row("a", "web01"));
+        assertQueryFails("FROM " + traces + " | NESTED_EXPAND hops.links", "NESTED_EXPAND supports one nesting level");
+        assertQueryFails("FROM " + traces + " | NESTED_EXPAND hops | NESTED_EXPAND hops.links", "Unknown column [hops.links]");
+    }
+
+    private static final MessageType ORDERS = MessageTypeParser.parseMessageType("""
+        message orders {
+          required int64 id;
+          required int64 price;
+          optional binary msg (UTF8);
+          optional group tags (LIST) {
+            repeated group list {
+              optional binary element (UTF8);
+            }
+          }
+          optional group items (LIST) {
+            repeated group list {
+              optional group element {
+                optional binary sku (UTF8);
+                optional int64 qty;
+              }
+            }
+          }
+          optional group parts (LIST) {
+            repeated group list {
+              optional group element {
+                optional binary name (UTF8);
+              }
+            }
+          }
+        }
+        """);
+
+    /** Parents of the orders fixture. */
+    private static final int ORDERS_PARENTS = 50;
+    /** The first parent's elements, more than a LIMIT below asks for, so a limit counting elements as parents would show. */
+    private static final int FIRST_ORDER_ITEMS = 40;
+
+    /**
+     * The orders fixture: parent {@code id} 1 to 50, {@code price} 10 up to id 40 and 200 after, {@code msg} "order-id".
+     * Parent 1 has 40 items, parent 3 an empty list, parent 4 none, every other parent two, of quantity {@code id} and
+     * {@code id + 100}; every parent has the tags {@code t1} and {@code t2} and one part. Row groups are small, so the
+     * file has several.
+     */
+    private String orders(String name) throws IOException {
+        return registerDataset(name, StoragePath.fileUri(write(createTempDir(), name, ORDERS, orderRows(), 512)), Map.of());
+    }
+
+    /** The orders fixture's rows, as {@link #orders} writes them. */
+    private static List<Consumer<Group>> orderRows() {
+        List<Consumer<Group>> rows = new ArrayList<>();
+        for (long id = 1; id <= ORDERS_PARENTS; id++) {
+            long n = id;
+            rows.add(g -> {
+                g.add("id", n);
+                g.add("price", n <= 40 ? 10L : 200L);
+                g.add("msg", "order-" + n);
+                Group tags = g.addGroup("tags");
+                tags.addGroup("list").append("element", "t1");
+                tags.addGroup("list").append("element", "t2");
+                g.addGroup("parts").addGroup("list").addGroup("element").append("name", "p" + n);
+                if (n == 4) {
+                    return;
+                }
+                Group items = g.addGroup("items");
+                for (long q : orderQuantities(n)) {
+                    items.addGroup("list").addGroup("element").append("sku", "s" + n + "-" + q).append("qty", q);
+                }
+            });
+        }
+        return rows;
+    }
+
+    /** The item quantities of order {@code id}, in list order; empty for orders 3 (an empty list) and 4 (no list). */
+    private static List<Long> orderQuantities(long id) {
+        if (id == 3 || id == 4) {
+            return List.of();
+        }
+        if (id == 1) {
+            List<Long> quantities = new ArrayList<>();
+            for (long q = 1; q <= FIRST_ORDER_ITEMS; q++) {
+                quantities.add(q);
+            }
+            return quantities;
+        }
+        return List.of(id, id + 100);
+    }
+
+    /** The expanded rows of the orders fixture: one per item, or one null row for an order without items. */
+    private static long expandedOrderRows() {
+        long rows = 0;
+        for (long id = 1; id <= ORDERS_PARENTS; id++) {
+            rows += Math.max(1, orderQuantities(id).size());
+        }
+        return rows;
+    }
+
+    /** A parent without elements keeps one row, whose element columns are null: an empty list and no list alike. */
+    public void testEmptyListKeepsOneNullRow() throws Exception {
+        String orders = orders("orders_empty");
+        assertRows(
+            "FROM " + orders + " | NESTED_EXPAND items | WHERE id == 3 OR id == 4 | KEEP id, items.sku, items.qty",
+            row(3L, null, null),
+            row(4L, null, null)
+        );
+    }
+
+    /**
+     * A {@code LIMIT} after the expansion counts rows, and its copy below the expansion counts parents, so a first parent
+     * with more elements than the limit does not end the read: exactly the limit comes back, and all rows when it is above
+     * them.
+     */
+    public void testLimitAfterExpansionCountsRows() throws Exception {
+        String orders = orders("orders_limit");
+        for (int limit : new int[] { 5, FIRST_ORDER_ITEMS + 10, 1000 }) {
+            assertRows(
+                "FROM " + orders + " | NESTED_EXPAND items | LIMIT " + limit + " | STATS c = COUNT(*)",
+                row(Math.min(limit, expandedOrderRows()))
+            );
+        }
+    }
+
+    /** A {@code LIMIT} before the expansion runs on the coordinator, which cannot expand, as on an index. */
+    public void testLimitBeforeExpansionIsRefused() throws Exception {
+        String orders = orders("orders_limit_before");
+        assertQueryFails("FROM " + orders + " | LIMIT 2 | NESTED_EXPAND items", "NESTED_EXPAND must run on the data nodes");
+    }
+
+    /**
+     * The limit under the expansion is not applied to the parents when a filter the reader cannot answer sits below
+     * it. The first 40 parents fail the filter; a parent limit of 3 read before the filter would leave none.
+     */
+    public void testFilterOnParentBeforeExpansion() throws Exception {
+        String orders = orders("orders_filter_parent");
+        try (
+            var response = run(syncEsqlQueryRequest("FROM " + orders + " | WHERE price % 7 == 4 | NESTED_EXPAND items | LIMIT 3 | KEEP id"))
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(3));
+            for (List<Object> r : rows) {
+                assertThat(((Number) r.getFirst()).longValue(), greaterThan(40L));
+            }
+        }
+        // The same filter as the reader can answer it
+        assertRows("FROM " + orders + " | WHERE price > 100 | NESTED_EXPAND items | STATS c = COUNT(*)", row(2L * (ORDERS_PARENTS - 40)));
+    }
+
+    /** A predicate on an element column is a filter on the expanded rows, never a filter on the file's columns. */
+    public void testFilterOnElementAfterExpansion() throws Exception {
+        String orders = orders("orders_filter_element");
+        long expected = 0;
+        for (long id = 1; id <= ORDERS_PARENTS; id++) {
+            expected += orderQuantities(id).stream().filter(q -> q > 30).count();
+        }
+        assertRows("FROM " + orders + " | NESTED_EXPAND items | WHERE items.qty > 30 | STATS c = COUNT(*)", row(expected));
+        List<List<?>> firstOrders = new ArrayList<>();
+        for (long id = 1; id < 5; id++) {
+            for (long q : orderQuantities(id)) {
+                if (q > 30) {
+                    firstOrders.add(row(id, q));
+                }
+            }
+        }
+        assertRows(
+            "FROM " + orders + " | NESTED_EXPAND items | WHERE items.qty > 30 AND id < 5 | KEEP id, items.qty",
+            firstOrders.toArray(List<?>[]::new)
+        );
+    }
+
+    public void testSortAndLimitAfterExpansion() throws Exception {
+        String orders = orders("orders_topn");
+        assertRows(
+            "FROM " + orders + " | NESTED_EXPAND items | SORT items.qty DESC NULLS LAST | LIMIT 3 | KEEP id, items.qty",
+            row(50L, 150L),
+            row(49L, 149L),
+            row(48L, 148L)
+        );
+    }
+
+    /**
+     * A count or sum after the expansion is over the expanded rows, which the file's footer does not describe: it holds
+     * 50 rows, and a price per row, not per element.
+     */
+    public void testStatsAfterExpansionAreNotTheFooter() throws Exception {
+        String orders = orders("orders_count");
+        long sum = 0;
+        for (long id = 1; id <= ORDERS_PARENTS; id++) {
+            sum += (id <= 40 ? 10L : 200L) * Math.max(1, orderQuantities(id).size());
+        }
+        assertRows(
+            "FROM " + orders + " | NESTED_EXPAND items | STATS c = COUNT(*), n = COUNT(price), s = SUM(price)",
+            row(expandedOrderRows(), expandedOrderRows(), sum)
+        );
+        assertRows("FROM " + orders + " | STATS c = COUNT(*)", row((long) ORDERS_PARENTS));
+    }
+
+    /**
+     * A maximum over the elements of some parents: the footer's statistics of the quantity column describe the elements
+     * of every parent, whose largest is 150, so an answer read from them would be wrong for each filtered query here.
+     */
+    public void testMaxOfElementIsNotTheFooter() throws Exception {
+        String orders = orders("orders_max");
+        assertRows("FROM " + orders + " | NESTED_EXPAND items | STATS m = MAX(items.qty)", row(150L));
+        assertRows("FROM " + orders + " | WHERE id <= 40 | NESTED_EXPAND items | STATS m = MAX(items.qty)", row(140L));
+        assertRows("FROM " + orders + " | WHERE id == 1 | NESTED_EXPAND items | STATS m = MAX(items.qty), c = COUNT(*)", row(40L, 40L));
+    }
+
+    /** Per-row commands before the expansion run on the expanded rows, each a copy of its parent's. */
+    public void testPerRowCommandsBeforeExpansion() throws Exception {
+        String orders = orders("orders_dissect");
+        assertRows(
+            Strings.format("""
+                FROM %s
+                | DISSECT msg "%%{kind}-%%{n}"
+                | GROK msg "%%{WORD:word}-%%{INT:num:int}"
+                | EVAL k = id * 10
+                | WHERE id == 2
+                | NESTED_EXPAND items
+                | KEEP kind, n, word, num, k, items.sku""", orders),
+            row("order", "2", "order", 2L, 20L, "s2-2"),
+            row("order", "2", "order", 2L, 20L, "s2-102")
+        );
+    }
+
+    public void testMvExpandBeforeExpansion() throws Exception {
+        String orders = orders("orders_mv_expand");
+        assertRows(
+            "FROM " + orders + " | WHERE id == 2 | MV_EXPAND tags | NESTED_EXPAND items | KEEP id, tags, items.qty",
+            row(2L, "t1", 2L),
+            row(2L, "t1", 102L),
+            row(2L, "t2", 2L),
+            row(2L, "t2", 102L)
+        );
+    }
+
+    /** Commands that read more than their own row cannot sit below an expansion that the scan does. */
+    public void testCommandsTheExpansionCannotFollow() throws Exception {
+        String orders = orders("orders_refused");
+        assertQueryFails(
+            "FROM " + orders + " | SAMPLE 0.5 | NESTED_EXPAND items",
+            "NESTED_EXPAND over a dataset cannot follow [SAMPLE 0.5]"
+        );
+        // CHANGE_POINT reads its neighbours, so it is planned on the coordinator, which no expansion follows, as on an index
+        assertQueryFails(
+            "FROM " + orders + " | CHANGE_POINT price ON id | NESTED_EXPAND items",
+            "NESTED_EXPAND must run on the data nodes, so it cannot follow [CHANGE_POINT price ON id]"
+        );
+        assertQueryFails(
+            "FROM " + orders + " | NESTED_EXPAND items | NESTED_EXPAND parts",
+            "NESTED_EXPAND over a dataset reads one collection per scan"
+        );
+    }
+
+    /**
+     * A refused expansion is the query's error, a 400, even where the query allows partial results: the coordinator
+     * refuses it while planning, before a data node reads the file, so there is no data-node failure to report partially.
+     */
+    public void testRefusalIsABadRequestWithPartialResults() throws Exception {
+        String orders = orders("orders_refused_partial");
+        for (String query : List.of(
+            "FROM " + orders + " | SAMPLE 0.5 | NESTED_EXPAND items",
+            "FROM " + orders + " | NESTED_EXPAND items | NESTED_EXPAND parts"
+        )) {
+            Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query).allowPartialResults(true)).close());
+            assertThat(query, ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(query, e.getMessage(), containsString("NESTED_EXPAND over a dataset"));
+        }
+    }
+
+    /** A partitioned dataset adds its partition column beside the parents' columns, and the element columns follow them. */
+    public void testPartitionedDatasetExpands() throws Exception {
+        Path root = createTempDir().resolve("partitioned");
+        write(root.resolve("region=eu"), "f", DNS, List.of(g -> {
+            g.add("question", "www.example.com");
+            Group answers = g.addGroup("answers");
+            answer(answers, "www.example.com", "CNAME", 30L, "lb.example.net");
+            answer(answers, "lb.example.net", "A", 300L, "93.184.1.1");
+        }));
+        write(root.resolve("region=us"), "f", DNS, List.of(g -> {
+            g.add("question", "api.example.com");
+            answer(g.addGroup("answers"), "api.example.com", "A", 60L, "93.184.1.2");
+        }));
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.parquet";
+        String dataset = registerDataset("partitioned", glob, Map.of("partition_detection", "hive"));
+        assertRows(
+            "FROM " + dataset + " | NESTED_EXPAND answers | KEEP region, question, answers.type, answers.ttl",
+            row("eu", "www.example.com", "CNAME", 30L),
+            row("eu", "www.example.com", "A", 300L),
+            row("us", "api.example.com", "A", 60L)
+        );
+        assertRows("FROM " + dataset + " | NESTED_EXPAND answers | WHERE region == \"eu\" | STATS c = COUNT(*)", row(2L));
+    }
+
+    /**
+     * The wrapper chain under {@code skip_row}: a parent value that a {@code union_by_name} cast cannot represent
+     * drops the parent, every row of it, and the error budget counts that as one error, as it does for the file's row
+     * without the expansion. Parent {@code bad} has three elements and a timestamp past what nanoseconds hold, so
+     * charging per element would spend a budget of two.
+     */
+    public void testSkipRowDropsParentsAndChargesOncePerParent() throws Exception {
+        String template = """
+            message events {
+              required binary id (UTF8);
+              optional int64 ts (TIMESTAMP(%s,true));
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary sku (UTF8);
+                  }
+                }
+              }
+            }
+            """;
+        Path dir = createTempDir();
+        // 2300-01-01T00:00:00Z in milliseconds, which has no date_nanos value
+        long beyondNanos = 10_413_792_000_000L;
+        write(dir, "a", MessageTypeParser.parseMessageType(Strings.format(template, "MILLIS")), List.of(g -> {
+            g.add("id", "bad");
+            g.add("ts", beyondNanos);
+            Group items = g.addGroup("items");
+            for (String sku : List.of("x", "y", "z")) {
+                items.addGroup("list").addGroup("element").append("sku", sku);
+            }
+        }, g -> {
+            g.add("id", "good");
+            g.add("ts", 1_000L);
+            Group items = g.addGroup("items");
+            items.addGroup("list").addGroup("element").append("sku", "g1");
+            items.addGroup("list").addGroup("element").append("sku", "g2");
+        }));
+        write(dir, "b", MessageTypeParser.parseMessageType(Strings.format(template, "NANOS")), List.of(g -> {
+            g.add("id", "nanos");
+            g.add("ts", 5L);
+            g.addGroup("items").addGroup("list").addGroup("element").append("sku", "n1");
+        }));
+        String dataset = registerDataset(
+            "skip_row_budget",
+            StoragePath.fileUri(dir) + "/*.parquet",
+            Map.of("schema_resolution", "union_by_name", "error_mode", "skip_row", "max_errors", 2)
+        );
+        assertRows(
+            "FROM " + dataset + " | NESTED_EXPAND items | EVAL timed = ts IS NOT NULL | KEEP id, timed, items.sku",
+            row("good", true, "g1"),
+            row("good", true, "g2"),
+            row("nanos", true, "n1")
+        );
+        String strict = registerDataset(
+            "skip_row_no_budget",
+            StoragePath.fileUri(dir) + "/*.parquet",
+            Map.of("schema_resolution", "union_by_name", "error_mode", "skip_row", "max_errors", 0)
+        );
+        assertQueryFails(
+            "FROM " + strict + " | NESTED_EXPAND items | EVAL timed = ts IS NOT NULL | KEEP id, timed, items.sku",
+            "dropped rows"
+        );
+    }
+
+    /** A plan that runs on several data nodes reads the expansion in each node's scan. */
+    public void testMultiNode() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        Path dir = createTempDir();
+        for (int f = 0; f < 4; f++) {
+            int file = f;
+            write(dir, "f" + f, DNS, List.of(g -> {
+                g.add("question", "q" + file);
+                Group answers = g.addGroup("answers");
+                answer(answers, "a" + file, "A", 10L * file, null);
+                answer(answers, "b" + file, "CNAME", 10L * file + 1, null);
+            }));
+        }
+        String dataset = registerDataset("multi_node", StoragePath.fileUri(dir) + "/*.parquet", Map.of());
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
+        var request = syncEsqlQueryRequest(
+            "FROM " + dataset + " | NESTED_EXPAND answers | STATS c = COUNT(*), t = SUM(answers.ttl) BY answers.type"
+        );
+        request.pragmas(pragmas);
+        request.acceptedPragmaRisks(true);
+        request.profile(true);
+        try (var response = run(request)) {
+            assertThat(externalScanNodeNames(response).size(), greaterThanOrEqualTo(2));
+            assertThat(getValuesList(response), containsInAnyOrder(row(4L, 60L, "A"), row(4L, 64L, "CNAME")));
+        }
+    }
+
+    /**
+     * The reader answers {@code price > 100} itself, so the filter is pushed, the
+     * limit lands on the scan and becomes the parent limit, counted after the reader's filter. The first 40 parents fail
+     * the filter, and the file is one row group read in order, so the rows are exactly the first three of order 41 on.
+     */
+    public void testPushedFilterAndLimitBeforeExpansion() throws Exception {
+        String orders = registerDataset(
+            "orders_n1",
+            StoragePath.fileUri(write(createTempDir(), "orders_n1", ORDERS, orderRows(), ParquetWriter.DEFAULT_BLOCK_SIZE)),
+            Map.of()
+        );
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + orders + " | WHERE price > 100 | NESTED_EXPAND items | LIMIT 3 | KEEP id, items.qty")
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(row(41L, 41L), row(41L, 141L), row(42L, 42L))));
+        }
+    }
+
+    /**
+     * A command below the expansion that defines a column named like an expanded one is refused by name. On an index
+     * the expanded column would shadow it; moved under that command in the scan, the command's column would shadow the
+     * expanded one instead.
+     */
+    public void testCommandDefiningAnExpandedColumnNameIsRefused() throws Exception {
+        String orders = orders("orders_shadow");
+        assertQueryFails(
+            "FROM " + orders + " | DISSECT msg \"%{items.sku}-%{n}\" | NESTED_EXPAND items | KEEP n, items.sku",
+            "which defines [items.sku]"
+        );
+        // Without the clash the same command reads fine
+        assertRows(
+            "FROM " + orders + " | DISSECT msg \"%{kind}-%{n}\" | WHERE id == 2 | NESTED_EXPAND items | KEEP n, items.sku",
+            row("2", "s2-2"),
+            row("2", "s2-102")
+        );
+    }
+
+    /** A LOOKUP JOIN before the expansion joins the parents' rows, and its columns repeat on every element. */
+    public void testLookupJoinBeforeExpansion() throws Exception {
+        String orders = orders("orders_lookup");
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("order_labels")
+                .setSettings(Settings.builder().put("index.mode", "lookup").put("index.number_of_shards", 1))
+                .setMapping("id", "type=long", "label", "type=keyword")
+        );
+        client().prepareIndex("order_labels").setSource("id", 1L, "label", "first").get();
+        client().prepareIndex("order_labels").setSource("id", 2L, "label", "second").get();
+        client().admin().indices().prepareRefresh("order_labels").get();
+        assertRows(
+            "FROM " + orders + " | WHERE id <= 2 | LOOKUP JOIN order_labels ON id | NESTED_EXPAND items | STATS c = COUNT(*) BY label",
+            row((long) FIRST_ORDER_ITEMS, "first"),
+            row(2L, "second")
+        );
+    }
+
+    /** A {@code _file.*} column is a constant beside the parents' columns, before the element columns. */
+    public void testFileMetadataBesideExpansion() throws Exception {
+        String orders = orders("orders_file_metadata");
+        assertRows(
+            "FROM " + orders + " METADATA _file.name | WHERE id == 2 | NESTED_EXPAND items | KEEP _file.name, id, items.qty",
+            row("orders_file_metadata.parquet", 2L, 2L),
+            row("orders_file_metadata.parquet", 2L, 102L)
+        );
+    }
+
+    /**
+     * The parent limit applies per read, so with several files read on several nodes each read may take its own
+     * parents; the limit above still cuts the result to exactly the rows asked for.
+     */
+    public void testLimitAcrossFilesAndNodes() throws Exception {
+        assertLimitAcrossFilesAndNodes("orders_spread", Map.of());
+    }
+
+    /** As {@link #testLimitAcrossFilesAndNodes}, under a policy that may drop rows, where the read takes no parent limit. */
+    public void testLimitAcrossFilesAndNodesUnderSkipRow() throws Exception {
+        assertLimitAcrossFilesAndNodes("orders_spread_skip_row", Map.of("error_mode", "skip_row"));
+    }
+
+    private void assertLimitAcrossFilesAndNodes(String name, Map<String, Object> config) throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        Path dir = createTempDir();
+        for (int f = 0; f < 4; f++) {
+            write(dir, "orders" + f, ORDERS, orderRows(), 512);
+        }
+        String dataset = registerDataset(name, StoragePath.fileUri(dir) + "/*.parquet", config);
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
+        for (int limit : new int[] { 5, FIRST_ORDER_ITEMS + 10, 4 * (int) expandedOrderRows() - 1 }) {
+            var request = syncEsqlQueryRequest("FROM " + dataset + " | NESTED_EXPAND items | LIMIT " + limit + " | STATS c = COUNT(*)");
+            request.pragmas(pragmas);
+            request.acceptedPragmaRisks(true);
+            request.profile(true);
+            try (var response = run(request)) {
+                assertThat(externalScanNodeNames(response).size(), greaterThanOrEqualTo(2));
+                assertThat(getValuesList(response), equalTo(List.of(row((long) limit))));
+            }
+        }
+    }
+
+    /**
+     * A declared mapping cannot rename a column to or from a collection's name without failing before the
+     * expansion is planned, so the scan rule's own refusal is reached only by plans built by hand (unit tests). A declared
+     * column read from the collection fails on its type; a declared column named like the collection collides with
+     * the collection's own inferred column when the dataset is resolved.
+     */
+    public void testDeclaredRenameOfTheCollectionIsRefused() throws Exception {
+        LinkedHashMap<String, DatasetFieldMapping> fromCollection = new LinkedHashMap<>();
+        fromCollection.put("label", new DatasetFieldMapping("keyword", "items"));
+        String readsCollection = registerNonStrictDataset(
+            "orders_renamed_from",
+            StoragePath.fileUri(write(createTempDir(), "orders_renamed_from", ORDERS, orderRows(), 512)),
+            fromCollection,
+            Map.of()
+        );
+        assertQueryFails(
+            "FROM " + readsCollection + " | NESTED_EXPAND items | KEEP id, items.qty",
+            "declared type [keyword] for column [label] cannot be read from the file's type [unsupported]"
+        );
+
+        LinkedHashMap<String, DatasetFieldMapping> toCollection = new LinkedHashMap<>();
+        toCollection.put("items", new DatasetFieldMapping("keyword", "msg"));
+        String namedLikeCollection = registerNonStrictDataset(
+            "orders_renamed_to",
+            StoragePath.fileUri(write(createTempDir(), "orders_renamed_to", ORDERS, orderRows(), 512)),
+            toCollection,
+            Map.of()
+        );
+        assertQueryFails(
+            "FROM " + namedLikeCollection + " | NESTED_EXPAND items | KEEP id, items.qty",
+            "declared rename produces a duplicate column [items]"
+        );
+    }
+
+    /**
+     * A list of structures whose own name holds a dot is not a collection, since a collection is named by its dotted
+     * path; it stays an unsupported column, visible and null, as before nested columns existed.
+     */
+    public void testDottedListNameStaysAnUnsupportedColumn() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group my.items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int64 qty;
+                  }
+                }
+              }
+            }
+            """);
+        String dataset = registerDataset("dotted_list", StoragePath.fileUri(write("dotted", schema, List.of(g -> {
+            g.add("id", 1L);
+            g.addGroup("my.items").addGroup("list").addGroup("element").append("qty", 3L);
+        }))), Map.of());
+        assertRows("FROM " + dataset + " | KEEP id, `my.items`", row(1L, null));
+        assertQueryFails("FROM " + dataset + " | NESTED_EXPAND `my.items`", "NESTED_EXPAND requires a mapped nested field");
+    }
+
+    /**
+     * An element's field reads as the same field does as a column of the file, for types the element decode shares with
+     * the column's: a decimal, a time of day and an INT96 timestamp. A map inside the element is an unsupported column,
+     * null, as a map column is.
+     */
+    public void testElementFieldsReadAsTheirColumns() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional int32 c_dec (DECIMAL(9,2));
+              optional int64 c_time (TIME(MICROS,true));
+              optional int96 c_ts;
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int32 dec (DECIMAL(9,2));
+                    optional int64 time (TIME(MICROS,true));
+                    optional int96 ts;
+                    optional group m (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+                  }
+                }
+              }
+            }
+            """);
+        Binary int96 = Binary.fromConstantByteArray(
+            ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN).putLong(3_600_000_000_000L).putInt(2_460_000).array()
+        );
+        String dataset = registerDataset("typed_elements", StoragePath.fileUri(write("typed", schema, List.of(g -> {
+            g.add("id", "a");
+            g.append("c_dec", 12_345).append("c_time", 3_723_004_005L).append("c_ts", int96);
+            Group element = g.addGroup("items").addGroup("list").addGroup("element");
+            element.append("dec", 12_345).append("time", 3_723_004_005L).append("ts", int96);
+            element.addGroup("m").addGroup("key_value").append("key", "k").append("value", 1L);
+        }))), Map.of());
+        String query = "FROM " + dataset + " | NESTED_EXPAND items | KEEP c_dec, items.dec, c_time, items.time, c_ts, items.ts, items.m";
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            assertThat(
+                response.columns().stream().map(c -> c.name() + ":" + c.outputType()).toList(),
+                equalTo(
+                    List.of(
+                        "c_dec:double",
+                        "items.dec:double",
+                        "c_time:date_nanos",
+                        "items.time:date_nanos",
+                        "c_ts:date",
+                        "items.ts:date",
+                        "items.m:unsupported"
+                    )
+                )
+            );
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            List<Object> row = rows.getFirst();
+            assertThat(row.get(0), equalTo(123.45));
+            assertThat(row.get(1), equalTo(row.get(0)));
+            assertThat(row.get(2), equalTo("1970-01-01T01:02:03.004005Z"));
+            assertThat(row.get(3), equalTo(row.get(2)));
+            assertThat(row.get(4), equalTo("2023-02-24T01:00:00.000Z"));
+            assertThat(row.get(5), equalTo(row.get(4)));
+            assertThat(row.get(6), nullValue());
+        }
+    }
+
+    /**
+     * A field one file stores as a map, which the reader cannot read, and another as text is merged to keyword under
+     * {@code union_by_name}. The first file's elements read it as null with the warning a column of a type that does not
+     * widen raises; the second file's read its text.
+     */
+    public void testElementFieldUnsupportedInOneFile() throws Exception {
+        String template = """
+            message spans {
+              required binary span_id (UTF8);
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int64 n;
+                    %s
+                  }
+                }
+              }
+            }
+            """;
+        String map = "optional group payload (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }";
+        Path dir = createTempDir();
+        write(dir, "a", MessageTypeParser.parseMessageType(Strings.format(template, map)), List.of(g -> {
+            g.add("span_id", "s1");
+            Group element = g.addGroup("items").addGroup("list").addGroup("element").append("n", 1L);
+            element.addGroup("payload").addGroup("key_value").append("key", "k").append("value", 1L);
+        }));
+        write(dir, "b", MessageTypeParser.parseMessageType(Strings.format(template, "optional binary payload (UTF8);")), List.of(g -> {
+            g.add("span_id", "s2");
+            g.addGroup("items").addGroup("list").addGroup("element").append("n", 2L).append("payload", "text");
+        }));
+        String dataset = registerDataset("payloads", StoragePath.fileUri(dir) + "/*.parquet", Map.of("schema_resolution", "union_by_name"));
+        Result result = runWithWarnings("FROM " + dataset + " | NESTED_EXPAND items | KEEP span_id, items.n, items.payload");
+        assertThat(result.rows(), containsInAnyOrder(row("s1", 1L, null), row("s2", 2L, "text")));
+        assertThat(result.warnings(), hasItem(containsString("column [items.payload]: [unsupported] in the file, [keyword] in the query")));
+    }
+
+    /**
+     * A dataset whose only column is a list of structures still reads: its rows count, and the list expands.
+     */
+    public void testAllNestedDataset() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group items (LIST) { repeated group list { optional group element { optional int64 a; } } }
+            }
+            """);
+        String dataset = registerDataset("all_nested", StoragePath.fileUri(write("all_nested", schema, List.of(g -> {
+            Group items = g.addGroup("items");
+            items.addGroup("list").addGroup("element").append("a", 1L);
+            items.addGroup("list").addGroup("element").append("a", 2L);
+        }, g -> g.addGroup("items").addGroup("list").addGroup("element").append("a", 3L)))), Map.of());
+        assertRows("FROM " + dataset + " | STATS c = COUNT(*)", row(2L));
+        assertRows("FROM " + dataset + " | NESTED_EXPAND items | KEEP items.a", row(1L), row(2L), row(3L));
+        // As FROM over an index whose every field is hidden: the placeholder column, one empty row per file row
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 5"))) {
+            assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("<no-fields>", "null", null))));
+            assertThat(getValuesList(response).size(), equalTo(2));
+        }
+    }
+
+    /**
+     * Only a list of structures is a nested column. A list of lists and a list of maps stay visible columns of the
+     * dataset, unsupported and null, as on main, and {@code NESTED_EXPAND} does not read them.
+     */
+    public void testListOfListsOrMapsStaysAVisibleColumn() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group lists (LIST) {
+                repeated group list { optional group element (LIST) { repeated group list { optional int32 element; } } }
+              }
+              optional group maps (LIST) {
+                repeated group list {
+                  optional group element (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+                }
+              }
+            }
+            """);
+        String dataset = registerDataset("lists_and_maps", StoragePath.fileUri(write("lists_and_maps", schema, List.of(g -> {
+            g.add("id", 1L);
+            g.addGroup("lists").addGroup("list").addGroup("element").addGroup("list").append("element", 7);
+            g.addGroup("maps").addGroup("list").addGroup("element").addGroup("key_value").append("key", "k").append("value", 2L);
+        }))), Map.of());
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, lists, maps"))) {
+            assertThat(
+                response.columns().stream().map(c -> c.name() + ":" + c.outputType()).toList(),
+                equalTo(List.of("id:long", "lists:unsupported", "maps:unsupported"))
+            );
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList(1L, null, null))));
+        }
+        assertQueryFails("FROM " + dataset + " | NESTED_EXPAND lists", "NESTED_EXPAND requires a mapped nested field, not [lists]");
+        assertQueryFails("FROM " + dataset + " | NESTED_EXPAND maps", "NESTED_EXPAND requires a mapped nested field, not [maps]");
+    }
+
+    /**
+     * A file holding a list of structures literally named {@code my.items} beside a structure {@code my} with a list of
+     * structures {@code items}: only the second is a collection, named {@code my.items}, and {@code NESTED_EXPAND} reads it.
+     * The two share one column name, which is the collection's, so the dotted list is not also a visible column.
+     */
+    public void testDottedListBesideAStructuresListOfTheSameName() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group my.items (LIST) { repeated group list { optional group element { optional int64 a; } } }
+              optional group my {
+                optional group items (LIST) { repeated group list { optional group element { optional int64 b; } } }
+              }
+            }
+            """);
+        String dataset = registerDataset("dotted_beside", StoragePath.fileUri(write("dotted_beside", schema, List.of(g -> {
+            g.add("id", 1L);
+            g.addGroup("my.items").addGroup("list").addGroup("element").append("a", 3L);
+            Group items = g.addGroup("my").addGroup("items");
+            items.addGroup("list").addGroup("element").append("b", 4L);
+            items.addGroup("list").addGroup("element").append("b", 5L);
+        }))), Map.of());
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset))) {
+            assertThat(response.columns().stream().map(c -> c.name() + ":" + c.outputType()).toList(), equalTo(List.of("id:long")));
+        }
+        assertRows("FROM " + dataset + " | NESTED_EXPAND `my.items` | KEEP id, `my.items.b`", row(1L, 4L), row(1L, 5L));
+    }
+
+    /**
+     * A declared schema beside a list of structures. A non-strict declaration overlays its columns on the inferred
+     * schema, which still describes the list, so the expansion reads it. A strict declaration is the whole schema and
+     * reads no file to infer one, so the list is unknown to the dataset and the expansion has nothing to bind to.
+     */
+    public void testDeclaredSchemaBesideAListOfStructures() throws Exception {
+        LinkedHashMap<String, DatasetFieldMapping> overlay = new LinkedHashMap<>();
+        overlay.put("price", new DatasetFieldMapping("long", null));
+        String nonStrict = registerNonStrictDataset(
+            "orders_declared",
+            StoragePath.fileUri(write(createTempDir(), "orders_declared", ORDERS, orderRows(), 512)),
+            overlay,
+            Map.of()
+        );
+        assertRows(
+            "FROM " + nonStrict + " | WHERE id == 2 | NESTED_EXPAND items | KEEP id, price, items.qty",
+            row(2L, 10L, 2L),
+            row(2L, 10L, 102L)
+        );
+
+        LinkedHashMap<String, DatasetFieldMapping> whole = new LinkedHashMap<>();
+        whole.put("id", new DatasetFieldMapping("long", null));
+        whole.put("price", new DatasetFieldMapping("long", null));
+        String strict = registerStrictDataset(
+            "orders_strict",
+            StoragePath.fileUri(write(createTempDir(), "orders_strict", ORDERS, orderRows(), 512)),
+            whole,
+            Map.of()
+        );
+        assertQueryFails("FROM " + strict + " | NESTED_EXPAND items | KEEP id", "Unknown column [items]");
+    }
+
+    /**
+     * A legacy file repeats a group of fields inside the element directly, without the {@code LIST} annotation. That group
+     * is a collection of its own, as an annotated inner list of structures is, so expanding the outer one reads the rest of
+     * the element; a legacy repeated primitive is a multivalued leaf.
+     */
+    public void testLegacyRepeatedGroupInsideAnElement() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message legacy {
+              required binary id (UTF8);
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    repeated binary tags (UTF8);
+                    repeated group parts { optional binary sku (UTF8); optional int64 qty; }
+                  }
+                }
+              }
+            }
+            """);
+        String dataset = registerDataset("legacy_parts", StoragePath.fileUri(write("legacy", schema, List.of(g -> {
+            g.add("id", "a");
+            Group element = g.addGroup("items").addGroup("list").addGroup("element");
+            element.append("tags", "x").append("tags", "y");
+            element.addGroup("parts").append("sku", "s1").append("qty", 1L);
+            element.addGroup("parts").append("sku", "s2");
+        }))), Map.of());
+        assertRows("FROM " + dataset + " | NESTED_EXPAND items | KEEP id, items.*", row("a", List.of("x", "y")));
+        assertQueryFails("FROM " + dataset + " | NESTED_EXPAND items.parts", "NESTED_EXPAND supports one nesting level");
+
+        MessageType tagsOnly = MessageTypeParser.parseMessageType("""
+            message legacy {
+              required binary id (UTF8);
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    repeated binary tags (UTF8);
+                  }
+                }
+              }
+            }
+            """);
+        String tagged = registerDataset("legacy_tags", StoragePath.fileUri(write("tags", tagsOnly, List.of(g -> {
+            g.add("id", "a");
+            g.addGroup("items").addGroup("list").addGroup("element").append("tags", "x").append("tags", "y");
+        }))), Map.of());
+        assertRows("FROM " + tagged + " | NESTED_EXPAND items | KEEP id, items.tags", row("a", List.of("x", "y")));
+    }
+
+    private record Result(List<List<Object>> rows, List<String> warnings) {}
+
+    /** Runs {@code query} on a random node and returns its rows and the warnings that node's response carried. */
+    private Result runWithWarnings(String query) throws Exception {
+        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
+        AtomicReference<Result> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        // The transport client owns the response's ref-count, so it is read here and not closed
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.wrap(response -> {
+            try {
+                ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
+                    .getThreadPool()
+                    .getThreadContext();
+                result.set(new Result(getValuesList(response), threadContext.getResponseHeaders().getOrDefault("Warning", List.of())));
+            } finally {
+                latch.countDown();
+            }
+        }, e -> {
+            failure.set(e);
+            latch.countDown();
+        }));
+        assertTrue("query did not complete within timeout", latch.await(30, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw failure.get();
+        }
+        return result.get();
+    }
+
+    private void assertQueryFails(String query, String message) {
+        Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query)).close());
+        assertThat(query, e.getMessage(), containsString(message));
+    }
+
+    private void assertRows(String query, List<?>... expected) {
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(response);
+            List<List<Object>> normalized = new ArrayList<>();
+            for (List<Object> r : rows) {
+                List<Object> n = new ArrayList<>();
+                for (Object value : r) {
+                    n.add(value instanceof Integer i ? (Object) i.longValue() : value);
+                }
+                normalized.add(n);
+            }
+            assertThat(query, normalized, containsInAnyOrder(expected));
+            assertThat(query, normalized.size(), equalTo(expected.length));
+        }
+    }
+
+    private static List<?> row(Object... values) {
+        return Arrays.asList(values);
+    }
+
+    private static void answer(Group answers, String name, String type, Long ttl, String data) {
+        Group element = answers.addGroup("list").addGroup("element");
+        if (name != null) {
+            element.append("name", name);
+        }
+        if (type != null) {
+            element.append("type", type);
+        }
+        if (ttl != null) {
+            element.append("ttl", ttl);
+        }
+        if (data != null) {
+            element.append("data", data);
+        }
+    }
+
+    private static void attachment(Group attachments, String name, long size, String mimeType) {
+        attachments.addGroup("list")
+            .addGroup("element")
+            .addGroup("file")
+            .append("name", name)
+            .append("size", size)
+            .append("mime_type", mimeType);
+    }
+
+    private Path write(String name, MessageType schema, List<Consumer<Group>> rows) throws IOException {
+        return write(createTempDir(), name, schema, rows);
+    }
+
+    private Path write(Path dir, String name, MessageType schema, List<Consumer<Group>> rows) throws IOException {
+        return write(dir, name, schema, rows, ParquetWriter.DEFAULT_BLOCK_SIZE);
+    }
+
+    private Path write(Path dir, String name, MessageType schema, List<Consumer<Group>> rows, int rowGroupSize) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(baos);
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(rowGroupSize)
+                .build()
+        ) {
+            for (Consumer<Group> row : rows) {
+                Group g = factory.newGroup();
+                row.accept(g);
+                writer.write(g);
+            }
+        }
+        Files.createDirectories(dir);
+        Path file = dir.resolve(name + ".parquet");
+        Files.write(file, baos.toByteArray());
+        return file;
+    }
+}

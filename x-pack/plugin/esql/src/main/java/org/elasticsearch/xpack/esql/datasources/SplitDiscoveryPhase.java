@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.plan.physical.AbstractExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -52,8 +53,10 @@ import java.util.function.BooleanSupplier;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 
 /**
- * Walks the physical plan tree, discovers splits for each {@link ExternalSourceExec},
- * and replaces them with split-enriched copies via {@link ExternalSourceExec#withSplits}.
+ * Walks the physical plan tree, discovers splits for each external source scan ({@link AbstractExternalSourceExec},
+ * expanding or not), and replaces them with split-enriched copies via {@link AbstractExternalSourceExec#withSplits}. The
+ * files are chosen by the scan's own columns, {@link AbstractExternalSourceExec#attributes()}, never by the element
+ * columns an expanding scan adds.
  *
  * <p>Filter expressions from {@link FilterExec} ancestors are collected per-source so that
  * each {@link ExternalSourceExec} only receives filters from its own ancestor chain, not
@@ -670,7 +673,7 @@ public final class SplitDiscoveryPhase {
         Executor executor,
         ActionListener<PhysicalPlan> listener
     ) {
-        if (plan instanceof ExternalSourceExec exec) {
+        if (plan instanceof AbstractExternalSourceExec<?> exec) {
             resolveExternalSourceAsync(exec, ancestorFilters, rowLimit, traversal, executor, listener);
             return;
         }
@@ -747,7 +750,7 @@ public final class SplitDiscoveryPhase {
     }
 
     private static PhysicalPlan resolveRecursive(PhysicalPlan plan, List<Expression> ancestorFilters, int rowLimit, Traversal traversal) {
-        if (plan instanceof ExternalSourceExec exec) {
+        if (plan instanceof AbstractExternalSourceExec<?> exec) {
             return resolveExternalSource(exec, ancestorFilters, rowLimit, traversal);
         }
 
@@ -786,7 +789,7 @@ public final class SplitDiscoveryPhase {
     }
 
     private static PhysicalPlan resolveExternalSource(
-        ExternalSourceExec exec,
+        AbstractExternalSourceExec<?> exec,
         List<Expression> ancestorFilters,
         int rowLimit,
         Traversal traversal
@@ -798,16 +801,16 @@ public final class SplitDiscoveryPhase {
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
         // Partition columns must survive: FileSplitProvider.buildSurvivors strips them via stripPartitionColumns.
-        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.attributes());
 
         // Bind filter hints to the relation's output by NameId, not by name. A downstream EVAL/DISSECT/GROK/ENRICH can
         // introduce an attribute that SHARES A NAME with a partition column (e.g. `EVAL year = ...`) whose filter
         // `PushDownAndCombineFilters` may leave above the generating node and thus in ancestorFilters. Pruning by the
         // path partition value for such a row-derived column produces silently wrong answers. Keeping only conjuncts
-        // whose every attribute reference resolves by id into exec.output() drops those shadowing filters; the split
+        // whose every attribute reference resolves by id into exec.attributes() drops those shadowing filters; the split
         // provider's per-file matcher then sees only genuine partition/data-column predicates.
-        List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
-        Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.output());
+        List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.attributes());
+        Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.attributes());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             new SimpleSourceMetadata(
@@ -848,7 +851,7 @@ public final class SplitDiscoveryPhase {
     }
 
     private static void resolveExternalSourceAsync(
-        ExternalSourceExec exec,
+        AbstractExternalSourceExec<?> exec,
         List<Expression> ancestorFilters,
         int rowLimit,
         Traversal traversal,
@@ -862,9 +865,9 @@ public final class SplitDiscoveryPhase {
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
         // Partition columns must survive: FileSplitProvider.buildSurvivors strips them via stripPartitionColumns.
-        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.output());
-        List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
-        Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.output());
+        ExternalSchema querySchema = ExternalSchema.dataAttributesOf(exec.attributes());
+        List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.attributes());
+        Set<String> metadataColumnNames = ExternalMetadataColumns.metadataNames(exec.attributes());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             new SimpleSourceMetadata(
@@ -908,7 +911,7 @@ public final class SplitDiscoveryPhase {
      * No {@link ExternalFailures#classify} runs between split discovery and the REST response, so this is where a
      * discovery failure is detached from storage-client causes, whose messages name the bucket and key.
      */
-    private static RuntimeException wrapDiscoveryFailure(ExternalSourceExec exec, Exception e) {
+    private static RuntimeException wrapDiscoveryFailure(AbstractExternalSourceExec<?> exec, Exception e) {
         if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) instanceof TaskCancelledException cancelled) {
             return ExternalFailures.detach(cancelled);
         }
@@ -931,12 +934,12 @@ public final class SplitDiscoveryPhase {
         return new ElasticsearchException("{}: {}", context, detail);
     }
 
-    private static String sourceLabel(ExternalSourceExec exec) {
+    private static String sourceLabel(AbstractExternalSourceExec<?> exec) {
         return StoragePath.objectName(exec.sourcePath());
     }
 
     private static PhysicalPlan applyDiscoveryResult(
-        ExternalSourceExec exec,
+        AbstractExternalSourceExec<?> exec,
         SplitDiscoveryResult result,
         ScanStats stats,
         FileList fileList

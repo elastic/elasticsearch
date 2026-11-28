@@ -87,6 +87,72 @@ public class VirtualColumnIteratorTests extends ESTestCase {
         assertEquals(new BytesRef("us-east"), resultRegion.getBytesRef(0, new BytesRef()));
     }
 
+    /** A read with trailing blocks emits elements, which no row position addresses, so a record reference is refused. */
+    public void testTrailingBlocksRefuseARecordReference() {
+        List<Attribute> fullOutput = List.of(
+            partAttr(FileMetadataColumns.RECORD_REF, DataType.LONG),
+            attr(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG)
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new VirtualColumnIterator(emptyDelegate(), fullOutput, Set.of(FileMetadataColumns.RECORD_REF), Map.of(), blockFactory, 2)
+        );
+        assertThat(e.getMessage(), equalTo("a read with trailing blocks carries no row positions"));
+    }
+
+    /**
+     * An expanding read over a partitioned dataset: the element column and the parent ordinals after the data
+     * columns are carried after the output, not released as surplus, and the partition column takes its slot.
+     */
+    public void testTrailingBlocksFollowTheOutput() {
+        List<Attribute> fullOutput = List.of(partAttr("year", DataType.INTEGER), attr("emp_no", DataType.INTEGER));
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            emptyDelegate(),
+            fullOutput,
+            Set.of("year"),
+            Map.of("year", 2024),
+            blockFactory,
+            2
+        );
+
+        Page dataPage = new Page(
+            blockFactory.newIntArrayVector(new int[] { 7, 7, 8 }, 3).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 70, 71, 80 }, 3).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 0, 0, 1 }, 3).asBlock()
+        );
+        Page result = it.inject(dataPage);
+        try {
+            assertEquals(4, result.getBlockCount());
+            assertEquals(2024, ((IntBlock) result.getBlock(0)).getInt(2));
+            assertEquals(8, ((IntBlock) result.getBlock(1)).getInt(2));
+            assertEquals(80, ((IntBlock) result.getBlock(2)).getInt(2));
+            assertEquals(1, ((IntBlock) result.getBlock(3)).getInt(2));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
+    /** A page whose block count is not the data columns plus the trailing blocks is refused, and released. */
+    public void testTrailingBlocksRefuseAPageOfAnotherWidth() {
+        List<Attribute> fullOutput = List.of(partAttr("year", DataType.INTEGER), attr("emp_no", DataType.INTEGER));
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            emptyDelegate(),
+            fullOutput,
+            Set.of("year"),
+            Map.of("year", 2024),
+            blockFactory,
+            2
+        );
+        Page dataPage = new Page(
+            blockFactory.newIntArrayVector(new int[] { 7, 8 }, 2).asBlock(),
+            blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2).asBlock()
+        );
+        Block first = dataPage.getBlock(0);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> it.inject(dataPage));
+        assertThat(e.getMessage(), equalTo("format reader produced 2 blocks, an expanding read expects 3"));
+        assertTrue(first.isReleased());
+    }
+
     public void testAllBlockTypes() {
         List<Attribute> fullOutput = List.of(
             attr("data", DataType.INTEGER),

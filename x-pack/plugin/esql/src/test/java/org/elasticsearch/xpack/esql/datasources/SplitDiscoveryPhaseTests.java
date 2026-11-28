@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.plan.physical.ExpandingExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -64,6 +66,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 public class SplitDiscoveryPhaseTests extends ESTestCase {
 
@@ -83,6 +87,26 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         for (ExternalSplit split : resolved.splits()) {
             assertTrue(split instanceof FileSplit);
         }
+    }
+
+    /**
+     * Split discovery handles an expanding scan like the scan it was made from: the same splits, on a scan that still
+     * expands.
+     */
+    public void testExpandingScanGetsSplitsAttached() {
+        FileList fileList = createFileList(3);
+        ReferenceAttribute qty = new ReferenceAttribute(Source.EMPTY, "items.qty", DataType.LONG);
+        ExpandingExternalSourceExec exec = createExternalSourceExec(fileList, "parquet").withExpansion(
+            List.of(qty),
+            new ExpandingExternalSourceExec.Expansion("items", List.of("qty"), FormatReader.NO_LIMIT)
+        );
+
+        PhysicalPlan result = SplitDiscoveryPhase.resolveExternalSplits(exec, Map.of("parquet", testFactory(new FileSplitProvider())));
+
+        ExpandingExternalSourceExec resolved = as(result, ExpandingExternalSourceExec.class);
+        assertEquals(3, resolved.splits().size());
+        assertEquals(exec.expansion(), resolved.expansion());
+        assertEquals(exec.output(), resolved.output());
     }
 
     /**

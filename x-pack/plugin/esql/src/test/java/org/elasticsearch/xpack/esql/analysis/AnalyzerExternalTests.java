@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
@@ -27,12 +30,14 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -40,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -56,6 +62,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -790,6 +797,328 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertThat("both relations must resolve", columnsByDataset.keySet(), equalTo(Set.of("sales_csv", "sales_tsv")));
         assertThat("the csv read must carry the csv schema", columnsByDataset.get("sales_csv"), equalTo(List.of("from_csv")));
         assertThat("the tsv read must carry the tsv schema", columnsByDataset.get("sales_tsv"), equalTo(List.of("from_tsv")));
+    }
+
+    /**
+     * A dataset's list of structures is not one of its columns, as an index's {@code nested} field is not. Where the build
+     * reads no nested columns no reader describes one (see {@code DataSourceModule}), and the list is an unsupported
+     * column, as on main.
+     */
+    public void testNestedColumnIsNotADatasetColumn() {
+        var output = externalLeafOutput(analyzeDataset(nestedDataset(null), S3_PATH, "FROM " + DATASET_NAME));
+        assertThat(output.stream().map(Attribute::name).toList(), equalTo(List.of("question")));
+    }
+
+    /**
+     * A dataset whose only column is a list of structures still has a column, as FROM over an index whose every field is
+     * hidden does.
+     */
+    public void testAllNestedDatasetKeepsAColumn() {
+        assumeNestedDatasets();
+        var output = externalLeafOutput(
+            analyzeDataset(
+                nestedDataset((String) null, List.of(referenceAttribute("answers", DataType.UNSUPPORTED))),
+                S3_PATH,
+                "FROM " + DATASET_NAME
+            )
+        );
+        assertThat(output, equalTo(Analyzer.NO_FIELDS));
+    }
+
+    /**
+     * Only the unsupported column a list of structures reads as, or one its files disagree about, is hidden: a column of the
+     * same name and another type, such as a partition column the path shadows, stays a column.
+     */
+    public void testColumnNamedLikeANestedColumnStaysAColumn() {
+        assumeNestedDatasets();
+        var output = externalLeafOutput(
+            analyzeDataset(
+                nestedDataset((String) null, List.of(referenceAttribute("question", KEYWORD), referenceAttribute("answers", KEYWORD))),
+                S3_PATH,
+                "FROM " + DATASET_NAME
+            )
+        );
+        assertThat(output.stream().map(Attribute::name).toList(), equalTo(List.of("question", "answers")));
+    }
+
+    /** A list of structures the reader cannot read is hidden as any nested column is, as an index's nested field is. */
+    public void testUnreadableNestedColumnIsHidden() {
+        assumeNestedDatasets();
+        TestAnalyzer dataset = nestedDataset(
+            new NestedColumns.NestedColumn("answers", Map.of("type", KEYWORD), null, "[answers] holds more than [2] fields"),
+            List.of(referenceAttribute("question", KEYWORD), referenceAttribute("answers", DataType.UNSUPPORTED))
+        );
+        var output = externalLeafOutput(analyzeDataset(dataset, S3_PATH, "FROM " + DATASET_NAME));
+        assertThat(output.stream().map(Attribute::name).toList(), equalTo(List.of("question")));
+    }
+
+    /** NESTED_EXPAND binds the element fields schema discovery recorded, at their types. */
+    public void testNestedExpandOverDatasetBindsElementColumns() {
+        assumeNestedDatasets();
+        var plan = analyzeDataset(
+            nestedDataset(null),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | NESTED_EXPAND answers | KEEP question, answers.*"
+        );
+        assertThat(
+            plan.output().stream().map(a -> a.name() + ":" + a.dataType().typeName()).toList(),
+            equalTo(List.of("question:keyword", "answers.ttl:long", "answers.type:keyword"))
+        );
+    }
+
+    /**
+     * A list of structures whose files disagree is hidden, as an index's nested field is; NESTED_EXPAND of it says why it
+     * cannot read it, at the command, through the scope's conflict.
+     */
+    public void testConflictedNestedColumnIsHiddenAndRefusedAtTheExpansion() {
+        assumeNestedDatasets();
+        String conflict = "[answers] is a list of structures in [f1.parquet] but not in [f2.parquet]";
+        var output = externalLeafOutput(analyzeDataset(nestedDataset(conflict), S3_PATH, "FROM " + DATASET_NAME));
+        assertThat(output.stream().map(Attribute::name).toList(), equalTo(List.of("question")));
+        datasetError(
+            nestedDataset(conflict),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | NESTED_EXPAND answers",
+            containsString("1:33: NESTED_EXPAND cannot read [answers]: " + conflict)
+        );
+    }
+
+    /**
+     * A list of structures in one file and a plain column in another merge, under {@code union_by_name}, to a column that is not
+     * unsupported; the column is still the nested one the files disagree about, so it is hidden and NESTED_EXPAND of it says
+     * why.
+     */
+    public void testConflictedNestedColumnOfAnotherTypeIsHiddenAndRefusedAtTheExpansion() {
+        assumeNestedDatasets();
+        String conflict = "[answers] is a list of structures in [f1.parquet] but not in [f2.parquet]";
+        List<Attribute> schema = List.of(referenceAttribute("question", KEYWORD), referenceAttribute("answers", KEYWORD));
+        var output = externalLeafOutput(analyzeDataset(nestedDataset(conflict, schema), S3_PATH, "FROM " + DATASET_NAME));
+        assertThat(output.stream().map(Attribute::name).toList(), equalTo(List.of("question")));
+        datasetError(
+            nestedDataset(conflict, schema),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | NESTED_EXPAND answers",
+            containsString("1:33: NESTED_EXPAND cannot read [answers]: " + conflict)
+        );
+    }
+
+    /**
+     * An element field of a type the reader cannot read, such as a map inside the element, binds as an index's unsupported
+     * nested field does ({@code ne_unsupported} in {@link AnalyzerNestedExpandTests}): an {@link UnsupportedAttribute}, kept
+     * by name and by the expansion's every column.
+     */
+    public void testUnsupportedElementFieldBindsAsAnIndexUnsupportedNestedField() {
+        assumeNestedDatasets();
+        TestAnalyzer dataset = nestedDatasetWith(
+            List.of(new NestedColumns.NestedColumn("items", Map.of("qty", LONG, "span", DataType.UNSUPPORTED), null)),
+            List.of(referenceAttribute("id", KEYWORD), referenceAttribute("items", DataType.UNSUPPORTED))
+        );
+        TestAnalyzer index = AnalyzerNestedExpandTests.nestedAnalyzer(TransportVersion.current());
+        for (String expansion : List.of(" | NESTED_EXPAND items | KEEP items.span", " | NESTED_EXPAND items")) {
+            List<Attribute> fromDataset = analyzeDataset(dataset, S3_PATH, "FROM " + DATASET_NAME + expansion).output();
+            List<Attribute> fromIndex = index.query("FROM ne_unsupported" + expansion).output();
+            assertThat(expansion, describe(fromDataset), equalTo(describe(fromIndex)));
+            Attribute span = fromDataset.stream().filter(a -> a.name().equals("items.span")).findFirst().orElseThrow();
+            assertThat(expansion, span, instanceOf(UnsupportedAttribute.class));
+        }
+    }
+
+    /**
+     * Each expanded column's name, class and type. The parent's columns are left out: a dataset's are reference attributes, an
+     * index's field attributes, whatever the expansion does.
+     */
+    private static List<String> describe(List<Attribute> attributes) {
+        return attributes.stream()
+            .filter(a -> a.name().startsWith("items."))
+            .map(a -> a.name() + ":" + a.getClass().getSimpleName() + ":" + a.dataType().typeName())
+            .toList();
+    }
+
+    /**
+     * A partition key that shares the name of a list of structures the files disagree about shadows it, as it shadows any
+     * column: the partition column is a column of its own, whatever the nested column's conflict says.
+     */
+    public void testPartitionColumnNamedLikeAConflictedNestedColumnStaysAColumn() {
+        assumeNestedDatasets();
+        String conflict = "[answers] is a list of structures in [f1.parquet] but not in [f2.parquet]";
+        TestAnalyzer dataset = nestedDatasetWith(
+            List.of(new NestedColumns.NestedColumn("answers", Map.of("type", KEYWORD, "ttl", LONG), conflict)),
+            List.of(referenceAttribute("question", KEYWORD), referenceAttribute("answers", INTEGER)),
+            Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("answers"))
+        );
+        var output = externalLeafOutput(analyzeDataset(dataset, S3_PATH, "FROM " + DATASET_NAME));
+        assertThat(output.stream().map(Attribute::name).toList(), equalTo(List.of("question", "answers")));
+    }
+
+    /**
+     * NESTED_EXPAND over a list of structures the reader cannot read is refused with the reader's reason at the command, and
+     * only where the expansion binds it: the same query expanding another collection of the dataset runs.
+     */
+    public void testNestedExpandOverAnUnreadableColumnIsRefused() {
+        assumeNestedDatasets();
+        String unreadable = "[answers] holds more than [2] fields in each element, which cannot be read";
+        TestAnalyzer dataset = nestedDatasetWith(
+            List.of(
+                new NestedColumns.NestedColumn("answers", Map.of("type", KEYWORD), null, unreadable),
+                new NestedColumns.NestedColumn("hops", Map.of("ip", KEYWORD), null)
+            ),
+            List.of(
+                referenceAttribute("question", KEYWORD),
+                referenceAttribute("answers", DataType.UNSUPPORTED),
+                referenceAttribute("hops", DataType.UNSUPPORTED)
+            )
+        );
+        datasetError(
+            dataset,
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | NESTED_EXPAND answers",
+            containsString("NESTED_EXPAND cannot read [answers]: " + unreadable)
+        );
+        var plan = analyzeDataset(dataset, S3_PATH, "FROM " + DATASET_NAME + " | NESTED_EXPAND hops | KEEP question, hops.ip");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("question", "hops.ip")));
+    }
+
+    /**
+     * A collection inside another's element, as an index's nested field inside another: NESTED_EXPAND of the outer one
+     * binds its own fields without the inner one's, as the index's {@code testBindsChildColumns} does.
+     */
+    public void testNestedExpandOmitsAnInnerCollection() {
+        assumeNestedDatasets();
+        var plan = analyzeDataset(innerCollectionDataset(), S3_PATH, "FROM " + DATASET_NAME + " | NESTED_EXPAND items | KEEP id, items.*");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("id", "items.qty", "items.sku")));
+    }
+
+    /** NESTED_EXPAND of an inner collection directly is refused as on an index ({@code testOneNestingLevel}). */
+    public void testNestedExpandOfAnInnerCollectionIsOneLevelTooDeep() {
+        assumeNestedDatasets();
+        datasetError(
+            innerCollectionDataset(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | NESTED_EXPAND items.discounts",
+            containsString("NESTED_EXPAND supports one nesting level")
+        );
+    }
+
+    /**
+     * A second NESTED_EXPAND of the inner collection after the outer one finds no such column, as on an index: the outer
+     * expansion removed every scope under its path ({@code NestedExpand.expandedScope}).
+     */
+    public void testSecondExpansionOfAnInnerCollectionIsUnknown() {
+        assumeNestedDatasets();
+        datasetError(
+            innerCollectionDataset(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | NESTED_EXPAND items | NESTED_EXPAND items.discounts",
+            containsString("Unknown column [items.discounts]")
+        );
+    }
+
+    /** {@code items} holding {@code qty} and {@code sku}, and inside its element the collection {@code items.discounts}. */
+    private static TestAnalyzer innerCollectionDataset() {
+        return nestedDatasetWith(
+            List.of(
+                new NestedColumns.NestedColumn("items", Map.of("qty", LONG, "sku", KEYWORD), null),
+                new NestedColumns.NestedColumn("items.discounts", Map.of("code", KEYWORD, "pct", LONG), null)
+            ),
+            List.of(referenceAttribute("id", LONG), referenceAttribute("items", DataType.UNSUPPORTED))
+        );
+    }
+
+    /** NESTED_ANY over a dataset is not supported, also in a plan whose NESTED_EXPAND gives the dataset its nested scope. */
+    public void testNestedAnyOverDatasetRefused() {
+        assumeNestedDatasets();
+        datasetError(
+            nestedDataset(null),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | WHERE NESTED_ANY(answers, answers.ttl < 60) | NESTED_EXPAND answers",
+            containsString("NESTED_ANY cannot read [answers] from a dataset")
+        );
+        datasetError(
+            nestedDataset(null),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | WHERE NESTED_ANY(answers, answers.ttl < 60)",
+            containsString("Unknown column [answers]")
+        );
+    }
+
+    /**
+     * Every node must be able to run NESTED_EXPAND over a dataset. The refusal is the collection's scope conflict, so it is
+     * raised at the command that binds the dataset's collection, on a cluster whose nodes all run NESTED_EXPAND on an index.
+     */
+    public void testNestedExpandOverDatasetRequiresAllNodes() {
+        assumeNestedDatasets();
+        TransportVersion beforeDatasets = TransportVersionUtils.getPreviousVersion(NestedExpand.DATASET_VERSION);
+        assertTrue(beforeDatasets.supports(NestedExpand.VERSION));
+        datasetError(
+            nestedDataset(null).minimumTransportVersion(beforeDatasets),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | NESTED_EXPAND answers",
+            containsString("1:33: NESTED_EXPAND cannot read [answers]: NESTED_EXPAND over a dataset requires all nodes to support it")
+        );
+        // A plan that only reads the dataset runs on those nodes
+        analyzeDataset(nestedDataset(null).minimumTransportVersion(beforeDatasets), S3_PATH, "FROM " + DATASET_NAME);
+    }
+
+    private static void assumeNestedDatasets() {
+        assumeTrue("NESTED_EXPAND over datasets is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled());
+    }
+
+    /**
+     * A dataset with {@code question} and a list of structures {@code answers} whose elements hold {@code type} and
+     * {@code ttl}, as schema discovery describes it; {@code conflict} is the reason the list cannot be read, or {@code null}.
+     */
+    private static TestAnalyzer nestedDataset(String conflict) {
+        return nestedDataset(
+            conflict,
+            List.of(referenceAttribute("question", KEYWORD), referenceAttribute("answers", DataType.UNSUPPORTED))
+        );
+    }
+
+    /** As {@link #nestedDataset(String)}, with the file columns {@code schema}. */
+    private static TestAnalyzer nestedDataset(String conflict, List<Attribute> schema) {
+        return nestedDataset(new NestedColumns.NestedColumn("answers", Map.of("type", KEYWORD, "ttl", LONG), conflict), schema);
+    }
+
+    /** A dataset with the file columns {@code schema} and the one nested column {@code column}. */
+    private static TestAnalyzer nestedDataset(NestedColumns.NestedColumn column, List<Attribute> schema) {
+        return nestedDatasetWith(List.of(column), schema);
+    }
+
+    /** A dataset with the file columns {@code schema} and the nested columns {@code columns}. */
+    private static TestAnalyzer nestedDatasetWith(List<NestedColumns.NestedColumn> columns, List<Attribute> schema) {
+        return nestedDatasetWith(columns, schema, Map.of());
+    }
+
+    /** As {@link #nestedDatasetWith(List, List)}, with the further source metadata {@code extra}. */
+    private static TestAnalyzer nestedDatasetWith(
+        List<NestedColumns.NestedColumn> columns,
+        List<Attribute> schema,
+        Map<String, Object> extra
+    ) {
+        Map<String, Object> metadata = NestedColumns.of(columns).writeTo(extra);
+        var source = new ExternalSourceResolution.ResolvedSource(new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return S3_PATH;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return metadata;
+            }
+        }, FileList.UNRESOLVED, Map.of());
+        return analyzer().minimumTransportVersion(TransportVersion.current())
+            .externalSourceResolution(externalResolutionFor(datasetProject(S3_PATH), Map.of(S3_PATH, source)));
     }
 
     /** An {@link UnresolvedExternalRelation} on {@link #S3_PATH} under {@code config}, as DatasetRewriter builds one. */

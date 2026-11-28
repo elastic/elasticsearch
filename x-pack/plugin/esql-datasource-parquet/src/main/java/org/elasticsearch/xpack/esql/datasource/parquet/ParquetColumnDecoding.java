@@ -22,7 +22,10 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.core.Nullable;
@@ -371,7 +374,11 @@ final class ParquetColumnDecoding {
      */
     static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
-        String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
+        warnTimestampOutOfRange(descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath()), warningSink);
+    }
+
+    /** As {@link #warnTimestampOutOfRange(ColumnInfo, Consumer)}, for the column at the dotted {@code column} path. */
+    static void warnTimestampOutOfRange(String column, @Nullable Consumer<String> warningSink) {
         // The outcome is the same in every error_mode: no caller charges the budget or drops the row. A scalar is
         // nulled; a LIST element is dropped, and the list is null only when every element is out of range.
         String warning = "column [" + column + "]: timestamps outside the [date_nanos] range (1677-09-21 to 2262-04-11); returning null";
@@ -614,21 +621,93 @@ final class ParquetColumnDecoding {
 
     /** Classifies {@code info}'s {@code datetime} decode; see {@link DatetimeDecode}. */
     static DatetimeDecode datetimeDecodeFor(ColumnInfo info) {
-        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
+        DataType fileType = info.fileEsqlType() == null ? info.esqlType() : info.fileEsqlType();
+        return datetimeDecodeFor(info.parquetType(), info.logicalType(), fileType);
+    }
+
+    /** Classifies the {@code datetime} decode of a value of {@code physical} and {@code logical} read at {@code fileType}. */
+    static DatetimeDecode datetimeDecodeFor(
+        PrimitiveType.PrimitiveTypeName physical,
+        @Nullable LogicalTypeAnnotation logical,
+        DataType fileType
+    ) {
+        if (physical == PrimitiveType.PrimitiveTypeName.INT96) {
             return DatetimeDecode.INT96;
         }
-        DataType fileType = info.fileEsqlType() == null ? info.esqlType() : info.fileEsqlType();
         if (DataType.isString(fileType)) {
             return DatetimeDecode.STRING_PARSE;
         }
-        boolean int32 = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
+        boolean int32 = physical == PrimitiveType.PrimitiveTypeName.INT32;
         // The physical half of the test is load-bearing, not belt-and-braces: DATE_DAYS reads with the 32-bit
         // accessor, and DATE is only a legal annotation on an INT32. An illegal DATE on an INT64 stays on the
         // 64-bit arm rather than being read at the wrong width.
-        if (int32 && info.logicalType() instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+        if (int32 && logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
             return DatetimeDecode.DATE_DAYS;
         }
         return int32 ? DatetimeDecode.INT32_EPOCH_MILLIS : DatetimeDecode.INT64_EPOCH_MILLIS;
+    }
+
+    /**
+     * Appends the value {@code reader} is on to {@code builder}, a builder of {@code type}, as a column of
+     * {@code primitive} whose inferred type is {@code type} reads it: the per-value form of the column decodes, built
+     * from the same conversions, for a value no {@link ColumnInfo} describes, such as a field of a collection's element.
+     * A {@code date_nanos} value is the caller's, since one out of range has no value to append (see
+     * {@link #microsOverflowsNanos}), and an unsupported one is never decoded.
+     */
+    static void appendInferredValue(ColumnReader reader, PrimitiveType primitive, DataType type, Block.Builder builder) {
+        PrimitiveType.PrimitiveTypeName physical = primitive.getPrimitiveTypeName();
+        LogicalTypeAnnotation logical = primitive.getLogicalTypeAnnotation();
+        switch (type) {
+            case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(reader.getBoolean());
+            case INTEGER -> ((IntBlock.Builder) builder).appendInt(reader.getInteger());
+            case LONG -> ((LongBlock.Builder) builder).appendLong(
+                physical == PrimitiveType.PrimitiveTypeName.INT32 ? int32AsInferredLong(reader.getInteger(), logical) : reader.getLong()
+            );
+            case UNSIGNED_LONG -> ((LongBlock.Builder) builder).appendLong(encodeUnsignedLong(reader.getLong()));
+            case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(inferredDouble(reader, physical, logical));
+            case KEYWORD -> {
+                byte[] bytes = reader.getBinary().getBytes();
+                // A UUID is formatted as hex, as its column is; any other text is repaired to valid UTF-8
+                ((BytesRefBlock.Builder) builder).appendBytesRef(
+                    logical instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation
+                        ? new BytesRef(uuidText(bytes, 0, bytes.length))
+                        : Utf8Sanitizer.sanitize(new BytesRef(bytes))
+                );
+            }
+            case DATETIME -> ((LongBlock.Builder) builder).appendLong(switch (datetimeDecodeFor(physical, logical, type)) {
+                case INT96 -> {
+                    byte[] bytes = reader.getBinary().getBytes();
+                    yield int96ToEpochMillis(bytes, 0, bytes.length);
+                }
+                case DATE_DAYS -> dateDaysToMillis(reader.getInteger());
+                case INT32_EPOCH_MILLIS -> int32AsInferredLong(reader.getInteger(), logical);
+                case INT64_EPOCH_MILLIS -> int64AsMillis(reader.getLong(), logical);
+                case STRING_PARSE -> throw new IllegalStateException("an inferred datetime is never text: [" + primitive + "]");
+            });
+            default -> throw new IllegalStateException("no inferred decode of [" + primitive + "] as [" + type + "]");
+        }
+    }
+
+    /** The double of a {@code DOUBLE} column's value: a DECIMAL, a FLOAT16, a FLOAT or a DOUBLE, as the column decodes. */
+    private static double inferredDouble(
+        ColumnReader reader,
+        PrimitiveType.PrimitiveTypeName physical,
+        @Nullable LogicalTypeAnnotation logical
+    ) {
+        if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
+            BigInteger unscaled = switch (physical) {
+                case INT32 -> BigInteger.valueOf(reader.getInteger());
+                case INT64 -> BigInteger.valueOf(reader.getLong());
+                case BINARY, FIXED_LEN_BYTE_ARRAY -> unscaledToBigInteger(reader.getBinary().getBytes());
+                case BOOLEAN, INT96, FLOAT, DOUBLE -> throw new IllegalStateException("unexpected DECIMAL backing type: " + physical);
+            };
+            return decimalToDouble(unscaled, decimal.getScale());
+        }
+        if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
+            byte[] bytes = reader.getBinary().getBytes();
+            return float16ToDouble(bytes, 0, bytes.length);
+        }
+        return physical == PrimitiveType.PrimitiveTypeName.FLOAT ? reader.getFloat() : reader.getDouble();
     }
 
     /**
@@ -730,7 +809,7 @@ final class ParquetColumnDecoding {
             } else {
                 return null;
             }
-            return new BigDecimal(unscaled, decimal.getScale()).doubleValue();
+            return decimalToDouble(unscaled, decimal.getScale());
         }
         return null;
     }
@@ -791,6 +870,11 @@ final class ParquetColumnDecoding {
     /** {@link #unscaledToBigInteger(byte[], int, int)} over the whole array. */
     static BigInteger unscaledToBigInteger(byte[] bytes) {
         return unscaledToBigInteger(bytes, 0, bytes.length);
+    }
+
+    /** The double ESQL stores for a DECIMAL's unscaled value at {@code scale}; shared by every decode and the statistics. */
+    static double decimalToDouble(BigInteger unscaled, int scale) {
+        return new BigDecimal(unscaled, scale).doubleValue();
     }
 
     // ---- Unsigned long encoding ----
@@ -1055,6 +1139,32 @@ final class ParquetColumnDecoding {
                 reader,
                 info.maxDefLevel(),
                 info.maxRepLevel(),
+                corruptionHandler,
+                columnName,
+                fileLocation,
+                rowGroupOrdinal,
+                rowsBeforeGroup
+            );
+        }
+
+        /**
+         * A reader of a leaf no {@link ColumnInfo} describes, such as an element leaf of a collection, whose levels come
+         * from its descriptor. It shares {@code corruptionHandler} with the row's columns, so its recoveries draw on the
+         * read's one error budget.
+         */
+        static ListColumnReader bind(
+            ColumnReader reader,
+            ColumnDescriptor descriptor,
+            ListCorruptionHandler corruptionHandler,
+            String columnName,
+            String fileLocation,
+            int rowGroupOrdinal,
+            long rowsBeforeGroup
+        ) {
+            return new ListColumnReader(
+                reader,
+                descriptor.getMaxDefinitionLevel(),
+                descriptor.getMaxRepetitionLevel(),
                 corruptionHandler,
                 columnName,
                 fileLocation,

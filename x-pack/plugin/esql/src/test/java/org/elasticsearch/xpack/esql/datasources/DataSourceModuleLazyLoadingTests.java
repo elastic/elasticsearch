@@ -16,11 +16,13 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -242,6 +244,43 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
 
         assertTrue("flight should be in capabilities", capabilities.supportsScheme("flight"));
         assertTrue("grpc should be in capabilities", capabilities.supportsScheme("grpc"));
+    }
+
+    /**
+     * Whether a reader describes nested columns is the build's {@code NESTED_EXPAND_DATASET}, set once by core on the reader
+     * a plugin creates, so a plugin never reads the capability itself.
+     */
+    public void testFormatReaderTakesTheNestedColumnsCapability() {
+        List<Boolean> seen = new ArrayList<>();
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("nested", ".nested"));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("nested", (s, bf) -> new StubFormatReader("nested", List.of(".nested")) {
+                    @Override
+                    public FormatReader withNestedColumns(boolean nestedColumns) {
+                        seen.add(nestedColumns);
+                        return this;
+                    }
+                });
+            }
+        };
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            DataSourceCapabilities.build(plugins),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        module.formatReaderRegistry().byName("nested");
+        assertEquals(List.of(EsqlCapabilities.Cap.NESTED_EXPAND_DATASET.isEnabled()), seen);
     }
 
     public void testMultiFormatWithExplicitExtensions() {

@@ -96,9 +96,7 @@ public interface IndexAnalyzers extends Closeable {
     }
 
     /**
-     * Reload any analyzers that have reloadable components. {@code reloadToken} identifies the reload
-     * request so that an analyzer shared by several indices is rebuilt once per request rather than
-     * once per index; pass {@code null} to disable that deduplication (always reload).
+     * Reload any analyzers that have reloadable components. Only this index's analyzers change.
      */
     default List<String> reload(
         AnalysisRegistry analysisRegistry,
@@ -191,9 +189,6 @@ public interface IndexAnalyzers extends Closeable {
                 ReloadToken reloadToken
             ) throws IOException {
 
-                // Keep the local analyzer name (the map key): a shared ReloadableCustomAnalyzer keeps
-                // the name of whichever index built it first, so reloadAnalyzerInPlace must look the
-                // recipe up under THIS index's name, not the shared instance's embedded name.
                 List<Map.Entry<String, NamedAnalyzer>> reloadableAnalyzers = analyzers.entrySet()
                     .stream()
                     .filter(e -> e.getValue().analyzer() instanceof ReloadableCustomAnalyzer ra && ra.usesResource(resource))
@@ -204,23 +199,13 @@ public interface IndexAnalyzers extends Closeable {
                 }
 
                 if (preview == false) {
-                    // In-place reload: mutate the shared ReloadableCustomAnalyzer's components so existing
-                    // mapping references (TextSearchInfo captures a NamedAnalyzer at mapping-build time)
-                    // observe the refresh, and every index sharing the instance converges on it. Safe
-                    // because reloadable filters force AnalysisMode.SEARCH_TIME, which the mapping layer
-                    // only allows as search_analyzer / search_quote_analyzer — so a reload changes
-                    // query-time tokenization only, never how data was indexed. reloadToken makes a shared
-                    // instance rebuild once per request, not once per sharing index.
+                    // Swap this index's analyzer components in place, so existing mapping references
+                    // (TextSearchInfo captures a NamedAnalyzer at mapping-build time) observe the reload.
                     for (Map.Entry<String, NamedAnalyzer> entry : reloadableAnalyzers) {
                         registry.reloadAnalyzerInPlace(indexSettings, entry.getKey(), entry.getValue(), reloadToken);
                     }
                 }
 
-                // Report every matching analyzer as reloaded, including those whose rebuild was deduped by a
-                // sibling sharer: in-place mutation means a coasting sharer reflects the refreshed state just
-                // the same. Note this list (the response's reload_details) reports the requested index's
-                // analyzers, not every affected index — other indices sharing the instance also observe the
-                // refresh but are not enumerated here.
                 return reloadableAnalyzers.stream().map(Map.Entry::getKey).toList();
             }
         };

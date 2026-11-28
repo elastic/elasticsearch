@@ -27,6 +27,7 @@ import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.ReloadToken;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -185,6 +186,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private boolean fixedRulesRead;
     private String fixedRules;
     private Object sharingKey;
+    // Rules read by loadResourceForReload(), which the reload then builds from, so the key and the map match.
+    private LoadedRules loadedRules;
+
+    private record LoadedRules(String text, String origin, Set<String> resources, boolean degraded) {
+        ReaderWithOrigin reader() {
+            return new ReaderWithOrigin(new StringReader(text), origin, resources, degraded);
+        }
+    }
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -262,17 +271,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
      * <ul>
      *   <li>{@code synonyms} and non-updateable {@code synonyms_path}: a SHA-256 of the rule text that is parsed. When both
      *       are set the file's rules are used, so the file is what is hashed.</li>
-     *   <li>{@code synonyms_set}: the set names. These filters are always updateable, and a synonyms API
-     *       update reloads the one shared instance for every sharer. An update made with
-     *       {@code refresh=false} is not seen by an index that joins an already-loaded instance until the
-     *       next reload.</li>
-     *   <li>updateable {@code synonyms_path}: never shares. Nothing reloads the file on change, and a shared
-     *       instance loads it only once per node, so an index joining it could see rules the file no
-     *       longer has.</li>
+     *   <li>updateable sources: a SHA-256 of the rules read by {@link #loadResourceForReload}; a lenient partial read never
+     *       shares. Reloadable chains are not shared before that, so the creation-time key is unused.</li>
      * </ul>
      */
     private Object buildSharingKey() {
-        Object rules = switch (synonymsSource) {
+        if (loadedRules != null && loadedRules.degraded()) {
+            return this;
+        }
+        Object rules = loadedRules != null ? Analysis.sha256Hex(loadedRules.text()) : switch (synonymsSource) {
             case INLINE, LOCAL_FILE -> {
                 String fixedRules = fixedRules();
                 yield fixedRules == null ? null : Analysis.sha256Hex(fixedRules);
@@ -288,17 +295,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     private record Key(SynonymsSource source, boolean wordnet, boolean expand, boolean lenient, AnalysisMode mode, Object rules) {}
-
-    /**
-     * A non-updateable {@code synonyms_path} keys on the file content read at build time, but a reload of a
-     * chain made reloadable by ANOTHER filter re-reads the file into the shared instance, stranding the entry
-     * under the old content's key. Inline rules rebuild from the same settings and {@code synonyms_set} rules
-     * reload uniformly for every sharer, so only the local file source is unstable.
-     */
-    @Override
-    public boolean sharingKeyStableOnReload() {
-        return synonymsSource != SynonymsSource.LOCAL_FILE;
-    }
 
     @Override
     public synchronized Object sharingKey() {
@@ -327,9 +323,62 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
+        ReaderWithOrigin rulesReader = rulesReader(context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
         return buildChainedFactory(name(), synonyms, analysisMode, rulesReader, ts -> new SynonymFilter(ts, synonyms, false));
+    }
+
+    /**
+     * Reads an updateable source's rules ahead of a reload, once per request per resource, so every index the request reloads
+     * gets the same read, including the same failure or lenient fallback.
+     */
+    @Override
+    public synchronized void loadResourceForReload(ReloadToken token) {
+        if (analysisMode != AnalysisMode.SEARCH_TIME) {
+            return;
+        }
+        Object readKey = readKey();
+        loadedRules = token == null || readKey == null ? readRules() : token.loadOnce(readKey, this::readRules);
+        sharingKey = null;
+    }
+
+    /** The resource {@link #readRules()} reads, or {@code null} when it reads only settings. */
+    private Object readKey() {
+        String path = settings.get(SynonymsSource.LOCAL_FILE.getSettingName());
+        return switch (synonymsSource) {
+            // Lenient reads skip missing sets, so lenient changes what is read.
+            case INDEX -> new ReadKey(
+                synonymsSource,
+                settings.getAsList(SynonymsSource.INDEX.getSettingName()).stream().distinct().sorted().toList(),
+                lenient
+            );
+            // Inline rules with a path read the file as a word list, unlike a plain synonyms_path, hence the source in the key.
+            case LOCAL_FILE, INLINE -> path == null ? null : new ReadKey(synonymsSource, path, false);
+        };
+    }
+
+    private record ReadKey(SynonymsSource source, Object resource, boolean lenient) {}
+
+    private LoadedRules readRules() {
+        ReaderWithOrigin source = synonymsSource.getRulesReader(this, IndexCreationContext.RELOAD_ANALYZERS);
+        StringWriter text = new StringWriter();
+        try (Reader reader = source.reader()) {
+            reader.transferTo(text);
+        } catch (IOException e) {
+            // Same outcome for every index sharing this read: lenient falls back to no rules, as parsing would; otherwise fail.
+            if (lenient) {
+                return new LoadedRules("", source.origin(), source.resources(), true);
+            }
+            throw new UncheckedIOException(e);
+        }
+        return new LoadedRules(text.toString(), source.origin(), source.resources(), source.degraded());
+    }
+
+    protected synchronized ReaderWithOrigin rulesReader(IndexCreationContext context) {
+        if (context == IndexCreationContext.RELOAD_ANALYZERS && loadedRules != null) {
+            return loadedRules.reader();
+        }
+        return synonymsSource.getRulesReader(this, context);
     }
 
     /**

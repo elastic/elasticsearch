@@ -11,6 +11,8 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -33,13 +35,12 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Indices whose synonyms_set filters share one analyzer. A synonyms API update must reach every sharer. A lenient
- * filter whose sets cannot all be loaded at recovery falls back to the rules it could load without failing; that
- * fallback must not count as loaded, so an index that joins once the sets are available retries the load, which
- * rebuilds the shared instance for every sharer.
+ * Indices with synonyms_set filters each own their analyzer and share its components only when they loaded identical
+ * rules, so loads, reloads and lenient fallbacks affect exactly the indices they would without sharing.
  */
 public class SharedSynonymsIT extends ESSingleNodeTestCase {
 
@@ -73,6 +74,10 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
             PutSynonymsAction.INSTANCE,
             new PutSynonymsAction.Request(set, reloadAnalyzers, true, new BytesArray(body), XContentType.JSON)
         ).actionGet();
+    }
+
+    private void reload(String index) {
+        client().execute(TransportReloadAnalyzersAction.TYPE, new ReloadAnalyzersRequest(null, false, index)).actionGet();
     }
 
     private List<String> analyze(String index, String text) {
@@ -134,10 +139,10 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
         putSet("s", "hello, hi");
 
         createIndex("b", synonymsSetIndex("s"));
-        assertSame("b must share a's analyzer for this test to exercise sharing", analyzer("a"), analyzer("b"));
         assertThat(analyze("b", "hello"), contains("hello", "hi"));
-        // b's retry rebuilt the shared instance, so a sees the set too.
-        assertThat(analyze("a", "hello"), contains("hello", "hi"));
+        // Each index owns its analyzer: b's load leaves a on its fallback until a is reloaded, as without sharing.
+        assertThat(analyze("a", "hello"), contains("hello"));
+        assertNotSame("a degraded load is never shared", analyzer("a").getComponents(), analyzer("b").getComponents());
     }
 
     public void testIndexJoiningPartialFallbackRetriesLoad() throws IOException {
@@ -152,9 +157,10 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
         putSet("s2", "bye, ciao");
 
         createIndex("b", synonymsSetIndex("s1", "s2"));
-        assertSame("b must share a's analyzer for this test to exercise sharing", analyzer("a"), analyzer("b"));
         assertThat(analyze("b", "bye"), contains("bye", "ciao"));
-        assertThat(analyze("a", "bye"), contains("bye", "ciao"));
+        // a keeps its partial load until reloaded, as without sharing.
+        assertThat(analyze("a", "bye"), contains("bye"));
+        assertNotSame("a degraded load is never shared", analyzer("a").getComponents(), analyzer("b").getComponents());
     }
 
     public void testSynonymsUpdateReachesEverySharer() throws IOException {
@@ -163,12 +169,14 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
         putSet("s", "hello, hi");
         createIndex("a", synonymsSetIndex("s"));
         createIndex("b", synonymsSetIndex("s"));
-        assertSame("b must share a's analyzer for this test to exercise sharing", analyzer("a"), analyzer("b"));
+        assertNotSame("each index owns its analyzer", analyzer("a"), analyzer("b"));
+        assertSame("identical rules share components", analyzer("a").getComponents(), analyzer("b").getComponents());
 
         putSet("s", "bye, ciao", true);
 
         assertThat(analyze("a", "bye"), contains("bye", "ciao"));
         assertThat(analyze("b", "bye"), contains("bye", "ciao"));
+        assertSame("still shared after the reload", analyzer("a").getComponents(), analyzer("b").getComponents());
     }
 
     /**
@@ -229,5 +237,64 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
             .putList("index.analysis.filter.syn.synonyms", "foo, bar")
             .put("index.analysis.filter.syn.synonyms_path", path)
             .build();
+    }
+
+    /** An update made without a reload reaches the reloaded index and indices created after it, not other indices. */
+    public void testDeferredUpdateReachesOnlyReloadedAndNewIndices() throws IOException {
+        assumeTrue("analyzer sharing feature flag disabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
+
+        putSet("s", "hello, hi");
+        createIndex("a", synonymsSetIndex("s"));
+        createIndex("b", synonymsSetIndex("s"));
+        putSet("s", "bye, ciao");
+        createIndex("c", synonymsSetIndex("s"));
+        reload("a");
+
+        assertThat(analyze("a", "bye"), contains("bye", "ciao"));
+        assertThat(analyze("c", "bye"), contains("bye", "ciao"));
+        assertThat(analyze("b", "bye"), contains("bye"));
+    }
+
+    public void testDegradedReloadAffectsOnlyTheReloadedIndex() throws IOException {
+        assumeTrue("analyzer sharing feature flag disabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
+
+        putSet("s", "hello, hi");
+        createIndex("a", synonymsSetIndex("s"));
+        createIndex("b", synonymsSetIndex("s"));
+        putSet("s", "bye, ciao");
+        String limit = HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(limit, "0b").build());
+        try {
+            reload("a");
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(limit).build());
+        }
+
+        assertThat(analyze("a", "hello"), contains("hello"));
+        assertThat(analyze("b", "hello"), contains("hello", "hi"));
+        createIndex("d", synonymsSetIndex("s"));
+        assertThat(analyze("d", "bye"), contains("bye", "ciao"));
+    }
+
+    public void testSynonymsUpdateReachesHiddenIndex() throws IOException {
+        putSet("s", "hello, hi");
+        createIndex("h", Settings.builder().put(synonymsSetIndex("s")).put("index.hidden", true).build());
+        // The synonym filter wrapped in a multiplexer.
+        createIndex(
+            "hm",
+            Settings.builder()
+                .put(synonymsSetIndex("s"))
+                .put("index.hidden", true)
+                .put("index.analysis.filter.syn.type", "synonym")
+                .put("index.analysis.filter.mux.type", "multiplexer")
+                .putList("index.analysis.filter.mux.filters", "syn")
+                .putList("index.analysis.analyzer.a.filter", "mux")
+                .build()
+        );
+
+        putSet("s", "bye, ciao", true);
+
+        assertThat(analyze("h", "bye"), contains("bye", "ciao"));
+        assertThat(analyze("hm", "bye"), hasItem("ciao"));
     }
 }

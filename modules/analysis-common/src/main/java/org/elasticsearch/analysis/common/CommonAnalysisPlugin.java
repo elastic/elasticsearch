@@ -151,7 +151,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(
-            new SynonymsManagementAPIService(services.client(), services.clusterService(), services.featureService())
+            new SynonymsManagementAPIService(
+                services.client(),
+                services.clusterService(),
+                services.projectResolver(),
+                services.featureService()
+            )
         );
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
         return Collections.emptyList();

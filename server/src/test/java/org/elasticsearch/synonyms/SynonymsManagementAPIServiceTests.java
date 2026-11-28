@@ -27,10 +27,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.SystemIndices;
@@ -44,7 +48,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
@@ -72,6 +78,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         return new SynonymsManagementAPIService(
             client,
             cs,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             maxRules,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
             chunkSize,
@@ -83,6 +90,38 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
      * All rules plus the synonym set document are written regardless of whether the rule count
      * falls below or above the chunk size boundary.
      */
+    /**
+     * Hidden indices are reloaded by name only when open and an analyzer of theirs runs a filter naming the set, directly or
+     * wrapped in a multiplexer. A condition filter hides its children's resources from reloads, so it does not count.
+     */
+    public void testReloadTargetsAddsOpenHiddenIndicesUsingTheSet() {
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexUsingSet("visible", false, IndexMetadata.State.OPEN, "syn"), false)
+            .put(indexUsingSet("hidden", true, IndexMetadata.State.OPEN, "syn"), false)
+            .put(indexUsingSet("hidden-multiplexed", true, IndexMetadata.State.OPEN, "mux"), false)
+            .put(indexUsingSet("hidden-conditional", true, IndexMetadata.State.OPEN, "cond"), false)
+            .put(indexUsingSet("hidden-unused-filter", true, IndexMetadata.State.OPEN, "lowercase"), false)
+            .put(indexUsingSet("hidden-closed", true, IndexMetadata.State.CLOSE, "syn"), false)
+            .build();
+        String[] targets = SynonymsManagementAPIService.reloadTargets(project, "s");
+        assertEquals("*", targets[0]);
+        assertEquals(Set.of("hidden", "hidden-multiplexed"), Set.of(Arrays.copyOfRange(targets, 1, targets.length)));
+    }
+
+    private static IndexMetadata indexUsingSet(String name, boolean hidden, IndexMetadata.State state, String analyzerFilter) {
+        Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_HIDDEN, hidden)
+            .put("index.analysis.filter.syn.type", "synonym_graph")
+            .putList("index.analysis.filter.syn.synonyms_set", "s")
+            .put("index.analysis.filter.syn.updateable", true)
+            .put("index.analysis.filter.mux.type", "multiplexer")
+            .putList("index.analysis.filter.mux.filters", "lowercase, syn")
+            .put("index.analysis.filter.cond.type", "condition")
+            .putList("index.analysis.filter.cond.filter", "mux")
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", analyzerFilter);
+        return IndexMetadata.builder(name).settings(settings).state(state).build();
+    }
+
     public void testBulkUpdateWritesAllDocs() throws Exception {
         int chunkSize = randomIntBetween(2, 10);
         // randomize below and above the chunk boundary

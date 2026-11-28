@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -119,6 +120,30 @@ public final class AnalysisRegistry implements Closeable {
     private final Map<AnalyzerKey, CacheEntry> analyzerCache = new ConcurrentHashMap<>();
     private final Map<AnalyzerKey, CacheEntry> normalizerCache = new ConcurrentHashMap<>();
     private final Map<AnalyzerKey, CacheEntry> whitespaceNormalizerCache = new ConcurrentHashMap<>();
+    // Components of reloadable analyzers, keyed on the content each index loaded (see #reloadAnalyzerInPlace).
+    private final Map<AnalyzerKey, Slot<AnalyzerComponents>> componentsCache = new ConcurrentHashMap<>();
+
+    /**
+     * A refcounted cache slot whose value one thread builds while concurrent acquirers join {@link #future}. Starts held by
+     * its builder; at refcount 0 it is retired and {@link #tryAcquire} refuses it.
+     */
+    static class Slot<T> {
+        final CompletableFuture<T> future = new CompletableFuture<>();
+        final AtomicInteger refCount = new AtomicInteger(1);
+
+        /** Acquires one more reference unless the slot is retired, in which case the caller must build a fresh one. */
+        boolean tryAcquire() {
+            while (true) {
+                int n = refCount.get();
+                if (n == 0) {
+                    return false;
+                }
+                if (refCount.compareAndSet(n, n + 1)) {
+                    return true;
+                }
+            }
+        }
+    }
 
     /**
      * Refcounted slot for a shared analyzer with single-flight build coalescing. The cache slot
@@ -131,17 +156,9 @@ public final class AnalysisRegistry implements Closeable {
      * <p>The entry is removed when the last user releases. Build failures complete the future
      * exceptionally and remove the entry so the next attempt can build fresh.
      */
-    static final class CacheEntry {
-        // Future is completed by the builder thread. tryAcquire may return true before the future
-        // is complete (the slot is reserved); callers MUST join() the future to materialize the
-        // analyzer. Identity comparison on this object is the right "is it me?" check during
-        // displacement, regardless of whether the build has finished.
-        final CompletableFuture<NamedAnalyzer> futureAnalyzer = new CompletableFuture<>();
-        // Invariant: refCount >= 1 while the entry is reachable to acquire; once it reaches 0
-        // the entry is closed and {@link #tryAcquire} refuses further acquires on it.
-        final AtomicInteger refCount = new AtomicInteger(1);
+    static final class CacheEntry extends Slot<NamedAnalyzer> {
         // The analyzer to close on eviction. This is the ORIGINAL wrapper as built, NOT the
-        // GLOBAL-retagged wrapper handed to IndexAnalyzers via {@link #futureAnalyzer}. The
+        // GLOBAL-retagged wrapper handed to IndexAnalyzers via {@link #future}. The
         // distinction matters: {@link NamedAnalyzer#close} only cascades to the underlying Lucene
         // analyzer (which owns the heavy CloseableThreadLocal / SynonymMap) when the wrapper's
         // scope is INDEX. We re-tag the handed-out wrapper to GLOBAL so per-index close paths skip
@@ -155,22 +172,6 @@ public final class AnalysisRegistry implements Closeable {
         // AnalysisRegistry#isDegraded). The entry is then removed from the cache, so its holders
         // release it themselves rather than through the cache.
         volatile boolean detached;
-
-        /**
-         * Acquire one additional reference if the entry is still live. Returns false if it has
-         * already been retired, in which case the caller must build a fresh entry instead.
-         */
-        boolean tryAcquire() {
-            while (true) {
-                int n = refCount.get();
-                if (n == 0) {
-                    return false;
-                }
-                if (refCount.compareAndSet(n, n + 1)) {
-                    return true;
-                }
-            }
-        }
     }
 
     /**
@@ -398,24 +399,29 @@ public final class AnalysisRegistry implements Closeable {
      *         is still held, with a message enumerating the leaked recipes.
      */
     public void assertNoCachedEntries() {
-        if (analyzerCache.isEmpty() && normalizerCache.isEmpty() && whitespaceNormalizerCache.isEmpty() && detachedEntries.isEmpty()) {
+        if (analyzerCache.isEmpty()
+            && normalizerCache.isEmpty()
+            && whitespaceNormalizerCache.isEmpty()
+            && detachedEntries.isEmpty()
+            && componentsCache.isEmpty()) {
             return;
         }
         StringBuilder msg = new StringBuilder("AnalysisRegistry has cached entries that were never released:\n");
         leakedEntries(msg, "  analyzer", analyzerCache);
         leakedEntries(msg, "  normalizer", normalizerCache);
         leakedEntries(msg, "  whitespace-normalizer", whitespaceNormalizerCache);
+        leakedEntries(msg, "  components", componentsCache);
         for (CacheEntry e : detachedEntries) {
             msg.append("  detached refCount=").append(e.refCount.get()).append('\n');
         }
         throw new AssertionError(msg.toString());
     }
 
-    private static void leakedEntries(StringBuilder out, String label, Map<AnalyzerKey, CacheEntry> cache) {
+    private static void leakedEntries(StringBuilder out, String label, Map<AnalyzerKey, ? extends Slot<?>> cache) {
         if (cache.isEmpty()) {
             return;
         }
-        for (Map.Entry<AnalyzerKey, CacheEntry> e : cache.entrySet()) {
+        for (Map.Entry<AnalyzerKey, ? extends Slot<?>> e : cache.entrySet()) {
             out.append(label).append(" cache[").append(e.getKey()).append("] refCount=").append(e.getValue().refCount.get()).append('\n');
         }
     }
@@ -1052,7 +1058,7 @@ public final class AnalysisRegistry implements Closeable {
         if (indexSettings != null && sharingActive()) {
             AnalyzerKey key = computeAnalyzerKey(analyzerFactory, analyzerSettings, tokenizers, charFilters, tokenFilters);
             if (key == null) {
-                // Reloadable chain with a component whose key does not survive an in-place reload.
+                // Reloadable chain: built per index.
                 return buildNamedAnalyzer(context, name, analyzerFactory, tokenFilters, charFilters, tokenizers);
             }
             CacheEntry cached = analyzerCache.get(key);
@@ -1188,7 +1194,7 @@ public final class AnalysisRegistry implements Closeable {
                 raw = builder.get();
             } catch (Throwable t) {
                 // Surface to siblings, retire the slot, drop our reference.
-                entry.futureAnalyzer.completeExceptionally(t);
+                entry.future.completeExceptionally(t);
                 cache.remove(key, entry);
                 entry.refCount.decrementAndGet();
                 throw t;
@@ -1209,7 +1215,7 @@ public final class AnalysisRegistry implements Closeable {
                 detachedEntries.add(entry);
                 cache.remove(key, entry);
             }
-            entry.futureAnalyzer.complete(scoped);
+            entry.future.complete(scoped);
         } else {
             // We adopted a sibling's entry — count as a coalesced hit, not a build.
             cacheHits.increment();
@@ -1240,7 +1246,7 @@ public final class AnalysisRegistry implements Closeable {
     private InternedAnalyzer materialize(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
         NamedAnalyzer analyzer;
         try {
-            analyzer = entry.futureAnalyzer.join();
+            analyzer = entry.future.join();
         } catch (CompletionException ce) {
             // Build failed. We never owned a closeable analyzer, so just drop our refcount; the
             // failing builder already removed the slot from the cache.
@@ -1339,34 +1345,13 @@ public final class AnalysisRegistry implements Closeable {
     ) {
         Settings recipeSettings = analyzerSettings == null ? Settings.EMPTY : analyzerSettings;
         if (provider instanceof CustomAnalyzerProvider || provider instanceof CustomNormalizerProvider) {
-            // Custom analyzers and normalizers share by chain identity regardless of the local name
-            // they were given. Each chain slot holds the corresponding factory's {@link #sharingKey()}.
-            // Normalizers have no tokenizer (the keyword/whitespace tokenizer is fixed and lives in a
-            // separate cache), so the tokenizer slot resolves to null for them.
-            String tokenizerName = recipeSettings.get("tokenizer");
-            Object tokenizerKey = tokenizerName == null ? null : sharingKey(tokenizerFactories.get(tokenizerName));
-            List<Object> charFilterKeys = recipeSettings.getAsList("char_filter")
-                .stream()
-                .map(n -> sharingKey(charFilterFactories.get(n)))
-                .toList();
-            List<TokenFilterFactory> chainTokenFilters = recipeSettings.getAsList("filter")
+            // A chain with a SEARCH_TIME filter becomes a ReloadableCustomAnalyzer. Each index owns its own, so a reload
+            // changes only that index; the components are shared on load instead (see #reloadAnalyzerInPlace).
+            boolean reloadable = recipeSettings.getAsList("filter")
                 .stream()
                 .map(tokenFilterFactories::get)
-                .toList();
-            // A chain with any SEARCH_TIME filter becomes a ReloadableCustomAnalyzer, rebuilt in place from
-            // current resource state on reload. Sharing one is only sound when every filter's key stays true
-            // across that rebuild (see TokenFilterFactory#sharingKeyStableOnReload); otherwise build privately.
-            if (chainTokenFilters.stream().anyMatch(f -> f != null && f.getAnalysisMode() == AnalysisMode.SEARCH_TIME)
-                && chainTokenFilters.stream().anyMatch(f -> f != null && f.sharingKeyStableOnReload() == false)) {
-                return null;
-            }
-            List<Object> tokenFilterKeys = chainTokenFilters.stream().map(AnalysisRegistry::sharingKey).toList();
-            int gap = recipeSettings.getAsInt("position_increment_gap", TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
-            // offset_gap is baked per-index into the (Reloadable)CustomAnalyzer just like the
-            // position gap, so it must be part of the key or indices differing only in offset_gap
-            // would wrongly share. -1 is the "use Lucene default" sentinel (CustomAnalyzerProvider).
-            int offsetGap = recipeSettings.getAsInt("offset_gap", -1);
-            return new AnalyzerKey("custom", tokenizerKey, charFilterKeys, tokenFilterKeys, gap, offsetGap);
+                .anyMatch(f -> f != null && f.getAnalysisMode() == AnalysisMode.SEARCH_TIME);
+            return reloadable ? null : customChainKey(recipeSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
         }
         // For prebuilt / built-in / plugin analyzer providers we delegate to
         // {@link AnalyzerProvider#sharingKey()}, folding in the provider class so two different
@@ -1383,6 +1368,33 @@ public final class AnalysisRegistry implements Closeable {
         );
     }
 
+    /** Key for a custom analyzer or normalizer chain: each slot holds its factory's sharing key, whatever the chain's name. */
+    private static AnalyzerKey customChainKey(
+        Settings recipeSettings,
+        Map<String, TokenizerFactory> tokenizerFactories,
+        Map<String, CharFilterFactory> charFilterFactories,
+        Map<String, TokenFilterFactory> tokenFilterFactories
+    ) {
+        // Normalizers have no tokenizer (the keyword/whitespace tokenizer is fixed and lives in a
+        // separate cache), so the tokenizer slot resolves to null for them.
+        String tokenizerName = recipeSettings.get("tokenizer");
+        Object tokenizerKey = tokenizerName == null ? null : sharingKey(tokenizerFactories.get(tokenizerName));
+        List<Object> charFilterKeys = recipeSettings.getAsList("char_filter")
+            .stream()
+            .map(n -> sharingKey(charFilterFactories.get(n)))
+            .toList();
+        List<Object> tokenFilterKeys = recipeSettings.getAsList("filter")
+            .stream()
+            .map(n -> sharingKey(tokenFilterFactories.get(n)))
+            .toList();
+        int gap = recipeSettings.getAsInt("position_increment_gap", TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+        // offset_gap is baked per-index into the (Reloadable)CustomAnalyzer just like the
+        // position gap, so it must be part of the key or indices differing only in offset_gap
+        // would wrongly share. -1 is the "use Lucene default" sentinel (CustomAnalyzerProvider).
+        int offsetGap = recipeSettings.getAsInt("offset_gap", -1);
+        return new AnalyzerKey("custom", tokenizerKey, charFilterKeys, tokenFilterKeys, gap, offsetGap);
+    }
+
     private static Object sharingKey(TokenizerFactory factory) {
         return factory == null ? null : new FactoryKey(factory.getClass(), factory.sharingKey());
     }
@@ -1396,36 +1408,104 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     /**
-     * Reload the synonyms (and any other reloadable resources) of {@code currentReference} in place,
-     * rebuilding its {@link ReloadableCustomAnalyzer} components from the current resource state. The
-     * mutation is observed by existing mapping references and by every index sharing this instance; see
-     * {@link ReloadableCustomAnalyzer#reload} for why that is safe and how {@code reloadToken} dedups a
-     * shared instance to a single rebuild per request.
+     * Loads this index's reloadable resources (synonyms etc.) and publishes them to its analyzer only. The chain is keyed on
+     * the content just read, so indices that loaded identical content share one {@link AnalyzerComponents}.
      */
     public void reloadAnalyzerInPlace(IndexSettings indexSettings, String name, NamedAnalyzer currentReference, ReloadToken reloadToken)
         throws IOException {
         ReloadableCustomAnalyzer reloadable = (ReloadableCustomAnalyzer) currentReference.analyzer();
-        // Look up the recipe under {@code name} — the requesting index's LOCAL analyzer name — rather
-        // than {@code currentReference.name()}: a shared analyzer keeps the name of whichever index
-        // built it first, which need not match this index's name for the same recipe. Using the
-        // embedded name would read the wrong (or a missing) settings group for every other sharer.
         Settings analyzerSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_ANALYZER).get(name);
         if (analyzerSettings == null) {
-            // No recipe under this index's local name — reloadable analyzers always have one. Bail
-            // WITHOUT claiming the token, so a sharer that does carry the recipe can still reload it.
-            return;
-        }
-        if (reloadable.shouldReload(reloadToken) == false) {
-            // Already reloaded for this request, or already loaded and this is only a recovery load — skip
-            // building the inputs. reload() re-checks authoritatively under its lock.
             return;
         }
         Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
         Map<String, CharFilterFactory> charFilterFactories = buildCharFilterFactories(indexSettings);
         Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);
-        // Rebuild the components fresh from settings. This reads from disk / the .synonyms index for
-        // synonym chains; lenient handling lives inside the synonym factory.
-        reloadable.reload(reloadToken, name, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+        for (String filterName : analyzerSettings.getAsList("filter")) {
+            TokenFilterFactory filter = tokenFilterFactories.get(filterName);
+            if (filter != null) {
+                filter.loadResourceForReload(reloadToken);
+            }
+        }
+        Supplier<AnalyzerComponents> build = () -> AnalyzerComponents.createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            name,
+            analyzerSettings,
+            tokenizerFactories,
+            charFilterFactories,
+            tokenFilterFactories
+        );
+        AnalyzerKey key = sharingActive()
+            ? customChainKey(analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories)
+            : null;
+        if (key == null) {
+            reloadable.reload(build.get(), null);
+            return;
+        }
+        HeldComponents held = acquireComponents(key, build, false);
+        reloadable.reload(held.components(), held.release());
+    }
+
+    /** One index's components and the release of its hold on them, or a {@code null} release when they are private to it. */
+    private record HeldComponents(AnalyzerComponents components, @Nullable Releasable release) {}
+
+    /**
+     * Returns components for {@code key}, building them outside the map lock if no live slot exists; concurrent callers join that
+     * build. A failed build is removed and rethrown. A degraded build is never shared: it is removed for later loads, and a caller
+     * that joined it retries once, then builds its own.
+     */
+    private HeldComponents acquireComponents(AnalyzerKey key, Supplier<AnalyzerComponents> build, boolean retried) {
+        boolean[] created = { false };
+        Slot<AnalyzerComponents> entry = componentsCache.compute(key, (k, existing) -> {
+            if (existing != null && existing.tryAcquire()) {
+                return existing;
+            }
+            created[0] = true;
+            return new Slot<>();
+        });
+        if (created[0]) {
+            AnalyzerComponents built;
+            try {
+                built = build.get();
+            } catch (Throwable t) {
+                componentsCache.remove(key, entry);
+                entry.future.completeExceptionally(t);
+                entry.refCount.decrementAndGet();
+                throw t;
+            }
+            if (isDegraded(built)) {
+                componentsCache.remove(key, entry);
+            }
+            entry.future.complete(built);
+            return new HeldComponents(built, () -> releaseComponents(key, entry));
+        }
+        AnalyzerComponents joined;
+        try {
+            joined = entry.future.join();
+        } catch (CompletionException e) {
+            entry.refCount.decrementAndGet();
+            if (e.getCause() instanceof Error error) {
+                throw error;
+            }
+            throw e.getCause() instanceof RuntimeException r ? r : e;
+        }
+        if (isDegraded(joined)) {
+            // The degraded slot is already out of the cache, so a retry joins a newer build or builds afresh. Retry once: if
+            // builds keep degrading (e.g. the breaker keeps tripping), build privately rather than queue behind each one.
+            releaseComponents(key, entry);
+            return retried ? new HeldComponents(build.get(), null) : acquireComponents(key, build, true);
+        }
+        return new HeldComponents(joined, () -> releaseComponents(key, entry));
+    }
+
+    private static boolean isDegraded(AnalyzerComponents components) {
+        return Arrays.stream(components.getTokenFilters()).anyMatch(TokenFilterFactory::isDegraded);
+    }
+
+    private void releaseComponents(AnalyzerKey key, Slot<AnalyzerComponents> entry) {
+        if (entry.refCount.decrementAndGet() == 0) {
+            componentsCache.remove(key, entry);
+        }
     }
 
     private static NamedAnalyzer overridePositionIncrementGap(NamedAnalyzer analyzer, int overridePositionIncrementGap) {

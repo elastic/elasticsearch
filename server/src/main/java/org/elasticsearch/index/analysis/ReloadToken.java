@@ -9,14 +9,38 @@
 
 package org.elasticsearch.index.analysis;
 
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+
 /**
- * Opaque per-node, per-request marker used to deduplicate reloads of shared analyzers. A single
- * {@code _reload_search_analyzers} request creates one instance per node and passes it to every
- * shard operation on that node; the registry rebuilds an analyzer shared by several indices once
- * per request rather than once per index (see {@link ReloadableCustomAnalyzer#reload}).
- *
- * <p>Compared by identity — each request gets a fresh instance — so it is deliberately a plain
- * class, not a record (whose no-field instances would all be {@code equals}). A {@code null} token
- * means "always reload" and is used by internal / direct callers such as shard recovery.
+ * One {@code _reload_search_analyzers} request on one node, shared by every index it reloads there so that a resource several
+ * indices use is read once ({@link #loadOnce}). Shard recovery passes {@code null}.
  */
-public final class ReloadToken {}
+public final class ReloadToken {
+    private final Map<Object, CompletableFuture<Object>> loaded = new ConcurrentHashMap<>();
+
+    /** Runs {@code loader} for the first caller with {@code key}; later callers get its result or exception. */
+    @SuppressWarnings("unchecked") // each key is only ever loaded by a loader of one type
+    public <T> T loadOnce(Object key, Supplier<T> loader) {
+        CompletableFuture<Object> mine = new CompletableFuture<>();
+        CompletableFuture<Object> existing = loaded.putIfAbsent(key, mine);
+        if (existing == null) {
+            try {
+                T value = loader.get();
+                mine.complete(value);
+                return value;
+            } catch (RuntimeException e) {
+                mine.completeExceptionally(e);
+                throw e;
+            }
+        }
+        try {
+            return (T) existing.join();
+        } catch (CompletionException e) {
+            throw e.getCause() instanceof RuntimeException r ? r : e;
+        }
+    }
+}

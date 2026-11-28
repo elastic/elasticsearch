@@ -10,6 +10,8 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -20,11 +22,15 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerComponents;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.ReloadToken;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -49,6 +55,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -122,11 +130,8 @@ public class SharingKeyTests extends ESTestCase {
     }
 
     private Analyzer build(IndexVersion version, Settings analysis) throws IOException {
-        Settings s = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).put(analysis).build();
-        IndexAnalyzers ia = registry.build(IndexService.IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("test", s));
-        tracked.add(ia);
         // The per-index NamedAnalyzer wrapper is allocated per build, so compare the wrapped analyzer.
-        return ia.get("a").analyzer();
+        return buildTracked(indexSettings("test", version, analysis)).get("a").analyzer();
     }
 
     /** Before Lucene 10 the romanian analyzer keeps cedilla forms, so the version fork must be part of the key. */
@@ -196,6 +201,105 @@ public class SharingKeyTests extends ESTestCase {
         return b.build();
     }
 
+    /** Indices reloaded by one request reuse its first read of a resource, even if it changed since; a new request rereads. */
+    public void testReloadRequestReadsResourceOnce() throws IOException {
+        writeConfigFile("syn.txt", "a, b");
+        Settings recipe = synonymChain("synonyms_path", "syn.txt", true);
+        IndexSettings oneSettings = indexSettings("one", IndexVersion.current(), recipe);
+        IndexSettings twoSettings = indexSettings("two", IndexVersion.current(), recipe);
+        IndexAnalyzers one = buildTracked(oneSettings);
+        IndexAnalyzers two = buildTracked(twoSettings);
+
+        ReloadToken request = new ReloadToken();
+        one.reload(registry, oneSettings, null, false, request);
+        writeConfigFile("syn.txt", "a, c");
+        two.reload(registry, twoSettings, null, false, request);
+        assertSame(components(one), components(two));
+        assertThat(terms(two, "a"), containsInAnyOrder("a", "b"));
+
+        two.reload(registry, twoSettings, null, false, new ReloadToken());
+        assertNotSame(components(one), components(two));
+        assertThat(terms(two, "a"), containsInAnyOrder("a", "c"));
+        assertThat(terms(one, "a"), containsInAnyOrder("a", "b"));
+    }
+
+    /**
+     * A reload rebuilds an index's components from its files and re-keys them, so an index that loaded the same words
+     * inline keeps its own when the file changes.
+     */
+    public void testReloadReadingAChangedFileLeavesOtherIndicesAlone() throws IOException {
+        writeConfigFile("stop.txt", "the");
+        Settings chain = Settings.builder()
+            .put("index.analysis.analyzer.a.tokenizer", "whitespace")
+            .putList("index.analysis.analyzer.a.filter", "st", "keep")
+            .put("index.analysis.filter.st.type", "stop")
+            .put("index.analysis.filter.keep.type", "keyword_marker")
+            .putList("index.analysis.filter.keep.keywords", "zzz")
+            .put("index.analysis.filter.keep.updateable", true)
+            .build();
+        IndexSettings fromFile = indexSettings(
+            "file",
+            IndexVersion.current(),
+            Settings.builder().put(chain).put("index.analysis.filter.st.stopwords_path", "stop.txt").build()
+        );
+        IndexSettings inline = indexSettings(
+            "inline",
+            IndexVersion.current(),
+            Settings.builder().put(chain).putList("index.analysis.filter.st.stopwords", "the").build()
+        );
+        IndexAnalyzers file = buildTracked(fromFile);
+        IndexAnalyzers other = buildTracked(inline);
+        file.reload(registry, fromFile, null, false, null);
+        other.reload(registry, inline, null, false, null);
+        assertSame(components(file), components(other));
+
+        writeConfigFile("stop.txt", "foo");
+        file.reload(registry, fromFile, null, false, new ReloadToken());
+
+        assertThat(terms(file, "the foo"), contains("the"));
+        assertThat(terms(other, "the foo"), contains("foo"));
+
+        // The reloaded components are shared under the new content.
+        IndexSettings updated = indexSettings(
+            "updated",
+            IndexVersion.current(),
+            Settings.builder().put(chain).putList("index.analysis.filter.st.stopwords", "foo").build()
+        );
+        IndexAnalyzers third = buildTracked(updated);
+        third.reload(registry, updated, null, false, null);
+        assertSame(components(file), components(third));
+    }
+
+    private static IndexSettings indexSettings(String name, IndexVersion version, Settings analysis) {
+        return IndexSettingsModule.newIndexSettings(
+            name,
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).put(analysis).build()
+        );
+    }
+
+    private IndexAnalyzers buildTracked(IndexSettings indexSettings) throws IOException {
+        IndexAnalyzers ia = registry.build(IndexService.IndexCreationContext.CREATE_INDEX, indexSettings);
+        tracked.add(ia);
+        return ia;
+    }
+
+    private static AnalyzerComponents components(IndexAnalyzers ia) {
+        return ((ReloadableCustomAnalyzer) ia.get("a").analyzer()).getComponents();
+    }
+
+    private static List<String> terms(IndexAnalyzers ia, String text) throws IOException {
+        List<String> terms = new ArrayList<>();
+        try (TokenStream ts = ia.get("a").tokenStream("f", text)) {
+            CharTermAttribute term = ts.addAttribute(CharTermAttribute.class);
+            ts.reset();
+            while (ts.incrementToken()) {
+                terms.add(term.toString());
+            }
+            ts.end();
+        }
+        return terms;
+    }
+
     private void writeConfigFile(String name, String content) throws IOException {
         Files.writeString(configDir.resolve(name), content);
     }
@@ -224,11 +328,11 @@ public class SharingKeyTests extends ESTestCase {
         assertSame("solr is the default format", base, build(IndexVersion.current(), solr));
     }
 
-    /** The rules are fetched in one query sorted by rule id, so neither set order nor repeats change them. */
-    public void testSynonymsSetKeyIgnoresOrderAndRepeats() throws IOException {
+    /** Reloadable chains are built per index; sharing happens at load time, keyed on the rules loaded. */
+    public void testReloadableSynonymsSetAnalyzerIsPerIndex() throws IOException {
+        // Each index owns its reloadable analyzer so a reload changes only that index; components are shared on reload, by content.
         Analyzer s1s2 = build(IndexVersion.current(), synonymChain("synonyms_set", List.of("s1", "s2"), true));
-        assertSame(s1s2, build(IndexVersion.current(), synonymChain("synonyms_set", List.of("s2", "s1", "s2"), true)));
-        assertNotSame(s1s2, build(IndexVersion.current(), synonymChain("synonyms_set", List.of("s1"), true)));
+        assertNotSame(s1s2, build(IndexVersion.current(), synonymChain("synonyms_set", List.of("s1", "s2"), true)));
     }
 
     /** Non-updateable file rules are read once at index creation, so the key is their content, not their path. */
@@ -352,8 +456,8 @@ public class SharingKeyTests extends ESTestCase {
 
     /**
      * An updateable keyword_marker re-reads {@code keywords_path} on recovery and reload, so the content read
-     * at creation does not describe a shared instance for long. Those never share; inline keywords, which
-     * only change with the index settings, still do.
+     * at creation does not describe a shared instance for long. No reloadable chain shares an analyzer at
+     * creation; each index owns its own and shares components by content on load.
      */
     public void testUpdateableKeywordMarkerFromFileDoesNotShare() throws IOException {
         Files.writeString(configDir.resolve("keywords.txt"), "foo\n");
@@ -365,7 +469,7 @@ public class SharingKeyTests extends ESTestCase {
         Settings updateableInline = keywordMarker().putList(KEYWORD_MARKER + "keywords", "foo")
             .put(KEYWORD_MARKER + "updateable", true)
             .build();
-        assertSame(build(IndexVersion.current(), updateableInline), build(IndexVersion.current(), updateableInline));
+        assertNotSame(build(IndexVersion.current(), updateableInline), build(IndexVersion.current(), updateableInline));
     }
 
     private static final String KEYWORD_MARKER = "index.analysis.filter.k.";

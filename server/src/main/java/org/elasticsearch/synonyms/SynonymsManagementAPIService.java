@@ -44,6 +44,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,6 +56,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -88,6 +91,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -145,6 +149,7 @@ public class SynonymsManagementAPIService {
     private final int pitBatchSize;
     private final int bulkChunkSize;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
 
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
@@ -163,10 +168,16 @@ public class SynonymsManagementAPIService {
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 
-    public SynonymsManagementAPIService(Client client, ClusterService clusterService, FeatureService featureService) {
+    public SynonymsManagementAPIService(
+        Client client,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        FeatureService featureService
+    ) {
         this(
             client,
             clusterService,
+            projectResolver,
             clusterService.getClusterSettings().get(MAX_SYNONYM_RULES_SETTING),
             PIT_BATCH_SIZE,
             BULK_CHUNK_SIZE,
@@ -179,6 +190,7 @@ public class SynonymsManagementAPIService {
     SynonymsManagementAPIService(
         Client client,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         int maxSynonymRules,
         int pitBatchSize,
         int bulkChunkSize,
@@ -186,6 +198,7 @@ public class SynonymsManagementAPIService {
     ) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.maxSynonymRules = maxSynonymRules;
         this.pitBatchSize = pitBatchSize;
         this.bulkChunkSize = bulkChunkSize;
@@ -1040,12 +1053,68 @@ public class SynonymsManagementAPIService {
         ActionListener<SynonymsReloadResult> listener
     ) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
+        String[] targets;
+        try {
+            targets = reloadTargets(projectResolver.getProjectMetadata(clusterService.state()), synonymSetId);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, targets);
+        // A hidden index named above may be deleted or closed before the reload resolves it; skip it rather than fail the reload.
+        reloadAnalyzersRequest.indicesOptions(
+            IndicesOptions.builder(reloadAnalyzersRequest.indicesOptions())
+                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                .build()
+        );
         client.execute(
             TransportReloadAnalyzersAction.TYPE,
             reloadAnalyzersRequest,
             listener.safeMap(reloadResponse -> new SynonymsReloadResult(synonymsOperationResult, reloadResponse))
         );
+    }
+
+    /** {@code *} plus the open hidden indices with an analyzer using this set, which {@code *} would skip. */
+    static String[] reloadTargets(ProjectMetadata project, String synonymSetId) {
+        List<String> targets = new ArrayList<>();
+        targets.add("*");
+        for (IndexMetadata index : project) {
+            if (index.isHidden() && index.getState() == IndexMetadata.State.OPEN && usesSynonymsSet(index.getSettings(), synonymSetId)) {
+                targets.add(index.getIndex().getName());
+            }
+        }
+        return targets.toArray(String[]::new);
+    }
+
+    private static boolean usesSynonymsSet(Settings indexSettings, String synonymSetId) {
+        Map<String, Settings> allFilters = indexSettings.getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
+        Set<String> filters = allFilters.entrySet()
+            .stream()
+            .filter(filter -> filter.getValue().getAsList("synonyms_set").contains(synonymSetId))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toCollection(HashSet::new));
+        // Add the multiplexer filters that wrap one of them, until nothing changes. A condition filter does not expose its
+        // children's resources, so a reload cannot reach a synonyms set inside one.
+        boolean added = filters.isEmpty() == false;
+        while (added) {
+            added = false;
+            for (Map.Entry<String, Settings> filter : allFilters.entrySet()) {
+                if (filters.contains(filter.getKey()) == false && wrappedFilters(filter.getValue()).anyMatch(filters::contains)) {
+                    filters.add(filter.getKey());
+                    added = true;
+                }
+            }
+        }
+        return filters.isEmpty() == false
+            && indexSettings.getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER)
+                .values()
+                .stream()
+                .anyMatch(analyzer -> analyzer.getAsList("filter").stream().anyMatch(filters::contains));
+    }
+
+    /** Filters a {@code multiplexer} wraps: its {@code filters}, each a comma-separated chain. */
+    private static Stream<String> wrappedFilters(Settings filter) {
+        return filter.getAsList("filters").stream().flatMap(chain -> Arrays.stream(chain.split(","))).map(String::trim);
     }
 
     // Allows checking failures in tests

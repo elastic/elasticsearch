@@ -53,7 +53,7 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
+        ReaderWithOrigin rulesReader = rulesReader(context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
         return buildChainedFactory(name(), synonyms, analysisMode, rulesReader, ts -> new SynonymGraphFilter(ts, synonyms, false));
     }

@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.tracing.Traceable;
@@ -75,6 +76,7 @@ public class APMTracerTests extends ESTestCase {
     private static final Traceable TRACEABLE1 = new TestTraceable("id1");
     private static final Traceable TRACEABLE2 = new TestTraceable("id2");
     private static final Traceable TRACEABLE3 = new TestTraceable("id3");
+    private static final Task TASK = new Task(1, "transport", "action", "", TaskId.EMPTY_TASK_ID, Map.of());
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
@@ -357,7 +359,7 @@ public class APMTracerTests extends ESTestCase {
      */
     public void test_whenTraceStartedWithPropagatedTraceParentHeader_andNoLocalParent_usesRemoteParentFromHeader() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracerWithW3CPropagator(settings);
+        APMTracer apmTracer = buildTracer(settings);
 
         final String traceId = "0af7651916cd43dd8448eb211c80319c";
         final String remoteParentSpanId = "b7ad6b7169203331";
@@ -431,19 +433,12 @@ public class APMTracerTests extends ESTestCase {
     }
 
     private APMTracer buildTracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks) {
-        APMTracer tracer = new SpyAPMTracer(threadContext, settings, OpenTelemetry.noop(), maxTraceDepth, recordExceptionStacks);
+        OpenTelemetry openTelemetry = OpenTelemetrySdk.builder()
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .build();
+        APMTracer tracer = new SpyAPMTracer(threadContext, settings, openTelemetry, maxTraceDepth, recordExceptionStacks);
         tracer.doStart();
         return tracer;
-    }
-
-    private APMTracer buildTracerWithW3CPropagator(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(threadContext, settings, openTelemetryWithW3CPropagator(), 0, false);
-        tracer.doStart();
-        return tracer;
-    }
-
-    private static OpenTelemetry openTelemetryWithW3CPropagator() {
-        return OpenTelemetrySdk.builder().setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance())).build();
     }
 
     public void test_onSdkPath_withMaxTraceDepthZero_dropsChildSpan() {
@@ -526,7 +521,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void test_onSdkPath_withMaxTraceDepthZero_recordsEntryAndDropsLocalChild() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracerWithW3CPropagator(settings);
+        APMTracer tracer = buildTracer(settings);
 
         final String traceId = "0af7651916cd43dd8448eb211c80319c";
         final String remoteParentSpanId = "b7ad6b7169203331";
@@ -542,6 +537,66 @@ public class APMTracerTests extends ESTestCase {
         Span entrySpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
         assertThat(entrySpan.getSpanContext().getTraceId(), is(traceId));
         assertThat(entrySpan.getSpanContext().getSpanId(), is(remoteParentSpanId));
+    }
+
+    /**
+     * A recorded span propagates the depth that a span it starts on another node gets.
+     */
+    public void test_recordedSpan_propagatesDepthForOtherNodes() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildTracer(settings, 5);
+        // mock spans take their span context from their parent, and only a valid span context is propagated
+        threadContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+
+        tracer.startTrace(TRACEABLE1, "root", Map.of());
+        assertThat(threadContext.getHeader(Task.TRACE_STATE), equalTo("es-depth=1"));
+        try (var ignored = threadContext.newTraceContext()) {
+            tracer.startTrace(TRACEABLE2, "child", Map.of());
+            assertThat(threadContext.getHeader(Task.TRACE_STATE), equalTo("es-depth=2"));
+        }
+    }
+
+    /**
+     * A task continuing a span from another node is a local root at the depth from tracestate, with its own {@code max_spans}.
+     */
+    public void test_taskContinuingRemoteSpan_isLocalRootAtDepthFromTraceState() {
+        Settings settings = Settings.builder()
+            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 1)
+            .build();
+        APMTracer tracer = buildTracer(settings, 2);
+
+        final String traceId = "0af7651916cd43dd8448eb211c80319c";
+        threadContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-" + traceId + "-b7ad6b7169203331-01");
+        threadContext.putTransient(Task.PARENT_TRACE_STATE, "es-depth=1");
+        final Traceable child2 = new TestTraceable("id4");
+
+        tracer.startTrace(TASK, "transport-entry", Map.of());
+        try (var ignored = threadContext.newTraceContext()) {
+            tracer.startTrace(TRACEABLE2, "child", Map.of());
+            try (var ignored2 = threadContext.newTraceContext()) {
+                tracer.startTrace(TRACEABLE3, "grandchild", Map.of());
+            }
+        }
+        try (var ignored = threadContext.newTraceContext()) {
+            tracer.startTrace(child2, "child", Map.of());
+        }
+
+        assertThat(tracer.getSpans().keySet(), equalTo(Set.of(TASK.getSpanId(), TRACEABLE2.getSpanId())));
+        SpanContext entrySpan = Span.fromContext(tracer.getSpans().get(TASK.getSpanId())).getSpanContext();
+        assertThat(entrySpan.getTraceId(), is(traceId));
+        assertThat(entrySpan.getTraceState().get("es-depth"), nullValue());
+    }
+
+    public void test_taskContinuingRemoteSpan_fromOlderNode_isNotRecorded() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildTracer(settings, 2);
+
+        threadContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+        threadContext.putTransient(Task.PARENT_TRACE_STATE, "ot=p:0");
+        tracer.startTrace(TASK, "transport-entry", Map.of());
+
+        assertThat(tracer.getSpans(), anEmptyMap());
     }
 
     public void test_addError_withStacksDisabled_emitsTypeAndMessageOnly() {
@@ -676,6 +731,7 @@ public class APMTracerTests extends ESTestCase {
             MockSpanBuilder(String spanName) {
                 this.spanName = spanName;
                 this.span = Mockito.mock(Span.class, spanName);
+                Mockito.when(span.getSpanContext()).thenReturn(SpanContext.getInvalid());
                 // simulate a span discarded because its trace was not sampled
                 Mockito.when(span.isRecording()).thenReturn(spanName.endsWith("_discard") == false);
                 Mockito.when(span.storeInContext(Mockito.any(Context.class))).thenCallRealMethod();

@@ -185,11 +185,12 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Start a new trace span if a parent trace context already exists.
+     * Start a new trace span if a parent trace context already exists, either a local span or a {@code traceparent} received with a
+     * transport request from another node.
      * For REST actions this will be the case, otherwise {@link Tracer#startTrace} can be used.
      */
     void maybeStartTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasParentApmTraceContext() == false) {
+        if (threadContext.hasParentApmTraceContext() == false && threadContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER) == null) {
             return;
         }
         TaskId parentTask = task.getParentTaskId();

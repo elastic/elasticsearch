@@ -398,9 +398,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Memoizes the dictionary-match bitmap computed by {@link ParquetPushedExpressions} for
      * every pushed leaf predicate, so the predicate is evaluated against the dictionary
-     * once per row group rather than once per batch. The underlying {@code BytesRefArray}
-     * is fixed for the lifetime of a row group (see {@code PageColumnReader#ensureCachedDictArray}),
-     * which is what makes the entries valid across batches.
+     * once per row group rather than once per batch. Parquet dictionary ids are fixed for a
+     * row group; this map does not hold the ordinal-path dict vector. Validity is the stamp
+     * wipe in {@link #dictionaryBitmapsForCurrentRowGroup}.
      *
      * <p>Lifecycle by stamp, not by callback: {@link #dictionaryBitmapsForCurrentRowGroup}
      * compares the cached row-group ordinal with the current one and wipes the map on a
@@ -2474,7 +2474,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
         // Predicate readers are exhausted; their per-column dictionary caches are still useful
         // only if we kept reading predicates, which we don't. Releasing them now frees the
-        // BytesRefArray refcounts before we hand the projection store to the same field.
+        // cached dict-vector refs before we hand the projection store to the same field.
         closePageColumnReaders();
         dropCurrentDecodeBudget();
         rowGroup.close();
@@ -3240,9 +3240,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private void initColumnReaders(RowRanges currentRowRanges) {
         // Close any readers from the previous row group before discarding the array — each reader
-        // holds a ref-counted BytesRefArray (the cached dictionary) that must be released here.
-        // Pages already emitted are unaffected: they own their own BytesRefArrayVector wrappers,
-        // which hold independent refs to the underlying array.
+        // holds a ref-counted BytesRefVector (the cached dictionary) that must be released here.
+        // Pages already emitted are unaffected: they keep the vector alive via their own refs.
         closePageColumnReaders();
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
@@ -4612,7 +4611,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     /**
      * Closes any non-null entries in {@link #pageColumnReaders}, releasing each reader's cached
-     * dictionary {@link org.elasticsearch.common.util.BytesRefArray}. Idempotent — null entries
+     * dictionary {@link org.elasticsearch.compute.data.BytesRefVector}. Idempotent — null entries
      * and a null array are both fine. The array is then discarded by the caller.
      */
     private void closePageColumnReaders() {

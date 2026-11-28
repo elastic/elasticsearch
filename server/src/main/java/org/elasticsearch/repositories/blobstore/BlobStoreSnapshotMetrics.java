@@ -85,6 +85,10 @@ public class BlobStoreSnapshotMetrics {
         shardSnapshotsInProgress.dec();
     }
 
+    public void recordShardMetadataDuration(long durationMillis) {
+        snapshotMetrics.shardsMetadataDurationHistogram().record(durationMillis / 1_000d, metricAttributes);
+    }
+
     public void incrementUploadReadTime(long readTimeInMillis) {
         snapshotMetrics.uploadReadDurationCounter().incrementBy(readTimeInMillis, metricAttributes);
         uploadReadTimeInMillis.inc(readTimeInMillis);

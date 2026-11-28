@@ -47,4 +47,9 @@ public class FrequencyCappedAction {
             runnable.run();
         }
     }
+
+    // package-private for FrequencyCappedActionTestUtils
+    void reset() {
+        next.set(Long.MIN_VALUE);
+    }
 }

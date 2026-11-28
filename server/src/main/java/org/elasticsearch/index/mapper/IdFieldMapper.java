@@ -105,6 +105,14 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     }
 
     /**
+     * The value of the {@code bloom_filter} mapping parameter, or {@code null} if the mapping does not set it.
+     */
+    @Nullable
+    public Boolean bloomFilter() {
+        return null;
+    }
+
+    /**
      * Create an indexed and stored {@link Field} for the provided {@code _id}.
      */
     public static Field standardIdField(String id) {

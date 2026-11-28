@@ -47,6 +47,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
     public static final NodeFeature ROUTING_AS_DOC_VALUES_BY_DEFAULT = new NodeFeature("mapper.routing_as_doc_values_by_default");
     public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
+    public static final NodeFeature ID_FIELD_BLOOM_FILTER_MAPPING_ATTRIBUTE = new NodeFeature(
+        "mapper.id_field.bloom_filter_mapping_attribute"
+    );
     public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
     public static final NodeFeature FLATTENED_PASSTHROUGH_FEATURE = new NodeFeature("mapper.flattened.passthrough");
     public static final NodeFeature FLATTENED_COLUMNAR_DOCUMENT_ORDER = new NodeFeature("mapper.flattened.columnar_document_order");
@@ -305,6 +308,7 @@ public class MapperFeatures implements FeatureSpecification {
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
             ROUTING_AS_DOC_VALUES,
             ID_FIELD_MODE_MAPPING_ATTRIBUTE,
+            ID_FIELD_BLOOM_FILTER_MAPPING_ATTRIBUTE,
             ROUTING_AS_DOC_VALUES_BY_DEFAULT,
             STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
             KEYWORD_DV_CASE_INSENSITIVE_REGEXP,

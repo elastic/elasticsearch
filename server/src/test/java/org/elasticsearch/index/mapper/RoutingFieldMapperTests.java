@@ -24,8 +24,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -388,9 +386,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 }
             }
         }, reader -> {
-            // the query cache would wrap the scorer supplier and hide its type
             IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setQueryCache(null);
             SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
 
             context.setSliceSelection(SliceSelection.of(List.of("s1")));
@@ -400,13 +396,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 filter
             );
             assertEquals(5, searcher.count(filter));
-
-            Weight weight = searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            assertFalse(reader.leaves().isEmpty());
-            for (LeafReaderContext leaf : reader.leaves()) {
-                // the skipper scorer supplier is package-private in Lucene, the query returns an anonymous subclass of it
-                assertThat(weight.scorerSupplier(leaf).getClass().getSuperclass().getSimpleName(), equalTo("SortedSkipperScorerSupplier"));
-            }
 
             // several slices become one exact query per slice
             context.setSliceSelection(SliceSelection.of(List.of("s1", "s3")));

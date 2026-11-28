@@ -103,6 +103,10 @@ public final class StatelessCompoundCommitTestUtils {
         );
     }
 
+    public static TimestampFieldValueRange randomTimestampFieldValueRangeOrNull() {
+        return randomBoolean() ? randomTimestampFieldValueRange() : null;
+    }
+
     public static Map<String, BlobLocation> randomCommitFiles() {
         final int entries = randomIntBetween(1, 50);
         return IntStream.range(0, entries + 1)

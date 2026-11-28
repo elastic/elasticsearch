@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -30,7 +29,7 @@ public class BlobTests extends ESTestCase {
         BccBlob.class,
         BlobTests::randomBccBlob,
         MergeBlob.class,
-        BlobTests::randomMergeBlob
+        MergeBlobTests::randomMergeBlob
     );
 
     public void testEveryImplementationIsTested() {
@@ -68,9 +67,5 @@ public class BlobTests extends ESTestCase {
     private static BccBlob randomBccBlob() {
         final long generation = randomNonZeroPositiveLong();
         return new BccBlob(BccBlob.blobNameFromGeneration(generation), new PrimaryTermAndGeneration(randomNonNegativeLong(), generation));
-    }
-
-    private static MergeBlob randomMergeBlob() {
-        return new MergeBlob(MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH)), randomNonNegativeLong());
     }
 }

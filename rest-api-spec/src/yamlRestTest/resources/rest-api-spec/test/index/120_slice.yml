@@ -58,7 +58,7 @@ setup:
   - match: { _id: "1" }
   - match: { _source.value: vb }
 
-  # a slice-scoped search sees only its slice; a search without a slice sees both
+  # a slice-scoped search sees only its slice; a search without a slice is rejected
   - do:
       search:
           index:  slice_index
@@ -69,10 +69,10 @@ setup:
   - match: { hits.hits.0._source.value: va }
 
   - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       search:
           index:  slice_index
           body:   { query: { match_all: {} } }
-  - match: { hits.total.value: 2 }
 
   # an ids query is slice-scoped too
   - do:
@@ -261,3 +261,70 @@ setup:
           id:     "only-a"
           _slice: a
   - match: { _source.value: va }
+
+---
+"A slice is a filter: an index without slices matches nothing, a sliced index needs one":
+  - do:
+      indices.create:
+          index: plain_index
+          body:
+              settings:
+                  number_of_shards: 1
+              mappings:
+                  properties:
+                      value:
+                          type: keyword
+
+  # routing is given only because an index created after a slice-enabled one is reported as requiring it (#167192)
+  - do:
+      index:
+          index:  plain_index
+          id:     "1"
+          routing: r
+          refresh: true
+          body:   { value: plain }
+  - do:
+      index:
+          index:  slice_index
+          id:     "1"
+          _slice: a
+          refresh: true
+          body:   { value: va }
+
+  # an index without slices holds no document of any slice
+  - do:
+      search:
+          index:  plain_index
+          _slice: a
+          body:   { query: { match_all: {} } }
+  - match: { hits.total.value: 0 }
+
+  # over a mix of indices only the sliced index contributes
+  - do:
+      search:
+          index:  plain_index,slice_index
+          _slice: a
+          body:   { query: { match_all: {} } }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: slice_index }
+  - match: { hits.hits.0._slice: a }
+
+  # without a slice the mix is rejected as a whole, whether the sliced index is named or matched by a pattern
+  - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true for search request targeting \[plain_index,slice_index\]/
+      search:
+          index:  plain_index,slice_index
+          body:   { query: { match_all: {} } }
+
+  - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
+      search:
+          index:  "*_index"
+          body:   { query: { match_all: {} } }
+
+  # the index without slices is searched on its own as before
+  - do:
+      search:
+          index:  plain_index
+          body:   { query: { match_all: {} } }
+  - match: { hits.total.value: 1 }

@@ -197,6 +197,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(new Request("POST", "/slice-query-filter-it/_refresh"));
 
         Request filterBySlice = new Request("GET", "/slice-query-filter-it/_search");
+        filterBySlice.addParameter("_slice", "s1,s2");
         filterBySlice.setJsonEntity("""
             {
               "size": 0,
@@ -211,6 +212,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(filterResponsePath.evaluate("hits.total.value"), equalTo(2));
 
         Request prefixBySlice = new Request("GET", "/slice-query-filter-it/_search");
+        prefixBySlice.addParameter("_slice", "s1,s2");
         prefixBySlice.setJsonEntity("""
             {
               "size": 0,
@@ -310,7 +312,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(termResponse, containsString("No field mapping can be found for the field with name [_slice]"));
     }
 
-    public void testSearchUrlWithoutSliceDefaultsToAllWhenSliceEnabled() throws Exception {
+    public void testSearchUrlRequiresSliceWhenSliceEnabled() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-url-required-it");
         create.setJsonEntity("""
@@ -337,8 +339,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
                 "match_all": {}
               }
             }""");
-        Response response = getRestClient().performRequest(searchMissingSlice);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertSliceRequired(searchMissingSlice);
     }
 
     public void testSearchUrlRoutingRejectedWhenSliceEnabled() throws Exception {
@@ -375,7 +376,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(response, containsString("use [_slice] instead"));
     }
 
-    public void testCountUrlWithoutSliceDefaultsToAllWhenSliceEnabled() throws Exception {
+    public void testCountUrlRequiresSliceWhenSliceEnabled() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-count-url-required-it");
         create.setJsonEntity("""
@@ -402,8 +403,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
                 "match_all": {}
               }
             }""");
-        Response countResponse = getRestClient().performRequest(countMissingSlice);
-        assertThat(countResponse.getStatusLine().getStatusCode(), equalTo(200));
+        assertSliceRequired(countMissingSlice);
     }
 
     public void testCountUrlRoutingRejectedWhenSliceEnabled() throws Exception {
@@ -490,7 +490,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(objectPath.evaluate("count"), equalTo(1));
     }
 
-    public void testSearchPitWithoutSliceSucceedsWhenSliceEnabled() throws Exception {
+    public void testOpenPitRequiresSliceWhenSliceEnabled() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-search-pit-it");
         create.setJsonEntity("""
@@ -512,13 +512,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
 
         Request openPit = new Request("POST", "/slice-search-pit-it/_pit");
         openPit.addParameter("keep_alive", "1m");
-        Response pitResponse = getRestClient().performRequest(openPit);
-        assertThat(pitResponse.getStatusLine().getStatusCode(), equalTo(200));
-
-        String pitId = ObjectPath.createFromResponse(pitResponse).evaluate("id");
-        Request closePit = new Request("DELETE", "/_pit");
-        closePit.setJsonEntity("{\"id\":\"" + pitId + "\"}");
-        getRestClient().performRequest(closePit);
+        assertSliceRequired(openPit);
     }
 
     public void testSearchUrlSliceReturnsNoHitsWhenNoSliceEnabledIndices() throws Exception {
@@ -721,65 +715,6 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(objectPath.evaluate("hits.total.value"), equalTo(2));
         assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
         assertThat(objectPath.evaluate("hits.hits.1._id"), equalTo("2"));
-    }
-
-    public void testSearchUrlSliceAllReturnsAllDocumentsAcrossSlices() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request create = new Request("PUT", "/slice-search-url-all-slices-it");
-        create.setJsonEntity("""
-            {
-              "settings": {
-                "index.slice.enabled": true,
-                "number_of_shards": 1
-              }
-            }""");
-        getRestClient().performRequest(create);
-
-        Request indexS1 = new Request("POST", "/slice-search-url-all-slices-it/s1/_doc/1");
-        indexS1.setJsonEntity("""
-            {
-              "field": "a",
-              "seq": 1
-            }""");
-        getRestClient().performRequest(indexS1);
-
-        Request indexS2 = new Request("POST", "/slice-search-url-all-slices-it/s2/_doc/2");
-        indexS2.setJsonEntity("""
-            {
-              "field": "b",
-              "seq": 2
-            }""");
-        getRestClient().performRequest(indexS2);
-
-        Request indexS3 = new Request("POST", "/slice-search-url-all-slices-it/s3/_doc/3");
-        indexS3.setJsonEntity("""
-            {
-              "field": "c",
-              "seq": 3
-            }""");
-        getRestClient().performRequest(indexS3);
-        getRestClient().performRequest(new Request("POST", "/slice-search-url-all-slices-it/_refresh"));
-
-        Request searchAllSlices = new Request("GET", "/slice-search-url-all-slices-it/_search");
-        searchAllSlices.setJsonEntity("""
-            {
-              "query": {
-                "match_all": {}
-              },
-              "sort": [
-                {
-                  "seq": {
-                    "order": "asc"
-                  }
-                }
-              ]
-            }""");
-        Response response = getRestClient().performRequest(searchAllSlices);
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        assertThat(objectPath.evaluate("hits.total.value"), equalTo(3));
-        assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
-        assertThat(objectPath.evaluate("hits.hits.1._id"), equalTo("2"));
-        assertThat(objectPath.evaluate("hits.hits.2._id"), equalTo("3"));
     }
 
     public void testSliceRequirementAndValidationForGetAndDelete() throws Exception {
@@ -1106,5 +1041,12 @@ public class RestIndexActionIT extends ESIntegTestCase {
         } finally {
             restClient.setNodes(originalNodes);
         }
+    }
+
+    private static void assertSliceRequired(Request request) throws Exception {
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 }

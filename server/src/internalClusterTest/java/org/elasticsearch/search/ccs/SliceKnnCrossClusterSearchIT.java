@@ -45,7 +45,7 @@ public class SliceKnnCrossClusterSearchIT extends AbstractMultiClustersTestCase 
     private static final String REMOTE = "cluster_a";
     private static final String SLICED = "tenants";
     private static final Map<String, Integer> DOCS_PER_SLICE = Map.of("acme", 4, "globex", 3);
-    private static final String SLICES_REQUIRED = "to perform knn search on field [vector], the slices to search must be selected";
+    private static final String SLICES_REQUIRED = "[_slice] is required when [index.slice.enabled] is true";
 
     @Override
     protected List<String> remoteClusterAlias() {

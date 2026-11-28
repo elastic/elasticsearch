@@ -40,26 +40,10 @@ setup:
 ---
 "PIT search respects slice scoping":
   - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       open_point_in_time:
         index: slice_pit_index
         keep_alive: 5m
-  - set: { id: point_in_time_unscoped_id }
-
-  - do:
-      search:
-        body:
-          size: 10
-          query:
-            match_all: {}
-          pit:
-            id: "$point_in_time_unscoped_id"
-            keep_alive: 1m
-  - match: { hits.total.value: 2 }
-
-  - do:
-      close_point_in_time:
-        body:
-          id: "$point_in_time_unscoped_id"
 
   - do:
       open_point_in_time:
@@ -67,6 +51,18 @@ setup:
         _slice: a
         keep_alive: 5m
   - set: { id: point_in_time_a_id }
+
+  # a search over a point in time names the slice too
+  - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
+      search:
+        body:
+          size: 10
+          query:
+            match_all: {}
+          pit:
+            id: "$point_in_time_a_id"
+            keep_alive: 1m
 
   - do:
       search:
@@ -173,13 +169,7 @@ setup:
           id: "$slice_a_pit_id"
 
   - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       open_point_in_time:
         index: slice_pit_open_index
         keep_alive: 5m
-  - match: { _shards.total: 2 }
-  - set: { id: slice_unscoped_pit_id }
-
-  - do:
-      close_point_in_time:
-        body:
-          id: "$slice_unscoped_pit_id"

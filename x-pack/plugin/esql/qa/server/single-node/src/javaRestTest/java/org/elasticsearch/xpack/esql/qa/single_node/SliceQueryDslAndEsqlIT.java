@@ -53,9 +53,11 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
     private static final Map<String, Integer> DOCS_PER_SLICE = Map.of("acme", 9, "globex", 6, "initech", 4);
     private static final int ALL_DOCS = 19;
 
-    /** The slices a request selects, as the search parameter and as the ES|QL condition. An empty list selects none. */
+    private static final String SLICE_REQUIRED = "[_slice] is required when [index.slice.enabled] is true "
+        + "for search request targeting [tenants]";
+
+    /** The slices a request selects, as the search parameter and as the ES|QL condition. Every request selects some. */
     private static final List<List<String>> SELECTIONS = List.of(
-        List.of(),
         List.of("acme"),
         List.of("globex"),
         List.of("acme", "initech"),
@@ -167,7 +169,7 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
                 );
                 assertThat(description, fromSearch, equalTo(fromEsql));
                 for (String key : fromSearch) {
-                    assertTrue(description + " returned " + key, slices.isEmpty() || slices.contains(key.substring(0, key.indexOf('-'))));
+                    assertTrue(description + " returned " + key, slices.contains(key.substring(0, key.indexOf('-'))));
                 }
                 matched += fromSearch.size();
             }
@@ -175,9 +177,24 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
         assertThat("the queries must match documents for the comparison to mean anything", matched, greaterThan(ALL_DOCS));
     }
 
+    /**
+     * Both engines reject a request that does not select slices of an index that has them, instead of reading every slice.
+     */
+    public void testRequestsWithoutSlicesAreRejected() throws IOException {
+        Request search = new Request("POST", path(List.of(), "_search"));
+        search.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
+        ResponseException fromSearch = expectThrows(ResponseException.class, () -> client().performRequest(search));
+        assertThat(fromSearch.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(fromSearch.getMessage(), containsString(SLICE_REQUIRED));
+
+        ResponseException fromEsql = expectThrows(ResponseException.class, () -> esqlRows("FROM tenants | STATS c = COUNT(*)"));
+        assertThat(fromEsql.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(fromEsql.getMessage(), containsString(SLICE_REQUIRED));
+    }
+
     public void testCounts() throws IOException {
         for (List<String> slices : SELECTIONS) {
-            int expected = slices.isEmpty() ? ALL_DOCS : slices.stream().mapToInt(slice -> DOCS_PER_SLICE.getOrDefault(slice, 0)).sum();
+            int expected = slices.stream().mapToInt(slice -> DOCS_PER_SLICE.getOrDefault(slice, 0)).sum();
 
             Request count = new Request("POST", path(slices, "_count"));
             assertThat(slices.toString(), entityAsMap(client().performRequest(count)).get("count"), equalTo(expected));
@@ -239,24 +256,17 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
         String queryVector = vector("acme", 0);
         String knnSearch = "\"knn\": { \"field\": \"vector\", \"query_vector\": " + queryVector + ", \"k\": 2, \"num_candidates\": 10 }";
         String knnFunction = "KNN(vector, " + queryVector + ", {\"k\": 2})";
-        String rejected = "to perform knn search on field [vector], the slices to search must be selected";
 
+        // without slices both engines reject the request before they look at the knn query
         ResponseException fromSearch = expectThrows(ResponseException.class, () -> searchKeys(List.of(), knnSearch));
         assertThat(fromSearch.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(fromSearch.getMessage(), containsString(rejected));
+        assertThat(fromSearch.getMessage(), containsString(SLICE_REQUIRED));
         ResponseException fromEsql = expectThrows(
             ResponseException.class,
             () -> esqlKeys("FROM tenants | WHERE " + knnFunction + " | KEEP key | LIMIT 10")
         );
         assertThat(fromEsql.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(fromEsql.getMessage(), containsString(rejected));
-
-        // searching without a slice does not name the slices to search
-        Request allSlices = new Request("POST", path(List.of(), "_search"));
-        allSlices.setJsonEntity("{" + knnSearch + "}");
-        ResponseException fromAll = expectThrows(ResponseException.class, () -> client().performRequest(allSlices));
-        assertThat(fromAll.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(fromAll.getMessage(), containsString(rejected));
+        assertThat(fromEsql.getMessage(), containsString(SLICE_REQUIRED));
 
         for (List<String> slices : List.of(List.of("globex"), List.of("globex", "initech"))) {
             List<String> searchKeys = searchKeys(slices, knnSearch);
@@ -273,14 +283,11 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
     }
 
     private static String esqlCondition(List<String> slices, String condition) {
-        if (slices.isEmpty()) {
-            return condition;
-        }
         String names = slices.stream().map(slice -> "\"" + slice + "\"").collect(Collectors.joining(", "));
         return "_slice IN (" + names + ") AND (" + condition + ")";
     }
 
-    /** The path of an endpoint of the index, restricted to the given slices when there are any. */
+    /** The path of an endpoint of the index, restricted to the given slices when there are any. An empty list selects none. */
     private static String path(List<String> slices, String endpoint) {
         return slices.isEmpty() ? "/" + INDEX + "/" + endpoint : "/" + INDEX + "/" + String.join(",", slices) + "/" + endpoint;
     }

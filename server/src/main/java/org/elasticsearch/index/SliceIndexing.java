@@ -314,9 +314,12 @@ public final class SliceIndexing {
 
     /**
      * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
-     * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, routing is left unrestricted,
-     * covering all slices. A {@code _slice} is accepted even when no targeted index is slice-enabled: indices without slices
-     * hold no document of any slice, so they match nothing.
+     * When {@code anySliceEnabled} is true, a {@code _slice} parameter is required: the REST APIs have no way to read every
+     * slice of a slice-enabled index at once. A {@code _slice} is accepted even when no targeted index is slice-enabled:
+     * indices without slices hold no document of any slice, so they match nothing.
+     * <p>
+     * A request with {@code routingFromSlice} and no routing reads every slice. No REST parameter produces that state; it is
+     * reserved for internal readers that move the documents of every slice, such as reindex.
      */
     public static String validateAndResolveSliceRoutingRequirement(
         boolean anySliceEnabled,
@@ -339,6 +342,17 @@ public final class SliceIndexing {
         }
         if (routingFromSlice) {
             return requestedSlice;
+        }
+        if (anySliceEnabled) {
+            throw new IllegalArgumentException(
+                "["
+                    + FIELD_NAME
+                    + "] is required when [index.slice.enabled] is true for "
+                    + requestDescription
+                    + " targeting ["
+                    + target
+                    + "]"
+            );
         }
         return routing;
     }

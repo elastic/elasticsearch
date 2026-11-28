@@ -10,7 +10,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
@@ -25,6 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -54,10 +57,10 @@ public class UpdateByQuerySliceEnabledIT extends ESIntegTestCase {
         assertThat(response.evaluate("updated"), equalTo(1));
         assertThat(response.evaluate("failures"), empty());
 
-        response = updateByQuery(index, null);
-        assertThat(response.evaluate("updated"), equalTo(3));
-        assertThat(response.evaluate("failures"), empty());
-        assertHitCount(prepareSearch(index).setSize(0), 3L);
+        // without a slice the request is rejected: a search of a slice-enabled index must name its slices
+        ResponseException e = expectThrows(ResponseException.class, () -> updateByQuery(index, null));
+        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertSliceDocCount(index, "tenant-a,tenant-b", 3L);
     }
 
     public void testUpdateByQueryWithMultipleSlicesPath() throws Exception {
@@ -68,7 +71,7 @@ public class UpdateByQuerySliceEnabledIT extends ESIntegTestCase {
         ObjectPath response = updateByQuery(index, "tenant-a,tenant-b");
         assertThat(response.evaluate("updated"), equalTo(3));
         assertThat(response.evaluate("failures"), empty());
-        assertHitCount(prepareSearch(index).setSize(0), 3L);
+        assertSliceDocCount(index, "tenant-a,tenant-b", 3L);
     }
 
     public void testSlicePathOnNonSliceIndexMatchesNothing() throws Exception {
@@ -80,6 +83,12 @@ public class UpdateByQuerySliceEnabledIT extends ESIntegTestCase {
 
         assertThat(updateByQuery(index, "tenant-a").evaluate("updated"), equalTo(0));
         assertHitCount(prepareSearch(index).setSize(0), 1L);
+    }
+
+    private void assertSliceDocCount(String index, String slices, long expected) {
+        SearchRequestBuilder search = prepareSearch(index).setSize(0);
+        search.request().searchSlice(slices);
+        assertHitCount(search, expected);
     }
 
     private void createSliceIndexWithDocs(String index) throws Exception {

@@ -168,6 +168,52 @@ public class ReindexValidatorTests extends ESTestCase {
         validator.initialValidation(request);
     }
 
+    /**
+     * A search of a slice-enabled index must name its slices; reindex is the exception that reads every slice. The validator marks
+     * the source as read in slice mode with unrestricted routing, which the search path accepts as the internal every-slice read.
+     */
+    public void testSliceEnabledSourceWithoutSliceIsMarkedAsReadingEverySlice() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithSliceEnabledSourceAndDestination());
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+
+        validator.initialValidation(request);
+        assertTrue(request.getSearchRequest().isRoutingFromSlice());
+        assertNull(request.getSearchRequest().routing());
+        assertNull(request.getSearchRequest().searchSlice());
+    }
+
+    public void testSourceWithoutSlicesIsNotMarkedAsReadingEverySlice() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(false));
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+
+        validator.initialValidation(request);
+        assertFalse(request.getSearchRequest().isRoutingFromSlice());
+        assertNull(request.getSearchRequest().routing());
+    }
+
+    public void testSourceSliceIsKeptWhenMarkingTheSource() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithSliceEnabledSourceAndDestination());
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        request.getSearchRequest().searchSlice("tenant-a");
+
+        validator.initialValidation(request);
+        assertEquals("tenant-a", request.getSearchRequest().searchSlice());
+    }
+
+    public void testMixedSourceIsMarkedAsReadingEverySliceWhenAllowed() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(false));
+        // into a destination without slices the mix is allowed, and the slice-enabled source index is read in full
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index", "plain-index").setDestIndex("dest-index");
+
+        validator.initialValidation(request);
+        assertTrue(request.getSearchRequest().isRoutingFromSlice());
+        assertNull(request.getSearchRequest().routing());
+    }
+
     public void testRequireSliceInSliceEnabledDestinationWhenSourceMixesSliceEnabledAndOtherIndices() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(true));

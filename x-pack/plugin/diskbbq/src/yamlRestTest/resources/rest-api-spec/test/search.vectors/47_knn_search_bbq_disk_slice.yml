@@ -133,15 +133,14 @@ setup:
   - contains: { hits.hits: { _id: "4" } }
 
 ---
-"Search without slice reads every slice of a slice-enabled index":
+"Search without slice is rejected on a slice-enabled index":
   - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       search:
         index: bbq_disk_slice
         body:
           query:
             match_all: {}
-
-  - match: { hits.total.value: 4 }
 
 ---
 "KNN search without slice is rejected on slice-enabled index":
@@ -153,7 +152,7 @@ setup:
       test_runner_features: [ capabilities ]
       reason: "knn search requires the slices to be selected by name on a slice-enabled index"
   - do:
-      catch: /to perform knn search on field \[vector\], the slices to search must be selected by name/
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       search:
         index: bbq_disk_slice
         body:

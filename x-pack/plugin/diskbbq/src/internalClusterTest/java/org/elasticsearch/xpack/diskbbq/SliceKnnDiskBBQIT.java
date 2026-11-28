@@ -88,11 +88,9 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
 
         final KnnSearchBuilder knn = new KnnSearchBuilder("vector", axisVector(64, 1), 10, 10, 100f, null, null);
         final SearchRequestBuilder search = prepareSearch("slice-knn-bbq-all").setKnnSearch(List.of(knn));
+        // the request is rejected before any shard builds the knn query: a slice-enabled index needs a slice for every search
         final Exception e = expectThrows(Exception.class, search);
-        assertThat(
-            ExceptionsHelper.stackTrace(e),
-            containsString("to perform knn search on field [vector], the slices to search must be selected by name")
-        );
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 
     public void testKnnSearchSlices() {

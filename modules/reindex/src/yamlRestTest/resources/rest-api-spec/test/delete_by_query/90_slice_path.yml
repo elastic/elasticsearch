@@ -70,25 +70,26 @@ setup:
 
   - do:
       count:
-        index: sliced
+        index:  sliced
+        _slice: tenant-a,tenant-b
   - match: {count: 0}
 
 ---
-"Delete by query without a slice deletes from every slice":
+"Delete by query without a slice is rejected on a slice-enabled index":
   - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       delete_by_query:
         index:   sliced
         refresh: true
         body:
           query:
             match_all: {}
-  - match: {deleted: 3}
-  - match: {failures: []}
 
   - do:
       count:
-        index: sliced
-  - match: {count: 0}
+        index:  sliced
+        _slice: tenant-a,tenant-b
+  - match: {count: 3}
 
 ---
 "Delete by query with a slice in the path matches nothing on a non-sliced index":
@@ -116,7 +117,7 @@ setup:
   - match: {count: 1}
 
 ---
-"Delete by query without a slice covers slice-enabled and plain indices":
+"Delete by query without a slice is rejected when a slice-enabled index is among the targets":
   - do:
       index:
         index:   plain_mixed
@@ -126,16 +127,15 @@ setup:
         body:    { "company": "hen" }
 
   - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
       delete_by_query:
         index:   sliced,plain_mixed
         refresh: true
         body:
           query:
             match_all: {}
-  - match: {deleted: 4}
-  - match: {failures: []}
 
   - do:
       count:
-        index: sliced,plain_mixed
-  - match: {count: 0}
+        index: plain_mixed
+  - match: {count: 1}

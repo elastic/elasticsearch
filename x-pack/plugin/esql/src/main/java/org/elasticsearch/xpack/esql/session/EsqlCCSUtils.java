@@ -22,6 +22,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -569,7 +570,9 @@ public class EsqlCCSUtils {
             || unwrapped instanceof TaskCancelledException) {
             return false;
         }
-        return true;
+        // An invalid request, such as one reading a slice-enabled index without selecting its slices, has no partial result: it is
+        // rejected as a whole, as it would be without partial results.
+        return ExceptionsHelper.status(e) != RestStatus.BAD_REQUEST;
     }
 
     public static String inClusterName(String clusterAlias) {

@@ -59,6 +59,12 @@ public class SliceSelectionIT extends ESRestTestCase {
     private static final int OTHER_DOCS = 3;
     private static final int ALL_DOCS = NEAR_DOCS + FAR_DOCS + OTHER_DOCS;
 
+    /** Selects every slice of the indices, for the queries that must read all the documents. */
+    private static final String ALL_SLICES = "_slice IN (\"near\", \"far\", \"other\")";
+    private static final String SELECT_ALL_SLICES = "| WHERE " + ALL_SLICES + " ";
+    private static final String SLICE_REQUIRED = "[_slice] is required when [index.slice.enabled] is true "
+        + "for search request targeting [";
+
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(c -> c.feature(FeatureFlag.SLICE_INDEXING));
 
@@ -105,7 +111,10 @@ public class SliceSelectionIT extends ESRestTestCase {
         assertThat(count(FROM + "| WHERE _slice IN (\"far\", \"other\") | STATS c = COUNT(*)"), equalTo(FAR_DOCS + OTHER_DOCS));
         assertThat(count(FROM + "| WHERE _slice == \"far\" OR _slice == \"near\" | STATS c = COUNT(*)"), equalTo(FAR_DOCS + NEAR_DOCS));
         assertThat(count(FROM + "| WHERE _slice == \"unknown\" | STATS c = COUNT(*)"), equalTo(0));
-        assertThat(count(FROM + "| STATS c = COUNT(*)"), equalTo(ALL_DOCS));
+        assertThat(count(FROM + SELECT_ALL_SLICES + "| STATS c = COUNT(*)"), equalTo(ALL_DOCS));
+        // a query that selects no slice is rejected, instead of reading all of them
+        assertRejected(FROM + "| STATS c = COUNT(*)", INDEX);
+        assertRejected(FROM_SINGLE + "| STATS c = COUNT(*)", SINGLE_SHARD_INDEX);
 
         // slices that share a shard
         assertThat(count(FROM_SINGLE + "| WHERE _slice == \"far\" | STATS c = COUNT(*)"), equalTo(FAR_DOCS));
@@ -115,23 +124,24 @@ public class SliceSelectionIT extends ESRestTestCase {
     }
 
     /**
-     * A filter that selects slices only queries the shards that hold them. A filter that does not is still applied, on all
-     * the shards.
+     * A filter that selects slices only queries the shards that hold them. A condition that does not select slices is still
+     * applied on all the shards that hold the slices the query selects.
      */
     public void testSelectedSlicesRouteTheQuery() throws IOException {
-        assertThat(totalShards(FROM + "| STATS c = COUNT(*)"), equalTo(SHARDS));
+        int allSliceShards = totalShards(FROM + SELECT_ALL_SLICES + "| STATS c = COUNT(*)");
+        assertThat(allSliceShards, lessThan(SHARDS + 1));
         assertThat(totalShards(FROM + "| WHERE _slice == \"far\" | STATS c = COUNT(*)"), equalTo(1));
         assertThat(totalShards(FROM + "| WHERE position >= 0 | EVAL x = 1 | WHERE _slice == \"far\" | STATS c = COUNT(*)"), equalTo(1));
         assertThat(totalShards(FROM + "| WHERE _slice IN (\"far\", \"near\") | STATS c = COUNT(*)"), lessThan(SHARDS));
 
         for (String filter : List.of(
-            "| WHERE _slice == \"far\" OR position > 100 ",
-            "| WHERE _slice LIKE \"fa*\" ",
-            "| WHERE _slice != \"near\" AND _slice != \"other\" ",
-            "| SORT position, name | LIMIT 1000 | WHERE _slice == \"far\" "
+            "| WHERE " + ALL_SLICES + " AND (_slice == \"far\" OR position > 100) ",
+            "| WHERE " + ALL_SLICES + " AND _slice LIKE \"fa*\" ",
+            "| WHERE " + ALL_SLICES + " AND _slice != \"near\" AND _slice != \"other\" ",
+            SELECT_ALL_SLICES + "| SORT position, name | LIMIT 1000 | WHERE _slice == \"far\" "
         )) {
             String query = FROM + filter + "| STATS c = COUNT(*)";
-            assertThat(query, totalShards(query), equalTo(SHARDS));
+            assertThat(query, totalShards(query), equalTo(allSliceShards));
             assertThat(query, count(query), equalTo(FAR_DOCS));
         }
     }
@@ -141,13 +151,18 @@ public class SliceSelectionIT extends ESRestTestCase {
      */
     public void testFilterAfterLimitOrStatsIsAnOrdinaryFilter() throws IOException {
         // the first documents by position come from every slice, of which only some belong to the slice
-        List<String> rows = slices(FROM_SINGLE + "| SORT position, name | LIMIT 3 | WHERE _slice == \"far\" | KEEP _slice");
+        List<String> rows = slices(
+            FROM_SINGLE + SELECT_ALL_SLICES + "| SORT position, name | LIMIT 3 | WHERE _slice == \"far\" | KEEP _slice"
+        );
         assertThat(rows, equalTo(List.of("far")));
 
-        // a filter on a grouping key stays above the STATS, so it does not sit on the source and selects no slice
-        List<List<Object>> groups = values(FROM + "| STATS c = COUNT(*) BY _slice | WHERE _slice == \"far\"");
-        assertThat(groups, equalTo(List.of(List.of(FAR_DOCS, "far"))));
-        assertThat(totalShards(FROM + "| STATS c = COUNT(*) BY _slice | WHERE _slice == \"far\""), equalTo(SHARDS));
+        // a filter on a grouping key stays above the STATS, so it does not sit on the source and selects no slice: the
+        // slices are those selected below it
+        String groups = FROM + SELECT_ALL_SLICES + "| STATS c = COUNT(*) BY _slice | WHERE _slice == \"far\"";
+        assertThat(values(groups), equalTo(List.of(List.of(FAR_DOCS, "far"))));
+        assertThat(totalShards(groups), equalTo(totalShards(FROM + SELECT_ALL_SLICES + "| STATS c = COUNT(*)")));
+        // without the selection below the STATS, the filter above it does not select the slices
+        assertRejected(FROM + "| STATS c = COUNT(*) BY _slice | WHERE _slice == \"far\"", INDEX);
     }
 
     /**
@@ -183,45 +198,44 @@ public class SliceSelectionIT extends ESRestTestCase {
     }
 
     /**
-     * A knn function selects its documents on its own, so the vector field refuses to search a slice-enabled index when the
-     * query does not say which slices to search. The query fails as a whole, whether or not partial results are allowed.
+     * A knn function selects its documents on its own, so a query that does not select slices of a slice-enabled index is
+     * rejected, whether or not partial results are allowed. Conditions on {@code _slice} that are not a selection do not help.
      */
     public void testKnnRequiresSelectedSlices() {
         String knn = "KNN(vector, " + queryVector() + ", {\"k\": 2})";
         for (String query : List.of(
             "FROM tenants | WHERE " + knn + " | LIMIT 10",
             FROM + "| WHERE " + knn + " AND _slice != \"near\" | LIMIT 10",
-            FROM + "| WHERE " + knn + " AND _slice LIKE \"fa*\" | LIMIT 10",
-            FROM + "| WHERE " + knn + " AND (_slice == \"far\" OR position > 2) | LIMIT 10",
             FROM + "| WHERE (" + knn + " AND _slice == \"far\") OR position > 100 | LIMIT 10",
             FROM + "| WHERE " + knn + " | SORT position | LIMIT 10 | WHERE _slice == \"far\""
         )) {
             for (boolean allowPartialResults : List.of(true, false)) {
                 ResponseException e = expectThrows(ResponseException.class, query, () -> query(query, allowPartialResults));
                 assertThat(query, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-                assertThat(
-                    query,
-                    e.getMessage(),
-                    containsString("to perform knn search on field [vector], the slices to search must be selected")
-                );
+                assertThat(query, e.getMessage(), containsString(SLICE_REQUIRED + INDEX + "]"));
             }
         }
     }
 
     /**
      * A knn function AND'd with a condition that Lucene cannot evaluate does not run as a nearest neighbour search: it
-     * scores every document instead, and the vector field needs no slice for that.
+     * scores every document instead, and the vector field needs no further slice for that. The query still has to select
+     * the slices to read.
      */
     public void testExactKnnNeedsNoSlices() throws IOException {
         String knn = "KNN(vector, " + queryVector() + ", {\"k\": 2})";
-        List<String> rows = slices(FROM + "| WHERE " + knn + " AND TO_LOWER(_slice) == \"far\" | KEEP _slice | LIMIT 100");
+        assertRejected(FROM + "| WHERE " + knn + " AND TO_LOWER(_slice) == \"far\" | KEEP _slice | LIMIT 100", INDEX);
+
+        List<String> rows = slices(
+            FROM + "| WHERE " + ALL_SLICES + " AND " + knn + " AND TO_LOWER(_slice) == \"far\" | KEEP _slice | LIMIT 100"
+        );
         assertThat(rows, hasSize(FAR_DOCS));
         assertThat(rows, everyItem(equalTo("far")));
     }
 
     /**
-     * Other search functions run on a slice-enabled index like any other condition: on the slices the filter selects, or
-     * on all of them.
+     * Other search functions run on a slice-enabled index like any other condition, on the slices the filter selects. A query
+     * that selects no slice is rejected.
      */
     public void testOtherSearchFunctions() throws IOException {
         String match = "MATCH(description, \"document\")";
@@ -235,21 +249,31 @@ public class SliceSelectionIT extends ESRestTestCase {
             assertThat(commands, count(FROM + commands + "| STATS c = COUNT(*)"), equalTo(FAR_DOCS));
         }
         assertThat(count(FROM + "| WHERE _slice == \"far\" | STATS c = COUNT(*) WHERE " + match), equalTo(FAR_DOCS));
-        assertThat(count("FROM tenants | WHERE " + match + " | STATS c = COUNT(*)"), equalTo(ALL_DOCS));
-        assertThat(count(FROM + "| WHERE " + match + " AND _slice != \"near\" | STATS c = COUNT(*)"), equalTo(FAR_DOCS + OTHER_DOCS));
+        assertRejected("FROM tenants | WHERE " + match + " | STATS c = COUNT(*)", INDEX);
+        assertThat(count(FROM + "| WHERE " + ALL_SLICES + " AND " + match + " | STATS c = COUNT(*)"), equalTo(ALL_DOCS));
+        assertThat(
+            count(FROM + "| WHERE " + ALL_SLICES + " AND " + match + " AND _slice != \"near\" | STATS c = COUNT(*)"),
+            equalTo(FAR_DOCS + OTHER_DOCS)
+        );
     }
 
     /**
      * {@code _slice} is null on an index without slices, so a filter on it matches none of its documents and
-     * nothing fails.
+     * nothing fails. A query that names a slice-enabled index and a plain one must still select slices, and the plain index
+     * then contributes no document.
      */
     public void testIndexWithoutSlices() throws IOException {
         createPlainIndex("plain", 3);
 
         assertThat(count("FROM plain METADATA _slice | WHERE _slice == \"far\" | STATS c = COUNT(*)"), equalTo(0));
         assertThat(count("FROM tenants, plain METADATA _slice | WHERE _slice == \"far\" | STATS c = COUNT(*)"), equalTo(FAR_DOCS));
-        assertThat(count("FROM tenants, plain METADATA _slice | STATS c = COUNT(*)"), equalTo(ALL_DOCS + 3));
-        assertThat(count("FROM tenants, plain | WHERE MATCH(name, \"plain-1\") | STATS c = COUNT(*)"), equalTo(1));
+        assertRejected("FROM tenants, plain METADATA _slice | STATS c = COUNT(*)", null);
+        assertThat(count("FROM tenants, plain METADATA _slice | WHERE " + ALL_SLICES + " | STATS c = COUNT(*)"), equalTo(ALL_DOCS));
+        assertThat(
+            count("FROM tenants, plain METADATA _slice | WHERE " + ALL_SLICES + " AND MATCH(name, \"far-1\") | STATS c = COUNT(*)"),
+            equalTo(1)
+        );
+        assertThat(count("FROM plain | STATS c = COUNT(*)"), equalTo(3));
     }
 
     /**
@@ -270,7 +294,8 @@ public class SliceSelectionIT extends ESRestTestCase {
         assertThat(totalShards("FROM tenants-alias " + far), equalTo(1));
         assertThat(count("FROM tenants-first " + far), equalTo(1));
         assertThat(totalShards("FROM tenants-first " + far), equalTo(1));
-        assertThat(totalShards("FROM tenants-alias METADATA _slice | STATS c = COUNT(*)"), equalTo(SHARDS));
+        assertRejected("FROM tenants-alias METADATA _slice | STATS c = COUNT(*)", null);
+        assertThat(totalShards("FROM tenants-alias METADATA _slice | WHERE " + ALL_SLICES + " | STATS c = COUNT(*)"), lessThan(SHARDS + 1));
 
         String knn = "KNN(vector, " + queryVector() + ", {\"k\": 2})";
         List<String> rows = slices("FROM tenants-alias METADATA _slice | WHERE " + knn + " AND _slice == \"far\" | KEEP _slice | LIMIT 10");
@@ -314,6 +339,17 @@ public class SliceSelectionIT extends ESRestTestCase {
             count("FROM (" + FROM + "| WHERE _slice == \"far\"), plain | WHERE _slice == \"other\" | STATS c = COUNT(*)"),
             equalTo(0)
         );
+    }
+
+    /**
+     * Asserts that a query is rejected because it selects no slice of a slice-enabled index.
+     *
+     * @param index the index named by the error, or {@code null} to only check that slices are required
+     */
+    private static void assertRejected(String query, String index) {
+        ResponseException e = expectThrows(ResponseException.class, query, () -> query(query));
+        assertThat(query, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(query, e.getMessage(), containsString(index == null ? SLICE_REQUIRED : SLICE_REQUIRED + index + "]"));
     }
 
     private static int count(String query) throws IOException {

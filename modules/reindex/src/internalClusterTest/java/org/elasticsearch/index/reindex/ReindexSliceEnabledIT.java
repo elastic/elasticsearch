@@ -10,6 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.SliceIndexing;
@@ -143,6 +144,12 @@ public class ReindexSliceEnabledIT extends ESIntegTestCase {
         assertThat(response.getSearchFailures(), empty());
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getCreated(), equalTo(2L));
-        assertBusy(() -> assertHitCount(prepareSearch(destination).setSize(0), 2L));
+        assertBusy(() -> assertSliceDocCount(destination, "tenant-a", 2L));
+    }
+
+    private void assertSliceDocCount(String index, String slice, long expected) {
+        SearchRequestBuilder search = prepareSearch(index).setSize(0);
+        search.request().searchSlice(slice);
+        assertHitCount(search, expected);
     }
 }

@@ -523,7 +523,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 originalListener.delegateFailureAndWrap((delegate, resp) -> {
                     // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
                     // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
-                    source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
+                    // The slice of the request is carried on the point in time so that the searches a compound retriever runs on
+                    // it read the same slices as the request that opened it.
+                    source.pointInTimeBuilder(
+                        new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE)
+                            .setSearchSlice(original.isRoutingFromSlice() ? original.searchSlice() : null)
+                    );
                     var pitListener = new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse response) {

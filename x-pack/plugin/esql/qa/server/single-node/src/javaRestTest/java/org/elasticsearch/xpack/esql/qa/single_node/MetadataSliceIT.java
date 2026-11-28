@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
@@ -53,8 +54,19 @@ public class MetadataSliceIT extends ESRestTestCase {
 
         refreshIndex(index);
 
+        // a query that selects no slice of a slice-enabled index is rejected, instead of reading every slice
+        Request unsliced = new Request("POST", "/_query");
+        unsliced.setJsonEntity("{\"query\": \"FROM " + index + " METADATA _slice | KEEP _slice | SORT _slice | LIMIT 10\"}");
+        ResponseException rejected = expectThrows(ResponseException.class, () -> client().performRequest(unsliced));
+        assertEquals(400, rejected.getResponse().getStatusLine().getStatusCode());
+        assertTrue(
+            rejected.getMessage(),
+            rejected.getMessage()
+                .contains("[_slice] is required when [index.slice.enabled] is true for search request targeting [" + index + "]")
+        );
+
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
-            .query("FROM " + index + " METADATA _slice | KEEP _slice | SORT _slice");
+            .query("FROM " + index + " METADATA _slice | WHERE _slice IN (\"s1\", \"s2\") | KEEP _slice | SORT _slice");
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
 
         @SuppressWarnings("unchecked")
@@ -103,7 +115,11 @@ public class MetadataSliceIT extends ESRestTestCase {
         refreshIndex(index);
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
-            .query("FROM " + index + " METADATA _slice | WHERE _slice != \"s1\" | KEEP _slice | SORT _slice");
+            .query(
+                "FROM "
+                    + index
+                    + " METADATA _slice | WHERE _slice IN (\"s1\", \"s2\", \"s3\") AND _slice != \"s1\" | KEEP _slice | SORT _slice"
+            );
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
 
         @SuppressWarnings("unchecked")
@@ -124,7 +140,11 @@ public class MetadataSliceIT extends ESRestTestCase {
         refreshIndex(index);
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
-            .query("FROM " + index + " METADATA _slice | WHERE _slice LIKE \"s1*\" | KEEP _slice | SORT _slice");
+            .query(
+                "FROM "
+                    + index
+                    + " METADATA _slice | WHERE _slice IN (\"s1a\", \"s1b\", \"s2\") AND _slice LIKE \"s1*\" | KEEP _slice | SORT _slice"
+            );
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
 
         @SuppressWarnings("unchecked")
@@ -145,7 +165,11 @@ public class MetadataSliceIT extends ESRestTestCase {
         refreshIndex(index);
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
-            .query("FROM " + index + " METADATA _slice | WHERE _slice RLIKE \"s[12]\" | KEEP _slice | SORT _slice");
+            .query(
+                "FROM "
+                    + index
+                    + " METADATA _slice | WHERE _slice IN (\"s1\", \"s2\", \"s3\") AND _slice RLIKE \"s[12]\" | KEEP _slice | SORT _slice"
+            );
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
 
         @SuppressWarnings("unchecked")
@@ -206,7 +230,9 @@ public class MetadataSliceIT extends ESRestTestCase {
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
             .query(
-                "FROM " + index + " METADATA _slice | RENAME _slice AS my_slice | WHERE my_slice == \"s1\" | KEEP my_slice | SORT my_slice"
+                "FROM "
+                    + index
+                    + " METADATA _slice | WHERE _slice IN (\"s1\", \"s2\") | RENAME _slice AS my_slice | WHERE my_slice == \"s1\" | KEEP my_slice | SORT my_slice"
             );
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
 
@@ -230,7 +256,11 @@ public class MetadataSliceIT extends ESRestTestCase {
 
         // SUBSTRING is not a Lucene pushdown predicate, so the filter stays in the compute engine
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
-            .query("FROM " + index + " METADATA _slice | WHERE SUBSTRING(_slice, 1, 1) == \"a\" | KEEP _slice | SORT _slice");
+            .query(
+                "FROM "
+                    + index
+                    + " METADATA _slice | WHERE _slice IN (\"apple\", \"apricot\", \"banana\") AND SUBSTRING(_slice, 1, 1) == \"a\" | KEEP _slice | SORT _slice"
+            );
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
 
         @SuppressWarnings("unchecked")
@@ -251,7 +281,7 @@ public class MetadataSliceIT extends ESRestTestCase {
         refreshIndex(index);
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
-            .query("FROM " + index + " METADATA _slice | STATS c = COUNT(*) BY _slice | SORT _slice");
+            .query("FROM " + index + " METADATA _slice | WHERE _slice IN (\"s1\", \"s2\") | STATS c = COUNT(*) BY _slice | SORT _slice");
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
 
         @SuppressWarnings("unchecked")

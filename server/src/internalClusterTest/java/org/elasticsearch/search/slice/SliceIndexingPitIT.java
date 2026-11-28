@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -54,14 +55,13 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
 
         BytesReference pitId = client().execute(
             TransportOpenPointInTimeAction.TYPE,
-            new OpenPointInTimeRequest(index).keepAlive(TimeValue.timeValueMinutes(5))
+            new OpenPointInTimeRequest(index).searchSlice("tenant-a,tenant-b").keepAlive(TimeValue.timeValueMinutes(5))
         ).actionGet().getPointInTimeId();
 
         try {
-            assertResponse(
-                prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(10),
-                response -> assertHitCount(response, 2)
-            );
+            var bothSlicesSearch = prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(10);
+            bothSlicesSearch.request().searchSlice("tenant-a,tenant-b");
+            assertResponse(bothSlicesSearch, response -> assertHitCount(response, 2));
 
             var tenantASearch = prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(10);
             tenantASearch.request().searchSlice("tenant-a");
@@ -113,12 +113,14 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(sliceAPitId)).actionGet();
         }
 
-        var openAll = client().execute(
-            TransportOpenPointInTimeAction.TYPE,
-            new OpenPointInTimeRequest(index).keepAlive(TimeValue.timeValueMinutes(5))
-        ).actionGet();
-        assertThat(openAll.getTotalShards(), equalTo(2));
-        client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(openAll.getPointInTimeId())).actionGet();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                TransportOpenPointInTimeAction.TYPE,
+                new OpenPointInTimeRequest(index).keepAlive(TimeValue.timeValueMinutes(5))
+            ).actionGet()
+        );
+        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 
     /**
@@ -160,7 +162,9 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
             assertThat(openedShardIds, hasSize(1));
             assertThat(openedShardIds.iterator().next(), equalTo(0));
 
-            assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(shard0PitId)).setSize(10), response -> {
+            var shard0Search = prepareSearch().setPointInTime(new PointInTimeBuilder(shard0PitId)).setSize(10);
+            shard0Search.request().searchSlice(sliceOnShard0);
+            assertResponse(shard0Search, response -> {
                 assertHitCount(response, 1);
                 assertThat(response.getHits().getAt(0).getId(), equalTo("shard-0-doc"));
             });
@@ -180,7 +184,9 @@ public class SliceIndexingPitIT extends ESIntegTestCase {
             assertThat(openedShardIds, hasSize(1));
             assertThat(openedShardIds.iterator().next(), equalTo(1));
 
-            assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(shard1PitId)).setSize(10), response -> {
+            var shard1Search = prepareSearch().setPointInTime(new PointInTimeBuilder(shard1PitId)).setSize(10);
+            shard1Search.request().searchSlice(sliceOnShard1);
+            assertResponse(shard1Search, response -> {
                 assertHitCount(response, 1);
                 assertThat(response.getHits().getAt(0).getId(), equalTo("shard-1-doc"));
             });

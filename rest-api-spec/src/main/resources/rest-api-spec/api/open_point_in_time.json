@@ -73,7 +73,7 @@
       },
       "_slice": {
         "type": "string",
-        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the point in time to that slice. Covers all slices when omitted on slice-enabled indices.",
+        "description": "Slice identifier for a slice-enabled index (`index.slice.enabled=true`); scopes the point in time to that slice. Required when any targeted index is slice-enabled; there is no way to open a point in time over every slice at once.",
         "visibility": "feature_flag",
         "feature_flag": "es.slice_indexing_feature_flag_enabled"
       }

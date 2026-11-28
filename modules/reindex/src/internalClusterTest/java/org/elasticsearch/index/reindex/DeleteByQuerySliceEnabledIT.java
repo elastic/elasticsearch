@@ -10,7 +10,9 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
@@ -25,6 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,12 +56,12 @@ public class DeleteByQuerySliceEnabledIT extends ESIntegTestCase {
         ObjectPath response = deleteByQuery(index, "tenant-a");
         assertThat(response.evaluate("deleted"), equalTo(2));
         assertThat(response.evaluate("failures"), empty());
-        assertHitCount(prepareSearch(index).setSize(0), 1L);
+        assertSliceDocCount(index, "tenant-a,tenant-b", 1L);
 
-        response = deleteByQuery(index, null);
-        assertThat(response.evaluate("deleted"), equalTo(1));
-        assertThat(response.evaluate("failures"), empty());
-        assertHitCount(prepareSearch(index).setSize(0), 0L);
+        // without a slice the request is rejected: a search of a slice-enabled index must name its slices
+        ResponseException e = expectThrows(ResponseException.class, () -> deleteByQuery(index, null));
+        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertSliceDocCount(index, "tenant-a,tenant-b", 1L);
     }
 
     public void testDeleteByQueryWithMultipleSlicesPath() throws Exception {
@@ -69,7 +72,7 @@ public class DeleteByQuerySliceEnabledIT extends ESIntegTestCase {
         ObjectPath response = deleteByQuery(index, "tenant-a,tenant-b");
         assertThat(response.evaluate("deleted"), equalTo(3));
         assertThat(response.evaluate("failures"), empty());
-        assertHitCount(prepareSearch(index).setSize(0), 0L);
+        assertSliceDocCount(index, "tenant-a,tenant-b", 0L);
     }
 
     public void testSlicePathOnNonSliceIndexMatchesNothing() throws Exception {
@@ -81,6 +84,12 @@ public class DeleteByQuerySliceEnabledIT extends ESIntegTestCase {
 
         assertThat(deleteByQuery(index, "tenant-a").evaluate("deleted"), equalTo(0));
         assertHitCount(prepareSearch(index).setSize(0), 1L);
+    }
+
+    private void assertSliceDocCount(String index, String slices, long expected) {
+        SearchRequestBuilder search = prepareSearch(index).setSize(0);
+        search.request().searchSlice(slices);
+        assertHitCount(search, expected);
     }
 
     private void createSliceIndexWithDocs(String index) throws Exception {

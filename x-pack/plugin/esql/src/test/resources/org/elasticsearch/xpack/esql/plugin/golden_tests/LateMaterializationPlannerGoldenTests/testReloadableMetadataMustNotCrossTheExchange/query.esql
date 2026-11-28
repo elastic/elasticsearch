@@ -1,0 +1,5 @@
+FROM employees METADATA _index, _id
+| EVAL id_len = LENGTH(CONCAT(_index, _id))
+| SORT hire_date
+| LIMIT 5
+| KEEP _index, _id, id_len

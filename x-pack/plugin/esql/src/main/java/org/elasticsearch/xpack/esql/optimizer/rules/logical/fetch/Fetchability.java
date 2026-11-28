@@ -34,6 +34,8 @@ import java.util.Set;
  * the data drivers use, so an attribute is fetchable only when that resolution alone produces the value the eager
  * path would. Both lists below are allowlists: an attribute or field class that is not listed crosses the exchange
  * as a value, which is always correct.
+ * <p>
+ * {@code LateMaterializationPlanner} applies the same lists on the data node.
  */
 public final class Fetchability {
 

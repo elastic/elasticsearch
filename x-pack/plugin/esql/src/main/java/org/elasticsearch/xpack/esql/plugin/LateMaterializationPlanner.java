@@ -12,9 +12,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.Fetchability;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
@@ -69,7 +71,7 @@ import java.util.function.Function;
 *  </pre>
 *  Into this:
 *  <pre>
-*  Project [_doc, foo, x]
+*  Project [_doc, foo]
 *  └── TopN [foo, limit=10]
 *      └── Filter [x > 10]
 *          └── EsRelation [index]
@@ -79,7 +81,9 @@ import java.util.function.Function;
 *  Project [_doc, foo]
 *  └── EsQuery [index with some TopN pushdown]
 *  </pre>
-*  Note the above does not project the {@code x} field anymore (this was an enhancement made by #137920)
+*  Neither plan projects {@code x}: nothing above the TopN reads it.
+*
+*  <p>See {@link #expectedDataOutput} for what crosses the exchange.
 */
 class LateMaterializationPlanner {
     public static Optional<ReductionPlan> planReduceDriverTopN(
@@ -92,14 +96,7 @@ class LateMaterializationPlanner {
         }
 
         AttributeSet orderRefsSet = AttributeSet.of(topN.order().stream().flatMap(o -> o.references().stream()).toList());
-        // Get the output from the physical plan below the TopN, and filter it to only the attributes needed for the final output (either
-        // because they are in the top-level Project's output, or because they are needed for ordering)
-        List<Attribute> expectedDataOutput = new ArrayList<>();
-        for (Attribute a : ctx.physicalPlanOutput) {
-            if (ctx.topLevelProject.outputSet().contains(a) || orderRefsSet.contains(a) || EsQueryExec.isDocAttribute(a)) {
-                expectedDataOutput.add(a);
-            }
-        }
+        List<Attribute> expectedDataOutput = expectedDataOutput(ctx, orderRefsSet);
 
         // The TopN reduction plan should not be further optimized locally on the node reduce driver, since we took great pains to
         // preplan in advance, including all the necessary field extractions!
@@ -133,15 +130,7 @@ class LateMaterializationPlanner {
 
         AttributeSet orderRefsSet = AttributeSet.of(topNBy.order().stream().flatMap(o -> o.references().stream()).toList());
         AttributeSet groupingRefsSet = AttributeSet.of(topNBy.groupings().stream().flatMap(g -> g.references().stream()).toList());
-        List<Attribute> expectedDataOutput = new ArrayList<>();
-        for (Attribute a : ctx.physicalPlanOutput) {
-            if (ctx.topLevelProject.outputSet().contains(a)
-                || orderRefsSet.contains(a)
-                || groupingRefsSet.contains(a)
-                || EsQueryExec.isDocAttribute(a)) {
-                expectedDataOutput.add(a);
-            }
-        }
+        List<Attribute> expectedDataOutput = expectedDataOutput(ctx, orderRefsSet.combine(groupingRefsSet));
 
         return Optional.of(assembleReductionPlan(ctx, originalPlan, expectedDataOutput, plan -> plan.transformDown(TopNByExec.class, t -> {
             PhysicalPlan exchangeExec = new ExchangeSourceExec(topNBy.source(), expectedDataOutput, false);
@@ -171,12 +160,7 @@ class LateMaterializationPlanner {
         }
 
         AttributeSet groupingRefsSet = AttributeSet.of(limitBy.groupings().stream().flatMap(g -> g.references().stream()).toList());
-        List<Attribute> expectedDataOutput = new ArrayList<>();
-        for (Attribute a : ctx.physicalPlanOutput) {
-            if (ctx.topLevelProject.outputSet().contains(a) || groupingRefsSet.contains(a) || EsQueryExec.isDocAttribute(a)) {
-                expectedDataOutput.add(a);
-            }
-        }
+        List<Attribute> expectedDataOutput = expectedDataOutput(ctx, groupingRefsSet);
 
         return Optional.of(
             assembleReductionPlan(
@@ -248,11 +232,65 @@ class LateMaterializationPlanner {
         FragmentExec updatedFragmentExec = ctx.fragmentExec.withFragment(updatedFragment);
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
 
-        PhysicalPlan reductionPlan = reductionPlanTransformer.apply(
-            toNonOptimizedPhysicalDataPlan(ctx.fragmentExec.fragment(), ctx.context)
-        );
+        // Put the exchange source under the pipeline breaker first, so that InsertFieldExtraction loads from _doc everything the
+        // exchange does not carry.
+        PhysicalPlan mappedPlan = toMappedDataPlan(ctx.fragmentExec.fragment(), ctx.context);
+        PhysicalPlan reductionPlan = new InsertFieldExtraction().apply(reductionPlanTransformer.apply(mappedPlan), ctx.context);
         PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
         return new ReductionPlan(originalPlan.replaceChild(sizedReductionPlan), updatedDataPlan);
+    }
+
+    /**
+     * What the data drivers send to the node-reduce driver:
+     * <ul>
+     *   <li>{@code _doc};</li>
+     *   <li>{@code mustCrossExchange}: the sort and grouping keys of the pipeline breaker;</li>
+     *   <li>what the query returns and the node-reduce driver cannot load from {@code _doc}, such as {@code _score},
+     *   {@code EVAL} results and {@code LOOKUP JOIN} fields (see {@link #attributesReloadableFromDoc}).</li>
+     * </ul>
+     * The node-reduce driver loads every other field the query returns, for the rows that survive its pipeline breaker.
+     *
+     * <p>That includes a field that a command under the pipeline breaker reads. The data node can plan that read away: a
+     * filter pushed to Lucene or {@code V_COSINE(vector, ...)} pushed into the field load never loads the field, and
+     * projecting it here would force the load. The cost: when the data drivers do load the field, the node-reduce driver
+     * loads it again.
+     */
+    private static List<Attribute> expectedDataOutput(SetupContext ctx, AttributeSet mustCrossExchange) {
+        AttributeSet reloadable = attributesReloadableFromDoc(ctx.pipelineBreaker);
+        AttributeSet projected = ctx.topLevelProject.outputSet();
+        AttributeSet producibleByFragment = ctx.withAddedDocToRelation.outputSet();
+        // Keep the order of physicalPlanOutput: both sides of the exchange use it as their layout.
+        List<Attribute> expectedDataOutput = new ArrayList<>(ctx.physicalPlanOutput.size());
+        for (Attribute a : ctx.physicalPlanOutput) {
+            if (EsQueryExec.isDocAttribute(a)
+                || mustCrossExchange.contains(a)
+                || (projected.contains(a) && reloadable.contains(a) == false)) {
+                assert producibleByFragment.contains(a) : "the data-side fragment does not output [" + a + "]";
+                expectedDataOutput.add(a);
+            }
+        }
+        return expectedDataOutput;
+    }
+
+    /**
+     * The attributes the node-reduce driver can load given the {@code _doc} of a row: the outputs of the main index's
+     * {@link EsRelation} that {@link Fetchability} accepts. The {@code _doc} of the main index cannot load the fields of a
+     * {@code LOOKUP JOIN} index, so those do not count.
+     */
+    private static AttributeSet attributesReloadableFromDoc(LogicalPlan pipelineBreaker) {
+        AttributeSet.Builder reloadable = AttributeSet.builder();
+        pipelineBreaker.forEachDown(EsRelation.class, relation -> {
+            if (relation.indexMode() == IndexMode.LOOKUP) {
+                return;
+            }
+            for (Attribute a : relation.output()) {
+                // A coordinator before esql_missing_es_field sends a nullified field as a NULL-typed EsField. No index stores it.
+                if (Fetchability.isFetchable(a) && a.dataType() != DataType.NULL) {
+                    reloadable.add(a);
+                }
+            }
+        });
+        return reloadable.build();
     }
 
     private record SetupContext(
@@ -270,6 +308,13 @@ class LateMaterializationPlanner {
      * drivers and node-reduce one.
      */
     private static PhysicalPlan toNonOptimizedPhysicalDataPlan(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
+        return new InsertFieldExtraction().apply(toMappedDataPlan(plan, context), context);
+    }
+
+    /**
+     * {@link #toNonOptimizedPhysicalDataPlan} without the field extractions.
+     */
+    private static PhysicalPlan toMappedDataPlan(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
         var logicalContext = new LocalLogicalOptimizerContext(
             context.configuration(),
             context.foldCtx(),
@@ -280,7 +325,7 @@ class LateMaterializationPlanner {
         // ReplaceFieldWithConstantOrNull, so that InsertFieldExtraction in the *node-reduce* driver won't try to load them from the index.
         // TODO: Do this in InsertFieldExtraction (See #146068) in the node-reduce driver instead.
         LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
-        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
+        return new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized));
     }
 
     private LateMaterializationPlanner() { /* static class */ }

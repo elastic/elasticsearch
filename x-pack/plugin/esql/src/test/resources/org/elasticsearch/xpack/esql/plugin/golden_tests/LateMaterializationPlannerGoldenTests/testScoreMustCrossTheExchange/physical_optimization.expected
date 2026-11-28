@@ -1,0 +1,7 @@
+TopNExec[[Order[year{f}#0,ASC,LAST]],5[INTEGER],null]
+\_ExchangeExec[[author{f}#1, author.keyword{f}#2, book_no{f}#3, collection{f}#4, description{f}#5, publisher{f}#6, ratings{f}#7, title{f}#8, year{f}#0, _score{m}#9],false]
+  \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[author{f}#1, author.keyword{f}#2, book_no{f}#3, collection{f}#4, description{f}#5, publisher{f}#6, ratings{f}#7, title{f}#8, year{f}#0, _score{m}#9]]
+\_TopN[[Order[year{f}#0,ASC,LAST]],5[INTEGER],false]
+  \_Filter[:(title{f}#8,Tolkien[KEYWORD])]
+    \_EsRelation[books][author{f}#1, author.keyword{f}#2, book_no{f}#3, collection{f}#4, description{f}#5, publisher{f}#6, ratings{f}#7, title{f}#8, year{f}#0, _score{m}#9]<>]]

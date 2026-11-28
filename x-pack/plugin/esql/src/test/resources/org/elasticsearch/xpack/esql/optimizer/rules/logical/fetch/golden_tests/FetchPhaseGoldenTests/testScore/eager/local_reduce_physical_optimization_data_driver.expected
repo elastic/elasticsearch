@@ -1,7 +1,6 @@
-ExchangeSinkExec[[_doc{f}#0, _score{m}#1, first_name{f}#2],false]
-\_ProjectExec[[_doc{f}#0, _score{m}#1, first_name{f}#2]]
-  \_FieldExtractExec[[first_name{f}#2]<[],[],[]>,_doc{f}#0]
-    \_EsQueryExec[employees], indexMode[standard], [_doc{f}#0, _score{m}#1], limit[10], sort[[ScoreSort[direction=DESC]]] estimatedRowSize[66] queryBuilderAndTags [[QueryBuilderAndTags[query={
+ExchangeSinkExec[[_doc{f}#0, _score{m}#1],false]
+\_ProjectExec[[_doc{f}#0, _score{m}#1]]
+  \_EsQueryExec[employees], indexMode[standard], [_doc{f}#0, _score{m}#1], limit[10], sort[[ScoreSort[direction=DESC]]] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "first_name",
     "next" : {

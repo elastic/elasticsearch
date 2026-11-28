@@ -1,0 +1,6 @@
+FROM sample_data, sample_data_ts_long
+| EVAL ts = TO_STRING(@timestamp)
+| WHERE LENGTH(ts) > 3
+| SORT client_ip
+| LIMIT 5
+| KEEP ts, message

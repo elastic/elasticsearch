@@ -1,0 +1,18 @@
+ExchangeSinkExec[[_doc{f}#0, languages{f}#1],false]
+\_ProjectExec[[_doc{f}#0, languages{f}#1]]
+  \_LimitByExec[5[INTEGER],[languages{f}#1],24]
+    \_FieldExtractExec[[languages{f}#1]<[],[],[]>,_doc{f}#0]
+      \_EsQueryExec[employees], indexMode[standard], [_doc{f}#0], limit[], sort[] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "salary",
+    "next" : {
+      "range" : {
+        "salary" : {
+          "gt" : 10000,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "salary > 10000@2:9"
+  }
+}, tags=[]]]]

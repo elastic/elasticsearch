@@ -1,0 +1,11 @@
+ExchangeSinkExec[[_doc{f}#0, _score{m}#1, year{f}#2],false]
+\_ProjectExec[[_doc{f}#0, _score{m}#1, year{f}#2]]
+  \_FieldExtractExec[[year{f}#2]<[],[],[]>,_doc{f}#0]
+    \_EsQueryExec[books], indexMode[standard], [_doc{f}#0, _score{m}#1], limit[5], sort[[FieldSort[field=year{f}#2, direction=ASC, nulls=LAST]]] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "title" : {
+      "query" : "Tolkien",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]

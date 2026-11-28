@@ -1,0 +1,4 @@
+FROM books METADATA _score
+| WHERE title:"Tolkien"
+| SORT year
+| LIMIT 5

@@ -67,6 +67,137 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
+    /**
+     * No narrowing {@code KEEP}, so the top-level {@code Project} that {@code ProjectAwayColumns} adds lists the whole relation.
+     * A {@code FORK} branch without a {@code KEEP} has this shape. The test has no {@code FORK} because {@code GoldenTestCase}
+     * cannot plan its multiple {@code ExchangeExec}s. The data driver must output only {@code [_doc, hire_date]}.
+     */
+    public void testNoKeepWithFilter() {
+        String query = """
+            FROM employees
+            | WHERE salary > 10000
+            | SORT hire_date
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * The Lucene source operator computes {@code _score} and no block loader reads it, so the node-reduce driver cannot load it.
+     * It must cross the exchange although it is not a sort key and nothing under the TopN reads it.
+     */
+    public void testScoreMustCrossTheExchange() {
+        String query = """
+            FROM books METADATA _score
+            | WHERE title:"Tolkien"
+            | SORT year
+            | LIMIT 5
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code Fetchability} accepts {@code _index} and {@code _id}. The {@code EVAL} under the TopN reads them, so the data driver
+     * loads them, but they must not cross the exchange: the node-reduce driver loads them again. Only the sort key and the
+     * {@code EVAL} result cross.
+     */
+    public void testReloadableMetadataMustNotCrossTheExchange() {
+        String query = """
+            FROM employees METADATA _index, _id
+            | EVAL id_len = LENGTH(CONCAT(_index, _id))
+            | SORT hire_date
+            | LIMIT 5
+            | KEEP _index, _id, id_len
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * For a TSDB index {@code ReplaceSourceAttributes} adds a {@code FieldAttribute} per
+     * {@code EsQueryExec#TIME_SERIES_SOURCE_FIELDS} to the {@code EsQueryExec}. No {@code EsRelation} outputs
+     * {@code _ts_slice_index} and {@code _ts_future_max_timestamp}, so the data-side {@code Project} must not name them. The
+     * top-level {@code Project} does not output them, which keeps them out.
+     */
+    public void testTimeSeriesSourceAttributesMustNotBeProjected() {
+        String query = """
+            TS k8s METADATA _tsid
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code LIMIT BY} without a narrowing {@code KEEP}: only {@code _doc} and the grouping key cross the exchange.
+     */
+    public void testLimitByNoKeepWithFilter() {
+        String query = """
+            FROM employees
+            | WHERE salary > 10000
+            | LIMIT 5 BY languages
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * The sort key is a field of the lookup index and crosses the exchange as a key. {@code language_code} is an {@code EVAL}
+     * result and crosses too. The node-reduce driver loads every field of {@code employees}.
+     */
+    public void testLookupJoinSortOnLookupField() {
+        String query = """
+            FROM employees
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT language_name
+            | LIMIT 5
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code MV_EXPAND} without a narrowing {@code KEEP}. The expanded {@code job_positions} is not an output of the relation,
+     * so the node-reduce driver cannot load it and it crosses the exchange with {@code _doc} and the sort key.
+     */
+    public void testMvExpandNoKeep() {
+        String query = """
+            FROM employees
+            | MV_EXPAND job_positions
+            | SORT salary
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code Fetchability} does not accept a field that may be unmapped. The {@code WHERE} reads {@code does_not_exist} and the
+     * query returns it, so it crosses the exchange.
+     */
+    public void testUnmappedLoadFieldReadUnderTopN() {
+        String query = """
+            SET unmapped_fields="load";
+            FROM employees
+            | WHERE LENGTH(does_not_exist) > 0
+            | SORT hire_date
+            | LIMIT 20
+            | KEEP emp_no, does_not_exist
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code Fetchability} does not accept a union-type field, {@code MultiTypeEsField} or {@code CompactMultiTypeEsField}. The
+     * {@code WHERE} reads the converted {@code @timestamp} and the query returns it, so it crosses the exchange.
+     */
+    public void testUnionTypeFieldReadUnderTopN() {
+        String query = """
+            FROM sample_data, sample_data_ts_long
+            | EVAL ts = TO_STRING(@timestamp)
+            | WHERE LENGTH(ts) > 3
+            | SORT client_ip
+            | LIMIT 5
+            | KEEP ts, message
+            """;
+        builder(query).stages(STAGES).searchStats(unindexedStats()).expectationChangesAt("compact_multi_type_es_field").run();
+    }
+
     public void testMultipleFieldSortTopN() {
         String query = """
             FROM employees

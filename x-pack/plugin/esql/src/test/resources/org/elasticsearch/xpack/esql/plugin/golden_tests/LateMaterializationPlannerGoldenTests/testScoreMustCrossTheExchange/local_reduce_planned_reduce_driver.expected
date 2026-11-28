@@ -1,0 +1,5 @@
+ExchangeSinkExec[[author{f}#0, author.keyword{f}#1, book_no{f}#2, collection{f}#3, description{f}#4, publisher{f}#5, ratings{f}#6, title{f}#7, year{f}#8, _score{m}#9],false]
+\_ProjectExec[[author{f}#0, author.keyword{f}#1, book_no{f}#2, collection{f}#3, description{f}#4, publisher{f}#5, ratings{f}#6, title{f}#7, year{f}#8, _score{m}#9]]
+  \_FieldExtractExec[[author{f}#0, author.keyword{f}#1, book_no{f}#2, collection{f}#3, description{f}#4, publisher{f}#5, ratings{f}#6, title{f}#7]<[],[],[]>,_doc{f}#10]
+    \_TopNExec[[Order[year{f}#8,ASC,LAST]],5[INTEGER],5260]
+      \_ExchangeSourceExec[[_doc{f}#10, _score{m}#9, year{f}#8],false]

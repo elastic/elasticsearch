@@ -1,0 +1,6 @@
+ExchangeSinkExec[[_doc{f}#0, $$@timestamp$converted_to$keyword{f(CompactMultiTypeEsField)$}#1, client_ip{f}#2],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#0, $$@timestamp$converted_to$keyword{f(CompactMultiTypeEsField)$}#1, client_ip{f}#2]]
+\_TopN[[Order[client_ip{f}#2,ASC,LAST]],5[INTEGER],false]
+  \_Filter[LENGTH($$@timestamp$converted_to$keyword{f(CompactMultiTypeEsField)$}#1) > 3[INTEGER]]
+    \_EsRelation[sample_data,sample_data_ts_long][_doc{f}#0, !@timestamp, client_ip{f}#2, event_duration{f}#3, message{f}#4, $$@timestamp$converted_to$keyword{f(CompactMultiTypeEsField)$}#1]<>]]

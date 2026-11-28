@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -126,8 +128,10 @@ public final class SchemaReconciliation {
      *
      * @param unifiedSchema the merged/validated schema used for planning
      * @param perFileInfo per-file schema info keyed by file path
+     * @param nestedColumns the dataset's nested columns, merged by the same policy as its columns; {@link NestedColumns#NONE}
+     *                      when no file describes one. No constructor omits them, so a copy of a result has to carry them.
      */
-    public record Result(ExternalSchema unifiedSchema, Map<StoragePath, FileSchemaInfo> perFileInfo) {}
+    public record Result(ExternalSchema unifiedSchema, Map<StoragePath, FileSchemaInfo> perFileInfo, NestedColumns nestedColumns) {}
 
     /**
      * Per-file schema information collected during reconciliation.
@@ -323,7 +327,215 @@ public final class SchemaReconciliation {
             perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats));
         }
 
-        return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
+        return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo), reconcileNestedStrict(referenceFile, fileMetadata));
+    }
+
+    /**
+     * One merge of fields across the files: each field's merged type, and which files contributed which type, keyed by the
+     * field's name. The columns are one merge and the nested columns' fields another, so a type change in either warns
+     * the same way and neither is ever in the other's map.
+     */
+    private record Merge(LinkedHashMap<String, MergeEntry> unified, LinkedHashMap<String, ColumnContributions> contributions) {
+        Merge() {
+            this(new LinkedHashMap<>(), new LinkedHashMap<>());
+        }
+    }
+
+    /** Whether any file describes a nested column; when none does, there is nothing to merge. */
+    private static boolean anyNested(Map<StoragePath, SourceMetadata> fileMetadata) {
+        for (SourceMetadata meta : fileMetadata.values()) {
+            Map<String, Object> sourceMetadata = meta.sourceMetadata();
+            if (sourceMetadata != null && sourceMetadata.containsKey(NestedColumns.KEY)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The nested columns of a {@code strict} dataset: every file must describe the same ones, as every file must have the
+     * same columns.
+     *
+     * @throws IllegalArgumentException naming the first file, and the first of its nested fields, that differs from the
+     *                                  reference file
+     */
+    private static NestedColumns reconcileNestedStrict(StoragePath referenceFile, Map<StoragePath, SourceMetadata> fileMetadata) {
+        if (anyNested(fileMetadata) == false) {
+            return NestedColumns.NONE;
+        }
+        NestedColumns reference = fileMetadata.get(referenceFile).nestedColumns();
+        FileLabels label = new FileLabels(fileMetadata.keySet());
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            NestedColumns file = entry.getValue().nestedColumns();
+            String difference = firstDifference(file, label.apply(entry.getKey()), reference, label.apply(referenceFile));
+            if (difference != null) {
+                throw new IllegalArgumentException(difference + STRICT_MISMATCH_FIX);
+            }
+        }
+        return reference;
+    }
+
+    /**
+     * The first nested column or field, in name order, that {@code file} and {@code reference} describe differently, said of
+     * both, or {@code null} when they describe the same ones.
+     */
+    @Nullable
+    private static String firstDifference(NestedColumns file, String fileLabel, NestedColumns reference, String referenceLabel) {
+        Set<String> paths = new TreeSet<>(file.columns().keySet());
+        paths.addAll(reference.columns().keySet());
+        for (String path : paths) {
+            NestedColumns.NestedColumn ours = file.get(path);
+            NestedColumns.NestedColumn theirs = reference.get(path);
+            if (ours == null || theirs == null) {
+                return "["
+                    + (ours == null ? referenceLabel : fileLabel)
+                    + "] has nested column ["
+                    + path
+                    + "], ["
+                    + (ours == null ? fileLabel : referenceLabel)
+                    + "] does not";
+            }
+            Set<String> names = new TreeSet<>(ours.leaves().keySet());
+            names.addAll(theirs.leaves().keySet());
+            for (String name : names) {
+                DataType type = ours.leaves().get(name);
+                DataType referenceType = theirs.leaves().get(name);
+                if (type != referenceType) {
+                    return "nested field ["
+                        + path
+                        + "."
+                        + name
+                        + "] is ["
+                        + typeName(type)
+                        + "] in ["
+                        + fileLabel
+                        + "], ["
+                        + typeName(referenceType)
+                        + "] in ["
+                        + referenceLabel
+                        + "]";
+                }
+            }
+            if (Objects.equals(ours.unreadable(), theirs.unreadable()) == false) {
+                return "["
+                    + (ours.unreadable() == null ? referenceLabel : fileLabel)
+                    + "] cannot read nested column ["
+                    + path
+                    + "], ["
+                    + (ours.unreadable() == null ? fileLabel : referenceLabel)
+                    + "] can";
+            }
+        }
+        return null;
+    }
+
+    private static String typeName(@Nullable DataType type) {
+        return type == null ? "absent" : type.typeName();
+    }
+
+    /**
+     * The nested columns of a {@code union_by_name} dataset. A column nested in some files and absent from the others is
+     * nested, with no elements in the files that lack it. Its fields are the union of each file's, a field's type merged as a
+     * column's is ({@link #widenToCommonOrKeyword}) and recorded in {@code merge}, keyed by the field's dotted path, so a
+     * change of type warns as a column's does. A column nested in one file and, in another, a column of another
+     * type or a structure's fields carries a conflict, so a query reading it as nested is told why rather than reading half
+     * the files. A column one file's reader cannot read is unreadable, whatever the others say.
+     */
+    private static NestedColumns reconcileNestedUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Merge merge) {
+        if (anyNested(fileMetadata) == false) {
+            return NestedColumns.NONE;
+        }
+        FileLabels label = new FileLabels(fileMetadata.keySet());
+        Map<String, Map<String, DataType>> leaves = new LinkedHashMap<>();
+        Map<String, String> unreadable = new HashMap<>();
+        Map<String, String> conflicts = new HashMap<>();
+        Map<String, StoragePath> nestedIn = new HashMap<>();
+        Map<StoragePath, NestedColumns> byFile = new LinkedHashMap<>();
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            NestedColumns file = entry.getValue().nestedColumns();
+            byFile.put(entry.getKey(), file);
+            for (NestedColumns.NestedColumn column : file.columns().values()) {
+                nestedIn.putIfAbsent(column.path(), entry.getKey());
+                if (column.unreadable() != null) {
+                    unreadable.putIfAbsent(column.path(), column.unreadable());
+                }
+                Map<String, DataType> merged = leaves.computeIfAbsent(column.path(), p -> new HashMap<>());
+                column.leaves().forEach((name, type) -> {
+                    String key = column.path() + "." + name;
+                    merge.contributions().computeIfAbsent(key, ColumnContributions::new).add(entry.getKey(), type);
+                    MergeEntry existing = merge.unified().get(key);
+                    if (existing == null) {
+                        merge.unified().put(key, new MergeEntry(type, true, entry.getKey()));
+                    } else if (existing.type != type) {
+                        existing.type = widenToCommonOrKeyword(existing.type, type);
+                    }
+                    merged.put(name, merge.unified().get(key).type);
+                });
+            }
+        }
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            NestedColumns file = byFile.get(entry.getKey());
+            for (Attribute attribute : entry.getValue().schema()) {
+                String path = nestedPathOf(attribute.name(), leaves.keySet());
+                if (path != null && file.get(path) == null) {
+                    conflicts.putIfAbsent(
+                        path,
+                        "["
+                            + path
+                            + "] is a list of structures in ["
+                            + label.apply(nestedIn.get(path))
+                            + "] but not in ["
+                            + label.apply(entry.getKey())
+                            + "]"
+                    );
+                }
+            }
+        }
+        // A collection inside another's element in one file, and fields of a structure there in another: the files disagree
+        // on the inner one's nested path, so the outer one cannot be read, as an index's cannot
+        for (Map.Entry<StoragePath, NestedColumns> entry : byFile.entrySet()) {
+            NestedColumns file = entry.getValue();
+            for (NestedColumns.NestedColumn outer : file.columns().values()) {
+                for (String leaf : outer.leaves().keySet()) {
+                    String field = outer.path() + "." + leaf;
+                    String inner = leaves.keySet()
+                        .stream()
+                        .filter(path -> path.startsWith(outer.path() + ".") && (field.equals(path) || field.startsWith(path + ".")))
+                        .findFirst()
+                        .orElse(null);
+                    if (inner != null && file.get(inner) == null) {
+                        conflicts.putIfAbsent(
+                            outer.path(),
+                            "its nested path is ["
+                                + inner
+                                + "] in ["
+                                + label.apply(nestedIn.get(inner))
+                                + "] but ["
+                                + outer.path()
+                                + "] in ["
+                                + label.apply(entry.getKey())
+                                + "]"
+                        );
+                    }
+                }
+            }
+        }
+        List<NestedColumns.NestedColumn> columns = new ArrayList<>(leaves.size());
+        leaves.forEach(
+            (path, fields) -> columns.add(new NestedColumns.NestedColumn(path, fields, conflicts.get(path), unreadable.get(path)))
+        );
+        return NestedColumns.of(columns);
+    }
+
+    /** The nested path {@code column} is, or a field of a structure at, or {@code null}. */
+    @Nullable
+    private static String nestedPathOf(String column, Set<String> paths) {
+        for (String path : paths) {
+            if (column.equals(path) || column.startsWith(path + ".")) {
+                return path;
+            }
+        }
+        return null;
     }
 
     private static void validateStrictMatch(
@@ -570,8 +782,12 @@ public final class SchemaReconciliation {
             }
         }
 
-        emitKeywordFallbackWarnings(unified, contributions, warningSink, label);
-        emitPrecisionLossWarnings(unified, contributions, warningSink, label);
+        Merge nestedFields = new Merge();
+        NestedColumns nested = reconcileNestedUnionByName(fileMetadata, nestedFields);
+        // The columns' type changes, then the nested fields', each kind under one warning
+        List<Merge> merges = List.of(new Merge(unified, contributions), nestedFields);
+        emitKeywordFallbackWarnings(merges, warningSink, label);
+        emitPrecisionLossWarnings(merges, warningSink, label);
 
         // Mark columns as nullable when missing from any file
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
@@ -626,7 +842,7 @@ public final class SchemaReconciliation {
             perFileInfo.put(filePath, new FileSchemaInfo(interner.intern(canonical), mapping, stats, inferredTypes));
         }
 
-        return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));
+        return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo), nested);
     }
 
     static ColumnMapping computeMapping(List<Attribute> unifiedSchema, List<Attribute> fileSchema) {
@@ -835,23 +1051,20 @@ public final class SchemaReconciliation {
      */
     private static final int MAX_FILES_IN_WARNING_DETAIL = 3;
 
-    private static void emitKeywordFallbackWarnings(
-        LinkedHashMap<String, MergeEntry> unified,
-        LinkedHashMap<String, ColumnContributions> contributions,
-        Consumer<String> warningSink,
-        Function<StoragePath, String> label
-    ) {
+    private static void emitKeywordFallbackWarnings(List<Merge> merges, Consumer<String> warningSink, Function<StoragePath, String> label) {
         // Column unified to KEYWORD and at least one contributing file inferred a non-string type.
         // A column that was KEYWORD in every file (and stayed KEYWORD) is not a degradation: the
         // user-visible type matches the on-disk inferences and nothing was stringified.
         List<ColumnContributions> warned = new ArrayList<>();
-        for (Map.Entry<String, MergeEntry> e : unified.entrySet()) {
-            if (e.getValue().type != DataType.KEYWORD) {
-                continue;
-            }
-            ColumnContributions fb = contributions.get(e.getKey());
-            if (fb != null && fb.hasNonStringContributor()) {
-                warned.add(fb);
+        for (Merge merge : merges) {
+            for (Map.Entry<String, MergeEntry> e : merge.unified().entrySet()) {
+                if (e.getValue().type != DataType.KEYWORD) {
+                    continue;
+                }
+                ColumnContributions fb = merge.contributions().get(e.getKey());
+                if (fb != null && fb.hasNonStringContributor()) {
+                    warned.add(fb);
+                }
             }
         }
         if (warned.isEmpty()) {
@@ -867,23 +1080,20 @@ public final class SchemaReconciliation {
         }
     }
 
-    private static void emitPrecisionLossWarnings(
-        LinkedHashMap<String, MergeEntry> unified,
-        LinkedHashMap<String, ColumnContributions> contributions,
-        Consumer<String> warningSink,
-        Function<StoragePath, String> label
-    ) {
+    private static void emitPrecisionLossWarnings(List<Merge> merges, Consumer<String> warningSink, Function<StoragePath, String> label) {
         // Unified DOUBLE and both LONG and DOUBLE contributed. INTEGER + DOUBLE is a lossless
         // promotion and stays silent. LONG + DOUBLE + KEYWORD unifies to KEYWORD, so this gate
         // does not fire and the keyword warning is the only one.
         List<ColumnContributions> warned = new ArrayList<>();
-        for (Map.Entry<String, MergeEntry> e : unified.entrySet()) {
-            if (e.getValue().type != DataType.DOUBLE) {
-                continue;
-            }
-            ColumnContributions fb = contributions.get(e.getKey());
-            if (fb != null && fb.hasLongAndDoubleContributor()) {
-                warned.add(fb);
+        for (Merge merge : merges) {
+            for (Map.Entry<String, MergeEntry> e : merge.unified().entrySet()) {
+                if (e.getValue().type != DataType.DOUBLE) {
+                    continue;
+                }
+                ColumnContributions fb = merge.contributions().get(e.getKey());
+                if (fb != null && fb.hasLongAndDoubleContributor()) {
+                    warned.add(fb);
+                }
             }
         }
         if (warned.isEmpty()) {

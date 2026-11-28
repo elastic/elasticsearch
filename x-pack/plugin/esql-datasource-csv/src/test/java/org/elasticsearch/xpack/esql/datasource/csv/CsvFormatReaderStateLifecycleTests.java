@@ -87,6 +87,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withHeaderBindingByProvenance", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withNestedColumns", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDirectBlockEnabled", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withSchemaMaxFields", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
@@ -270,6 +271,7 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDeclaredDateFormats" -> List.<Object[]>of(new Object[] { Map.of("b", "yyyy-MM-dd") });
             case "withDeclaredProvenanceBinding" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withHeaderBindingByProvenance" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
+            case "withNestedColumns" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withDirectBlockEnabled" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withSchemaMaxFields" -> List.<Object[]>of(new Object[] { 1 }, new Object[] { 2000 });
             case "withReadConfig" -> List.<Object[]>of(new Object[] { "0123456789abcdef0123456789abcdef" });

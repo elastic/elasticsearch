@@ -95,6 +95,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -1058,7 +1060,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.source(),
                 tablePath,
                 metadata,
-                bindResult.schema(),
+                withoutNestedColumns(
+                    bindResult.schema(),
+                    metadata.nestedColumns(),
+                    SourceStatisticsSerializer.partitionColumnNames(metadata.sourceMetadata())
+                ),
                 resolvedSource.fileList(),
                 resolvedSource.schemaMap(),
                 plan.datasetName(),
@@ -1066,6 +1072,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedSource.declaredReadSpec()
             );
             return relation;
+        }
+
+        /** A dataset's nested column is not one of its columns, as an index's {@code nested} field is not. */
+        private static List<Attribute> withoutNestedColumns(List<Attribute> schema, NestedColumns nested, Set<String> partitionColumns) {
+            if (nested.isEmpty()) {
+                return schema;
+            }
+            List<Attribute> visible = schema.stream()
+                .filter(attribute -> isNestedColumn(attribute, nested, partitionColumns) == false)
+                .toList();
+            // As FROM over an index whose every field is hidden: a relation always has at least one column
+            return visible.isEmpty() ? NO_FIELDS : visible;
+        }
+
+        /**
+         * Whether {@code attribute} is the dataset's own column for a nested column: the unsupported column a list of
+         * structures reads as, or, where the files disagree, whatever type the files' columns merged to. A nested column whose
+         * files disagree, or that the reader cannot read, is hidden as an index's is. A partition column the path shadows the
+         * nested column with is a column of its own whatever the files say, as is a column of the same name the files agree is
+         * not unsupported.
+         */
+        private static boolean isNestedColumn(Attribute attribute, NestedColumns nested, Set<String> partitionColumns) {
+            NestedColumns.NestedColumn column = nested.get(attribute.name());
+            return column != null
+                && partitionColumns.contains(attribute.name()) == false
+                && (attribute.dataType() == DataType.UNSUPPORTED || column.conflict() != null);
         }
 
         /**

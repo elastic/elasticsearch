@@ -168,6 +168,11 @@ public interface SourceMetadata {
         return (int) sampleNumber(sourceMetadata(), SAMPLE_ROWS_KEY);
     }
 
+    /** The columns of this source that schema discovery described as nested; see {@link NestedColumns}. */
+    default NestedColumns nestedColumns() {
+        return NestedColumns.read(sourceMetadata());
+    }
+
     private static long sampleNumber(Map<String, Object> metadata, String key) {
         Object value = metadata == null ? null : metadata.get(key);
         return value instanceof Number number ? number.longValue() : 0L;

@@ -48,6 +48,7 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -105,6 +106,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.NestedColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -138,6 +140,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -168,10 +171,12 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -371,6 +376,111 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // The flat struct leaf still publishes normally with a concrete null count.
         assertTrue(cols.containsKey("s.a"));
         assertEquals(OptionalLong.of(0L), cols.get("s.a").nullCount());
+    }
+
+    /**
+     * A {@code LIST} whose element is a group has several leaves that the flattener collapses onto the one
+     * logical name of the enclosing list, exactly as a MAP's key and value do. When that list is nested in a
+     * STRUCT it took neither the {@code isTopLevelListLeaf} arm (which reads {@code path[0]}) nor the
+     * map/variant skip, so its differently typed leaf extrema — a {@code String} {@code sku} against a
+     * {@code Long} {@code price} — met in {@code compareStatExtremum}: an {@code AssertionError} under
+     * {@code -ea}, and a meaningless last-writer-wins min/max otherwise. Metadata resolution alone was enough
+     * to hit it, so even {@code STATS COUNT(*)} over such a file failed in any test or CI run.
+     * <p>
+     * {@code isUnsupportedGroupDescendedLeaf} now skips every leaf under a group whose own ESQL type is
+     * {@code UNSUPPORTED}, which covers this shape while leaving {@code struct<list<primitive>>} publishing as
+     * {@link #testStructNestedListPublishedWithUnknownNullCount} pins.
+     * <p>
+     * Skipping these leaves came with nested columns; without them, as in a release build, the fold is main's.
+     */
+    public void testStructNestedListOfStructsPublishesNoFoldedStat() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list {
+                    optional group element {
+                      optional binary sku (UTF8);
+                      optional int64 price;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group items = g.addGroup("outer").addGroup("items");
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r).append("price", (long) r * 10);
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r + "b").append("price", (long) r * 10 + 1);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withNestedColumns(true);
+        // Resolving metadata at all is half the assertion: the fold used to throw here under -ea.
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        assertTrue(metadata.statistics().isPresent());
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+
+        assertFalse("no folded stats for the list of structs", cols.containsKey("outer.items"));
+        assertFalse("no phantom marker under the struct root", cols.containsKey("outer"));
+        // The flat control keeps its concrete null count, so the skip is scoped to the folded leaves.
+        assertTrue(cols.containsKey("id"));
+        assertEquals(OptionalLong.of(0L), cols.get("id").nullCount());
+    }
+
+    /**
+     * The {@code buildRowGroupStats} half of {@link #testStructNestedListOfStructsPublishesNoFoldedStat}. That
+     * path has no UNSUPPORTED publish filter, so the skip is the only thing keeping folded
+     * last-writer-wins keys out of a split's serialized statistics, where a planner would then push them
+     * down. Mirrors {@link #testHomogeneousMapPublishesNoFoldedSplitStat}.
+     */
+    public void testStructNestedListOfStructsPublishesNoFoldedSplitStat() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list {
+                    optional group element {
+                      optional binary sku (UTF8);
+                      optional int64 price;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group items = g.addGroup("outer").addGroup("items");
+                items.addGroup("list").addGroup("element").append("sku", "sku-" + r).append("price", (long) r * 10);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withNestedColumns(true);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(createStorageObject(parquetData));
+        assertEquals(1, ranges.size());
+        Map<String, Object> stats = ranges.getFirst().statistics();
+        assertNull("no folded min in split stats", stats.get("_stats.columns.outer.items.min"));
+        assertNull("no folded max in split stats", stats.get("_stats.columns.outer.items.max"));
+        assertNull("no folded null_count in split stats", stats.get("_stats.columns.outer.items.null_count"));
+        assertNull("no folded size in split stats", stats.get("_stats.columns.outer.items.size_bytes"));
+        // The flat control is still serialized, so the skip is scoped to the folded leaves.
+        assertNotNull("flat column still serialized", stats.get("_stats.columns.id.size_bytes"));
     }
 
     /**
@@ -3130,7 +3240,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Empty projection (e.g. EXTERNAL parquet | STATS COUNT(*) — or a query that only references
+     * Empty projection (e.g. FROM a Parquet dataset | STATS COUNT(*) — or a query that only references
      * {@code _file.*} virtual columns) must not allocate any column reader. The reader emits
      * row-count-only pages directly from the row group metadata, and the request circuit breaker
      * stays at zero because no buffer is ever charged. Regression test for the ~44KB-per-query
@@ -9242,6 +9352,464 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         }
         return outputStream.toByteArray();
+    }
+
+    /**
+     * A {@code LIST} of structures is a collection with its element's leaves; a {@code LIST} of primitives is a multivalued
+     * column and is not one, and neither is a {@code MAP}; a list inside an element is a multivalued leaf and a map inside an
+     * element is an unsupported leaf, as a map column is an unsupported column; a list of structures inside an element is a
+     * collection of its own at its dotted path, as an index's nested field inside another is, and no leaf of the outer one.
+     */
+    public void testCollectionsDescribedFromFooter() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group tags (LIST) { repeated group list { optional binary element (UTF8); } }
+              optional group answers (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary type (UTF8);
+                    optional int64 ttl;
+                    optional group flags (LIST) { repeated group list { optional binary element (UTF8); } }
+                    optional group labels (MAP) {
+                      repeated group key_value { required binary key (UTF8); optional binary value (UTF8); }
+                    }
+                  }
+                }
+              }
+              optional group headers (MAP) {
+                repeated group key_value { required binary key (UTF8); optional binary value (UTF8); }
+              }
+              optional group hops (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary host (UTF8);
+                    optional group links (LIST) {
+                      repeated group list { optional group element { optional binary to (UTF8); optional int64 ms; } }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(schema),
+            equalTo(
+                List.of(
+                    new ParquetCollections.Collection(
+                        "answers",
+                        List.of(
+                            new ParquetCollections.Leaf("flags", DataType.KEYWORD),
+                            new ParquetCollections.Leaf("labels", DataType.UNSUPPORTED),
+                            new ParquetCollections.Leaf("ttl", DataType.LONG),
+                            new ParquetCollections.Leaf("type", DataType.KEYWORD)
+                        ),
+                        null
+                    ),
+                    new ParquetCollections.Collection(
+                        "hops.links",
+                        List.of(new ParquetCollections.Leaf("ms", DataType.LONG), new ParquetCollections.Leaf("to", DataType.KEYWORD)),
+                        null
+                    ),
+                    new ParquetCollections.Collection("hops", List.of(new ParquetCollections.Leaf("host", DataType.KEYWORD)), null)
+                )
+            )
+        );
+    }
+
+    /** Only a list whose element is a structure is described: a list of lists or of maps is not a list of structures. */
+    public void testListOfListsOrMapsIsNotDescribed() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group lists (LIST) {
+                repeated group list { optional group element (LIST) { repeated group list { optional int32 element; } } }
+              }
+              optional group maps (LIST) {
+                repeated group list {
+                  optional group element (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+                }
+              }
+              optional group structs (LIST) {
+                repeated group list { optional group element { optional binary t (UTF8); } }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(schema).stream().map(ParquetCollections.Collection::path).toList(),
+            equalTo(List.of("structs"))
+        );
+    }
+
+    /**
+     * A repeated group with no annotation is a list in Parquet's older layout. A list of structures below it is not described:
+     * its elements would merge across the outer list's entries. Nor is a list of structures that is itself repeated, for the
+     * same reason.
+     */
+    public void testListOfStructsUnderLegacyRepeatedGroupIsNotDescribed() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              repeated group legacy {
+                optional group tags (LIST) {
+                  repeated group list { optional group element { optional binary t (UTF8); optional int64 n; } }
+                }
+              }
+              repeated group repeated_list (LIST) {
+                repeated group list { optional group element { optional int64 a; } }
+              }
+              optional group plain {
+                optional group tags (LIST) {
+                  repeated group list { optional group element { optional binary t (UTF8); } }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(schema).stream().map(ParquetCollections.Collection::path).toList(),
+            equalTo(List.of("plain.tags"))
+        );
+    }
+
+    /**
+     * An element leaf is typed as a column of the same physical type is: an unsigned 32-bit integer needs a long,
+     * an unsigned 8 or 16-bit one fits an integer.
+     */
+    public void testUnsignedLeafTypesMatchTheirColumns() {
+        MessageType unsigned = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional int32 u8 (INTEGER(8, false));
+                    optional int32 u16 (INTEGER(16, false));
+                    optional int32 u32 (INTEGER(32, false));
+                  }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(unsigned),
+            equalTo(
+                List.of(
+                    new ParquetCollections.Collection(
+                        "items",
+                        List.of(
+                            new ParquetCollections.Leaf("u16", DataType.INTEGER),
+                            new ParquetCollections.Leaf("u32", DataType.LONG),
+                            new ParquetCollections.Leaf("u8", DataType.INTEGER)
+                        ),
+                        null
+                    )
+                )
+            )
+        );
+    }
+
+    /**
+     * A legacy writer repeats a group of fields inside the element directly, without the {@code LIST} annotation. It is a
+     * collection like an annotated one, of its own at its dotted path, and no field of the outer element.
+     */
+    public void testLegacyRepeatedGroupInsideAnElementIsACollection() {
+        MessageType legacy = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group items (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary name (UTF8);
+                    repeated group parts { optional binary sku (UTF8); optional int64 qty; }
+                  }
+                }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(legacy),
+            equalTo(
+                List.of(
+                    new ParquetCollections.Collection(
+                        "items.parts",
+                        List.of(new ParquetCollections.Leaf("qty", DataType.LONG), new ParquetCollections.Leaf("sku", DataType.KEYWORD)),
+                        null
+                    ),
+                    new ParquetCollections.Collection("items", List.of(new ParquetCollections.Leaf("name", DataType.KEYWORD)), null)
+                )
+            )
+        );
+    }
+
+    /**
+     * A collection is named by its dotted path, so a list of structures whose own name holds a dot is not described,
+     * and stays an unsupported column; a struct {@code my} holding a list {@code items} beside it is one collection.
+     */
+    public void testDottedCollectionNameIsNotDescribed() {
+        MessageType dotted = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group my.items (LIST) { repeated group list { optional group element { optional int64 a; } } }
+              optional group my {
+                optional group items (LIST) { repeated group list { optional group element { optional int64 b; } } }
+              }
+            }
+            """);
+        assertThat(
+            ParquetCollections.describe(dotted),
+            equalTo(List.of(new ParquetCollections.Collection("my.items", List.of(new ParquetCollections.Leaf("b", DataType.LONG)), null)))
+        );
+    }
+
+    /**
+     * An element's field is typed as the same field is as a column, by the one mapping both use, for every physical and
+     * logical type a column can have and for a list, a list of lists and a variant. One the reader cannot read, a map among
+     * them, is an unsupported field rather than a missing one, as the same column is an unsupported column. A list of
+     * structures is no field of the element: it is a collection of its own.
+     */
+    public void testElementFieldsAreTypedAsTheirColumns() {
+        List<Type> fields = new ArrayList<>(everyColumnType(""));
+        fields.addAll(everyGroupShape(""));
+        Type map = MessageTypeParser.parseMessageType("""
+            message m { optional group m (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } } }
+            """).getType("m");
+        fields.add(map);
+        MessageType schema = Types.buildMessage()
+            .addField(
+                Types.optionalGroup()
+                    .as(LogicalTypeAnnotation.listType())
+                    .addField(
+                        Types.repeatedGroup()
+                            .addField(Types.optionalGroup().addFields(fields.toArray(Type[]::new)).named("element"))
+                            .named("list")
+                    )
+                    .named("items")
+            )
+            .named("t");
+        List<ParquetCollections.Collection> described = ParquetCollections.describe(schema);
+        assertThat(described.stream().map(ParquetCollections.Collection::path).toList(), equalTo(List.of("items.structs", "items")));
+        assertThat(described.getFirst().leaves(), equalTo(List.of(new ParquetCollections.Leaf("a", DataType.LONG))));
+        ParquetCollections.Collection items = described.get(1);
+        assertThat(items.unsupported(), equalTo(null));
+        Map<String, DataType> leaves = new HashMap<>();
+        for (ParquetCollections.Leaf leaf : items.leaves()) {
+            leaves.put(leaf.name(), leaf.type());
+        }
+        List<Type> fieldsOfTheElement = fields.stream().filter(field -> field.getName().equals("structs") == false).toList();
+        assertThat(leaves.keySet(), equalTo(fieldsOfTheElement.stream().map(Type::getName).collect(Collectors.toSet())));
+        for (Type field : fieldsOfTheElement) {
+            assertThat(field.toString(), leaves.get(field.getName()), equalTo(ParquetFormatReader.convertParquetTypeToEsql(field)));
+        }
+        assertThat(leaves.get("m"), equalTo(DataType.UNSUPPORTED));
+        // What the column mapping gives, so the comparison above is not only of the mapping with itself
+        assertThat(leaves.get("dec32"), equalTo(DataType.DOUBLE));
+        assertThat(leaves.get("dec_fixed"), equalTo(DataType.DOUBLE));
+        assertThat(leaves.get("i96"), equalTo(DataType.DATETIME));
+        assertThat(leaves.get("time_ms"), equalTo(DataType.DATETIME));
+        assertThat(leaves.get("time_us"), equalTo(DataType.DATE_NANOS));
+        assertThat(leaves.get("u64"), equalTo(DataType.UNSIGNED_LONG));
+        assertThat(leaves.get("uuid"), equalTo(DataType.KEYWORD));
+        assertThat(leaves.get("bson"), equalTo(DataType.UNSUPPORTED));
+        assertThat(leaves.get("ints"), equalTo(DataType.INTEGER));
+        assertThat(leaves.get("lists"), equalTo(DataType.UNSUPPORTED));
+        assertThat(leaves.get("v"), equalTo(DataType.UNSUPPORTED));
+    }
+
+    /**
+     * One field per group shape an element can hold besides a structure and a map, each named {@code prefix} plus a short
+     * name: a list of primitives, a list of lists, a list of structures and a variant.
+     */
+    static List<Type> everyGroupShape(String prefix) {
+        return MessageTypeParser.parseMessageType(Strings.format("""
+            message g {
+              optional group %1$sints (LIST) { repeated group list { optional int32 element; } }
+              optional group %1$slists (LIST) {
+                repeated group list { optional group element (LIST) { repeated group list { optional int32 element; } } }
+              }
+              optional group %1$sstructs (LIST) { repeated group list { optional group element { optional int64 a; } } }
+              optional group %1$sv (VARIANT(1)) { required binary metadata; required binary value; }
+            }
+            """, prefix)).getFields();
+    }
+
+    /** One optional field per physical and logical type a column can have, each named {@code prefix} plus a short name. */
+    static List<Type> everyColumnType(String prefix) {
+        return List.of(
+            Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(prefix + "bool"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named(prefix + "i32"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(8, false)).named(prefix + "u8"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(32, false)).named(prefix + "u32"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named(prefix + "date"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .named(prefix + "time_ms"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.decimalType(2, 9)).named(prefix + "dec32"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(prefix + "i64"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64).as(LogicalTypeAnnotation.intType(64, false)).named(prefix + "u64"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .named(prefix + "ts_ms"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                .named(prefix + "ts_us"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                .named(prefix + "ts_ns"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                .named(prefix + "time_us"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                .named(prefix + "time_ns"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64).as(LogicalTypeAnnotation.decimalType(3, 18)).named(prefix + "dec64"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT96).named(prefix + "i96"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(prefix + "f32"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(prefix + "f64"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(prefix + "str"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(prefix + "raw"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.enumType()).named(prefix + "enum"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.jsonType()).named(prefix + "json"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.bsonType()).named(prefix + "bson"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.decimalType(4, 20)).named(prefix + "dec_bin"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                .length(16)
+                .as(LogicalTypeAnnotation.uuidType())
+                .named(prefix + "uuid"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                .length(2)
+                .as(LogicalTypeAnnotation.float16Type())
+                .named(prefix + "f16"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                .length(12)
+                .as(LogicalTypeAnnotation.IntervalLogicalTypeAnnotation.getInstance())
+                .named(prefix + "interval"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY).length(8).named(prefix + "fixed"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                .length(9)
+                .as(LogicalTypeAnnotation.decimalType(2, 20))
+                .named(prefix + "dec_fixed")
+        );
+    }
+
+    /**
+     * The path a list of structures is described under is the name of the unsupported column it reads as, top-level and
+     * inside a structure alike: the dataset hides the column by that name.
+     */
+    public void testDescribedPathsAreTheColumnNames() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group answers (LIST) { repeated group list { optional group element { optional int64 ttl; } } }
+              optional group plain {
+                optional group tags (LIST) { repeated group list { optional group element { optional binary t (UTF8); } } }
+              }
+            }
+            """);
+        byte[] data = createParquetFile(schema, factory -> List.of(factory.newGroup().append("id", "a")));
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).withNestedColumns(true).metadata(createStorageObject(data));
+        Map<String, DataType> columns = new HashMap<>();
+        for (Attribute attribute : metadata.schema()) {
+            columns.put(attribute.name(), attribute.dataType());
+        }
+        Set<String> described = NestedColumns.read(metadata.sourceMetadata()).columns().keySet();
+        assertThat(described, equalTo(Set.of("answers", "plain.tags")));
+        for (String path : described) {
+            assertThat(path, columns.get(path), equalTo(DataType.UNSUPPORTED));
+        }
+    }
+
+    /** An element wider than the reader's field cap cannot be read: its collection says so rather than being walked whole. */
+    public void testElementWiderThanTheFieldCapIsUnreadable() {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              optional group items (LIST) {
+                repeated group list { optional group element { optional int64 a; optional int64 b; optional int64 c; } }
+              }
+            }
+            """);
+        List<String> visited = new ArrayList<>();
+        List<ParquetCollections.Collection> described = ParquetCollections.describe(schema, visited::add, 2);
+        assertThat(described.getFirst().unsupported(), equalTo("[items] holds more than [2] fields in each element, which cannot be read"));
+        assertThat(visited, equalTo(List.of("a", "b", "c")));
+        assertThat(ParquetCollections.describe(schema, name -> {}, 3).getFirst().unsupported(), equalTo(null));
+    }
+
+    /**
+     * The footer's metadata says which columns are lists of structures and what each element holds, so the dataset's schema
+     * carries the nested type from discovery; a file without one records none.
+     */
+    public void testMetadataDescribesListOfStructs() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required binary id (UTF8);
+              optional group tags (LIST) { repeated group list { optional binary element (UTF8); } }
+              optional group answers (LIST) {
+                repeated group list { optional group element { optional binary type (UTF8); optional int64 ttl; } }
+              }
+            }
+            """);
+        byte[] data = createParquetFile(schema, factory -> List.of(factory.newGroup().append("id", "a")));
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).withNestedColumns(true).metadata(createStorageObject(data));
+        assertThat(
+            NestedColumns.read(metadata.sourceMetadata()),
+            equalTo(
+                NestedColumns.of(
+                    List.of(new NestedColumns.NestedColumn("answers", Map.of("type", DataType.KEYWORD, "ttl", DataType.LONG), null))
+                )
+            )
+        );
+
+        MessageType flat = MessageTypeParser.parseMessageType("message t { required binary id (UTF8); }");
+        byte[] flatData = createParquetFile(flat, factory -> List.of(factory.newGroup().append("id", "a")));
+        SourceMetadata flatMetadata = new ParquetFormatReader(blockFactory).withNestedColumns(true).metadata(createStorageObject(flatData));
+        assertThat(flatMetadata.sourceMetadata().containsKey(NestedColumns.KEY), equalTo(false));
+    }
+
+    /**
+     * A reader nobody configured, as in a release build where core does not turn nested columns on, keeps main's metadata
+     * and split statistics: no nested-column description, and the leaves of a list of structures folded into the statistics
+     * under the list's name. The same reader with {@code withNestedColumns(true)} describes the list and skips its leaves.
+     * Both states are read through {@code metadata} and {@code discoverSplitRanges}. The element's two fields are both
+     * longs, so main's fold meets no differently typed extrema.
+     */
+    public void testNestedColumnsOffKeepsMainsMetadataAndStatistics() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message t {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list { optional group element { optional int64 qty; optional int64 price; } }
+                }
+              }
+              optional group attrs (MAP) { repeated group key_value { required binary key (UTF8); optional int64 value; } }
+            }
+            """);
+        byte[] data = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup().append("id", 1L);
+            g.addGroup("outer").addGroup("items").addGroup("list").addGroup("element").append("qty", 2L).append("price", 30L);
+            g.addGroup("attrs").addGroup("key_value").append("key", "k").append("value", 4L);
+            return List.of(g);
+        });
+        StorageObject object = createStorageObject(data);
+        ParquetFormatReader off = new ParquetFormatReader(blockFactory);
+        assertThat(off.withNestedColumns(false), sameInstance(off));
+
+        assertThat(off.metadata(object).sourceMetadata().containsKey(NestedColumns.KEY), equalTo(false));
+        Map<String, Object> offSplit = off.discoverSplitRanges(object).getFirst().statistics();
+        assertThat(
+            "main records the element's leaves under the list's name",
+            offSplit.containsKey("_stats.columns.outer.items.max"),
+            equalTo(true)
+        );
+        assertThat("a map's leaves were skipped on main", offSplit.containsKey("_stats.columns.attrs.max"), equalTo(false));
+
+        ParquetFormatReader on = off.withNestedColumns(true);
+        assertThat(NestedColumns.read(on.metadata(object).sourceMetadata()).columns().size(), equalTo(1));
+        Map<String, Object> onSplit = on.discoverSplitRanges(object).getFirst().statistics();
+        assertThat(onSplit.containsKey("_stats.columns.outer.items.max"), equalTo(false));
+        assertThat(onSplit.containsKey("_stats.columns.attrs.max"), equalTo(false));
+        assertThat(onSplit.get("_stats.columns.id.max"), equalTo(1L));
+        assertThat(
+            "a copy of a reader keeps the setting",
+            on.withBaselinePath().metadata(object).sourceMetadata(),
+            hasKey(NestedColumns.KEY)
+        );
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {

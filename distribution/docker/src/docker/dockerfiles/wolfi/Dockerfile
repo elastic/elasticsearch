@@ -22,11 +22,20 @@
 
 <% /*
   Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
-  the layers that do not change between builds can be reused. List them from the least to the most
-  frequently changing. Wildcards are allowed: the distribution only contains the machine learning
-  libraries of the architecture being built.
+  the layers that do not change between builds can be reused.
+
+  Each entry is a command that prints the paths of the layer. A layer cannot be empty. The distribution only
+  contains the machine learning libraries of the architecture being built, hence the wildcard.
 */
-def separateLayers = ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+def separateLayers = [
+    // The JDK
+    'ls -d jdk',
+    // The machine learning libraries
+    'ls -d modules/x-pack-ml/platform/*/lib',
+    // The third-party jars. Unlike the jars built from this repository, which carry the version in their file name,
+    // they rarely change from one build to the next.
+    "find lib modules plugins -type f -name '*.jar' ! -name '*-${version}.jar'"
+] %>
 
 ################################################################################
 # Build stage 1 `builder`:
@@ -60,6 +69,7 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 # The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml config/
 COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
+COPY --chmod=0555 ${bin_dir}/arrange-layers.sh /tmp/arrange-layers.sh
 
 #  1. Configure the distribution for Docker
 #  2. Create required directory
@@ -86,16 +96,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} + && \\
     hardlink --ignore-time --include '\\.jar\$' lib modules plugins && \\
-    mkdir /layers && \\
-    n=0 && \\
-    for pattern in <%= separateLayers.collect { "'" + it + "'" }.join(' ') %>; do \\
-        mkdir "/layers/\$n" || exit 1; \\
-        for path in \$pattern; do \\
-            [ -d "\$path" ] || continue; \\
-            mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
-        done; \\
-        n=\$((n + 1)); \\
-    done
+    /tmp/arrange-layers.sh <%= separateLayers.collect { '"' + it + '"' }.join(' ') %>
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):

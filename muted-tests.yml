@@ -820,11 +820,6 @@ tests:
   - :x-pack:plugin:security:internalClusterTest
   method: testThatPluginIsLoaded
   issue: https://github.com/elastic/elasticsearch/issues/167800
-- class: org.elasticsearch.xpack.esql.datasource.parquet.GzipPageInflaterTests
-  tasks:
-  - :x-pack:plugin:esql-datasource-parquet:test
-  method: testHeaderOnlySuffixAfterCompleteMemberIsEos
-  issue: https://github.com/elastic/elasticsearch/issues/167805
 - class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
   tasks:
   - :x-pack:plugin:esql:test

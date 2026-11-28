@@ -29,7 +29,8 @@ import static org.hamcrest.Matchers.equalTo;
  * empty, header flags, corrupt FHCRC, multi-member, bad CRC, bad ISIZE, truncation, trailing junk, destLen
  * too small or too large. Extra uncompressed bytes keep today's page-header error; trailing
  * junk after a complete member is ignored like {@link java.util.zip.GZIPInputStream}, not rejected like the
- * text-codec decoder.
+ * text-codec decoder. The one exception is a header-only suffix after a complete member: JDK 21 and JDK 25
+ * disagree there, so the fast path is pinned to end of stream without an oracle.
  */
 public class GzipPageInflaterTests extends ESTestCase {
 
@@ -127,6 +128,27 @@ public class GzipPageInflaterTests extends ESTestCase {
         byte[] data = compressibleBytes(between(1, 256));
         byte[] headerOnly = new byte[] { 0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0, 0, (byte) 0xff };
         byte[] gz = concat(gzip(data), headerOnly);
+        // No GZIPInputStream oracle: JDK 21 and JDK 25 disagree on this input (see class Javadoc).
+        assertArrayEquals(data, inflateViaFastPath(gz, data.length));
+
+        byte[] oversized = new byte[data.length + between(1, 32)];
+        Arrays.fill(oversized, (byte) 0x5A);
+        Inflater inflater = new Inflater(true);
+        try {
+            GzipPageInflater.inflate(inflater, BytesInput.from(gz), oversized, data.length);
+        } finally {
+            inflater.end();
+        }
+        assertArrayEquals(data, Arrays.copyOf(oversized, data.length));
+        for (int i = data.length; i < oversized.length; i++) {
+            assertEquals((byte) 0x5A, oversized[i]);
+        }
+    }
+
+    public void testPartialHeaderSuffixAfterCompleteMemberIsEos() throws IOException {
+        byte[] data = compressibleBytes(between(1, 256));
+        byte[] headerOnly = new byte[] { 0x1f, (byte) 0x8b, 8, 0, 0, 0, 0, 0, 0, (byte) 0xff };
+        byte[] gz = concat(gzip(data), Arrays.copyOf(headerOnly, between(1, headerOnly.length - 1)));
         assertFastMatchesInputStream(gz, data.length);
     }
 

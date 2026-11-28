@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165939
+summary: Fix reading Parquet lists of floats
+type: bug

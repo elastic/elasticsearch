@@ -1395,7 +1395,14 @@ final class ParquetColumnDecoding {
                 yield readListLongColumn(input, maxDef, rows, blockFactory, tally);
             }
             case UNSIGNED_LONG -> readListUnsignedLongColumn(input, maxDef, rows, blockFactory, tally);
-            case DOUBLE -> readListDoubleColumn(input, maxDef, rows, blockFactory, tally);
+            case DOUBLE -> readListDoubleColumn(
+                input,
+                maxDef,
+                rows,
+                blockFactory,
+                tally,
+                info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT
+            );
             case BOOLEAN -> readListBooleanColumn(input, maxDef, rows, blockFactory, tally);
             case KEYWORD, TEXT -> readListBytesRefColumn(input, info, rows, blockFactory, tally);
             case DATETIME -> readListDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
@@ -1554,10 +1561,13 @@ final class ParquetColumnDecoding {
         int maxDef,
         int rows,
         BlockFactory blockFactory,
-        NullElementTally tally
+        NullElementTally tally,
+        boolean physicalFloat
     ) {
         try (var builder = blockFactory.newDoubleBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendDouble(input.reader().getDouble());
+            Runnable appender = physicalFloat
+                ? () -> builder.appendDouble(input.reader().getFloat())
+                : () -> builder.appendDouble(input.reader().getDouble());
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }

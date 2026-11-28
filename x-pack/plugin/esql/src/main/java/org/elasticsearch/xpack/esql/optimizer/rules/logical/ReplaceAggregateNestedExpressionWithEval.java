@@ -76,6 +76,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         List<Alias> evals = new ArrayList<>();
         Map<String, Attribute> evalNames = new HashMap<>();
         Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
+        Map<GroupingFunction.NonEvaluatableGroupingFunction, Attribute> nonEvalGroupingAttributes = new HashMap<>();
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
         boolean groupingChanged = false;
 
@@ -91,6 +92,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     if (newGroupingFunction != gf) {
                         groupingChanged = true;
                         newGroupings.set(i, as.replaceChild(newGroupingFunction));
+                        // remember the original shape: the same grouping function can be nested inside an aggregate expression,
+                        // where it refers to the group's value and must be replaced by the grouping's output attribute (#165176)
+                        nonEvalGroupingAttributes.put(gf, as.toAttribute());
                     }
                 } else {
                     // Move the alias into an eval and replace it with its attribute.
@@ -145,6 +149,17 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     // should never return null, as it's verified.
                     // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.
                     return groupingAttributes.get(gf);
+                });
+                // likewise, a non-evaluatable grouping function repeated inside an aggregate expression refers to that
+                // group's value — point it at the grouping's output attribute, matching the shape the downstream
+                // ReplaceAggregateAggExpressionWithEval expects (#165176)
+                replaced = replaced.transformUp(GroupingFunction.NonEvaluatableGroupingFunction.class, gf -> {
+                    Attribute ref = nonEvalGroupingAttributes.get(gf);
+                    if (ref != null) {
+                        aggsChanged.set(true);
+                        return ref;
+                    }
+                    return gf;
                 });
 
                 return as.replaceChild(replaced);

@@ -233,6 +233,11 @@ tests:
   - :x-pack:plugin:esql:qa:server:multi-clusters:v8.19.27#oldToNew
   method: test {eval.ImplicitCastingOfIPWithSeparateEvals}
   issue: https://github.com/elastic/elasticsearch/issues/167852
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.9.2#yamlRestTest
+  method: test {yaml=aggregations/terms/Unmapped doubles}
+  issue: https://github.com/elastic/elasticsearch/issues/167957
 
 # Examples:
 #

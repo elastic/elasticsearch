@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFro
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
@@ -557,7 +558,7 @@ public class IpFieldMapper extends FieldMapper {
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (hasPoints == false) {
-                return super.termsQuery(values, context);
+                return docValuesTermsQuery(values, context);
             }
             InetAddress[] addresses = new InetAddress[values.size()];
             int i = 0;
@@ -579,6 +580,31 @@ public class IpFieldMapper extends FieldMapper {
                 addresses[i++] = address;
             }
             return InetAddressPoint.newSetQuery(name(), addresses);
+        }
+
+        private Query docValuesTermsQuery(Collection<?> values, SearchExecutionContext context) {
+            List<BytesRef> encoded = new ArrayList<>(values.size());
+            for (Object value : values) {
+                InetAddress address;
+                if (value instanceof InetAddress inetAddress) {
+                    address = inetAddress;
+                } else {
+                    String term = value instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : value.toString();
+                    if (term.contains("/")) {
+                        return super.termsQuery(values, context);
+                    }
+                    address = InetAddresses.forString(term);
+                }
+                encoded.add(new BytesRef(InetAddressPoint.encode(address)));
+            }
+            if (usesBinaryDocValues) {
+                return new ScanningBinaryDocValuesTermInSetQuery(
+                    name(),
+                    encoded,
+                    useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT
+                );
+            }
+            return SortedSetDocValuesField.newSlowSetQuery(name(), encoded);
         }
 
         @Override

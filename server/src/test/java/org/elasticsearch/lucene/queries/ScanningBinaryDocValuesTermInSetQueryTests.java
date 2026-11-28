@@ -9,6 +9,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -16,16 +17,20 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
 
@@ -49,6 +54,135 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                     var alphaOrDelta = List.of(new BytesRef("alpha"), new BytesRef("delta"));
                     assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery(fieldName, alphaOrDelta, format)));
                 }
+            }
+        }
+    }
+
+    public void testToStringWithTermsThatAreNotUtf8() {
+        BytesRef notUtf8 = new BytesRef(new byte[] { (byte) 0xff, 0x00, (byte) 0xfe, 0x01 });
+        Query query = new ScanningBinaryDocValuesTermInSetQuery(
+            "field",
+            List.of(notUtf8, new BytesRef("ascii")),
+            BinaryDocValuesFormat.SEPARATE_COUNT
+        );
+        assertEquals("ScanningBinaryDocValuesTermInSetQuery(fieldName=field,terms=[ascii,[ff 0 fe 1]])", query.toString("field"));
+    }
+
+    public void testManyTerms() throws Exception {
+        int numTerms = randomIntBetween(2000, 5000);
+        List<BytesRef> members = new ArrayList<>();
+        List<BytesRef> others = new ArrayList<>();
+        for (int i = 0; i < numTerms; i++) {
+            byte[] member = new byte[randomIntBetween(0, 20)];
+            random().nextBytes(member);
+            members.add(new BytesRef(member));
+            others.add(new BytesRef(Arrays.copyOf(member, member.length + 1)));
+        }
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (BytesRef term : members) {
+                writer.addDocument(singleValueDoc(term));
+            }
+            for (BytesRef term : others) {
+                writer.addDocument(singleValueDoc(term));
+            }
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                var format = BinaryDocValuesFormat.SEPARATE_COUNT;
+                Set<BytesRef> memberSet = new HashSet<>(members);
+                Set<BytesRef> otherSet = new HashSet<>(others);
+                long expectedMembers = members.stream().filter(memberSet::contains).count() + others.stream()
+                    .filter(memberSet::contains)
+                    .count();
+                long expectedOthers = members.stream().filter(otherSet::contains).count() + others.stream()
+                    .filter(otherSet::contains)
+                    .count();
+                assertEquals(expectedMembers, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", members, format)));
+                assertEquals(expectedOthers, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", others, format)));
+            }
+        }
+    }
+
+    public void testTermsAndValuesWithOffsets() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(singleValueDoc(new BytesRef(new byte[] { 7, 'a', 'b', 7 }, 1, 2)));
+            writer.addDocument(singleValueDoc(new BytesRef("a")));
+            writer.addDocument(singleValueDoc(new BytesRef("abb")));
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                var format = BinaryDocValuesFormat.SEPARATE_COUNT;
+                var terms = List.of(
+                    new BytesRef(new byte[] { 9, 9, 'a', 'b', 9 }, 2, 2),
+                    new BytesRef(new byte[] { 'a', 'b', 'b', 9 }, 0, 3)
+                );
+                assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", terms, format)));
+            }
+        }
+    }
+
+    public void testValuesLongerThanEveryTermDoNotMatch() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(singleValueDoc(new BytesRef("ab")));
+            writer.addDocument(singleValueDoc(new BytesRef("abc")));
+            writer.addDocument(singleValueDoc(new BytesRef(new byte[10_000])));
+            writer.addDocument(singleValueDoc(new BytesRef("")));
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                var format = BinaryDocValuesFormat.SEPARATE_COUNT;
+                var terms = List.of(new BytesRef("ab"), new BytesRef(""));
+                assertEquals(2, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", terms, format)));
+            }
+        }
+    }
+
+    private static Document singleValueDoc(BytesRef term) {
+        Document document = new Document();
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
+        field.add(term);
+        document.add(field);
+        document.add(new NumericDocValuesField("field.counts", 1));
+        return document;
+    }
+
+    public void testRawBytesTerms() throws Exception {
+        List<BytesRef> values = List.of(
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.1"))),
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.2"))),
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("2001:db8::2:1")))
+        );
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (int doc = 0; doc < 12; doc++) {
+                Document document = new Document();
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
+                field.add(values.get(doc % values.size()));
+                var countField = new NumericDocValuesField("field.counts", 1);
+                if (doc % 4 == 0) {
+                    field.add(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::ffff:1"))));
+                    countField.setLongValue(field.count());
+                }
+                document.add(field);
+                document.add(countField);
+                writer.addDocument(document);
+            }
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                var format = BinaryDocValuesFormat.SEPARATE_COUNT;
+                assertEquals(0, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", List.of(), format)));
+                assertEquals(4, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", values.subList(0, 1), format)));
+                assertEquals(8, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", values.subList(1, 3), format)));
+                assertEquals(12, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", values, format)));
+                assertEquals(
+                    3,
+                    searcher.count(
+                        new ScanningBinaryDocValuesTermInSetQuery(
+                            "field",
+                            List.of(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::ffff:1")))),
+                            format
+                        )
+                    )
+                );
             }
         }
     }

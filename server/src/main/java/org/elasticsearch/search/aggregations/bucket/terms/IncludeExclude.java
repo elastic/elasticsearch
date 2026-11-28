@@ -573,9 +573,10 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                 Automaton excludeNfa = compile(exclude, EXCLUDE_FIELD, breaker);
                 held += hold(excludeNfa, breaker);
                 Automaton excluded = determinize(excludeNfa, breaker);
-                held += hold(excluded, breaker);
-                a = CircuitBreakingOperations.minus(a, excluded, breaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
-                held += hold(a, breaker);
+                held += holdUnlessSame(excluded, excludeNfa, breaker);
+                Automaton included = a;
+                a = CircuitBreakingOperations.minus(included, excluded, breaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+                held += holdUnlessSame(a, included, breaker);
             }
             return determinize(a, breaker);
         } catch (TooComplexToDeterminizeException e) {
@@ -592,6 +593,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         long bytes = a.ramBytesUsed();
         breaker.addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         return bytes;
+    }
+
+    /** A step with nothing to build hands back its operand, which is already held. */
+    private static long holdUnlessSame(Automaton result, Automaton operand, CircuitBreaker breaker) {
+        return result == operand ? 0 : hold(result, breaker);
     }
 
     private static Automaton determinize(Automaton a, CircuitBreaker breaker) {

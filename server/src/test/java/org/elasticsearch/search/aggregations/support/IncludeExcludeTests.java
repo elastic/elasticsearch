@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
@@ -36,6 +38,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
@@ -569,6 +572,27 @@ public class IncludeExcludeTests extends ESTestCase {
             () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, breaker)
         );
         assertEquals("every reservation is released on failure", 0L, breaker.getUsed());
+    }
+
+    /**
+     * A step with nothing to build hands back its operand: determinizing an exclude that is deterministic as built, or
+     * subtracting an exclude that matches nothing. The operand is held by then, so its bytes are reserved once.
+     */
+    public void testAnAutomatonAStepHandsBackIsHeldOnce() {
+        String chain = "x{5000}";
+        long chainBytes = new CircuitBreakingRegExp(chain, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, 0).toAutomaton(BREAKER, "test")
+            .ramBytesUsed();
+        for (IncludeExclude inexcl : List.of(new IncludeExclude("a.*", chain, null, null), new IncludeExclude(chain, "#", null, null))) {
+            List<Long> reserved = new ArrayList<>();
+            CircuitBreaker recording = new NoopCircuitBreaker("test") {
+                @Override
+                public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                    reserved.add(bytes);
+                }
+            };
+            inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, recording);
+            assertEquals(1L, reserved.stream().filter(bytes -> bytes == chainBytes).count());
+        }
     }
 
     /** The compiled pattern outlives the build, so the filter reports it for the request-lifetime charge. */

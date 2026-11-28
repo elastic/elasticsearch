@@ -34,9 +34,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -59,13 +62,16 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -919,6 +925,101 @@ public class HttpClientTests extends ESTestCase {
 
             var throwException = expectThrows(UncategorizedExecutionException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(throwException.getCause().getCause().getMessage(), is("Maximum limit of [1] bytes reached"));
+        }
+    }
+
+    /**
+     * {@link TestCircuitBreaker} only toggles between "always breaks" and "never breaks" and does not track usage. These tests need to
+     * assert what was charged and that everything was released, so this one records both and breaks once {@code maxCharges} charges
+     * have been made.
+     */
+    private static class RecordingCircuitBreaker extends NoopCircuitBreaker {
+        private final int maxCharges;
+        private final List<Long> charges = new CopyOnWriteArrayList<>();
+        private final AtomicLong used = new AtomicLong();
+
+        RecordingCircuitBreaker(int maxCharges) {
+            super("test");
+            this.maxCharges = maxCharges;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            if (charges.size() >= maxCharges) {
+                throw new CircuitBreakingException("broken", getDurability());
+            }
+            charges.add(bytes);
+            used.addAndGet(bytes);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used.addAndGet(bytes);
+        }
+
+        @Override
+        public long getUsed() {
+            return used.get();
+        }
+    }
+
+    public void testSend_AccountsRequestBodyAndResponseAndReleasesBoth() throws Exception {
+        var responseBody = randomAlphaOfLengthBetween(2, 8096);
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseBody));
+
+        var httpPost = createHttpPost(webServer.getPort(), "a", "b");
+        var requestBodyLength = httpPost.httpRequest().getBodyBytes().length;
+        var breaker = new RecordingCircuitBreaker(Integer.MAX_VALUE);
+
+        try (
+            var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager(), breaker)
+        ) {
+            httpClient.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            httpClient.send(httpPost, HttpClientContext.create(), listener);
+            listener.actionGet(TIMEOUT);
+
+            assertThat(breaker.charges, equalTo(List.of((long) requestBodyLength, (long) responseBody.length())));
+            // the response bytes are released after the listener returns, on the response thread
+            assertBusy(() -> assertThat(breaker.getUsed(), is(0L)));
+        }
+    }
+
+    public void testSend_BreakerTripsOnRequestBodyDoesNotSendRequest() throws Exception {
+        var breaker = new RecordingCircuitBreaker(0);
+
+        try (
+            var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager(), breaker)
+        ) {
+            httpClient.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            httpClient.send(createHttpPost(webServer.getPort(), "a", "b"), HttpClientContext.create(), listener);
+
+            var exception = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), containsString("request body"));
+            assertThat(webServer.requests(), hasSize(0));
+            assertThat(breaker.getUsed(), is(0L));
+        }
+    }
+
+    public void testSend_BreakerTripsOnResponseFailsListenerAndReleasesRequestBody() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(randomAlphaOfLengthBetween(2, 8096)));
+        // the request body is charged, the response is not
+        var breaker = new RecordingCircuitBreaker(1);
+
+        try (
+            var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager(), breaker)
+        ) {
+            httpClient.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            httpClient.send(createHttpPost(webServer.getPort(), "a", "b"), HttpClientContext.create(), listener);
+
+            var exception = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), containsString("response"));
+            assertBusy(() -> assertThat(breaker.getUsed(), is(0L)));
         }
     }
 

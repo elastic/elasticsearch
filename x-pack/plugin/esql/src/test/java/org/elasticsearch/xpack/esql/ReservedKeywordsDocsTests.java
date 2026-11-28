@@ -49,7 +49,8 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
     /**
      * Generated keywords to omit from the docs.
      * {@code INLINESTATS} is the deprecated spelling of {@code INLINE STATS}. {@code DEFAULT} only lexes inside
-     * {@code FILLNULL_MODE}, which is entered solely through the snapshot-only {@code DEV_FILLNULL}, so it is not reserved in a release.
+     * {@code FILLNULL_MODE}, which is entered after a {@code FILLNULL} token, so {@code default} is an ordinary identifier at
+     * the top level and is not reserved.
      */
     private static final Set<String> TOKENS_BLACKLIST = Set.of("DEFAULT", "INLINESTATS", "UNKNOWN_CMD");
     /**
@@ -108,7 +109,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         KEYWORDS_BY_VERSION.put("9.4+", Set.of("METRICS_INFO", "MMR", "PROMQL", "REGISTERED_DOMAIN", "TS_INFO", "URI_PARTS", "USER_AGENT"));
         KEYWORDS_BY_VERSION.put("9.5+", Set.of("IP_LOCATION", "TS_COLLAPSE"));
         KEYWORDS_BY_VERSION.put("9.6+", Set.of("DEDUP", "DENSE_VECTOR", "HIGHLIGHT"));
-        KEYWORDS_BY_VERSION.put("9.7+", Set.of("DESCRIBE", "LET"));
+        KEYWORDS_BY_VERSION.put("9.7+", Set.of("DESCRIBE", "FILLNULL", "LET"));
     }
 
     /**

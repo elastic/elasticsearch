@@ -1543,8 +1543,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static final Object ANY_STRING = new Object();
 
-    // FILLNULL pattern that covers _unmapped_fields matches no resolvable field.
-    // https://github.com/elastic/elasticsearch/issues/162182
+    // FILLNULL with a pattern that can only match the LOAD_ALL _unmapped_fields column matches no resolvable
+    // field, so the query is correctly rejected: that column cannot be touched by commands. This is by design,
+    // not a bug to fix (https://github.com/elastic/elasticsearch/issues/162182, closed as not-planned), so the
+    // generated query stays allowlisted as a known false positive.
     static boolean isFillNullUnmappedFieldsPatternBug(String errorMessage, String query) {
         if (errorMessage == null || query == null || isLoadAllQuery(query) == false) {
             return false;

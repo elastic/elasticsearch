@@ -387,6 +387,8 @@ If you previously used a `text` field to index unstructured machine-generated co
 
 Internally the `wildcard` field indexes the whole field value using ngrams and stores the full string. The index is used as a rough filter to cut down the number of values that are then checked by retrieving and checking the full values. This field is especially well suited to run grep-like queries on log lines. Storage costs are typically lower than those of `keyword` fields but search speeds for exact matches on full terms are slower. If the field values share many prefixes, such as URLs for the same website, storage costs for a `wildcard` field may be higher than an equivalent `keyword` field.
 
+{applies_to}`stack: ga 9.6.1` {applies_to}`serverless: ga` Case-insensitive queries, such as a [`wildcard`](/reference/query-languages/query-dsl/query-dsl-wildcard-query.md) query with `case_insensitive` set to `true`, use the same Unicode simple case folding on a `wildcard` field as on a `keyword` field. For example, `ısparta` (with a dotless `ı`) matches `ISPARTA`. Because the ngram index only stores lowercased values, a case-insensitive query looks up every form a case variant of its text could be indexed under, so it can be somewhat slower than the same query run case-sensitively.
+
 You index and search a wildcard field as follows
 
 ```console

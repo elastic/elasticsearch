@@ -86,6 +86,7 @@ dependencies {
   }
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
+  implementation project(':x-pack:plugin:wildcard')
   // For DatafeedNodeSelectorBenchmark, which measures the ML datafeed assignment hot path.
   api(project(':x-pack:plugin:ml'))
   implementation project(path: ':libs:native')

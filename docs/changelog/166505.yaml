@@ -1,0 +1,5 @@
+area: Data streams
+issues: [166490]
+pr: 166505
+summary: List failure store indices in _cat/indices
+type: bug

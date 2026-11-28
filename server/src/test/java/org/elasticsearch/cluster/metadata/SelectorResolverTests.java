@@ -33,7 +33,7 @@ public class SelectorResolverTests extends ESTestCase {
         // Allow selectors TRUE
         Context selectorsAllowed = getContext(getOptionsForSelectors());
 
-        assertThat(resolve(selectorsAllowed, "testXXX"), equalTo(new ResolvedExpression("testXXX", DATA)));
+        assertThat(resolve(selectorsAllowed, "testXXX"), equalTo(new ResolvedExpression("testXXX")));
         assertThat(resolve(selectorsAllowed, "testXXX::data"), equalTo(new ResolvedExpression("testXXX", DATA)));
         assertThat(resolve(selectorsAllowed, "testXXX::failures"), equalTo(new ResolvedExpression("testXXX", FAILURES)));
 
@@ -57,13 +57,13 @@ public class SelectorResolverTests extends ESTestCase {
 
         // === Wildcards, Date Math, and edge cases
         // Wildcards are left as-is (handled in wildcard resolver)
-        assertThat(resolve(selectorsAllowed, "*"), equalTo(new ResolvedExpression("*", DATA)));
+        assertThat(resolve(selectorsAllowed, "*"), equalTo(new ResolvedExpression("*")));
         // Exclusions are left as-is (if no wildcards are present they are not treated as exclusions)
-        assertThat(resolve(selectorsAllowed, "-testXXX"), equalTo(new ResolvedExpression("-testXXX", DATA)));
+        assertThat(resolve(selectorsAllowed, "-testXXX"), equalTo(new ResolvedExpression("-testXXX")));
         // Exclusion syntax with selectors will have the selectors parsed
         assertThat(resolve(selectorsAllowed, "-testXXX::failures"), equalTo(new ResolvedExpression("-testXXX", FAILURES)));
         // Date math is left unprocessed (handled later in date math resolver)
-        assertThat(resolve(selectorsAllowed, "<test-{now/d}>"), equalTo(new ResolvedExpression("<test-{now/d}>", DATA)));
+        assertThat(resolve(selectorsAllowed, "<test-{now/d}>"), equalTo(new ResolvedExpression("<test-{now/d}>")));
         // Providing a selector requires adding after the date math brackets
         assertThat(resolve(selectorsAllowed, "<test-{now/d}>::failures"), equalTo(new ResolvedExpression("<test-{now/d}>", FAILURES)));
         // Selectors inside of date math expressions will trip an exception because they do not match an existing component name exactly
@@ -127,10 +127,10 @@ public class SelectorResolverTests extends ESTestCase {
 
     public void testResolveMatchAllToSelectors() {
         Context selectorsAllowed = getContext(getOptionsForSelectors());
-        assertThat(resolveMatchAllToSelector(selectorsAllowed, "*"), is(DATA));
+        assertThat(resolveMatchAllToSelector(selectorsAllowed, "*"), is(nullValue()));
         assertThat(resolveMatchAllToSelector(selectorsAllowed, "*::data"), is(DATA));
         assertThat(resolveMatchAllToSelector(selectorsAllowed, "*::failures"), is(FAILURES));
-        assertThat(resolveMatchAllToSelector(selectorsAllowed, "_all"), is(DATA));
+        assertThat(resolveMatchAllToSelector(selectorsAllowed, "_all"), is(nullValue()));
         assertThat(resolveMatchAllToSelector(selectorsAllowed, "_all::data"), is(DATA));
         assertThat(resolveMatchAllToSelector(selectorsAllowed, "_all::failures"), is(FAILURES));
 

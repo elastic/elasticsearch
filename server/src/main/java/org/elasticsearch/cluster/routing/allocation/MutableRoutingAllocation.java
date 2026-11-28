@@ -35,6 +35,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     private final boolean isSimulating;
     private boolean isReconciling;
     private boolean ignoreDisable;
+    private SimulatedShardStarter simulatedShardStarter;
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -115,6 +116,17 @@ final class MutableRoutingAllocation extends RoutingAllocation {
             currentNanoTime,
             preserveDecisionLabels
         );
+    }
+
+    @Override
+    public void setSimulatedShardStarter(SimulatedShardStarter simulatedShardStarter) {
+        assert isSimulating : "Should be called only while simulating";
+        this.simulatedShardStarter = simulatedShardStarter;
+    }
+
+    @Override
+    public SimulatedShardStarter simulatedShardStarter() {
+        return simulatedShardStarter;
     }
 
     @Override

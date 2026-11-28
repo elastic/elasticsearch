@@ -410,6 +410,19 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     public abstract void setSimulatedClusterInfo(ClusterInfo clusterInfo);
 
+    /**
+     * Sets how a simulation starts relocations as the allocator decides on them. Only for use while simulating.
+     */
+    public abstract void setSimulatedShardStarter(SimulatedShardStarter simulatedShardStarter);
+
+    /**
+     * @return how a simulation starts relocations as the allocator decides on them, or {@code null} if relocations are left in flight
+     */
+    @Nullable
+    public SimulatedShardStarter simulatedShardStarter() {
+        return null;
+    }
+
     public RoutingAllocation immutableClone() {
         GlobalRoutingTable routingTable = clusterState.globalRoutingTable();
         return new ImmutableRoutingAllocation(

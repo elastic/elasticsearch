@@ -30,6 +30,8 @@ public class ClusterInfoSimulator {
 
     private final ClusterInfo polled;
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
+    /** The shard sizes as an immutable map, kept until a new size is recorded so that reading the cluster info does not copy them. */
+    private Map<String, Long> shardSizesSnapshot;
     private final Map<String, NodeHeapMetrics> initialNodeHeapMetrics;
     private final PlacementAspects.UsedBytes usedBytes;
     private final PlacementAspects.CacheCommitment cacheCommitment;
@@ -76,6 +78,7 @@ public class ClusterInfoSimulator {
             );
             if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
                 shardSizes.put(shardIdentifierFromRouting(shard), project.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size);
+                shardSizesSnapshot = null;
             }
         }
     }
@@ -149,12 +152,19 @@ public class ClusterInfoSimulator {
         return true;
     }
 
+    private Map<String, Long> shardSizesSnapshot() {
+        if (shardSizesSnapshot == null) {
+            shardSizesSnapshot = shardSizes.toImmutableMap();
+        }
+        return shardSizesSnapshot;
+    }
+
     public ClusterInfo getClusterInfo() {
         return allocation.clusterInfo()
             .updateWith(
                 usedBytes.adjust(polled.getNodeLeastAvailableDiskUsages()),
                 usedBytes.simulated(),
-                shardSizes.toImmutableMap(),
+                shardSizesSnapshot(),
                 Map.of(),
                 nodeHeap.simulated(),
                 polled.getEstimatedShardHeapUsages(),

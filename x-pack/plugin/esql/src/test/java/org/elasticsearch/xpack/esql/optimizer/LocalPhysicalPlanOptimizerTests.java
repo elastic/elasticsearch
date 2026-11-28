@@ -3382,6 +3382,23 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         return new TestPlannerOptimizer(configuration, analyzer, optimizer).plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
     }
 
+    public void testNoSinglePassForWindowEvenWithReducingPerIndex() {
+        for (boolean enabled : new boolean[] { true, false }) {
+            var configuration = EsqlTestUtils.configuration(
+                new QueryPragmas(Settings.builder().put("time_series_reduce_per_index", enabled).build())
+            );
+            var analyzer = metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer();
+            var plan = new TestPlannerOptimizer(configuration, analyzer).plan(
+                "TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY pod, TBUCKET(5 minute)",
+                EsqlTestUtils.TEST_SEARCH_STATS,
+                analyzer
+            );
+            var timeSeriesAggs = plan.collect(TimeSeriesAggregateExec.class);
+            assertThat(timeSeriesAggs, hasSize(greaterThanOrEqualTo(1)));
+            assertFalse(timeSeriesAggs.stream().anyMatch(agg -> agg.getMode() == AggregatorMode.SINGLE));
+        }
+    }
+
     public void testSinglePassDisabledByPragma() {
         var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.builder().put("time_series_single_pass", false).build()));
         var analyzer = metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer();

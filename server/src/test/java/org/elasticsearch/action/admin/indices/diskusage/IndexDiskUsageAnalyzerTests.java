@@ -72,7 +72,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -90,6 +93,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -453,6 +458,68 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     public void testDocValuesSkipperBytesWithFullUpperIntervals() throws Exception {
         // 512 documents fill whole upper-level skip intervals, which is where the final intervals are easiest to miss
         assertSkipperBytesReportedSeparately(512);
+    }
+
+    /**
+     * The TSDB doc values formats report field sizes from their metadata, so their analyzed sizes must add up to their
+     * doc values files on disk, apart from the headers and footers that belong to no field. A field in a format that
+     * cannot do this shares the segment, and must still be analyzed by reading its values.
+     */
+    public void testTsdbDocValuesSizesComeFromMetadata() throws Exception {
+        final DocValuesFormat tsdbFormat = randomFrom(new ES819TSDBDocValuesFormat(), new ES95TSDBDocValuesFormat());
+        final DocValuesFormat luceneFormat = new Lucene90DocValuesFormat();
+        final String luceneField = "lucene_ndv";
+        final Codec codec = new Elasticsearch93Lucene104Codec() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return field.equals(luceneField) ? luceneFormat : tsdbFormat;
+            }
+        };
+        try (Directory dir = createNewDirectory()) {
+            final IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true).setUseCompoundFile(false).setCodec(codec);
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                for (int i = between(100, 1000); i > 0; i--) {
+                    final Document doc = new Document();
+                    addRandomDocValuesField(doc, true);
+                    doc.add(new NumericDocValuesField(luceneField, randomLong()));
+                    writer.addDocument(doc);
+                }
+            }
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+
+            final long luceneFileBytes = formatFileBytes(dir, luceneFormat, "dvd", "dvm");
+            final long luceneAnalyzedBytes = stats.getFields().get(luceneField).getDocValuesBytes();
+            assertThat(luceneAnalyzedBytes, greaterThan(0L));
+            assertThat(luceneAnalyzedBytes, lessThanOrEqualTo(luceneFileBytes));
+
+            long tsdbDocValuesBytes = 0;
+            long tsdbSkipperBytes = 0;
+            for (var field : stats.getFields().entrySet()) {
+                if (field.getKey().equals(luceneField) == false) {
+                    tsdbDocValuesBytes += field.getValue().getDocValuesBytes();
+                    tsdbSkipperBytes += field.getValue().getDocValuesSkipperBytes();
+                }
+            }
+            assertThat(tsdbSkipperBytes, greaterThan(0L));
+            assertUnattributedBytes(formatFileBytes(dir, tsdbFormat, "dvd", "dvm"), tsdbDocValuesBytes);
+            assertUnattributedBytes(formatFileBytes(dir, tsdbFormat, "dvs"), tsdbSkipperBytes);
+        }
+    }
+
+    private static long formatFileBytes(Directory dir, DocValuesFormat format, String... extensions) throws IOException {
+        long bytes = 0;
+        for (String file : dir.listAll()) {
+            if (file.contains("_" + format.getName() + "_") && List.of(extensions).contains(IndexFileNames.getExtension(file))) {
+                bytes += dir.fileLength(file);
+            }
+        }
+        return bytes;
+    }
+
+    /** Headers, footers and end markers belong to no field, so the files hold slightly more than the fields report. */
+    private static void assertUnattributedBytes(long fileBytes, long analyzedBytes) {
+        assertThat(fileBytes - analyzedBytes, greaterThanOrEqualTo(0L));
+        assertThat(fileBytes - analyzedBytes, lessThan(512L));
     }
 
     private void assertSkipperBytesReportedSeparately(int numDocs) throws Exception {

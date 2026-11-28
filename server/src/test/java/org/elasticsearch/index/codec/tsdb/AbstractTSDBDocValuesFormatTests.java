@@ -20,13 +20,17 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -57,6 +61,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
+import org.elasticsearch.lucene.store.DocValuesDiskUsage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
@@ -83,6 +88,7 @@ import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomByteArrayOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
@@ -91,6 +97,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Shared test suite for TSDB doc values formats. Tests all five doc value types (numeric,
@@ -184,6 +191,163 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             sortedDocValues = DocValues.unwrapSingleton(leafReader.getSortedSetDocValues(field));
         }
         return (BaseSortedDocValues) sortedDocValues;
+    }
+
+    private static final class DiskUsageTotals implements DocValuesDiskUsage.Visitor {
+        final Map<String, Long> dataComponents = new HashMap<>();
+        long dataBytes;
+        long metadataBytes;
+        long skipperBytes;
+
+        @Override
+        public void docValuesData(String component, long bytes) {
+            dataComponents.merge(component, bytes, Long::sum);
+            dataBytes += bytes;
+        }
+
+        @Override
+        public void docValuesMetadata(long bytes) {
+            assertThat(bytes, greaterThan(0L));
+            metadataBytes += bytes;
+        }
+
+        @Override
+        public void docValuesSkipperData(long bytes) {
+            skipperBytes += bytes;
+        }
+    }
+
+    private static long segmentFileBytes(Directory dir, SegmentReader segmentReader, String extension) throws IOException {
+        long bytes = 0;
+        for (String file : segmentReader.getSegmentInfo().files()) {
+            if (extension.equals(IndexFileNames.getExtension(file))) {
+                bytes += dir.fileLength(file);
+            }
+        }
+        return bytes;
+    }
+
+    /**
+     * Bounds the bytes of a file that belong to no field: its header, its footer and any end marker. The skipper
+     * and data totals are checked against their own files so that swapping the two cannot go unnoticed.
+     */
+    private static final long MAX_UNATTRIBUTED_BYTES = 512;
+
+    private static void assertAccountsForAllFileBytes(Directory dir, SegmentReader segmentReader, DiskUsageTotals totals)
+        throws IOException {
+        final long dataAndMetadataFileBytes = segmentFileBytes(dir, segmentReader, "dvd") + segmentFileBytes(dir, segmentReader, "dvm");
+        final long dataAndMetadataBytes = totals.dataBytes + totals.metadataBytes;
+        assertThat(dataAndMetadataFileBytes - dataAndMetadataBytes, greaterThanOrEqualTo(0L));
+        assertThat(dataAndMetadataFileBytes - dataAndMetadataBytes, lessThan(MAX_UNATTRIBUTED_BYTES));
+
+        final long skipperFileBytes = segmentFileBytes(dir, segmentReader, "dvs");
+        assertThat(skipperFileBytes - totals.skipperBytes, greaterThanOrEqualTo(0L));
+        assertThat(skipperFileBytes - totals.skipperBytes, lessThan(MAX_UNATTRIBUTED_BYTES));
+    }
+
+    /**
+     * The sizes reported from the metadata must account for every byte of the doc values files, apart from the
+     * headers, footers and end markers that do not belong to any field.
+     */
+    public void testVisitDiskUsageAccountsForAllFileBytes() throws Exception {
+        final int numDocs = randomIntBetween(200, 2000);
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig().setCodec(getCodec()).setUseCompoundFile(false);
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(NumericDocValuesField.indexedField("numeric", randomLong()));
+                    doc.add(SortedNumericDocValuesField.indexedField("sorted_numeric", i));
+                    doc.add(SortedNumericDocValuesField.indexedField("sorted_numeric", randomLong()));
+                    doc.add(new BinaryDocValuesField("binary", new BytesRef(randomAlphaOfLengthBetween(0, 50))));
+                    doc.add(SortedDocValuesField.indexedField("sorted", new BytesRef(randomAlphaOfLength(3))));
+                    doc.add(SortedSetDocValuesField.indexedField("sorted_set", new BytesRef(randomAlphaOfLength(3))));
+                    doc.add(SortedSetDocValuesField.indexedField("sorted_set", new BytesRef(randomAlphaOfLength(3))));
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final SegmentReader segmentReader = (SegmentReader) reader.leaves().get(0).reader();
+                assertThat(segmentReader.getDocValuesReader(), instanceOf(DocValuesDiskUsage.class));
+                final var diskUsage = (DocValuesDiskUsage) segmentReader.getDocValuesReader();
+
+                final DiskUsageTotals totals = new DiskUsageTotals();
+                for (FieldInfo field : segmentReader.getFieldInfos()) {
+                    final DiskUsageTotals fieldTotals = new DiskUsageTotals();
+                    assertTrue(field.name, diskUsage.visitDiskUsage(field, fieldTotals));
+                    assertThat(field.name, fieldTotals.dataBytes, greaterThan(0L));
+                    if (field.docValuesSkipIndexType() == DocValuesSkipIndexType.NONE) {
+                        assertThat(field.name, fieldTotals.skipperBytes, equalTo(0L));
+                    } else {
+                        assertThat(field.name, fieldTotals.skipperBytes, greaterThan(0L));
+                    }
+                    totals.dataBytes += fieldTotals.dataBytes;
+                    totals.metadataBytes += fieldTotals.metadataBytes;
+                    totals.skipperBytes += fieldTotals.skipperBytes;
+                }
+                assertAccountsForAllFileBytes(dir, segmentReader, totals);
+            }
+        }
+    }
+
+    /**
+     * A codec whose format parameters are fixed, so that two of them differ in nothing but whether prefix partitions are
+     * written.
+     */
+    protected abstract Codec getCodecWithPrefixPartitions(boolean writePrefixPartitions);
+
+    /**
+     * The partition table of a prefix-partitioned primary sort field is data of that field. Writing the same documents
+     * with and without partitions must differ in the data file by exactly the bytes reported for the partitions.
+     */
+    public void testVisitDiskUsageReportsExactPrefixPartitionBytes() throws Exception {
+        final int numDocs = randomIntBetween(200, 2000);
+        final List<BytesRef> terms = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            final byte[] term = randomByteArrayOfLength(4);
+            term[0] = (byte) randomIntBetween(0, 8);
+            terms.add(new BytesRef(term));
+        }
+
+        long dataFileBytesWithoutPartitions = 0;
+        for (boolean writePartitions : new boolean[] { false, true }) {
+            try (Directory dir = newDirectory()) {
+                IndexWriterConfig config = new IndexWriterConfig().setCodec(getCodecWithPrefixPartitions(writePartitions))
+                    .setUseCompoundFile(false)
+                    .setIndexSort(new Sort(new SortField("first", SortField.Type.STRING)));
+                try (IndexWriter writer = new IndexWriter(dir, config)) {
+                    for (BytesRef term : terms) {
+                        Document doc = new Document();
+                        doc.add(new SortedDocValuesField("first", term));
+                        writer.addDocument(doc);
+                    }
+                    writer.commit();
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertThat(reader.leaves().size(), equalTo(1));
+                    final SegmentReader segmentReader = (SegmentReader) reader.leaves().get(0).reader();
+                    final var sortedValues = segmentReader.getSortedDocValues("first");
+                    assertThat(sortedValues, instanceOf(PartitionedDocValues.class));
+                    assertThat(((PartitionedDocValues) sortedValues).prefixPartitionBits() > 0, equalTo(writePartitions));
+
+                    final DiskUsageTotals totals = new DiskUsageTotals();
+                    final var diskUsage = (DocValuesDiskUsage) segmentReader.getDocValuesReader();
+                    assertTrue(diskUsage.visitDiskUsage(segmentReader.getFieldInfos().fieldInfo("first"), totals));
+                    assertAccountsForAllFileBytes(dir, segmentReader, totals);
+
+                    final long dataFileBytes = segmentFileBytes(dir, segmentReader, "dvd");
+                    if (writePartitions) {
+                        assertThat(totals.dataComponents.get("partitions"), greaterThan(0L));
+                        assertThat(totals.dataComponents.get("partitions"), equalTo(dataFileBytes - dataFileBytesWithoutPartitions));
+                    } else {
+                        assertFalse(totals.dataComponents.containsKey("partitions"));
+                        dataFileBytesWithoutPartitions = dataFileBytes;
+                    }
+                }
+            }
+        }
     }
 
     public void testBlockWiseBinary() throws Exception {

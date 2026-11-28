@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery;
 import org.elasticsearch.lucene.store.DocRanks;
+import org.elasticsearch.lucene.store.DocValuesDiskUsage;
 import org.elasticsearch.lucene.store.PrefetchSteps;
 import org.elasticsearch.lucene.store.PrefetchableDocValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -72,7 +73,7 @@ import java.util.Arrays;
  * {@link OrdinalBlockCodec}; those codecs supply the per-field readers and decoders the wire-format
  * code drives during segment open and value iteration.
  */
-public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
+public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer implements DocValuesDiskUsage {
 
     final IntObjectHashMap<NumericEntry> numerics;
     final IntObjectHashMap<BinaryEntry> binaries;
@@ -2155,6 +2156,104 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
+    public boolean visitDiskUsage(FieldInfo field, Visitor visitor) {
+        final long metadataLength = switch (field.getDocValuesType()) {
+            case NUMERIC -> {
+                final NumericEntry entry = numerics.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitNumeric(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case SORTED_NUMERIC -> {
+                final SortedNumericEntry entry = sortedNumerics.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitSortedNumeric(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case BINARY -> {
+                final BinaryEntry entry = binaries.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitBinary(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case SORTED -> {
+                final SortedEntry entry = sorted.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitSorted(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case SORTED_SET -> {
+                final SortedSetEntry entry = sortedSets.get(field.number);
+                if (entry == null) {
+                    yield -1;
+                }
+                visitSortedSet(entry, visitor);
+                yield entry.metadataLength;
+            }
+            case NONE -> -1;
+        };
+        if (metadataLength < 0) {
+            return false;
+        }
+        visitor.docValuesMetadata(metadataLength);
+        final DocValuesSkipperEntry skipperEntry = skippers.get(field.number);
+        if (skipperEntry != null) {
+            visitor.docValuesSkipperData(skipperEntry.length);
+        }
+        return true;
+    }
+
+    private static void visitNumeric(NumericEntry entry, Visitor visitor) {
+        visitor.docValuesData("docsWithField", entry.docsWithFieldLength);
+        visitor.docValuesData("index", entry.indexLength);
+        visitor.docValuesData("values", entry.valuesLength);
+    }
+
+    private static void visitSortedNumeric(SortedNumericEntry entry, Visitor visitor) {
+        visitNumeric(entry, visitor);
+        visitor.docValuesData("addresses", entry.addressesLength);
+    }
+
+    private static void visitBinary(BinaryEntry entry, Visitor visitor) {
+        visitor.docValuesData("values", entry.dataLength);
+        visitor.docValuesData("docsWithField", entry.docsWithFieldLength);
+        visitor.docValuesData("addresses", entry.addressesLength);
+        visitor.docValuesData("docOffsets", entry.docOffsetLength);
+    }
+
+    private static void visitSorted(SortedEntry entry, Visitor visitor) {
+        visitNumeric(entry.ordsEntry, visitor);
+        visitTermsDict(entry.termsDictEntry, visitor);
+        if (entry instanceof PrefixPartitionedEntry partitioned) {
+            visitor.docValuesData("partitions", partitioned.partitionDataLength);
+        }
+    }
+
+    private static void visitSortedSet(SortedSetEntry entry, Visitor visitor) {
+        if (entry.singleValueEntry != null) {
+            visitSorted(entry.singleValueEntry, visitor);
+            return;
+        }
+        visitSortedNumeric(entry.ordsEntry, visitor);
+        visitTermsDict(entry.termsDictEntry, visitor);
+    }
+
+    private static void visitTermsDict(TermsDictEntry entry, Visitor visitor) {
+        visitor.docValuesData("termsData", entry.termsDataLength);
+        visitor.docValuesData("termsAddresses", entry.termsAddressesLength);
+        visitor.docValuesData("termsIndex", entry.termsIndexLength);
+        visitor.docValuesData("termsIndexAddresses", entry.termsIndexAddressesLength);
+    }
+
+    @Override
     public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
         final DocValuesSkipperEntry entry = skippers.get(field.number);
 
@@ -2300,6 +2399,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     private void readFields(IndexInput meta, FieldInfos infos, int version, int numericBlockShift) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
+            final long entryStart = meta.getFilePointer() - Integer.BYTES;
             FieldInfo info = infos.fieldInfo(fieldNumber);
             if (info == null) {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
@@ -2309,27 +2409,37 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 skippers.put(info.number, readDocValueSkipperMeta(meta, version));
             }
             if (type == AbstractTSDBDocValuesConsumer.NUMERIC) {
-                numerics.put(info.number, readNumeric(meta, numericBlockShift));
+                final NumericEntry numeric = readNumeric(meta, numericBlockShift);
+                numerics.put(info.number, numeric);
+                numeric.metadataLength = meta.getFilePointer() - entryStart;
             } else if (type == AbstractTSDBDocValuesConsumer.BINARY) {
-                binaries.put(info.number, readBinary(meta, version));
+                final BinaryEntry binary = readBinary(meta, version);
+                binaries.put(info.number, binary);
+                binary.metadataLength = meta.getFilePointer() - entryStart;
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED) {
-                sorted.put(
-                    info.number,
-                    readSorted(version, meta, numericBlockShift, formatConfig.termsBlockLz4Shift(), info.number == primarySortFieldNumber)
+                final SortedEntry sortedEntry = readSorted(
+                    version,
+                    meta,
+                    numericBlockShift,
+                    formatConfig.termsBlockLz4Shift(),
+                    info.number == primarySortFieldNumber
                 );
+                sorted.put(info.number, sortedEntry);
+                sortedEntry.metadataLength = meta.getFilePointer() - entryStart;
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED_SET) {
-                sortedSets.put(
-                    info.number,
-                    readSortedSet(
-                        version,
-                        meta,
-                        numericBlockShift,
-                        formatConfig.termsBlockLz4Shift(),
-                        info.number == primarySortFieldNumber
-                    )
+                final SortedSetEntry sortedSet = readSortedSet(
+                    version,
+                    meta,
+                    numericBlockShift,
+                    formatConfig.termsBlockLz4Shift(),
+                    info.number == primarySortFieldNumber
                 );
+                sortedSets.put(info.number, sortedSet);
+                sortedSet.metadataLength = meta.getFilePointer() - entryStart;
             } else if (type == AbstractTSDBDocValuesConsumer.SORTED_NUMERIC) {
-                sortedNumerics.put(info.number, readSortedNumeric(meta, numericBlockShift));
+                final SortedNumericEntry sortedNumeric = readSortedNumeric(meta, numericBlockShift);
+                sortedNumerics.put(info.number, sortedNumeric);
+                sortedNumeric.metadataLength = meta.getFilePointer() - entryStart;
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }
@@ -3427,6 +3537,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     ) {}
 
     public static class NumericEntry {
+        long metadataLength;
         public long docsWithFieldOffset;
         public long docsWithFieldLength;
         public short jumpTableEntryCount;
@@ -3448,6 +3559,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     static class BinaryEntry {
+        long metadataLength;
         final BinaryDVCompressionMode compression;
 
         long dataOffset;
@@ -3481,6 +3593,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     static class SortedEntry {
+        long metadataLength;
         NumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;
     }
@@ -3492,6 +3605,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     static class SortedSetEntry {
+        long metadataLength;
         SortedEntry singleValueEntry;
         SortedNumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;

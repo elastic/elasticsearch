@@ -26,6 +26,7 @@ import org.apache.lucene.codecs.TermVectorsReader;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.lucene.store.DocValuesDiskUsage;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -263,6 +265,16 @@ final class IndexDiskUsageAnalyzer {
                 continue;
             }
             cancellationChecker.checkForCancellation();
+            if (reader.getDocValuesReader() instanceof DocValuesDiskUsage diskUsage) {
+                final DocValuesSizes sizes = new DocValuesSizes();
+                if (diskUsage.visitDiskUsage(field, sizes)) {
+                    stats.addDocValues(field.name, sizes.dataAndMetadataBytes);
+                    if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
+                        stats.addDocValuesSkipper(field.name, sizes.skipperBytes);
+                    }
+                    continue;
+                }
+            }
             directory.resetBytesRead();
             switch (dvType) {
                 case NUMERIC -> iterateDocValues(maxDocs, () -> docValuesReader.getNumeric(field), NumericDocValues::longValue);
@@ -322,6 +334,26 @@ final class IndexDiskUsageAnalyzer {
                 }
                 default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");
             }
+        }
+    }
+
+    private static class DocValuesSizes implements DocValuesDiskUsage.Visitor {
+        long dataAndMetadataBytes;
+        long skipperBytes;
+
+        @Override
+        public void docValuesData(String component, long bytes) {
+            dataAndMetadataBytes += bytes;
+        }
+
+        @Override
+        public void docValuesMetadata(long bytes) {
+            dataAndMetadataBytes += bytes;
+        }
+
+        @Override
+        public void docValuesSkipperData(long bytes) {
+            skipperBytes += bytes;
         }
     }
 

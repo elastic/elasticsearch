@@ -159,6 +159,21 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     ) throws IOException;
 
     /**
+     * Calculate the centroids for the given field and vectors as part of a merge, where {@code vectorValues} have already
+     * been rotated with {@code preconditioner} (if non-null). Implementations that seed clustering from the input segments'
+     * centroids should override this to bring those centroids into the preconditioned space.
+     * By default the preconditioner is ignored.
+     */
+    public CentroidInformation<?> calculateCentroids(
+        FieldInfo fieldInfo,
+        ClusteringVectorValues<?> vectorValues,
+        MergeState mergeState,
+        Preconditioner preconditioner
+    ) throws IOException {
+        return calculateCentroids(fieldInfo, vectorValues, mergeState);
+    }
+
+    /**
      * Information on the file offset and length of a set of centroids
      */
     public record CentroidOffsetAndLength(LongValues offsets, LongValues lengths) {}
@@ -782,7 +797,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                 // just from the merged vector values, the tricky part is the random access.
                 centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
                 centroidTempName = centroidTemp.getName();
-                CentroidInformation<?> centroidAssignments = calculateCentroids(fieldInfo, vectorValues, mergeState);
+                CentroidInformation<?> centroidAssignments = calculateCentroids(fieldInfo, vectorValues, mergeState, preconditioner);
                 // write the centroids to a temporary file so we are not holding them on heap
                 if (supportsByteNative() && centroidAssignments.centroids() instanceof byte[][] byteCentroidArrays) {
                     // Write byte centroids to temp file

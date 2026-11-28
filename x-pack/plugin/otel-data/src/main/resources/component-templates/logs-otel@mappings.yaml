@@ -17,6 +17,9 @@ template:
         dynamic: true
         priority: 20
         properties:
+          session.id:
+            type: keyword
+            ignore_above: 1024
           exception.type:
             type: keyword
             ignore_above: 1024

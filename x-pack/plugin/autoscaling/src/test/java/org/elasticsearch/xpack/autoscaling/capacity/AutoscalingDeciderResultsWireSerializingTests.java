@@ -12,6 +12,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
+import java.util.SortedMap;
+import java.util.TreeMap;
+
 public class AutoscalingDeciderResultsWireSerializingTests extends AbstractWireSerializingTestCase<AutoscalingDeciderResults> {
 
     @Override
@@ -31,7 +34,24 @@ public class AutoscalingDeciderResultsWireSerializingTests extends AbstractWireS
 
     @Override
     protected AutoscalingDeciderResults mutateInstance(AutoscalingDeciderResults instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        AutoscalingCapacity currentCapacity = instance.currentCapacity();
+        final SortedMap<String, AutoscalingDeciderResult> results = new TreeMap<>(instance.results());
+        switch (between(0, 1)) {
+            case 0 -> currentCapacity = randomValueOtherThan(currentCapacity, AutoscalingTestCase::randomAutoscalingCapacity);
+            case 1 -> {
+                if (randomBoolean()) {
+                    results.put(
+                        randomValueOtherThanMany(results::containsKey, () -> randomAlphaOfLength(8)),
+                        AutoscalingTestCase.randomAutoscalingDeciderResult()
+                    );
+                } else {
+                    final String key = randomFrom(results.keySet());
+                    results.put(key, randomValueOtherThan(results.get(key), AutoscalingTestCase::randomAutoscalingDeciderResult));
+                }
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AutoscalingDeciderResults(currentCapacity, instance.currentNodes(), results);
     }
 
 }

@@ -25,7 +25,8 @@ public class GetAutoscalingCapacityActionRequestWireSerializingTests extends Abs
 
     @Override
     protected GetAutoscalingCapacityAction.Request mutateInstance(GetAutoscalingCapacityAction.Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        // The request has no fields and equals treats every instance as equal, so no mutation can produce an unequal instance.
+        return null;
     }
 
 }

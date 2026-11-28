@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.XContentTestUtils.assertLongValueEquals;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -307,13 +308,13 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
             } else {
                 assertThat(xContentMap.get("max_age"), is("auto"));
             }
-            assertThat(xContentMap.get("max_docs"), is(concreteConditions.getMaxDocs()));
+            assertLongValueEquals(xContentMap.get("max_docs"), concreteConditions.getMaxDocs());
             if (concreteConditions.getMaxSize() == null) {
                 assertThat(xContentMap.get("max_size"), nullValue());
             } else {
                 assertThat(xContentMap.get("max_size"), is(concreteConditions.getMaxSize().getStringRep()));
             }
-            assertThat(xContentMap.get("max_primary_shard_docs"), is(concreteConditions.getMaxPrimaryShardDocs()));
+            assertLongValueEquals(xContentMap.get("max_primary_shard_docs"), concreteConditions.getMaxPrimaryShardDocs());
             if (concreteConditions.getMaxPrimaryShardSize() == null) {
                 assertThat(xContentMap.get("max_primary_shard_size"), nullValue());
             } else {
@@ -324,13 +325,13 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
             } else {
                 assertThat(xContentMap.get("min_age"), is(concreteConditions.getMinAge().getStringRep()));
             }
-            assertThat(xContentMap.get("min_docs"), is(concreteConditions.getMinDocs()));
+            assertLongValueEquals(xContentMap.get("min_docs"), concreteConditions.getMinDocs());
             if (concreteConditions.getMinSize() == null) {
                 assertThat(xContentMap.get("min_size"), nullValue());
             } else {
                 assertThat(xContentMap.get("min_size"), is(concreteConditions.getMinSize().getStringRep()));
             }
-            assertThat(xContentMap.get("min_primary_shard_docs"), is(concreteConditions.getMinPrimaryShardDocs()));
+            assertLongValueEquals(xContentMap.get("min_primary_shard_docs"), concreteConditions.getMinPrimaryShardDocs());
             if (concreteConditions.getMinPrimaryShardSize() == null) {
                 assertThat(xContentMap.get("min_primary_shard_size"), nullValue());
             } else {

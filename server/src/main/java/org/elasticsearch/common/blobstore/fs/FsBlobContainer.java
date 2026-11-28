@@ -122,6 +122,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
         try (DirectoryStream<Path> stream = newDirectoryStreamIfFound(blobNamePrefix)) {
             for (Path file : stream) {
+                final String fileName = file.getFileName().toString();
+                if (isTempBlobName(fileName)) {
+                    continue;
+                }
                 final BasicFileAttributes attrs;
                 try {
                     attrs = Files.readAttributes(file, BasicFileAttributes.class);
@@ -135,7 +139,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                     continue;
                 }
                 if (attrs.isRegularFile()) {
-                    builder.put(file.getFileName().toString(), new BlobMetadata(file.getFileName().toString(), attrs.size()));
+                    builder.put(fileName, new BlobMetadata(fileName, attrs.size()));
                 }
             }
         }
@@ -486,7 +490,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
     /**
      * Returns true if the blob is a leftover temporary blob.
      *
-     * The temporary blobs might be left after failed atomic write operation.
+     * The temporary blobs might be left after failed atomic write operation. However, they are never returned
+     * by {@link #listBlobs} or {@link #listBlobsByPrefix}.
      */
     public static boolean isTempBlobName(final String blobName) {
         return blobName.startsWith(TEMP_FILE_PREFIX);

@@ -605,7 +605,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
         final var uploadBarrier = new CyclicBarrier(2);
         setNodeRepositoryStrategy(nodeA, new StatelessMockRepositoryStrategy() {
             @Override
-            public void blobContainerWriteBlob(
+            public void blobContainerWriteBlobAtomic(
                 CheckedRunnable<IOException> originalRunnable,
                 OperationPurpose purpose,
                 String blobName,

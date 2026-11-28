@@ -1431,8 +1431,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
-                        throws IOException {
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        BytesReference bytes,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
                         if (purpose == OperationPurpose.TRANSLOG) {
                             if (exceedThreshold.get()) {
                                 time.addAndGet(slowUploadDuration);
@@ -1440,7 +1444,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                                 time.addAndGet(fastUploadDuration);
                             }
                         }
-                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                        super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
                     }
                 };
             }
@@ -1536,12 +1540,16 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         }
 
                         @Override
-                        public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
-                            throws IOException {
+                        public void writeBlobAtomic(
+                            OperationPurpose purpose,
+                            String blobName,
+                            BytesReference bytes,
+                            boolean failIfAlreadyExists
+                        ) throws IOException {
                             if (purpose == OperationPurpose.TRANSLOG) {
                                 time.addAndGet(uploadDuration);
                             }
-                            super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                            super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
                         }
                     };
                 }
@@ -1600,8 +1608,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
-                        throws IOException {
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        BytesReference bytes,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
                         if (purpose == OperationPurpose.TRANSLOG) {
                             if (blobName.equals("translog-1")) {
                                 firstUploadStarted.countDown();
@@ -1609,7 +1621,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                             }
                             events.add("write " + blobName);
                         }
-                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                        super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
                     }
                 };
             }
@@ -1677,8 +1689,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
-                        throws IOException {
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        BytesReference bytes,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
                         if (purpose == OperationPurpose.TRANSLOG) {
                             if (blobName.equals("translog-1")) {
                                 firstUploadStarted.countDown();
@@ -1686,7 +1702,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                             }
                             events.add("write " + blobName);
                         }
-                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                        super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
                     }
                 };
             }

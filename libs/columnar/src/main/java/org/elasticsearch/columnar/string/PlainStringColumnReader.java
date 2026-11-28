@@ -125,6 +125,17 @@ public final class PlainStringColumnReader extends StringColumnReader {
         return values.length(valueAddress);
     }
 
+    /** Reads a page's lengths a block of stored lengths at a time; see {@link PlainValues.Reader#lengthsAt}. */
+    @Override
+    protected void byteLengthsOfPageRanks(int count, int[] counts, int[] lengths) throws IOException {
+        for (int i = 0; i < count; i++) {
+            counts[i] = pageRanks[i] == ColumnIterator.NO_RANK ? 0 : 1;
+        }
+        if (values != null) {
+            values.lengthsAt(pageRanks, count, lengths);
+        }
+    }
+
     /** Whether the slot at {@code valueAddress} is null, which its stored length says. */
     @Override
     public boolean isNullSlot(long valueAddress) throws IOException {

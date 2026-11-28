@@ -57,7 +57,15 @@ final class ColumnarByteLengthPageReader implements Releasable {
         for (int i = 0; i < count; i++) {
             wanted[i] = docs.get(offset + i);
         }
-        columnar.reader().readByteLengths(wanted, 0, count, counts, lengths, budget);
+        final boolean oneValueEach = columnar.reader().readByteLengths(wanted, 0, count, counts, lengths, budget);
+        if (oneValueEach && count > 0) {
+            // Every document holds one value, so the lengths are the page as it is: a dense vector, with no null to
+            // check for and no value to append one at a time.
+            try (BlockLoader.SingletonIntBuilder builder = factory.singletonInts(count)) {
+                builder.appendInts(lengths, 0, count);
+                return builder.build();
+            }
+        }
         try (BlockLoader.IntBuilder builder = factory.ints(count)) {
             for (int i = 0; i < count; i++) {
                 if (counts[i] == 1) {

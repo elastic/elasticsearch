@@ -20,6 +20,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -406,6 +408,7 @@ public class PlainValuesTests extends ESTestCase {
                 for (int probe = 0; probe < 2 * n; probe++) {
                     assertSlot(label, reader, values, between(0, n - 1));
                 }
+                assertLengthsAt(label, reader, values);
                 // A repeat read right after the value it repeats answers with that value's stored bytes.
                 final BytesRef scratch = new BytesRef();
                 for (int i = 1; i < n; i++) {
@@ -422,6 +425,51 @@ public class PlainValuesTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * The lengths of a page of ranks, read without the byte offsets: they are what {@code length} answers for every
+     * non-null slot, in pages of any size that ascend, repeat a rank, skip a rank, or run backwards, whatever
+     * blocks of lengths the runs of repeats cross. A negative rank is left alone.
+     */
+    private static void assertLengthsAt(String label, PlainValues.Reader reader, List<BytesRef> values) throws IOException {
+        final List<Integer> asked = new ArrayList<>();
+        for (int i = 0; i < values.size(); i++) {
+            if (values.get(i) == null || randomInt(3) == 0) {
+                continue;
+            }
+            asked.add(i);
+            if (randomInt(20) == 0) {
+                asked.add(i);
+            }
+            if (randomInt(30) == 0) {
+                asked.add(-1);
+            }
+        }
+        if (randomBoolean()) {
+            Collections.reverse(asked);
+        }
+        int from = 0;
+        while (from < asked.size()) {
+            final int count = Math.min(asked.size() - from, randomFrom(1, 7, 128, between(1, 4096)));
+            final int[] ranks = new int[count];
+            final int[] lengths = new int[count];
+            final int untouched = -7;
+            Arrays.fill(lengths, untouched);
+            for (int i = 0; i < count; i++) {
+                ranks[i] = asked.get(from + i);
+            }
+            reader.lengthsAt(ranks, count, lengths);
+            for (int i = 0; i < count; i++) {
+                if (ranks[i] < 0) {
+                    assertEquals(label + " skipped rank at " + (from + i), untouched, lengths[i]);
+                } else {
+                    assertEquals(label + " length of rank " + ranks[i], values.get(ranks[i]).length, lengths[i]);
+                    assertEquals(label + " length of rank " + ranks[i] + " against length()", reader.length(ranks[i]), lengths[i]);
+                }
+            }
+            from += count;
         }
     }
 

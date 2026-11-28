@@ -43,9 +43,10 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
         HttpServerTransport httpServerTransport,
         TransportService transportService,
         TerminationHandler terminationHandler,
-        Collection<String> actionsToAwait
+        Collection<String> actionsToAwait,
+        Collection<PluginDrain> pluginDrains
     ) {
-        super(settings, httpServerTransport, transportService, terminationHandler, actionsToAwait);
+        super(settings, httpServerTransport, transportService, terminationHandler, actionsToAwait, pluginDrains);
     }
 
     /// Marker plugin to indicate we should use the listenable service

@@ -1,0 +1,5 @@
+area: Infra/Node Lifecycle
+issues: []
+pr: 166615
+summary: Drain shutdown work after the termination handler confirms readiness
+type: enhancement

@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -142,13 +143,14 @@ class Netty4HttpClient implements Closeable {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.sync();
 
+            var writeFutures = new ArrayList<ChannelFuture>();
             boolean needsFinalFlush = false;
             for (HttpRequest request : requests) {
                 if (ESTestCase.randomBoolean()) {
-                    channelFuture.channel().writeAndFlush(request);
+                    writeFutures.add(channelFuture.channel().writeAndFlush(request));
                     needsFinalFlush = false;
                 } else {
-                    channelFuture.channel().write(request);
+                    writeFutures.add(channelFuture.channel().write(request));
                     needsFinalFlush = true;
                 }
             }
@@ -157,9 +159,25 @@ class Netty4HttpClient implements Closeable {
             }
 
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
-                fail("Failed to get all expected responses.");
-            }
+                int incompleteWrites = 0;
+                StringBuilder writeFailures = new StringBuilder();
+                for (var future : writeFutures) {
+                    if (future.isDone() && future.isSuccess() == false) {
+                        writeFailures.append(future.cause()).append('\n');
+                    } else if (future.isDone() == false) {
+                        incompleteWrites++;
+                    }
+                }
 
+                var responseStatus = new ArrayList<>(content).stream().map(HttpResponse::status).toList();
+                fail(String.format(Locale.ROOT, """
+                        Failed to get all expected responses for [%d] sent requests, [%d] writes are not completed.
+                        Write failures:
+                        [%s]
+                        Received response status codes:
+                        [%s]
+                    """, requests.size(), incompleteWrites, writeFailures.isEmpty() ? "none" : writeFailures, responseStatus));
+            }
         } finally {
             if (channelFuture != null) {
                 channelFuture.channel().close().sync();

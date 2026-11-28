@@ -10,18 +10,26 @@ package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 
 public class CartesianShapeIndexFieldData extends AbstractShapeIndexFieldData<CartesianShapeValues> {
+    private final GeometryDocValueFormat docValueFormat;
+
+    /**
+     * @param docValueFormat the format of the field's doc values
+     */
     public CartesianShapeIndexFieldData(
         String fieldName,
+        GeometryDocValueFormat docValueFormat,
         ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<CartesianShapeValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, toScriptFieldFactory);
+        this.docValueFormat = docValueFormat;
     }
 
     @Override
@@ -31,7 +39,7 @@ public class CartesianShapeIndexFieldData extends AbstractShapeIndexFieldData<Ca
         if (info != null) {
             checkCompatible(info, "shape");
         }
-        return new CartesianShapeDVAtomicShapeFieldData(reader, fieldName, toScriptFieldFactory);
+        return new CartesianShapeDVAtomicShapeFieldData(reader, fieldName, docValueFormat, toScriptFieldFactory);
     }
 
     @Override

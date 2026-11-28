@@ -287,8 +287,15 @@ public class XYQueriesUtils {
     }
 
     /** Generates a lucene query for a field that has been previously indexed using {@link XYShape}.It expects
-     * either {code indexed} or {@code has docValues} to be true or both to be true. */
-    public static Query toXYShapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, IndexType indexType) {
+     * either {code indexed} or {@code has docValues} to be true or both to be true. {@code docValueFormat} is the
+     * format of the field's doc values. */
+    public static Query toXYShapeQuery(
+        Geometry geometry,
+        String fieldName,
+        ShapeRelation relation,
+        IndexType indexType,
+        GeometryDocValueFormat docValueFormat
+    ) {
         boolean indexed = indexType.hasPoints();
         boolean hasDocValues = indexType.hasDocValues();
         assert indexed || hasDocValues;
@@ -300,11 +307,16 @@ public class XYQueriesUtils {
         if (indexed) {
             query = XYShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
             if (hasDocValues) {
-                final Query queryDocValues = new CartesianShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+                final Query queryDocValues = new CartesianShapeDocValuesQuery(
+                    fieldName,
+                    docValueFormat,
+                    relation.getLuceneRelation(),
+                    luceneGeometries
+                );
                 query = new IndexOrDocValuesQuery(query, queryDocValues);
             }
         } else {
-            query = new CartesianShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            query = new CartesianShapeDocValuesQuery(fieldName, docValueFormat, relation.getLuceneRelation(), luceneGeometries);
         }
         return query;
     }

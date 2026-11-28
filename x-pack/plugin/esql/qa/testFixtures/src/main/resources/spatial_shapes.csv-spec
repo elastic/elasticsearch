@@ -78,15 +78,31 @@ abbrev:keyword | name:text    | location:geo_shape                         | cou
 ;
 
 simpleLoadFromCityBoundaries
+required_capability: st_npoints
 FROM airport_city_boundaries
 | WHERE abbrev == "CPH"
-| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
-| KEEP abbrev, region, city_location, airport, boundary_wkt_length
+| EVAL boundary_length = ST_NPOINTS(city_boundary)
+| KEEP abbrev, region, city_location, airport, boundary_length
 | LIMIT 1
 ;
 
-abbrev:keyword  |  region:text         |  city_location:geo_point |  airport:text  |  boundary_wkt_length:integer
-CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen    |  265
+abbrev:keyword  |  region:text         |  city_location:geo_point |  airport:text  |  boundary_length:integer
+CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen    |  15
+;
+
+cityBoundaryPointsAndIntersects
+required_capability: st_npoints
+required_capability: st_intersects
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL boundary_length = ST_NPOINTS(city_boundary)
+| EVAL hit = ST_INTERSECTS(city_boundary, TO_GEOSHAPE("POLYGON((12 55, 13 55, 13 56, 12 56, 12 55))"))
+| SORT abbrev
+| KEEP abbrev, boundary_length, hit
+;
+
+abbrev:keyword | boundary_length:integer | hit:boolean
+CPH            | 15                      | true
 ;
 
 ###############################################

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
@@ -20,18 +21,13 @@ public class CartesianShapeValuesGenericWriteableTests extends ShapeValuesGeneri
     }
 
     @Override
-    protected GenericWriteableWrapper createTestInstance() {
-        try {
-            double minX = randomDoubleBetween(-Float.MAX_VALUE, 0, false);
-            double minY = randomDoubleBetween(-Float.MAX_VALUE, 0, false);
-            double maxX = randomDoubleBetween(minX + 10, Float.MAX_VALUE, false);
-            double maxY = randomDoubleBetween(minY + 10, Float.MAX_VALUE, false);
-            Rectangle rectangle = new Rectangle(minX, maxX, maxY, minY);
-            CartesianShapeValues.CartesianShapeValue shapeValue = GeoTestUtils.cartesianShapeValue(rectangle);
-            return new GenericWriteableWrapper(shapeValue);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    protected ShapeValues.ShapeValue randomShapeValue(GeometryDocValueFormat format) throws IOException {
+        double minX = randomDoubleBetween(-Float.MAX_VALUE, 0, false);
+        double minY = randomDoubleBetween(-Float.MAX_VALUE, 0, false);
+        double maxX = randomDoubleBetween(minX + 10, Float.MAX_VALUE, false);
+        double maxY = randomDoubleBetween(minY + 10, Float.MAX_VALUE, false);
+        Rectangle rectangle = new Rectangle(minX, maxX, maxY, minY);
+        return GeoTestUtils.cartesianShapeValue(rectangle, format);
     }
 
     @Override

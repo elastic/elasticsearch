@@ -17,8 +17,10 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,7 +31,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +50,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNull {
+public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNull, BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StSimplify",
@@ -54,7 +58,10 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StSimplify.class)
         .binary(StSimplify::new)
+        // Non-constant inputs are quantized to the Lucene grid, matching the coordinates of shape fields simplified from doc values
+        .capabilities("quantized")
         .name("st_simplify");
+    /** Used for constant geometries, which are not quantized, and for doc-values geometries, which already are. */
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(
         UNSPECIFIED,
         IterativeDouglasPeuckerSimplifier::simplify
@@ -75,7 +82,9 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
         briefSummary = "Simplifies the input geometry using the Douglas-Peucker algorithm with a specified tolerance.",
         description = "Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
-            + "Note that the resulting geometry may be invalid, even if the original input was valid.",
+            + "Note that the resulting geometry may be invalid, even if the original input was valid. "
+            + "Except for constant geometries, input coordinates are first rounded to the precision of indexed spatial fields, "
+            + "so results do not depend on whether the geometry is loaded from the index or from the document source.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = @Example(file = "spatial-jts", tag = "st_simplify"),
@@ -190,7 +199,34 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
                 inputTolerance
             );
         }
-        return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
+        // For WKB, we need to know if it is Geo or Cartesian to quantize the inputs to match Lucene grids
+        return DataType.isSpatialGeo(geometry.dataType())
+            ? new StSimplifyNonFoldableGeoShapeAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance)
+            : new StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
+    }
+
+    /**
+     * Fuses this function into the loading of a {@code geo_shape} or {@code cartesian_shape} field whose doc values can
+     * reconstruct the original geometry, so the geometry is converted straight from the doc values into JTS and only
+     * the simplified result is written as WKB. See {@link BlockLoaderExpression} for the general mechanism. A tolerance
+     * that is not a non-negative constant number keeps using the evaluator so that it reports the error. Like the
+     * evaluator on doc-values input, the input coordinates are those of the doc values, already on the Lucene grid.
+     */
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        FieldAttribute field = fusableShapeField(geometry, stats);
+        Double inputTolerance = constantNumber(tolerance);
+        if (field == null || inputTolerance == null || inputTolerance < 0) {
+            return null;
+        }
+        return new PushedBlockLoaderExpression(
+            field,
+            new BlockLoaderFunctionConfig.GeometryTransform(
+                BlockLoaderFunctionConfig.Function.ST_SIMPLIFY,
+                inputTolerance,
+                processor.transformers(inputTolerance)
+            )
+        );
     }
 
     @Override
@@ -211,14 +247,24 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
         };
     }
 
-    @Evaluator(extraName = "NonFoldableGeometryAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
-    static void processNonFoldableGeometryAndConstantTolerance(
+    @Evaluator(extraName = "NonFoldableGeoShapeAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
+    static void processGeoShapeAndConstantTolerance(
         BytesRefBlock.Builder builder,
         @Position int p,
         BytesRefBlock geometry,
         @Fixed double tolerance
     ) {
-        processor.processGeometries(builder, p, geometry, tolerance);
+        geoProcessor.processGeometries(builder, p, geometry, tolerance);
+    }
+
+    @Evaluator(extraName = "NonFoldableCartesianShapeAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
+    static void processCartesianShapeAndConstantTolerance(
+        BytesRefBlock.Builder builder,
+        @Position int p,
+        BytesRefBlock geometry,
+        @Fixed double tolerance
+    ) {
+        cartesianProcessor.processGeometries(builder, p, geometry, tolerance);
     }
 
     @Evaluator(

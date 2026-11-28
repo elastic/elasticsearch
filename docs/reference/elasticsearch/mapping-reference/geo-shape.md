@@ -45,7 +45,7 @@ In [GeoJSON](https://datatracker.ietf.org/doc/html/rfc7946) and [WKT](https://ww
 | `ignore_z_value` | If `true` (default) three dimension points will be accepted (stored in source)but only latitude and longitude values will be indexed; the third dimension is ignored. If `false`,geopoints containing any more than latitude and longitude (two dimensions) values throw an exceptionand reject the whole document. | `true` |
 | `coerce` | If `true` unclosed linear rings in polygons will be automatically closed. | `false` |
 | `index` | Should the field be quickly searchable? Accepts `true` (default) and `false`.Fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower. | `true` |
-| `doc_values` | Should the field be stored on disk in a column-stride fashion,so that it can later be used for aggregations or scripting? | `true` |
+| `doc_values` | Should the field be stored on disk in a column-stride fashion, so that it can later be used for aggregations, scripting, or {{esql}} spatial functions? Refer to [Doc values](#geoshape-doc-values). | `true` |
 
 
 ### Indexing approach [geoshape-indexing-approach]
@@ -68,6 +68,17 @@ PUT /example
 }
 ```
 % TESTSETUP
+
+### Doc values [geoshape-doc-values]
+
+When `doc_values` is enabled, each `geo_shape` value is also stored on disk, encoded at the same precision as the index. Aggregations such as [`geo_bounds`](/reference/aggregations/search-aggregations-metrics-geobounds-aggregation.md), [`geo_centroid`](/reference/aggregations/search-aggregations-metrics-geocentroid-aggregation.md), and the geo grid aggregations read these doc values instead of the `_source`.
+
+How a value is stored depends on the version the index was created in:
+
+* {applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` Each value stores its vertices once, in a table that is shared by a tree of the triangles in its triangular mesh and by a description of how the vertices connect into the original points, lines, and polygons. The original geometry can therefore be rebuilt from the doc values, at the precision of the index. Values made only of points store just the table of points.
+* In indices created in earlier versions, each value is stored as a tree of the triangles in its triangular mesh, with the coordinates inline. These indices keep this layout until they are reindexed.
+
+{applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` [{{esql}} spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) use the rebuilt geometry to read geoshapes from doc values instead of the `_source` when the original field is not returned by the query. In indices created in earlier versions, they read geoshapes from the `_source`. Refer to [Spatial precision](/reference/query-languages/esql/limitations.md#esql-limitations-spatial-precision).
 
 ### Input Structure [input-structure]
 
@@ -367,4 +378,4 @@ Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [cir
 
 ### Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes]
 
-Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `geo_shape` value is only retrievable through the `_source` field.
+Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `geo_shape` value is only retrievable through the `_source` field. {{esql}} spatial functions can process a geoshape reconstructed from [doc values](#geoshape-doc-values) at index precision, but returning the original value still requires the `_source`.

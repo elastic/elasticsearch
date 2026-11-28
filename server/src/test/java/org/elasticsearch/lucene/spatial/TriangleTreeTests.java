@@ -16,24 +16,72 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TriangleTreeTests extends ESTestCase {
 
     public void testVisitAllTriangles() throws IOException {
         Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 10), false);
-        // write tree
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
-        List<IndexableField> fieldList = indexer.indexShape(geometry);
+        Geometry normalized = indexer.normalize(geometry);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        // Write using V2 format: tree + vertex table
+        VertexLookupTable.Builder vtBuilder = VertexLookupTable.builder();
+        BytesStreamOutput output = new BytesStreamOutput();
+        Extent writtenExtent = V2TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
+        vtBuilder.writeTo(output, writtenExtent);
+
+        // Read tree (extent → treeLength → tree) then vertex table
+        ByteArrayStreamInput input = new ByteArrayStreamInput();
+        BytesRef bytesRef = output.bytes().toBytesRef();
+        input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        Extent extent = new Extent();
+        Extent.readFromCompressed(input, extent);
+        int treeLength = input.readVInt();
+        int treeStart = input.getPosition();
+        input.skipBytes(treeLength);
+        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes, extent);
+
+        input.setPosition(treeStart);
+        TriangleCounterVisitor visitor = new TriangleCounterVisitor();
+        V2TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY(), vertexTable);
+        assertThat(fieldList.size(), equalTo(visitor.counter));
+    }
+
+    public void testVisitAllTrianglesLegacy() throws IOException {
+        Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 10), false);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(geometry);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        // Write using legacy format: coordinate deltas
         BytesStreamOutput output = new BytesStreamOutput();
         TriangleTreeWriter.writeTo(output, fieldList);
-        // read tree
+
+        // Read tree
         ByteArrayStreamInput input = new ByteArrayStreamInput();
         BytesRef bytesRef = output.bytes().toBytesRef();
         input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
@@ -42,6 +90,572 @@ public class TriangleTreeTests extends ESTestCase {
         TriangleCounterVisitor visitor = new TriangleCounterVisitor();
         TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY());
         assertThat(fieldList.size(), equalTo(visitor.counter));
+    }
+
+    public void testVertexDeduplication() throws IOException {
+        // A polygon with 4 vertices tessellates into 2 triangles sharing 2 vertices
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0, 0 }, new double[] { 0, 0, 1, 1, 0 }));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = indexer.indexShape(polygon);
+
+        VertexLookupTable.Builder vtBuilder = VertexLookupTable.builder();
+        BytesStreamOutput output = new BytesStreamOutput();
+        Extent writtenExtent = V2TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
+
+        // Builder should have 4 unique vertices, regardless of how many triangles reference them
+        assertThat(vtBuilder.size(), equalTo(4));
+
+        // Write the vertex table and read it back to verify the round-trip
+        vtBuilder.writeTo(output, writtenExtent);
+        ByteArrayStreamInput input = new ByteArrayStreamInput();
+        BytesRef bytesRef = output.bytes().toBytesRef();
+        input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        Extent extent = new Extent();
+        Extent.readFromCompressed(input, extent);
+        int treeLength = input.readVInt();
+        input.skipBytes(treeLength);
+        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes, extent);
+        assertThat(vertexTable.size(), equalTo(4));
+
+        // Should have at least 2 triangles
+        assertThat(fieldList.size(), greaterThan(1));
+    }
+
+    public void testExtentDoesNotLoadVertexTable() throws IOException {
+        // Use a polygon (not a point) since write() auto-selects legacy for points
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(polygon);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(polygon);
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
+
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+
+        // Reading centroid should work without loading anything extra
+        assertNotEquals(0, reader.getCentroidX());
+        assertNotEquals(0, reader.getCentroidY());
+        assertNotNull(reader.getDimensionalShapeType());
+        assertNotEquals(0.0, reader.getSumCentroidWeight());
+
+        // Reading extent should work without loading vertex table
+        Extent extent = reader.getExtent();
+        assertNotNull(extent);
+    }
+
+    public void testPointUsesV2PointsLayout() throws IOException {
+        Point point = new Point(5.0, 10.0);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(point);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(point);
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(point));
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
+        assertThat(bytesRef.length, lessThan(legacyBytes.length));
+
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+        assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+        assertThat(reader.getSumCentroidWeight(), equalTo(1.0));
+        assertThat(reader.getVertexTable().size(), equalTo(1));
+
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.type(), equalTo(normalized.type()));
+        Point expected = new Point(
+            CoordinateEncoder.GEO.decodeX(CoordinateEncoder.GEO.encodeX(point.getX())),
+            CoordinateEncoder.GEO.decodeY(CoordinateEncoder.GEO.encodeY(point.getY()))
+        );
+        assertThat(reconstructed, equalTo(expected));
+
+        TriangleCounterVisitor counter = new TriangleCounterVisitor();
+        reader.visit(counter);
+        assertThat(counter.counter, equalTo(1));
+    }
+
+    public void testMultiPointUsesV2PointsLayout() throws IOException {
+        MultiPoint multiPoint = new MultiPoint(List.of(new Point(0, 0), new Point(5, 5), new Point(10, 10)));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(multiPoint);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(multiPoint);
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(multiPoint));
+
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+        assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+        assertThat(reader.getSumCentroidWeight(), equalTo(3.0));
+
+        // Geometry reconstruction should produce a MultiPoint with all 3 points
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.type(), equalTo(normalized.type()));
+        assertThat(((MultiPoint) reconstructed).size(), equalTo(3));
+    }
+
+    public void testDegenerateLineStoresWeightAsCount() throws IOException {
+        Line line = new Line(new double[] { 1, 1, 1 }, new double[] { 1, 1, 1 });
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = indexer.getIndexableFields(indexer.normalize(line));
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(line);
+        assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(line)));
+        assertThat(reader.getSumCentroidWeight(), equalTo(centroidCalculator.sumWeight()));
+        assertThat(reader.getSumCentroidWeight(), equalTo(2.0));
+    }
+
+    public void testDegenerateLineUsesV2NotLegacy() throws IOException {
+        // Zero-length lines have DimensionalShapeType.POINT, but must still use V2 so reconstruction
+        // preserves the Line type instead of collapsing to a Point.
+        Line line = new Line(new double[] { 1, 1 }, new double[] { 1, 1 });
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(line);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(line);
+        assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(line));
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.type(), equalTo(ShapeType.LINESTRING));
+    }
+
+    public void testPointOnlyGeometryCollectionUsesV2() throws IOException {
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(List.of(new Point(1, 2), new Point(3, 4)));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(collection);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(collection);
+        assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(collection));
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.type(), equalTo(ShapeType.GEOMETRYCOLLECTION));
+    }
+
+    public void testEmptyNestedGeometryCollectionReconstruction() throws IOException {
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(
+            List.of(new Line(new double[] { 0, 1 }, new double[] { 0, 1 }), GeometryCollection.EMPTY)
+        );
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(collection);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(collection);
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(collection));
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.type(), equalTo(ShapeType.GEOMETRYCOLLECTION));
+        GeometryCollection<?> reconstructedCollection = (GeometryCollection<?>) reconstructed;
+        assertThat(reconstructedCollection.size(), equalTo(2));
+        assertThat(reconstructedCollection.get(1), equalTo(GeometryCollection.EMPTY));
+    }
+
+    /**
+     * Empty parts are dropped by normalization before tessellation, but the connectivity is written from the original
+     * geometry, so it must encode them and reconstruct them as their empty geometries.
+     */
+    public void testEmptyPartsReconstruction() throws IOException, ParseException {
+        for (String wkt : List.of(
+            "GEOMETRYCOLLECTION (LINESTRING EMPTY, POINT (181 0))",
+            "GEOMETRYCOLLECTION (LINESTRING EMPTY, LINESTRING (170 0, 190 0))",
+            "GEOMETRYCOLLECTION (POINT EMPTY, POINT (1 1))",
+            "GEOMETRYCOLLECTION (BBOX EMPTY, POINT (1 1))",
+            "GEOMETRYCOLLECTION (MULTIPOINT EMPTY, LINESTRING (0 0, 1 1))",
+            "MULTILINESTRING (EMPTY, (190 0, 200 1))",
+            "MULTILINESTRING (EMPTY, (170 0, 190 0))"
+        )) {
+            Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), false, wkt);
+            GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+            List<IndexableField> fieldList = indexer.getIndexableFields(indexer.normalize(geometry));
+            CentroidCalculator centroidCalculator = new CentroidCalculator();
+            centroidCalculator.add(geometry);
+
+            BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry));
+            GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+            reader.reset(bytesRef);
+            assertSameStructure(wkt, geometry, reader.getGeometry(CoordinateEncoder.GEO));
+        }
+    }
+
+    /** Multiple values are wrapped in a collection, which must not exceed the nesting depth that each value is within. */
+    public void testMultipleValuesAtMaximumNestingDepth() throws IOException {
+        Geometry deepest = new Point(1, 2);
+        for (int i = 0; i < WellKnownText.MAX_NESTED_DEPTH; i++) {
+            deepest = new GeometryCollection<>(List.of(deepest));
+        }
+        List<Geometry> values = List.of(deepest, new Point(3, 4));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = new ArrayList<>();
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        for (Geometry value : values) {
+            fieldList.addAll(indexer.getIndexableFields(indexer.normalize(value)));
+            centroidCalculator.add(value);
+        }
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, values);
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+        GeometryCollection<?> reconstructed = (GeometryCollection<?>) reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat(reconstructed.size(), equalTo(2));
+        assertThat(reconstructed.get(0).type(), equalTo(ShapeType.GEOMETRYCOLLECTION));
+        assertThat(reconstructed.get(1).type(), equalTo(ShapeType.POINT));
+    }
+
+    /** Asserts that two geometries have the same types, sizes and empty parts, ignoring coordinates. */
+    private static void assertSameStructure(String wkt, Geometry expected, Geometry actual) {
+        assertThat(wkt, actual.type(), equalTo(expected.type()));
+        assertThat(wkt, actual.isEmpty(), equalTo(expected.isEmpty()));
+        if (expected instanceof GeometryCollection<?> expectedCollection) {
+            GeometryCollection<?> actualCollection = (GeometryCollection<?>) actual;
+            assertThat(wkt, actualCollection.size(), equalTo(expectedCollection.size()));
+            for (int i = 0; i < expectedCollection.size(); i++) {
+                assertSameStructure(wkt, expectedCollection.get(i), actualCollection.get(i));
+            }
+        } else if (expected instanceof Polygon expectedPolygon && expected.isEmpty() == false) {
+            assertThat(wkt, ((Polygon) actual).getNumberOfHoles(), equalTo(expectedPolygon.getNumberOfHoles()));
+        } else if (expected instanceof Line expectedLine) {
+            assertThat(wkt, ((Line) actual).length(), equalTo(expectedLine.length()));
+        }
+    }
+
+    public void testFullDocValueRoundTrip() throws IOException {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(polygon);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(polygon);
+
+        // Write V2 format explicitly (write() also selects V2 for polygons, but be explicit)
+        BytesRef bytesRef = GeometryDocValueWriter.writeV2(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
+
+        // Read and verify
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+
+        // Verify centroid is readable
+        assertNotEquals(0, reader.getCentroidX());
+        assertNotEquals(0, reader.getCentroidY());
+
+        // Verify extent is readable
+        Extent extent = reader.getExtent();
+        assertNotNull(extent);
+
+        // Verify triangle tree is visitable
+        TriangleCounterVisitor counter = new TriangleCounterVisitor();
+        reader.visit(counter);
+        assertThat(counter.counter, equalTo(fieldList.size()));
+
+        // Verify geometry reconstruction
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertNotNull(reconstructed);
+    }
+
+    public void testPointRoundTrip() throws IOException {
+        Point point = new Point(5.0, 10.0);
+        verifyGeometryRoundTrip(point);
+    }
+
+    public void testLineRoundTrip() throws IOException {
+        Line line = new Line(new double[] { 0, 5, 10 }, new double[] { 0, 5, 0 });
+        verifyGeometryRoundTrip(line);
+    }
+
+    public void testMultiPointRoundTrip() throws IOException {
+        MultiPoint multiPoint = new MultiPoint(List.of(new Point(0, 0), new Point(5, 5), new Point(10, 10)));
+        verifyGeometryRoundTrip(multiPoint);
+    }
+
+    private void verifyGeometryRoundTrip(Geometry geometry) throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(geometry);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry));
+
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(bytesRef);
+
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertNotNull(reconstructed);
+
+        // Verify the reconstructed geometry has the same type
+        assertThat(reconstructed.type(), equalTo(geometry.type()));
+    }
+
+    // ---- Legacy format backward compatibility tests ----
+
+    /**
+     * Indices created before {@link GeometryDocValueFormat#V2} keep being written in the legacy format, so its bytes
+     * must not change. The expected bytes were written by the writer as it was before the V2 format was added.
+     */
+    public void testLegacyFormatBytesUnchanged() throws IOException, ParseException {
+        assertLegacyBytes(
+            "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))",
+            "038e38e3071c71c702808080808080c0ac400e38e38e8ec7e3710100c7e3f13832c7e3f13800c7e3f1388ec7e371008ec7e37100000d60c7e3f13800"
+                + "008ec7e3710000"
+        );
+        assertLegacyBytes(
+            "LINESTRING (0 0, 5 5, 10 0)",
+            "038e38e3038e38e301c095fc80e098929640071c71c7c7e3f1380100c7e3f1381ac7e3f138c7e3f138e4f1b81c0000000b18e4f1b81c0000c7e3f138"
+        );
+        assertLegacyBytes(
+            "MULTIPOINT (1 1, 2 2, 3 3)",
+            "016c16c102d82d82008080808080808084400444444483dbe01601e096d805c2adb00b07e196d805c2adb00bc2adb00b83dbe01603040000000003"
+                + "040000"
+        );
+        assertLegacyBytes("POINT (1 2)", "00b60b6002d82d820080808080808080f83f02d82d820001e096d80500040000");
+    }
+
+    private static void assertLegacyBytes(String wkt, String expectedHex) throws IOException, ParseException {
+        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), false, wkt);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+        List<IndexableField> fields = new GeoShapeIndexer(Orientation.CCW, "test").indexShape(geometry);
+        BytesRef bytes = GeometryDocValueWriter.writeLegacy(fields, CoordinateEncoder.GEO, centroidCalculator);
+        assertThat(wkt, HexFormat.of().formatHex(bytes.bytes, bytes.offset, bytes.length), equalTo(expectedHex));
+    }
+
+    public void testLegacyFormatBackwardCompatibility() throws IOException {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(polygon);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(polygon);
+
+        // Write in legacy format
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
+
+        // Read with the new reader
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
+        reader.reset(legacyBytes);
+
+        // Centroid should be readable
+        assertNotEquals(0, reader.getCentroidX());
+        assertNotEquals(0, reader.getCentroidY());
+
+        // DimensionalShapeType should be readable
+        assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POLYGON));
+
+        // Extent should be readable
+        Extent extent = reader.getExtent();
+        assertNotNull(extent);
+
+        // Triangle tree should be visitable using legacy reader path
+        TriangleCounterVisitor counter = new TriangleCounterVisitor();
+        reader.visit(counter);
+        assertThat(counter.counter, equalTo(fieldList.size()));
+
+        // Geometry reconstruction should return null for legacy format
+        assertThat(reader.getGeometry(CoordinateEncoder.GEO), nullValue());
+    }
+
+    public void testLegacyFormatRandomGeometries() throws IOException {
+        Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 10), false);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(geometry);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+
+        // Write in legacy format using production code
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
+
+        // Read with the new reader
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
+        reader.reset(legacyBytes);
+
+        // Extent should be readable
+        assertNotNull(reader.getExtent());
+
+        // Tree should be visitable
+        TriangleCounterVisitor counter = new TriangleCounterVisitor();
+        reader.visit(counter);
+        assertThat(counter.counter, equalTo(fieldList.size()));
+
+        // Geometry reconstruction: available for POINT type (from tree), null for others
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        if (reader.getDimensionalShapeType() == DimensionalShapeType.POINT) {
+            assertNotNull(reconstructed);
+        } else {
+            assertThat(reconstructed, nullValue());
+        }
+    }
+
+    public void testLegacyAndV2ProduceSameTriangles() throws IOException {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(polygon);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(polygon);
+
+        // Write both formats
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
+        BytesRef v2Bytes = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
+
+        GeometryDocValueReader legacyReader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
+        legacyReader.reset(legacyBytes);
+
+        GeometryDocValueReader v2Reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        v2Reader.reset(v2Bytes);
+
+        // Both should have same centroid
+        assertThat(legacyReader.getCentroidX(), equalTo(v2Reader.getCentroidX()));
+        assertThat(legacyReader.getCentroidY(), equalTo(v2Reader.getCentroidY()));
+
+        // Both should have same extent
+        Extent legacyExtent = legacyReader.getExtent();
+        Extent v2Extent = v2Reader.getExtent();
+        assertThat(legacyExtent.minX(), equalTo(v2Extent.minX()));
+        assertThat(legacyExtent.maxX(), equalTo(v2Extent.maxX()));
+        assertThat(legacyExtent.minY(), equalTo(v2Extent.minY()));
+        assertThat(legacyExtent.maxY(), equalTo(v2Extent.maxY()));
+
+        // Both should visit the same number of triangles
+        TriangleCounterVisitor legacyCounter = new TriangleCounterVisitor();
+        legacyReader.visit(legacyCounter);
+        TriangleCounterVisitor v2Counter = new TriangleCounterVisitor();
+        v2Reader.visit(v2Counter);
+        assertThat(legacyCounter.counter, equalTo(v2Counter.counter));
+    }
+
+    /**
+     * Multi-lines where each line continues from the end of the previous one, as is common in OSM data, store the shared
+     * vertex only once, and still reconstruct exactly and visit the same segments as the legacy format.
+     */
+    public void testJoinedMultiLine() throws IOException {
+        int numLines = randomIntBetween(2, 10);
+        List<Line> lines = new ArrayList<>(numLines);
+        double x = randomDoubleBetween(-170, 170, true);
+        double y = randomDoubleBetween(-80, 80, true);
+        int joinedLines = 0;
+        for (int i = 0; i < numLines; i++) {
+            boolean joined = i > 0 && randomBoolean();
+            if (i > 0 && joined == false) {
+                x += 0.01;
+                y += 0.01;
+            }
+            joinedLines += joined ? 1 : 0;
+            int numVertices = randomIntBetween(2, 20);
+            double[] xs = new double[numVertices];
+            double[] ys = new double[numVertices];
+            for (int v = 0; v < numVertices; v++) {
+                if (v > 0) {
+                    x += randomDoubleBetween(0.0001, 0.001, true);
+                    y += randomDoubleBetween(-0.001, 0.001, true);
+                }
+                xs[v] = x;
+                ys[v] = y;
+            }
+            lines.add(new Line(xs, ys));
+        }
+        MultiLine multiLine = new MultiLine(lines);
+        BytesRef v2Bytes = writeV2(multiLine);
+
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(v2Bytes);
+        assertThat(reader.getGeometry(CoordinateEncoder.GEO), equalTo(quantize(multiLine)));
+        int totalVertices = lines.stream().mapToInt(Line::length).sum();
+        assertThat(reader.getVertexTable().size(), equalTo(totalVertices - joinedLines));
+        assertSameSegmentsAsLegacy(multiLine, v2Bytes);
+    }
+
+    public void testLineSegmentsMatchLegacy() throws IOException {
+        Geometry geometry = randomBoolean() ? GeometryTestUtils.randomLine(false) : GeometryTestUtils.randomMultiLine(false);
+        assertSameSegmentsAsLegacy(geometry, writeV2(geometry));
+    }
+
+    /** The last segment returns to an earlier vertex, so its second ordinal precedes its first. */
+    public void testLineReturningToPreviousVertex() throws IOException {
+        Line line = new Line(new double[] { 0, 1, 2, 1 }, new double[] { 0, 1, 0, 1 });
+        assertSameSegmentsAsLegacy(line, writeV2(line));
+    }
+
+    private static BytesRef writeV2(Geometry geometry) throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = indexer.getIndexableFields(indexer.normalize(geometry));
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+        return GeometryDocValueWriter.writeV2(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry));
+    }
+
+    private static void assertSameSegmentsAsLegacy(Geometry geometry, BytesRef v2Bytes) throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        List<IndexableField> fieldList = indexer.getIndexableFields(indexer.normalize(geometry));
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
+        BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
+        GeometryDocValueReader legacyReader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
+        legacyReader.reset(legacyBytes);
+        RecordingVisitor legacy = new RecordingVisitor();
+        legacyReader.visit(legacy);
+        GeometryDocValueReader v2Reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        v2Reader.reset(v2Bytes);
+        RecordingVisitor v2 = new RecordingVisitor();
+        v2Reader.visit(v2);
+        assertThat(v2.components, equalTo(legacy.components));
+    }
+
+    private static MultiLine quantize(MultiLine multiLine) {
+        List<Line> lines = new ArrayList<>();
+        for (Line line : multiLine) {
+            double[] xs = new double[line.length()];
+            double[] ys = new double[line.length()];
+            for (int i = 0; i < line.length(); i++) {
+                xs[i] = CoordinateEncoder.GEO.decodeX(CoordinateEncoder.GEO.encodeX(line.getX(i)));
+                ys[i] = CoordinateEncoder.GEO.decodeY(CoordinateEncoder.GEO.encodeY(line.getY(i)));
+            }
+            lines.add(new Line(xs, ys));
+        }
+        return new MultiLine(lines);
+    }
+
+    /** Records every visited component, including its metadata, in visiting order. */
+    private static class RecordingVisitor extends TriangleCounterVisitor {
+        final List<String> components = new ArrayList<>();
+
+        @Override
+        public void visitPoint(int x, int y) {
+            components.add("point " + x + " " + y);
+        }
+
+        @Override
+        public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
+            components.add("line " + aX + " " + aY + " " + bX + " " + bY + " " + metadata);
+        }
+
+        @Override
+        public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
+            components.add("triangle " + aX + " " + aY + " " + bX + " " + bY + " " + cX + " " + cY + " " + metadata);
+        }
     }
 
     private static class TriangleCounterVisitor implements TriangleTreeVisitor {

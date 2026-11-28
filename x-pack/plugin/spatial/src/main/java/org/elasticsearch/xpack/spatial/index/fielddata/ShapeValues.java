@@ -27,8 +27,10 @@ import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
+import org.elasticsearch.lucene.spatial.VertexLookupTable;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,7 +38,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * A stateful lightweight per document geo values.
@@ -55,13 +57,14 @@ import java.util.function.Supplier;
  */
 public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
     protected final CoordinateEncoder encoder;
-    protected final Supplier<T> supplier;
+    protected final Function<GeometryDocValueFormat, T> supplier;
     protected final ShapeIndexer missingShapeIndexer;
 
     /**
      * Creates a new {@link ShapeValues} instance
+     * @param supplier creates a {@link ShapeValue} that reads values in the given format
      */
-    protected ShapeValues(CoordinateEncoder encoder, Supplier<T> supplier, ShapeIndexer missingShapeIndexer) {
+    protected ShapeValues(CoordinateEncoder encoder, Function<GeometryDocValueFormat, T> supplier, ShapeIndexer missingShapeIndexer) {
         this.encoder = encoder;
         this.supplier = supplier;
         this.missingShapeIndexer = missingShapeIndexer;
@@ -89,9 +92,10 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
     public T missing(String missing) {
         try {
             final Geometry geometry = WellKnownText.fromWKT(geometryValidator(), true, missing);
-            final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder);
+            // The missing value only needs the triangle tree, which the legacy format holds without the vertex table
+            final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder, GeometryDocValueFormat.LEGACY);
             field.add(missingShapeIndexer.indexShape(geometry), geometry);
-            final T value = supplier.get();
+            final T value = supplier.apply(GeometryDocValueFormat.LEGACY);
             value.reset(field.binaryValue());
             return value;
         } catch (IOException | ParseException e) {
@@ -104,14 +108,29 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      * the provided decoder (could be geo or cartesian)
      */
     protected abstract static class ShapeValue implements ToXContentFragment, GenericNamedWriteable {
+        /**
+         * The format a value read from another node is decoded in. Values are only sent between nodes so that a script
+         * returning one can be rendered as unserializable on the coordinating node. Nothing reads a received value beyond
+         * its centroid, shape type and extent, which are laid out the same in both formats.
+         *
+         * <p>The bytes do not say which format they are in, so only those fields can be read from a received value. The
+         * weight of points is encoded differently in V2, and the rest of a V2 value is not a legacy triangle tree, so
+         * {@link #weight()}, {@link #labelPosition()}, {@link #relate} and {@link #visit} give wrong results or fail on a
+         * received V2 value. Reading any of them on the receiving side needs the format sent along with the bytes.
+         */
+        protected static final GeometryDocValueFormat RECEIVED_FORMAT = GeometryDocValueFormat.LEGACY;
+
         private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final CoordinateEncoder encoder;
         private final BiFunction<Double, Double, SpatialPoint> pointMaker;
         private final Component2DRelationVisitor component2DRelationVisitor;
 
-        public ShapeValue(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker) {
-            this.reader = new GeometryDocValueReader();
+        /**
+         * @param format the format of the doc values this value is {@link #reset(BytesRef) reset} to
+         */
+        public ShapeValue(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker, GeometryDocValueFormat format) {
+            this.reader = new GeometryDocValueReader(format);
             this.boundingBox = new BoundingBox();
             this.encoder = encoder;
             this.pointMaker = pointMaker;
@@ -161,6 +180,17 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
             // For polygons we prefer to use the centroid, as long as it is within the polygon
             if (reader.getDimensionalShapeType() == DimensionalShapeType.POLYGON && centroidWithinShape()) {
                 return pointMaker.apply(getX(), getY());
+            }
+            if (reader.isPointsOnly()) {
+                Extent extent = reader.getExtent();
+                if (extent.minX() == extent.maxX() && extent.minY() == extent.maxY()) {
+                    // A single point, or points that all coincide, which is the extent minimum and has no table to read
+                    return pointMaker.apply(encoder.decodeX(extent.minX()), encoder.decodeY(extent.minY()));
+                }
+                // Without a tree, the middle point in Morton order stands in for the root of the tree, near the middle
+                VertexLookupTable points = reader.getVertexTable();
+                long xy = points.getXY((points.size() - 1) / 2);
+                return pointMaker.apply(encoder.decodeX((int) (xy >>> 32)), encoder.decodeY((int) xy));
             }
             // For all other cases, use the first triangle (or line or point) in the tree which will always intersect the shape
             LabelPositionVisitor visitor = new LabelPositionVisitor(this.encoder, pointMaker);

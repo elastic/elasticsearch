@@ -229,7 +229,8 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         // Data with no x-range is not well sorted and odd choices occur for the first triangle tree node
         Line line = new Line(new double[] { 0, 0, 0, 0, 0 }, new double[] { -5, -1, 0, 1, 5 });
         doTestGeometry(line, GeoTestUtils.geoShapeValue(new Point(0, 3)));
-        doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(0, 1)));
+        // Points have no tree, and with equal x the Morton order sorts them by y
+        doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(0, 0)));
     }
 
     public void testOffVerticalLineString() throws Exception {

@@ -48,7 +48,7 @@ public class GeoGridFromDocValuesBlockLoaderTests extends AbstractNumericBlockLo
      * Used to verify that valid negative ids are not discarded as if they were the {@code -1} no-cell sentinel.
      */
     private static final int HIGH_PRECISION = Geohash.PRECISION;
-    private static final BlockLoaderFunctionConfig.GeoGridShapeTilerFactory POINTS_ONLY = warnings -> {
+    private static final BlockLoaderFunctionConfig.GeoGridShapeTilerFactory POINTS_ONLY = (warnings, format) -> {
         throw new AssertionError("shapes are not loaded by the point loader");
     };
     /** Roughly Europe and Africa, so a good share of the globally spread test points fall outside. */

@@ -17,8 +17,14 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -45,9 +51,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.ClusterInfoServiceUtils.refresh;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
@@ -369,6 +377,131 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         }
     }
 
+    public void testEstimatedHeapUsageCollectorReleasesRefreshAfterThrow() {
+        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
+            final Map<String, NodeHeapEstimates> nodeHeapEstimates = Map.of(
+                "node-id",
+                new NodeHeapEstimates(100L, 20L, randomLongBetween(1, 10_000))
+            );
+            final ShardHeapUsageEstimates shardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
+            final EstimatedHeapUsageCollector estimatedHeapUsageCollector = mock(EstimatedHeapUsageCollector.class);
+            doAnswer(invocation -> { throw new IllegalStateException("simulated estimated heap usage failure"); }).when(
+                estimatedHeapUsageCollector
+            ).collectEstimatedHeapUsage(any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                nodeStatsClient(context.threadPool()),
+                estimatedHeapUsageCollector,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY
+            );
+
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getNodeHeapMetrics(), equalTo(Map.of()));
+            assertThat(clusterInfo.getEstimatedShardHeapUsages(), equalTo(Map.of()));
+
+            doAnswer(invocation -> {
+                final ActionListener<EstimatedHeapUsageStats> listener = invocation.getArgument(0);
+                listener.onResponse(new EstimatedHeapUsageStats(nodeHeapEstimates, shardHeapUsageEstimates));
+                return null;
+            }).when(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());
+            clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getNodeHeapMetrics().get("node-id").nodeHeapEstimates(), equalTo(nodeHeapEstimates.get("node-id")));
+        }
+    }
+
+    public void testPartitionSizeCollectorReleasesRefreshAfterThrow() {
+        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
+            final Map<String, Long> partitionSizes = Map.of("node-id", 1234L);
+            final PartitionSizeCollector partitionSizeCollector = mock(PartitionSizeCollector.class);
+            doAnswer(invocation -> { throw new IllegalStateException("simulated partition size failure"); }).when(partitionSizeCollector)
+                .collectHostedShardsPartitionSizes(any(), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                nodeStatsClient(context.threadPool()),
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                partitionSizeCollector,
+                SearchLaneRequirementsCollector.EMPTY
+            );
+
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
+
+            doAnswer(invocation -> {
+                final ActionListener<Map<String, Long>> listener = invocation.getArgument(1);
+                listener.onResponse(partitionSizes);
+                return null;
+            }).when(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
+            clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getHostedShardsPartitionSizeByNodeId(), equalTo(partitionSizes));
+        }
+    }
+
+    public void testCacheSizesAndCommitmentCollectorReleasesRefreshAfterThrow() {
+        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
+            final CacheSizesAndCommitmentStats stats = new CacheSizesAndCommitmentStats(
+                Map.of(new ShardId("index", "uuid", 0), new BoostedAndUnboostedCacheRequirements(10L, 20L)),
+                Map.of("node-id", new NodeCacheSizeAndCommitments(100L, 10L, 30L))
+            );
+            final CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector = mock(CacheSizesAndCommitmentCollector.class);
+            doAnswer(invocation -> { throw new IllegalStateException("simulated cache sizes failure"); }).when(
+                cacheSizesAndCommitmentCollector
+            ).collectCacheSizesAndCommitmentStats(any(), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                nodeStatsClient(context.threadPool()),
+                EstimatedHeapUsageCollector.EMPTY,
+                cacheSizesAndCommitmentCollector,
+                PartitionSizeCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY
+            );
+
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getShardCacheRequirements(), equalTo(Map.of()));
+            assertThat(clusterInfo.getNodeCacheSizeAndCommitments(), equalTo(Map.of()));
+
+            doAnswer(invocation -> {
+                final ActionListener<CacheSizesAndCommitmentStats> listener = invocation.getArgument(1);
+                listener.onResponse(stats);
+                return null;
+            }).when(cacheSizesAndCommitmentCollector).collectCacheSizesAndCommitmentStats(any(), any());
+            clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getShardCacheRequirements(), equalTo(stats.shardCacheRequirements()));
+            assertThat(clusterInfo.getNodeCacheSizeAndCommitments(), equalTo(stats.nodeCacheSizeAndCommitments()));
+        }
+    }
+
+    public void testSearchLaneRequirementsCollectorReleasesRefreshAfterThrow() {
+        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
+            final Map<ShardId, Double> laneRequirements = Map.of(new ShardId("index", "uuid", 0), 1.5d);
+            final SearchLaneRequirementsCollector searchLaneRequirementsCollector = mock(SearchLaneRequirementsCollector.class);
+            doAnswer(invocation -> { throw new IllegalStateException("simulated search lane requirements failure"); }).when(
+                searchLaneRequirementsCollector
+            ).collectSearchLaneRequirements(any(), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                nodeStatsClient(context.threadPool()),
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                searchLaneRequirementsCollector
+            );
+
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getShardSearchLaneRequirements(), equalTo(Map.of()));
+
+            doAnswer(invocation -> {
+                final ActionListener<Map<ShardId, Double>> listener = invocation.getArgument(1);
+                listener.onResponse(laneRequirements);
+                return null;
+            }).when(searchLaneRequirementsCollector).collectSearchLaneRequirements(any(), any());
+            clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getShardSearchLaneRequirements(), equalTo(laneRequirements));
+        }
+    }
+
     public void testSearchLoadMetricsCollectorCompletesAfterReturn() throws Exception {
         try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
             final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = searchCopyDemands();
@@ -429,6 +562,152 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             randomIdentifier(),
             new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
         );
+    }
+
+    public void testNodeUsageStatsCollectorReleasesRefreshAfterThrow() {
+        final Settings settings = baseSettingsBuilder().put(
+            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+            WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+        )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType.AVERAGE
+            )
+            .build();
+        try (RefreshTestContext context = RefreshTestContext.create(settings)) {
+            final ShardId shardId = new ShardId("index", "uuid", 0);
+            final Map<String, NodeUsageStatsForThreadPools> nodeUsage = Map.of(
+                "node-id",
+                new NodeUsageStatsForThreadPools(
+                    "node-id",
+                    Map.of("write", new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(1, 0.5f, 0L))
+                )
+            );
+            final Map<ShardId, Double> shardWriteLoads = Map.of(shardId, 2.0d);
+            final NodeUsageStatsForThreadPoolsCollector collector = mock(NodeUsageStatsForThreadPoolsCollector.class);
+            doAnswer(invocation -> { throw new IllegalStateException("simulated node usage stats failure"); }).when(collector)
+                .collectUsageStats(any(), any(), anyBoolean(), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                nodeStatsClient(context.threadPool()),
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY,
+                SearchLoadMetricsCollector.EMPTY,
+                collector
+            );
+
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getNodeUsageStatsForThreadPools(), equalTo(Map.of()));
+            assertThat(clusterInfo.getShardWriteLoads(), equalTo(Map.of()));
+
+            doAnswer(invocation -> {
+                final ActionListener<NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats> listener = invocation.getArgument(3);
+                listener.onResponse(new NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats(nodeUsage, shardWriteLoads));
+                return null;
+            }).when(collector).collectUsageStats(any(), any(), anyBoolean(), any());
+            clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getNodeUsageStatsForThreadPools(), equalTo(nodeUsage));
+            assertThat(clusterInfo.getShardWriteLoads(), equalTo(shardWriteLoads));
+        }
+    }
+
+    public void testIndicesStatsClientReleasesRefreshAfterThrow() throws Exception {
+        final Settings settings = baseSettingsBuilder().put(
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(),
+            true
+        ).build();
+        try (RefreshTestContext context = RefreshTestContext.create(settings)) {
+            final AtomicBoolean throwIndicesStats = new AtomicBoolean(true);
+            final Client client = mock(Client.class);
+            final AdminClient admin = mock(AdminClient.class);
+            final IndicesAdminClient indicesAdmin = mock(IndicesAdminClient.class);
+            final ClusterAdminClient clusterAdmin = mock(ClusterAdminClient.class);
+            when(client.admin()).thenReturn(admin);
+            when(admin.indices()).thenReturn(indicesAdmin);
+            when(admin.cluster()).thenReturn(clusterAdmin);
+            doAnswer(invocation -> {
+                if (throwIndicesStats.get()) {
+                    throw new IllegalStateException("simulated indices stats failure");
+                }
+                final ActionListener<IndicesStatsResponse> listener = invocation.getArgument(1);
+                final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
+                when(response.getShardFailures()).thenReturn(List.of());
+                when(response.getShards()).thenReturn(new ShardStats[0]);
+                listener.onResponse(response);
+                return null;
+            }).when(indicesAdmin).stats(any(IndicesStatsRequest.class), any());
+            doAnswer(invocation -> {
+                final ActionListener<NodesStatsResponse> listener = invocation.getArgument(1);
+                listener.onResponse(new NodesStatsResponse(new ClusterName("cluster"), List.of(nodeStats("node-id", 1_000L)), List.of()));
+                return null;
+            }).when(clusterAdmin).nodesStats(any(NodesStatsRequest.class), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                client,
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY
+            );
+
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getShardSize(new ShardId("index", "uuid", 0), true), equalTo(null));
+
+            throwIndicesStats.set(false);
+            final PlainActionFuture<ClusterInfo> future = new PlainActionFuture<>();
+            final Thread refreshThread = new Thread(() -> clusterInfoService.refreshAsync(future));
+            refreshThread.start();
+            try {
+                assertBusy(() -> {
+                    context.taskQueue().runAllRunnableTasks();
+                    assertTrue(future.isDone());
+                });
+                clusterInfo = future.actionGet(10, TimeUnit.SECONDS);
+            } finally {
+                refreshThread.join(10_000);
+            }
+            assertThat(clusterInfo.getShardSize(new ShardId("index", "uuid", 0), true), equalTo(null));
+            assertThat(clusterInfo.getMaxHeapSizePerNode().get("node-id"), equalTo(ByteSizeValue.ofBytes(1_000L)));
+        }
+    }
+
+    public void testNodeStatsClientReleasesRefreshAfterThrow() {
+        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
+            final AtomicBoolean throwNodeStats = new AtomicBoolean(true);
+            final Client client = mock(Client.class);
+            final AdminClient admin = mock(AdminClient.class);
+            final ClusterAdminClient clusterAdmin = mock(ClusterAdminClient.class);
+            when(client.admin()).thenReturn(admin);
+            when(admin.cluster()).thenReturn(clusterAdmin);
+            doAnswer(invocation -> {
+                if (throwNodeStats.get()) {
+                    throw new IllegalStateException("simulated node stats failure");
+                }
+                final ActionListener<NodesStatsResponse> listener = invocation.getArgument(1);
+                listener.onResponse(new NodesStatsResponse(new ClusterName("cluster"), List.of(nodeStats("node-id", 1_000L)), List.of()));
+                return null;
+            }).when(clusterAdmin).nodesStats(any(NodesStatsRequest.class), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                client,
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY
+            );
+
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getNodeLeastAvailableDiskUsages(), equalTo(Map.of()));
+            assertThat(clusterInfo.getNodeMostAvailableDiskUsages(), equalTo(Map.of()));
+            assertThat(clusterInfo.getNodeHeapMetrics(), equalTo(Map.of()));
+            assertThat(clusterInfo.getMaxHeapSizePerNode(), equalTo(Map.of()));
+
+            throwNodeStats.set(false);
+            clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getMaxHeapSizePerNode().get("node-id"), equalTo(ByteSizeValue.ofBytes(1_000L)));
+        }
     }
 
     private static InternalClusterInfoService searchLoadClusterInfoService(
@@ -497,13 +776,23 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         return nodeStatsMock;
     }
 
-    private record RefreshTestContext(Settings settings, ThreadPool threadPool, ClusterService clusterService) implements AutoCloseable {
+    private record RefreshTestContext(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        DeterministicTaskQueue taskQueue
+    ) implements AutoCloseable {
 
         static RefreshTestContext create(Settings settings) {
             final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
             final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
-            return new RefreshTestContext(settings, threadPool, ClusterServiceUtils.createClusterService(threadPool, clusterSettings));
+            return new RefreshTestContext(
+                settings,
+                threadPool,
+                ClusterServiceUtils.createClusterService(threadPool, clusterSettings),
+                deterministicTaskQueue
+            );
         }
 
         InternalClusterInfoService createClusterInfoService(
@@ -531,6 +820,26 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             SearchLaneRequirementsCollector searchLaneRequirementsCollector,
             SearchLoadMetricsCollector searchLoadMetricsCollector
         ) {
+            return createClusterInfoService(
+                client,
+                estimatedHeapUsageCollector,
+                cacheSizesAndCommitmentCollector,
+                partitionSizeCollector,
+                searchLaneRequirementsCollector,
+                searchLoadMetricsCollector,
+                NodeUsageStatsForThreadPoolsCollector.EMPTY
+            );
+        }
+
+        InternalClusterInfoService createClusterInfoService(
+            Client client,
+            EstimatedHeapUsageCollector estimatedHeapUsageCollector,
+            CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
+            PartitionSizeCollector partitionSizeCollector,
+            SearchLaneRequirementsCollector searchLaneRequirementsCollector,
+            SearchLoadMetricsCollector searchLoadMetricsCollector,
+            NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector
+        ) {
             final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
                 settings,
                 new WriteLoadConstraintSettings(clusterService.getClusterSettings()),
@@ -540,7 +849,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 estimatedHeapUsageCollector,
                 cacheSizesAndCommitmentCollector,
                 partitionSizeCollector,
-                NodeUsageStatsForThreadPoolsCollector.EMPTY,
+                nodeUsageStatsForThreadPoolsCollector,
                 searchLaneRequirementsCollector,
                 searchLoadMetricsCollector
             );

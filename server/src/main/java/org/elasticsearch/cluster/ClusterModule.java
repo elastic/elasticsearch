@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecu
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.ShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -207,7 +208,8 @@ public class ClusterModule extends AbstractModule {
             snapshotsInfoService,
             shardRoutingRoleStrategy,
             telemetryProvider.getMeterRegistry(),
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            getShardMovementListener(clusterPlugins)
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
@@ -257,6 +259,12 @@ public class ClusterModule extends AbstractModule {
             case 1 -> strategies.getFirst();
             default -> throw new IllegalArgumentException("multiple plugins define balancing weights factories, which is not permitted");
         };
+    }
+
+    static ShardMovementListener getShardMovementListener(List<ClusterPlugin> clusterPlugins) {
+        final var listeners = new ArrayList<ShardMovementListener>();
+        clusterPlugins.forEach(plugin -> listeners.addAll(plugin.getShardMovementListeners()));
+        return ShardMovementListener.composite(listeners);
     }
 
     static ShardRelocationOrder getShardRelocationOrder(List<ClusterPlugin> clusterPlugins, ClusterSettings clusterSettings) {

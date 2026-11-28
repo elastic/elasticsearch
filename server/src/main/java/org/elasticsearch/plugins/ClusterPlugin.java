@@ -12,6 +12,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.ShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
@@ -86,6 +87,15 @@ public interface ClusterPlugin {
 
     default ShardRelocationOrder getShardRelocationOrder(ClusterSettings clusterSettings) {
         return null;
+    }
+
+    /**
+     * Return listeners that receive every change the master makes to the location of a shard copy. Listeners
+     * from all plugins receive all events. This is called before {@link Plugin#createComponents}, so a listener that needs node services
+     * must be created in a state that can queue (or drop and count) events until those services become available.
+     */
+    default Collection<ShardMovementListener> getShardMovementListeners() {
+        return Collections.emptyList();
     }
 
     /**

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
@@ -541,6 +542,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         }
         // Range fields don't support scalar term/range queries; IN must be evaluated in the compute engine.
         if (value.dataType() == DATE_RANGE || value.dataType() == DOUBLE_RANGE) {
+            return Translatable.NO;
+        }
+        if (value instanceof FieldAttribute field && pushdownPredicates.hasExactFloatingPointMapping(field) == false) {
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableAttribute(value)) {

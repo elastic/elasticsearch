@@ -213,3 +213,34 @@ id:keyword | _fork:keyword
 1          | fork1
 3          | fork3
 ;
+
+anyChildOfALookupDocumentMatches
+required_capability: fn_nested_any
+required_capability: nested_expand_lookup_join
+
+FROM nested_orders
+| KEEP id
+| LOOKUP JOIN nested_orders_lookup ON id
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id
+| SORT id
+;
+
+id:keyword
+1
+3
+;
+
+conditionsInOneCallHoldForTheSameChildOfALookupDocument
+required_capability: fn_nested_any
+required_capability: nested_expand_lookup_join
+
+FROM nested_orders
+| KEEP id
+| LOOKUP JOIN nested_orders_lookup ON id
+| WHERE NESTED_ANY(items.sku == "a" AND items.qty == 2)
+| KEEP id
+;
+
+id:keyword
+;

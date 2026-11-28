@@ -177,3 +177,79 @@ id:keyword | items.sku:keyword
 1          | b
 3          | c
 ;
+
+expandEachObjectOfALookupDocument
+required_capability: nested_expand
+required_capability: nested_expand_lookup_join
+
+FROM nested_orders
+| KEEP id
+| LOOKUP JOIN nested_orders_lookup ON id
+| NESTED_EXPAND items
+| KEEP id, items.sku, items.qty
+| SORT id, items.sku
+;
+
+id:keyword | items.sku:keyword | items.qty:long
+1          | a                 | 1
+1          | b                 | 2
+2          | null              | null
+3          | c                 | 5
+;
+
+expandTheSecondCollectionOfALookupDocument
+required_capability: nested_expand
+required_capability: nested_expand_lookup_join
+
+FROM nested_orders
+| KEEP id
+| LOOKUP JOIN nested_orders_lookup ON id
+| NESTED_EXPAND events
+| KEEP id, events.start
+| SORT id, events.start
+;
+
+id:keyword | events.start:integer
+1          | 10
+2          | null
+3          | 30
+3          | 31
+;
+
+filterOnTheChildOfALookupDocument
+required_capability: nested_expand
+required_capability: nested_expand_lookup_join
+
+FROM nested_orders
+| KEEP id
+| LOOKUP JOIN nested_orders_lookup ON id
+| NESTED_EXPAND items
+| WHERE items.qty > 1
+| KEEP id, items.sku
+| SORT id
+;
+
+id:keyword | items.sku:keyword
+1          | b
+3          | c
+;
+
+expandALookupDocumentAfterRename
+required_capability: nested_expand
+required_capability: nested_expand_lookup_join
+
+FROM nested_orders
+| KEEP id
+| LOOKUP JOIN nested_orders_lookup ON id
+| RENAME items AS i
+| NESTED_EXPAND i
+| KEEP id, i.sku
+| SORT id, i.sku
+;
+
+id:keyword | i.sku:keyword
+1          | a
+1          | b
+2          | null
+3          | c
+;

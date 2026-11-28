@@ -1106,14 +1106,24 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
-                protected void warmCache(
+                protected void warmForRecovery(
                     Type type,
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory,
+                    boolean preWarmForIdLookup,
+                    ActionListener<Void> listener
+                ) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                protected void warmSearchOffline(
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
-                    boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     listener.onResponse(null);

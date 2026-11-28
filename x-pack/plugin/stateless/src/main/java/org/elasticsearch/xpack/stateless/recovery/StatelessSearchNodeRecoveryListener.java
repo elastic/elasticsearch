@@ -252,6 +252,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                         warmingRatioProvider,
                         warmingInputs != null ? warmingInputs.targetsToWarm() : null,
                         sourceShardWarmingInfo,
+                        ActionListener.noop(),
                         resumeRecovery
                     );
                 }));

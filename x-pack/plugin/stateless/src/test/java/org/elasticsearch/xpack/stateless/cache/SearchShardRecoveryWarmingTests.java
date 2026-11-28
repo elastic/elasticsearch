@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
@@ -159,8 +160,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /**
-     * {@link SharedBlobCacheWarmingService} with {@link SharedBlobCacheWarmingService#warmCache} stubbed to sleep for
-     * {@code delayMillis} before completing the listener, so that recorded warming-duration metrics are observably non-zero.
+     * {@link SharedBlobCacheWarmingService} with {@link SharedBlobCacheWarmingService#warmForRecovery} completing inline and
+     * {@link SharedBlobCacheWarmingService#warmSearchOffline} stubbed to wait on {@code blockWarmLatch}
+     * before completing the listener, so that recorded warming-duration metrics are observably non-zero.
      */
     private static SharedBlobCacheWarmingService newWarmingService(
         ThreadPool threadPool,
@@ -195,14 +197,24 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             )
         ) {
             @Override
-            protected void warmCache(
+            protected void warmForRecovery(
                 Type type,
+                IndexShard indexShard,
+                StatelessCompoundCommit commit,
+                BlobStoreCacheDirectory directory,
+                boolean preWarmForIdLookup,
+                ActionListener<Void> listener
+            ) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void warmSearchOffline(
                 IndexShard indexShard,
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
                 WarmingRatioProvider warmingRatioProvider,
                 @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
-                boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {
                 threadPool.generic().submit(() -> {
@@ -267,6 +279,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mock(WarmingRatioProvider.class),
                 null,
                 SourceShardWarmingInfo.NOT_REQUESTED,
+                ActionListener.noop(),
                 resume
             );
             // recovery is resumed
@@ -336,6 +349,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
                 SourceShardWarmingInfo.NOT_REQUESTED,
+                ActionListener.noop(),
                 resume
             );
             // recovery is NOT resumed
@@ -396,6 +410,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
                 SourceShardWarmingInfo.NOT_REQUESTED,
+                ActionListener.noop(),
                 resume
             );
             // recovery resumed (synchronously)
@@ -455,6 +470,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mock(WarmingRatioProvider.class),
                 Map.of(new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)), new WarmTarget(1L, 1L, 1L)),
                 SourceShardWarmingInfo.NOT_REQUESTED,
+                ActionListener.noop(),
                 resume
             );
             // make sure warming started running
@@ -730,8 +746,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /// [SharedBlobCacheWarmingService] whose [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] calls are delegated to
-    /// a supplied function, so re-evaluation loop tests can inject any sequence of plans without building cluster state. `warmCache` is
-    /// a no-op; tests drive the listener directly via [SharedBlobCacheWarmingService#searchRecoveryWarmingListener].
+    /// a supplied function, so re-evaluation loop tests can inject any sequence of plans without building cluster state.
+    /// `warmSearchCacheAndTimeIt` is a no-op; tests drive the listener directly via
+    /// [SharedBlobCacheWarmingService#searchRecoveryWarmingListener].
     private static SharedBlobCacheWarmingService newReevaluatingService(
         ThreadPool threadPool,
         Settings settings,
@@ -784,15 +801,14 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             }
         ) {
             @Override
-            protected void warmCache(
-                Type type,
+            protected void warmSearchCacheAndTimeIt(
                 IndexShard indexShard,
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
-                @Nullable WarmingRatioProvider warmingRatioProvider,
+                WarmingRatioProvider warmingRatioProvider,
                 @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
-                boolean preWarmForIdLookup,
-                ActionListener<Void> listener
+                Runnable onRecoveryWarmingComplete,
+                ActionListener<Void> allWarmingListener
             ) {}
         };
     }
@@ -1375,6 +1391,323 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     "Search shard recovery cache warming timed out"
                 )
             );
+        }
+    }
+
+    public void testTwoPhaseWarmingCompletesRecoveryWarmingBeforeOffline() throws Exception {
+        var fixture = TwoPhaseWarmingFixture.start(getTestName());
+        try (fixture) {
+            assertNotNull(fixture.headerListener());
+            assertNotNull(fixture.offlineListener());
+            assertFalse(fixture.phase1.isDone());
+            assertFalse(fixture.phase2.isDone());
+            assertTrue(fixture.isAwaitingWarming());
+
+            fixture.headerListener().onResponse(null);
+            safeGet(fixture.phase1);
+            assertFalse(fixture.phase2.isDone());
+            assertTrue(fixture.isAwaitingWarming());
+
+            fixture.offlineListener().onResponse(null);
+            safeGet(fixture.phase2);
+            fixture.assertBothRanOnGenericInOrder();
+            assertFalse(fixture.isAwaitingWarming());
+            assertTrue(fixture.awaitingWarmingEmpty());
+        }
+        fixture.assertSingleWaitOutcome(SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+    }
+
+    public void testTwoPhaseWarmingWhenOfflineFinishesBeforeRecoveryWarming() throws Exception {
+        var fixture = TwoPhaseWarmingFixture.start(getTestName());
+        try (fixture) {
+            fixture.holdPhase1();
+            fixture.offlineListener().onResponse(null);
+            assertFalse(fixture.phase1.isDone());
+            assertFalse(fixture.phase2.isDone());
+            assertTrue(fixture.isAwaitingWarming());
+
+            fixture.headerListener().onResponse(null);
+            fixture.awaitPhase1Entered();
+            assertFalse("expected phase2 to wait until phase1 returns, but phase2 completed early", fixture.phase2.isDone());
+            assertThat(fixture.phase2Calls.get(), equalTo(0));
+
+            fixture.releasePhase1();
+            safeGet(fixture.phase1);
+            safeGet(fixture.phase2);
+            fixture.assertBothRanOnGenericInOrder();
+            assertTrue(fixture.awaitingWarmingEmpty());
+        }
+        fixture.assertSingleWaitOutcome(SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+    }
+
+    public void testSharedTimeoutUnblocksBothPhasesOnce() throws Exception {
+        var fixture = TwoPhaseWarmingFixture.start(getTestName());
+        try (fixture) {
+            fixture.holdPhase1();
+            assertFalse(fixture.phase1.isDone());
+            assertFalse(fixture.phase2.isDone());
+
+            fixture.timeoutCommand().run();
+            fixture.awaitPhase1Entered();
+            assertFalse("expected phase2 to wait until phase1 returns, but phase2 completed early", fixture.phase2.isDone());
+            assertThat(fixture.phase2Calls.get(), equalTo(0));
+
+            fixture.releasePhase1();
+            safeGet(fixture.phase1);
+            safeGet(fixture.phase2);
+            fixture.assertBothRanOnGenericInOrder();
+            assertTrue(fixture.awaitingWarmingEmpty());
+
+            // Late background completion after timeout must be a no-op.
+            fixture.headerListener().onResponse(null);
+            fixture.offlineListener().onResponse(null);
+        }
+        fixture.assertEachPhaseCalledOnce();
+        fixture.assertSingleWaitOutcome(SearchRecoveryWaitOutcome.TIMEOUT);
+    }
+
+    public void testTimeoutBetweenRecoveryAndOfflineWarmingUnblocksPhase2Once() throws Exception {
+        var fixture = TwoPhaseWarmingFixture.start(getTestName());
+        try (fixture) {
+            fixture.headerListener().onResponse(null);
+            safeGet(fixture.phase1);
+            assertFalse(fixture.phase2.isDone());
+            assertTrue(fixture.isAwaitingWarming());
+
+            fixture.timeoutCommand().run();
+
+            safeGet(fixture.phase2);
+            fixture.assertBothRanOnGenericInOrder();
+            assertTrue(fixture.awaitingWarmingEmpty());
+
+            fixture.offlineListener().onResponse(null);
+        }
+        fixture.assertEachPhaseCalledOnce();
+        fixture.assertSingleWaitOutcome(SearchRecoveryWaitOutcome.TIMEOUT);
+    }
+
+    public void testRecoveryAndOfflineWarmingFailureRouting() throws Exception {
+        final boolean failHeader = randomBoolean();
+        final boolean completeOfflineFirst = randomBoolean();
+        final var failure = new ElasticsearchException(randomAlphaOfLength(10));
+        var fixture = TwoPhaseWarmingFixture.start(getTestName());
+        try (fixture) {
+            fixture.holdPhase1();
+            Runnable completeHeader = failHeader
+                ? () -> fixture.headerListener().onFailure(failure)
+                : () -> fixture.headerListener().onResponse(null);
+            Runnable completeOffline = failHeader
+                ? () -> fixture.offlineListener().onResponse(null)
+                : () -> fixture.offlineListener().onFailure(failure);
+
+            if (completeOfflineFirst) {
+                completeOffline.run();
+                completeHeader.run();
+            } else {
+                completeHeader.run();
+                completeOffline.run();
+            }
+
+            fixture.awaitPhase1Entered();
+            assertFalse("expected phase2 failure to wait until phase1 returns, but phase2 completed early", fixture.phase2.isDone());
+            assertThat(fixture.phase2Calls.get(), equalTo(0));
+
+            fixture.releasePhase1();
+            safeGet(fixture.phase1);
+            Exception thrown = expectThrows(ElasticsearchException.class, () -> fixture.phase2.actionGet(SAFE_AWAIT_TIMEOUT));
+            assertSame(failure, thrown);
+            fixture.assertBothRanOnGenericInOrder();
+            assertTrue(fixture.awaitingWarmingEmpty());
+        }
+        fixture.assertSingleWaitOutcome(SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+    }
+
+    private static final class TwoPhaseWarmingFixture implements AutoCloseable {
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final CapturingScheduleThreadPool threadPool;
+        final SharedBlobCacheWarmingService service;
+        final IndexShard indexShard;
+        final AtomicReference<ActionListener<Void>> headerListener = new AtomicReference<>();
+        final AtomicReference<ActionListener<Void>> offlineListener = new AtomicReference<>();
+        final AtomicReference<String> phase1Executor = new AtomicReference<>();
+        final AtomicReference<String> phase2Executor = new AtomicReference<>();
+        final AtomicInteger phase1Calls = new AtomicInteger();
+        final AtomicInteger phase2Calls = new AtomicInteger();
+        final AtomicBoolean phase1Finished = new AtomicBoolean(false);
+        final AtomicBoolean phase2SawPhase1Finished = new AtomicBoolean(false);
+        final AtomicReference<CountDownLatch> phase1Entered = new AtomicReference<>();
+        final AtomicReference<CountDownLatch> allowPhase1Finish = new AtomicReference<>();
+        final PlainActionFuture<Void> phase1 = new PlainActionFuture<>() {
+            @Override
+            public void onResponse(Void result) {
+                phase1Calls.incrementAndGet();
+                phase1Executor.set(EsExecutors.executorName(Thread.currentThread()));
+                CountDownLatch entered = phase1Entered.get();
+                if (entered != null) {
+                    entered.countDown();
+                    safeAwait(allowPhase1Finish.get());
+                }
+                phase1Finished.set(true);
+                super.onResponse(result);
+            }
+        };
+        final PlainActionFuture<Void> phase2 = new PlainActionFuture<>() {
+            @Override
+            public void onResponse(Void result) {
+                phase2Calls.incrementAndGet();
+                phase2Executor.set(EsExecutors.executorName(Thread.currentThread()));
+                phase2SawPhase1Finished.set(phase1Finished.get());
+                super.onResponse(result);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                phase2Calls.incrementAndGet();
+                phase2Executor.set(EsExecutors.executorName(Thread.currentThread()));
+                phase2SawPhase1Finished.set(phase1Finished.get());
+                super.onFailure(e);
+            }
+        };
+
+        private TwoPhaseWarmingFixture(String testName) {
+            this.threadPool = new CapturingScheduleThreadPool(testName);
+            final var clusterSettings = newClusterSettings(
+                Settings.builder()
+                    .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), false)
+                    .build()
+            );
+            final var cacheService = Mockito.mock(StatelessSharedBlobCacheService.class);
+            this.service = new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider(meterRegistry),
+                clusterSettings,
+                new SearchRecoveryTimeoutCalculationService(
+                    cacheService,
+                    threadPool,
+                    clusterSettings,
+                    onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
+                    ByteSizeValue.ZERO,
+                    TelemetryProvider.NOOP
+                )
+            ) {
+                @Override
+                protected void warmForRecovery(
+                    Type type,
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory,
+                    boolean preWarmForIdLookup,
+                    ActionListener<Void> listener
+                ) {
+                    assertTrue(
+                        "expected a single warmForRecovery call, but it was called more than once",
+                        headerListener.compareAndSet(null, listener)
+                    );
+                }
+
+                @Override
+                protected void warmSearchOffline(
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
+                    ActionListener<Void> listener
+                ) {
+                    assertNotNull(
+                        "expected warmForRecovery to be called before warmSearchOffline, but it had not been called",
+                        headerListener.get()
+                    );
+                    assertTrue(
+                        "expected a single warmSearchOffline call, but it was called more than once",
+                        offlineListener.compareAndSet(null, listener)
+                    );
+                }
+            };
+            ClusterState state = clusterStateInitializingSearchReplicaWithActivePeer("idx");
+            ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
+            this.indexShard = mockIndexShard(initializingSearchReplica(state, shardId));
+            service.warmCacheForSearchShardRecovery(
+                () -> state,
+                indexShard,
+                null,
+                mockDirectory(),
+                mock(WarmingRatioProvider.class),
+                Map.of(
+                    new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    WarmTarget.withUnknownTimestamp(1L, 1L)
+                ),
+                SourceShardWarmingInfo.NOT_REQUESTED,
+                phase1,
+                phase2
+            );
+        }
+
+        static TwoPhaseWarmingFixture start(String testName) {
+            return new TwoPhaseWarmingFixture(testName);
+        }
+
+        void holdPhase1() {
+            phase1Entered.set(new CountDownLatch(1));
+            allowPhase1Finish.set(new CountDownLatch(1));
+        }
+
+        void awaitPhase1Entered() {
+            safeAwait(phase1Entered.get());
+        }
+
+        void releasePhase1() {
+            allowPhase1Finish.get().countDown();
+        }
+
+        ActionListener<Void> headerListener() {
+            return headerListener.get();
+        }
+
+        ActionListener<Void> offlineListener() {
+            return offlineListener.get();
+        }
+
+        Runnable timeoutCommand() {
+            Runnable command = threadPool.scheduledCommand.get();
+            assertNotNull(command);
+            return command;
+        }
+
+        boolean isAwaitingWarming() {
+            return service.shardsAwaitingRecoveryWarming.contains(indexShard);
+        }
+
+        boolean awaitingWarmingEmpty() {
+            return service.shardsAwaitingRecoveryWarming.isEmpty();
+        }
+
+        void assertBothRanOnGenericInOrder() {
+            assertThat(phase1Executor.get(), equalTo(ThreadPool.Names.GENERIC));
+            assertThat(phase2Executor.get(), equalTo(ThreadPool.Names.GENERIC));
+            assertTrue("expected phase1 to finish before phase2, but phase2 ran first", phase2SawPhase1Finished.get());
+        }
+
+        void assertEachPhaseCalledOnce() {
+            assertThat(phase1Calls.get(), equalTo(1));
+            assertThat(phase2Calls.get(), equalTo(1));
+        }
+
+        void assertSingleWaitOutcome(SearchRecoveryWaitOutcome expected) {
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
+            assertThat(measurements, hasSize(1));
+            assertWaitOutcome(measurements.getFirst(), expected);
+        }
+
+        @Override
+        public void close() {
+            CountDownLatch release = allowPhase1Finish.get();
+            if (release != null) {
+                release.countDown();
+            }
+            threadPool.close();
         }
     }
 

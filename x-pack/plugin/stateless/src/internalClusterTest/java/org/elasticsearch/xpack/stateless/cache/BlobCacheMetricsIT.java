@@ -573,27 +573,31 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
-                protected void warmCache(
+                protected void warmForRecovery(
                     Type type,
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory,
+                    boolean preWarmForIdLookup,
+                    ActionListener<Void> listener
+                ) {
+                    var subscribableListener = new SubscribableListener<Void>();
+                    super.warmForRecovery(type, indexShard, commit, directory, preWarmForIdLookup, subscribableListener);
+                    safeAwait(subscribableListener);
+                    subscribableListener.addListener(listener);
+                }
+
+                @Override
+                protected void warmSearchOffline(
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
-                    boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(
-                        type,
-                        indexShard,
-                        commit,
-                        directory,
-                        warmingRatioProvider,
-                        endTargetsToWarm,
-                        preWarmForIdLookup,
-                        subscribableListener
-                    );
+                    super.warmSearchOffline(indexShard, commit, directory, warmingRatioProvider, endTargetsToWarm, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

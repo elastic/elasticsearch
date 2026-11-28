@@ -301,7 +301,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             );
             assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(retryableBlock));
             assertPhase(task, "failed");
-            assertTrue(requestWithTimeout.isRetrySet.get());
+            assertFalse(requestWithTimeout.isRetrySet.get());
         }
         {
             setStateWithBlock(clusterService, retryableBlock, globalBlock);
@@ -315,7 +315,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
             assertFalse("primary phase should wait on retryable block", listener.isDone());
             assertPhase(task, "waiting_for_retry");
-            assertTrue(request.isRetrySet.get());
+            assertFalse(request.isRetrySet.get());
 
             setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
 
@@ -442,7 +442,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertListenerThrows("unassigned primary didn't cause a timeout", listener, UnavailableShardsException.class);
         assertPhase(task, "failed");
-        assertTrue(request.isRetrySet.get());
+        assertFalse(request.isRetrySet.get());
 
         request = new Request(shardId);
         listener = new PlainActionFuture<>();
@@ -450,7 +450,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertFalse("unassigned primary didn't cause a retry", listener.isDone());
         assertPhase(task, "waiting_for_retry");
-        assertTrue(request.isRetrySet.get());
+        assertFalse(request.isRetrySet.get());
 
         setState(clusterService, state(index, true, ShardRoutingState.STARTED));
         logger.debug("--> primary assigned state:\n{}", clusterService.state());
@@ -507,7 +507,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         assertFalse("a primary that is restored without reporting should keep the request waiting", listener.isDone());
         assertPhase(task, "waiting_for_retry");
-        assertTrue(request.isRetrySet.get());
+        assertFalse(request.isRetrySet.get());
     }
 
     /**
@@ -769,14 +769,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
         assertListenerThrows("cluster state too old didn't cause a timeout", listener, UnavailableShardsException.class);
-        assertTrue(request.isRetrySet.compareAndSet(true, false));
+        assertFalse(request.isRetrySet.get());
 
         request = new Request(shardId).routedBasedOnClusterVersion(clusterService.state().version() + 1);
         listener = new PlainActionFuture<>();
         reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
         assertFalse("cluster state too old didn't cause a retry", listener.isDone());
-        assertTrue(request.isRetrySet.get());
+        assertFalse(request.isRetrySet.get());
 
         // finish relocation
         ShardRouting relocationTarget = clusterService.state()
@@ -827,7 +827,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertListenerThrows("must throw index not found exception", listener, IndexNotFoundException.class);
         assertPhase(task, "failed");
-        assertTrue(request.isRetrySet.get());
+        assertFalse(request.isRetrySet.get());
 
         request = new Request(new ShardId(index, "_na_", 10)).timeout(TimeValue.timeValueMillis(1));
         listener = new PlainActionFuture<>();
@@ -1480,7 +1480,16 @@ public class TransportReplicationActionTests extends ESTestCase {
         final boolean wrongAllocationId = randomBoolean();
         final long requestTerm = wrongAllocationId && randomBoolean() ? primaryTerm : primaryTerm + randomIntBetween(1, 10);
         Request request = new Request(shardId).timeout(TimeValue.timeValueMillis(1));
-        action.handlePrimaryRequest(
+        final boolean reportAsNotExecuted = randomBoolean();
+        final TestAction testAction = reportAsNotExecuted
+            ? new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
+                @Override
+                protected boolean reportUnavailablePrimaryAsNotExecuted() {
+                    return true;
+                }
+            }
+            : action;
+        testAction.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteShardRequest<>(
                 request,
                 wrongAllocationId ? "_not_a_valid_aid_" : primary.allocationId().getId(),
@@ -1496,14 +1505,22 @@ public class TransportReplicationActionTests extends ESTestCase {
             Throwable throwable = execException.getCause();
             logger.debug("got exception:", throwable);
             assertTrue(throwable.getClass() + " is not a retry exception", TransportReplicationAction.retryPrimaryException(throwable));
+            final Throwable failure;
+            if (reportAsNotExecuted) {
+                assertThat(throwable, instanceOf(ReplicationOperation.RetryOnPrimaryException.class));
+                assertFalse(((ReplicationOperation.RetryOnPrimaryException) throwable).possiblyExecutedOnPrimary());
+                failure = throwable.getCause();
+            } else {
+                failure = throwable;
+            }
             if (wrongAllocationId) {
                 assertThat(
-                    throwable.getMessage(),
+                    failure.getMessage(),
                     containsString("expected allocation id [_not_a_valid_aid_] but found [" + primary.allocationId().getId() + "]")
                 );
             } else {
                 assertThat(
-                    throwable.getMessage(),
+                    failure.getMessage(),
                     containsString(
                         "expected allocation id ["
                             + primary.allocationId().getId()

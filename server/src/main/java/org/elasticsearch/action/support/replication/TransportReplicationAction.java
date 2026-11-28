@@ -449,8 +449,8 @@ public abstract class TransportReplicationAction<
             return;
         }
 
+        final ShardId shardId = request.getRequest().shardId();
         try {
-            final ShardId shardId = request.getRequest().shardId();
             final IndexShard indexShard = getIndexShard(shardId);
             // We dispatch immediately to the handler executor before acquiring a primary permit to ensure that
             // tasks that have a permit are executed immediately instead of sitting in the executor queue. This helps
@@ -458,8 +458,23 @@ public abstract class TransportReplicationAction<
             // the shard stays on the same node, the task will be dispatched twice.
             handlerExecutor(indexShard).execute(new AsyncPrimaryAction(request, listener, (ReplicationTask) task));
         } catch (Exception e) {
-            listener.onFailure(e);
+            listener.onFailure(notExecutedOnPrimary(shardId, e));
         }
+    }
+
+    /**
+     * Whether a failure to reach the primary shard that happened before the operation started is reported as a
+     * {@link ReplicationOperation.RetryOnPrimaryException} that cannot have been executed, instead of as the failure itself.
+     */
+    protected boolean reportUnavailablePrimaryAsNotExecuted() {
+        return false;
+    }
+
+    private Exception notExecutedOnPrimary(ShardId shardId, Exception e) {
+        if (reportUnavailablePrimaryAsNotExecuted() && TransportActions.isShardNotAvailableException(e)) {
+            return new ReplicationOperation.RetryOnPrimaryException(shardId, "primary shard is not available", e, false);
+        }
+        return e;
     }
 
     protected Executor handlerExecutor(IndexShard shard) {
@@ -656,7 +671,8 @@ public abstract class TransportReplicationAction<
         @Override
         public void onFailure(Exception e) {
             setPhase(replicationTask, "finished");
-            listener.onFailure(e);
+            // only reached before the operation starts, failures after that go to the listener directly
+            listener.onFailure(notExecutedOnPrimary(primaryRequest.getRequest().shardId(), e));
         }
 
     }
@@ -1172,7 +1188,8 @@ public abstract class TransportReplicationAction<
         }
 
         void retry(Exception failure) {
-            retry(failure, true);
+            // the request was not sent in this attempt, so it cannot have been executed
+            retry(failure, false);
         }
 
         void retry(Exception failure, boolean possiblyExecuted) {

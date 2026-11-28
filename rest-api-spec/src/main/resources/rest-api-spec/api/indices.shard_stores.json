@@ -64,6 +64,11 @@
         ],
         "default": "open",
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "max_concurrent_shard_requests": {
+        "type": "int",
+        "default": 100,
+        "description": "The maximum number of concurrent requests to fetch shard store information"
       }
     }
   }

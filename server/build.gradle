@@ -340,12 +340,6 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
     mapping from: /log4j-.*/, to: 'log4j'
-
-    configureDependencies(
-      project.configurations.runtimeClasspath, project.configurations.resolveableCompileOnly, identifier -> {
-      return identifier instanceof ModuleComponentIdentifier
-        (identifier.moduleIdentifier.name == 'jna' || identifier.moduleIdentifier.name == 'securesm')
-    })
 }
 
 tasks.named("licenseHeaders").configure {

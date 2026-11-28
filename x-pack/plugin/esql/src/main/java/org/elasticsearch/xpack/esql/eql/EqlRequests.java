@@ -203,7 +203,16 @@ public final class EqlRequests {
      * command's own {@code WITH} options, so an EQL source honors the same contract as a {@code FROM} source in the
      * same query: the partial-results contract, cross-project routing, and the out-of-band request {@code filter}.
      */
-    public record EnclosingQuery(boolean allowPartialSearchResults, @Nullable String projectRouting, @Nullable QueryBuilder filter) {}
+    public record EnclosingQuery(
+        boolean allowPartialSearchResults,
+        boolean crossProjectEnabled,
+        @Nullable String projectRouting,
+        @Nullable QueryBuilder filter
+    ) {
+        public EnclosingQuery {
+            assert projectRouting == null || crossProjectEnabled : "project_routing [" + projectRouting + "] requires cross-project search";
+        }
+    }
 
     public static EqlSearchRequest build(
         String query,
@@ -220,10 +229,9 @@ public final class EqlRequests {
         // Split as RestEqlSearchAction and ES|QL's own field-caps request (IndexResolver) do, so schema resolution
         // and the delegated search see the identical index set. The leading blank-pattern guard above rejects empties.
         request.indices(Strings.splitStringByCommaToArray(indices));
-        // Resolve and execute over the same index set: ES|QL resolved the schema under IndexResolver.DEFAULT_OPTIONS, so
-        // pin the same options here (the command surface differs from standalone _eql/search defaults). This is also the
-        // prerequisite that makes reusing the resolved field-caps sound.
-        request.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
+        // Pin the options ES|QL resolved the schema with, so resolution and execution see the same index set (the command surface differs
+        // from standalone _eql/search defaults). This is also the prerequisite that makes reusing the resolved field-caps sound.
+        request.indicesOptions(enclosing.crossProjectEnabled() ? IndexResolver.FLAT_STRICT_OPTIONS : IndexResolver.DEFAULT_OPTIONS);
         request.query(query);
         // Honor the enclosing ES|QL query's own partial-results contract: an event source then behaves exactly like a
         // FROM source under a shard failure. Sequences are a separate axis, left to the EQL cluster default unless WITH sets it.

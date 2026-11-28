@@ -113,6 +113,59 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
     // queries with full cluster (no missing shards)
     // ------------------------------------------------------------------------
 
+    /** Optional remotes must neither fail strict EQL queries nor suppress healthy local sequences and samples. */
+    public void testSkippedRemoteKeepsLocalMatches() throws Exception {
+        assertAcked(
+            localClient().admin()
+                .indices()
+                .prepareCreate("test-local")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "key", "type=keyword", "value", "type=integer")
+        );
+        for (int value = 1; value <= 2; value++) {
+            localClient().prepareIndex("test-local")
+                .setId(Integer.toString(value))
+                .setSource("@timestamp", 100000 + value, "event.category", "process", "key", "same", "value", value)
+                .get();
+        }
+        localClient().admin().indices().prepareRefresh("test-local").get();
+        assertAcked(
+            localClient().execute(
+                ClusterUpdateSettingsAction.INSTANCE,
+                new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
+                    Settings.builder().put("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable", true)
+                )
+            ).get()
+        );
+        cluster(REMOTE_CLUSTER).close();
+
+        for (boolean strict : new boolean[] { false, true }) {
+            for (String query : List.of(
+                "process where true",
+                "sequence [process where value == 1] [process where value == 2]",
+                "sample by key [process where value == 1] [process where value == 2]"
+            )) {
+                EqlSearchRequest request = new EqlSearchRequest().indices("test-local", REMOTE_CLUSTER + ":test-*").query(query);
+                if (strict) {
+                    request.allowPartialSearchResults(false);
+                }
+                EqlSearchResponse response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
+                try {
+                    assertThat(response.shardFailures(), empty());
+                    if (response.hits().events() != null) {
+                        assertEquals(2, response.hits().events().size());
+                    } else {
+                        assertEquals(1, response.hits().sequences().size());
+                        assertThat(response.hits().sequences().getFirst().events().get(0).toString(), containsString("\"value\" : 1"));
+                        assertThat(response.hits().sequences().getFirst().events().get(1).toString(), containsString("\"value\" : 2"));
+                    }
+                } finally {
+                    EqlSearchResponseIntegTestHelpers.decRef(response);
+                }
+            }
+        }
+    }
+
     public void testNoFailures() throws Exception {
         createSchema();
 

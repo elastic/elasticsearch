@@ -71,11 +71,15 @@ public class EsQueryExec extends LeafExec {
     public void execute(EqlSession session, ActionListener<Payload> listener) {
         // endpoint - fetch all source
         QueryRequest request = () -> source(session, true).fetchSource(FetchSourceContext.FETCH_SOURCE);
-        new BasicQueryClient(session).query(request, listener.safeMap(shouldReverse(request) ? r -> {
-            var res = new EventPayload(r);
-            Collections.reverse(res.values());
+        BasicQueryClient client = new BasicQueryClient(session);
+        boolean reverse = shouldReverse(request);
+        client.query(request, listener.safeMap(r -> {
+            var res = new EventPayload(r, client.searchFailures(r));
+            if (reverse) {
+                Collections.reverse(res.values());
+            }
             return res;
-        } : EventPayload::new));
+        }));
     }
 
     private static boolean shouldReverse(QueryRequest query) {

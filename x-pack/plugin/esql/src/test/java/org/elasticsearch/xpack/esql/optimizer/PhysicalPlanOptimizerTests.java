@@ -44,6 +44,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQueryBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -10307,6 +10308,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             MatcherWatchdog.noop(),
             TransportVersion.current(),
             null,  // client - not needed for these tests
+            CrossProjectModeDecider.NOOP,
             LocalExecutionPlanner.ExternalComputeContext.NONE,
             null,  // escfBulkService - not needed for these tests
             () -> false,

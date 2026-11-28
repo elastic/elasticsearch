@@ -11,6 +11,10 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -64,6 +68,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -168,16 +173,19 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
         if (indicesPerCluster.isEmpty()) {
             // for CPS requests that are targeting origin only, could be because of project_routing or other reasons, execute standard pit.
-            final Exception ex = CrossProjectIndexResolutionValidator.validate(
-                originalIndicesOptions,
-                request.getProjectRouting(),
-                localResolvedIndexExpressions,
-                Map.of(),
-                Map.of()
-            );
-            if (ex != null) {
-                listener.onFailure(ex);
-                return;
+            // Without a security filter there is no local resolution to validate; a null list would throw inside the validator.
+            if (localResolvedIndexExpressions != null) {
+                final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                    originalIndicesOptions,
+                    request.getProjectRouting(),
+                    localResolvedIndexExpressions,
+                    Map.of(),
+                    Map.of()
+                );
+                if (ex != null) {
+                    listener.onFailure(ex);
+                    return;
+                }
             }
             executeOpenPit(task, request, listener);
             return;
@@ -208,6 +216,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     listener.onFailure(ex);
                     return;
                 }
+                Exception unreachable = failureForUnreachableProjects(request.allowPartialSearchResults(), remoteExceptions);
+                if (unreachable != null) {
+                    listener.onFailure(unreachable);
+                    return;
+                }
                 Set<String> collectedIndices = new HashSet<>(indices.length);
 
                 for (Map.Entry<String, ResolvedIndexExpressions> resolvedRemoteExpressionEntry : resolvedRemoteExpressions.entrySet()) {
@@ -229,7 +242,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 if (localResolvedIndexExpressions != null) { // this should never be null in CPS
                     collectedIndices.addAll(localResolvedIndexExpressions.getLocalIndicesList());
                 }
-                request.indices(collectedIndices.toArray(String[]::new));
+                // Keep unresolved projects in the PIT-opening phase, which either opens them or reports them as skipped.
+                List<String> pitIndices = new ArrayList<>(collectedIndices);
+                for (String alias : remoteExceptions.keySet()) {
+                    for (String index : indicesPerCluster.get(alias).indices()) {
+                        pitIndices.add(buildRemoteIndexName(alias, index));
+                    }
+                }
+                request.indices(pitIndices.toArray(String[]::new));
                 executeOpenPit(task, request, listener);
             });
         ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> groupedListener = new GroupedActionListener<>(
@@ -272,6 +292,34 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
             remoteClusterService.maybeEnsureConnectedAndGetConnection(clusterAlias, true, connectionListener);
         }
+    }
+
+    static Exception failureForUnreachableProjects(boolean allowPartialSearchResults, Map<String, Exception> remoteExceptions) {
+        if (allowPartialSearchResults || remoteExceptions.isEmpty()) {
+            return null;
+        }
+        List<String> aliases = new ArrayList<>(remoteExceptions.keySet());
+        Collections.sort(aliases);
+        ElasticsearchException failure = null;
+        for (String alias : aliases) {
+            Exception remoteFailure = remoteExceptions.get(alias);
+            // Keep the alias in this message and the remote status on this exception. A wrapper or a cause is
+            // unwrapped before REST reads the message, which drops the alias and the other projects.
+            Throwable reported = ExceptionsHelper.unwrapCause(remoteFailure);
+            String raw = reported.getMessage();
+            String detail = raw == null ? reported.toString() : raw;
+            String message = "failed to resolve indices on project [" + alias + "]: " + detail;
+            ElasticsearchException one = reported instanceof ElasticsearchException elasticsearchException
+                && elasticsearchException.isTimeout()
+                    ? new ElasticsearchTimeoutException(message)
+                    : new ElasticsearchStatusException(message, ExceptionsHelper.status(remoteFailure));
+            if (failure == null) {
+                failure = one;
+            } else {
+                failure.addSuppressed(one);
+            }
+        }
+        return failure;
     }
 
     private void executeOpenPit(SearchTask task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {

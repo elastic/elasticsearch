@@ -14,7 +14,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -29,19 +31,26 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.eql.EqlClientException;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
+import org.elasticsearch.xpack.eql.execution.payload.EventPayload;
+import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.util.SearchHitUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -760,6 +769,67 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertFalse(executionInfo.isPartial());
         assertThat(executionInfo.getCluster(LOCAL).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
         assertThat(executionInfo.getCluster(LOCAL).getFailures(), empty());
+    }
+
+    public void testChangedProjectScopeFailsBeforeBuildingAPage() {
+        EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "linked");
+        executionInfo.setResolvedTargetProjects(
+            new TargetProjects(null, List.of(new ProjectRoutingInfo(ProjectId.fromId("first"), "elasticsearch", "linked", "org", null)))
+        );
+        EqlSearchRequest request = eqlRequestOn("logs");
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext context = driverContext();
+        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a")));
+        SourceOperator operator = operator(
+            client,
+            context,
+            request,
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            executionInfo
+        );
+        try {
+            assertBlocked(operator);
+            request.setResolvedTargetProjects(
+                new TargetProjects(
+                    null,
+                    List.of(new ProjectRoutingInfo(ProjectId.fromId("second"), "elasticsearch", "linked", "org", null))
+                )
+            );
+            client.capturedListener.onResponse(response);
+            EqlIllegalArgumentException failure = expectThrows(EqlIllegalArgumentException.class, operator::getOutput);
+            assertThat(failure.getMessage(), containsString("project routing changed"));
+        } finally {
+            operator.close();
+            response.decRef();
+        }
+        assertEquals(0, context.breaker().getUsed());
+    }
+
+    public void testSkippedSearchClusterSurvivesEqlConversion() {
+        SearchResponse.Cluster skipped = new SearchResponse.Cluster.Builder(new SearchResponse.Cluster("linked", "logs", true, null))
+            .setStatus(SearchResponse.Cluster.Status.SKIPPED)
+            .setFailures(List.of(new ShardSearchFailure(new IllegalStateException("linked search unavailable"))))
+            .build();
+        SearchResponse searchResponse = SearchResponseUtils.response()
+            .clusters(new SearchResponse.Clusters(Map.of("linked", skipped), false))
+            .build();
+        try {
+            Results results = Results.fromPayload(new EventPayload(searchResponse, SearchHitUtils.shardFailures(searchResponse)));
+            EsqlExecutionInfo executionInfo = executionInfo(LOCAL, "linked");
+            pullEventPage(
+                executionInfo,
+                eqlRequestOn("logs"),
+                results.timedOut(),
+                results.shardFailures().toArray(ShardSearchFailure[]::new)
+            );
+            assertTrue(executionInfo.isPartial());
+            assertEquals(EsqlExecutionInfo.Cluster.Status.PARTIAL, executionInfo.getCluster("linked").getStatus());
+            assertEquals(1, executionInfo.getCluster("linked").getFailures().size());
+            assertTrue(executionInfo.getCluster(LOCAL).getFailures().isEmpty());
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testLostShardsAreListedOnceUpToALimit() {

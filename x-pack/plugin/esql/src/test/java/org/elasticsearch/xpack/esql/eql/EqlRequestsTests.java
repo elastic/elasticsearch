@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.generator.command.source.EqlGenerator;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class EqlRequestsTests extends ESTestCase {
 
     private static final List<Attribute> NO_SCHEMA = List.of();
-    private static final EqlRequests.EnclosingQuery DEFAULT_ENCLOSING = new EqlRequests.EnclosingQuery(false, null, null);
+    private static final EqlRequests.EnclosingQuery DEFAULT_ENCLOSING = new EqlRequests.EnclosingQuery(false, false, null, null);
 
     /** Delegates to {@link EqlRequests#build} with no pushed limit. */
     private static EqlSearchRequest build(String query, String indices, List<Attribute> schema, Map<String, Object> options) {
@@ -307,8 +308,8 @@ public class EqlRequestsTests extends ESTestCase {
 
     public void testBridgesPartialSearchResultsFromEnclosingQuery() {
         // An event source inherits the enclosing ES|QL query's partial-results contract rather than a hard pin.
-        assertThat(buildWith(new EqlRequests.EnclosingQuery(true, null, null)).allowPartialSearchResults(), equalTo(true));
-        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, null, null)).allowPartialSearchResults(), equalTo(false));
+        assertThat(buildWith(new EqlRequests.EnclosingQuery(true, false, null, null)).allowPartialSearchResults(), equalTo(true));
+        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, false, null, null)).allowPartialSearchResults(), equalTo(false));
     }
 
     public void testSequencePartialResultsIsLeftToTheEqlDefaultUnlessSet() {
@@ -321,13 +322,28 @@ public class EqlRequestsTests extends ESTestCase {
     }
 
     public void testBridgesProjectRouting() {
-        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, "_origin:*", null)).getProjectRouting(), equalTo("_origin:*"));
+        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, true, "_origin:*", null)).getProjectRouting(), equalTo("_origin:*"));
         assertThat(build("process where true", "logs", NO_SCHEMA, Map.of()).getProjectRouting(), nullValue());
+    }
+
+    public void testProjectRoutingRequiresCrossProject() {
+        AssertionError e = expectThrows(AssertionError.class, () -> new EqlRequests.EnclosingQuery(false, false, "_alias:_origin", null));
+        assertThat(e.getMessage(), containsString("requires cross-project search"));
+    }
+
+    public void testIndicesOptionsFollowCrossProjectMode() {
+        EqlSearchRequest local = buildWith(DEFAULT_ENCLOSING);
+        assertThat(local.indicesOptions(), equalTo(IndexResolver.DEFAULT_OPTIONS));
+        assertThat(local.indicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
+
+        EqlSearchRequest crossProject = buildWith(new EqlRequests.EnclosingQuery(false, true, null, null));
+        assertThat(crossProject.indicesOptions(), equalTo(IndexResolver.FLAT_STRICT_OPTIONS));
+        assertThat(crossProject.indicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
     public void testBridgesRequestFilter() {
         MatchAllQueryBuilder filter = new MatchAllQueryBuilder();
-        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, null, filter)).filter(), equalTo(filter));
+        assertThat(buildWith(new EqlRequests.EnclosingQuery(false, false, null, filter)).filter(), equalTo(filter));
         assertThat(build("process where true", "logs", NO_SCHEMA, Map.of()).filter(), nullValue());
     }
 

@@ -242,7 +242,7 @@ public class TumblingWindow implements Executable {
     private void doCheckMissingEvents(List<Sequence> batchToCheck, MultiSearchResponse p, ActionListener<Payload> listener, Runnable next) {
         MultiSearchResponse.Item[] responses = p.getResponses();
         for (MultiSearchResponse.Item response : responses) {
-            addShardFailures(shardFailures, response.getResponse());
+            addShardFailures(shardFailures, client.searchFailures(response.getResponse()));
         }
         int nextResponse = 0;
         for (Sequence sequence : batchToCheck) {
@@ -388,7 +388,7 @@ public class TumblingWindow implements Executable {
      * Execute the base query.
      */
     private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
-        addShardFailures(shardFailures, r);
+        addShardFailures(shardFailures, client.searchFailures(r));
         SequenceCriterion base = criteria.get(baseStage);
         SearchHits hits = r.getHits();
 
@@ -564,6 +564,7 @@ public class TumblingWindow implements Executable {
         log.trace("Querying until stage {}", request);
 
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
+            addShardFailures(shardFailures, client.searchFailures(r));
             List<SearchHit> hits = Arrays.asList(r.getHits().getHits());
 
             log.trace("Found [{}] hits", hits.size());
@@ -595,6 +596,7 @@ public class TumblingWindow implements Executable {
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
+            addShardFailures(shardFailures, client.searchFailures(r));
             List<SearchHit> hits = Arrays.asList(r.getHits().getHits());
 
             // filter hits that are escaping the window (same timestamp but different tiebreaker)

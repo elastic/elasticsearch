@@ -130,6 +130,7 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
     public EqlSearchRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
+        originalIndices = indices == null ? null : indices.clone();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         timestampField = in.readString();

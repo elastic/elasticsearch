@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -627,6 +628,11 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
                 }
             }
             for (Expression expr : node.expressions()) {
+                // The name of an ENRICH policy that cannot be resolved is a placeholder that carries the policy error. It is not a field
+                // to load or nullify, which would replace the policy error with "Unknown column".
+                if (node instanceof Enrich enrich && expr == enrich.policyName()) {
+                    continue;
+                }
                 expr.forEachUp(UnresolvedAttribute.class, ua -> {
                     if (childOutputNames.contains(ua.name()) == false) {
                         sink.accept(ua);

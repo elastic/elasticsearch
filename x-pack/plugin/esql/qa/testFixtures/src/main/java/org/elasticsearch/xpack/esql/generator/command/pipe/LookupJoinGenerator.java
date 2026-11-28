@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
@@ -86,7 +87,7 @@ public class LookupJoinGenerator implements CommandGenerator {
             stringBuilder.append(joinName);
         }
         stringBuilder.append(" | lookup join ");
-        if (randomBoolean()) {
+        if (randomBoolean() && context.clusterSupports(EsqlCapabilities.Cap.LOOKUP_JOIN_ON_COORDINATOR)) {
             stringBuilder.append("_coordinator:");
         }
         stringBuilder.append(lookupIdxName).append(" on ");

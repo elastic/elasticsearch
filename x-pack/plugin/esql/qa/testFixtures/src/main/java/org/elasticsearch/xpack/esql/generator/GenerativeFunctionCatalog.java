@@ -15,6 +15,7 @@ import org.elasticsearch.Build;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.jar.JarFile;
 
 /**
@@ -104,13 +106,17 @@ public final class GenerativeFunctionCatalog {
 
     private static final String RESOURCE_DIR = "esql-functions";
 
-    private static final GenerativeFunctionCatalog INSTANCE = new GenerativeFunctionCatalog();
+    /** Function-definition directory for the cluster under test. Falls back to {@link #RESOURCE_DIR}. */
+    static final String DEFINITIONS_DIR_PROPERTY = "tests.esql.function_definitions";
+
+    private static final List<GenerativeFunctionDefinition> ALL = loadAll();
+
+    private static volatile GenerativeFunctionCatalog instance = new GenerativeFunctionCatalog(ALL);
 
     /** All usable scalar functions indexed by the return type they can produce. */
     private final Map<String, List<GenerativeFunctionDefinition>> byReturnType;
 
-    private GenerativeFunctionCatalog() {
-        List<GenerativeFunctionDefinition> all = loadAll();
+    private GenerativeFunctionCatalog(List<GenerativeFunctionDefinition> all) {
         Map<String, List<GenerativeFunctionDefinition>> index = new HashMap<>();
         for (GenerativeFunctionDefinition fn : all) {
             for (GenerativeFunctionSignature sig : fn.signatures()) {
@@ -126,7 +132,30 @@ public final class GenerativeFunctionCatalog {
     }
 
     public static GenerativeFunctionCatalog getInstance() {
-        return INSTANCE;
+        return instance;
+    }
+
+    /**
+     * Keeps functions the cluster advertises as {@code fn_<name>}.
+     *
+     * @param clusterCapabilities whether the cluster supports a capability, by name
+     */
+    public static void restrictToCluster(Predicate<String> clusterCapabilities) {
+        instance = new GenerativeFunctionCatalog(ALL.stream().filter(fn -> clusterCapabilities.test(capabilityName(fn))).toList());
+    }
+
+    /**
+     * The capability under which {@code EsqlFunctionRegistry} advertises {@code fn}.
+     */
+    static String capabilityName(GenerativeFunctionDefinition fn) {
+        return "fn_" + fn.name();
+    }
+
+    /**
+     * Every function the catalog can offer when not restricted to a cluster.
+     */
+    static List<GenerativeFunctionDefinition> all() {
+        return ALL;
     }
 
     /**
@@ -195,6 +224,11 @@ public final class GenerativeFunctionCatalog {
     // ---- loading ----
 
     private static List<GenerativeFunctionDefinition> loadAll() {
+        String definitionsDir = System.getProperty(DEFINITIONS_DIR_PROPERTY);
+        if (definitionsDir != null) {
+            return loadFromDefinitionsDir(definitionsDir);
+        }
+
         boolean isSnapshot = Build.current().isSnapshot();
         ObjectMapper mapper = new ObjectMapper();
         List<GenerativeFunctionDefinition> result = new ArrayList<>();
@@ -220,6 +254,20 @@ public final class GenerativeFunctionCatalog {
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to load ES|QL function definitions from '" + RESOURCE_DIR + "'", e);
+        }
+        return result;
+    }
+
+    /** Function definitions from {@code definitionsDir}. Empty input fails. */
+    static List<GenerativeFunctionDefinition> loadFromDefinitionsDir(String definitionsDir) {
+        List<GenerativeFunctionDefinition> result = new ArrayList<>();
+        try {
+            loadFromDirectory(new File(definitionsDir), new ObjectMapper(), Build.current().isSnapshot(), result);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load ES|QL function definitions from [" + definitionsDir + "]", e);
+        }
+        if (result.isEmpty()) {
+            throw new IllegalStateException("No ES|QL function definitions found in [" + definitionsDir + "]");
         }
         return result;
     }

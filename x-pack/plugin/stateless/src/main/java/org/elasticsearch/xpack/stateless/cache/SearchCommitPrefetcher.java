@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -42,6 +43,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
@@ -193,14 +195,16 @@ public class SearchCommitPrefetcher {
             // searches in the system and the indices are not idle anymore) we can prefetch the latest commit only (without downloading what
             // could be very large historical commits).
             BlobLocation maxOffsetInCurrentTerm = statelessCompoundCommit.getMaxInternalFilesOffsetInCurrentGeneration();
-            maxPrefetchedOffset.accumulateAndGet(
-                // update the max prefetched marker at the end of the current generation
-                new BCCPreFetchedOffset(
-                    maxOffsetInCurrentTerm.getBatchedCompoundCommitTermAndGeneration(),
-                    maxOffsetInCurrentTerm.offset() + maxOffsetInCurrentTerm.fileLength()
-                ),
-                (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
-            );
+            if (maxOffsetInCurrentTerm.blob() instanceof BccBlob maxOffsetBccBlob) {
+                maxPrefetchedOffset.accumulateAndGet(
+                    // update the max prefetched marker at the end of the current generation
+                    new BCCPreFetchedOffset(
+                        maxOffsetBccBlob.termAndGeneration(),
+                        maxOffsetInCurrentTerm.offset() + maxOffsetInCurrentTerm.fileLength()
+                    ),
+                    (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
+                );
+            }
             resultListener.onResponse(enabled ? PrefetchResult.IDLING : PrefetchResult.DISABLED);
             return;
         }
@@ -209,15 +213,14 @@ public class SearchCommitPrefetcher {
             // if this is the first commit notification we receive, we want to avoid downloading all historical data, and instead just
             // prefetch the data added in the current term.
             BlobLocation minOffsetInCurrentTerm = notification.compoundCommit().getMinInternalFilesOffsetInCurrentGeneration();
-            maxPrefetchedOffset.accumulateAndGet(
-                // set the max prefetched marker at the beginning of the current generation, so we download the current generation only,
-                // and completely
-                new BCCPreFetchedOffset(
-                    minOffsetInCurrentTerm.getBatchedCompoundCommitTermAndGeneration(),
-                    minOffsetInCurrentTerm.offset()
-                ),
-                (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
-            );
+            if (minOffsetInCurrentTerm.blob() instanceof BccBlob minOffsetBccBlob) {
+                maxPrefetchedOffset.accumulateAndGet(
+                    // set the max prefetched marker at the beginning of the current generation, so we download the current generation only,
+                    // and completely
+                    new BCCPreFetchedOffset(minOffsetBccBlob.termAndGeneration(), minOffsetInCurrentTerm.offset()),
+                    (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
+                );
+            }
         }
 
         // New commits might be served from the indexing nodes, in such cases it might be undesirable to fetch the
@@ -280,12 +283,13 @@ public class SearchCommitPrefetcher {
 
             logger.debug("[{}] Missing ranges [{}] for new commit [{}]", shardId, bccRangesToPrefetch, notification);
 
-            Map<BccBlob, Long> timestampPerBlob = computeTimestampPerBlob(
+            Map<Blob, Long> timestampPerBlob = computeTimestampPerBlob(
                 compoundCommit,
-                bccRangesToPrefetch.keySet(),
+                bccRangesToPrefetch::containsKey,
                 fileTimestampResolver,
                 regionTimestampResolver
             );
+            assert timestampPerBlob.keySet().containsAll(bccRangesToPrefetch.keySet());
 
             for (Map.Entry<BccBlob, ByteRange> bccRangeToPrefetch : bccRangesToPrefetch.entrySet()) {
                 var blobFile = bccRangeToPrefetch.getKey();
@@ -467,22 +471,26 @@ public class SearchCommitPrefetcher {
     ) {
         Map<BccBlob, ByteRange> bccRangesToPrefetch = new HashMap<>();
         for (var blobLocation : commitFiles) {
-            long blobLocationOffset = blobLocation.offset();
-            var bccTermAndGen = blobLocation.getBatchedCompoundCommitTermAndGeneration();
-            if (currentMaxPrefetchedOffset.precedesOrAt(bccTermAndGen, blobLocationOffset)
-                && bccTermAndGen.generation() <= maxBCCTermAndGenToPrefetch) {
-                var blobFile = blobLocation.bccBlob();
-                bccRangesToPrefetch.compute(blobFile, (unused, range) -> {
-                    long blobLocationEnd = blobLocationOffset + blobLocation.fileLength();
-                    if (range == null) {
-                        boolean isNewBCC = bccTermAndGen.compareTo(currentMaxPrefetchedOffset.bccTermAndGen()) > 0;
-                        var rangeStart = isNewBCC ? 0 : Math.min(currentMaxPrefetchedOffset.offset(), blobLocationOffset);
-                        return ByteRange.of(rangeStart, blobLocationEnd);
-                    }
-                    var extendedRange = ByteRange.of(Math.min(range.start(), blobLocationOffset), Math.max(blobLocationEnd, range.end()));
-                    assert range.isSubRangeOf(extendedRange);
-                    return extendedRange;
-                });
+            if (blobLocation.blob() instanceof BccBlob bccBlob) {
+                long blobLocationOffset = blobLocation.offset();
+                var bccTermAndGen = bccBlob.termAndGeneration();
+                if (currentMaxPrefetchedOffset.precedesOrAt(bccTermAndGen, blobLocationOffset)
+                    && bccTermAndGen.generation() <= maxBCCTermAndGenToPrefetch) {
+                    bccRangesToPrefetch.compute(bccBlob, (unused, range) -> {
+                        long blobLocationEnd = blobLocationOffset + blobLocation.fileLength();
+                        if (range == null) {
+                            boolean isNewBCC = bccTermAndGen.compareTo(currentMaxPrefetchedOffset.bccTermAndGen()) > 0;
+                            var rangeStart = isNewBCC ? 0 : Math.min(currentMaxPrefetchedOffset.offset(), blobLocationOffset);
+                            return ByteRange.of(rangeStart, blobLocationEnd);
+                        }
+                        var extendedRange = ByteRange.of(
+                            Math.min(range.start(), blobLocationOffset),
+                            Math.max(blobLocationEnd, range.end())
+                        );
+                        assert range.isSubRangeOf(extendedRange);
+                        return extendedRange;
+                    });
+                }
             }
         }
         return bccRangesToPrefetch;
@@ -494,9 +502,9 @@ public class SearchCommitPrefetcher {
      * known to the search directory metadata. When a blob holds files from multiple commits, the most recent known timestamp is used as an
      * approximation.
      */
-    static Map<BccBlob, Long> computeTimestampPerBlob(
+    static Map<Blob, Long> computeTimestampPerBlob(
         StatelessCompoundCommit compoundCommit,
-        Set<BccBlob> bccBlobsToPrefetches,
+        Predicate<Blob> shouldPrefetchBlob,
         FileTimestampResolver fileTimestampResolver,
         RegionTimestampResolver regionTimestampResolver
     ) {
@@ -504,19 +512,19 @@ public class SearchCommitPrefetcher {
             compoundCommit.getTimestampFieldValueRange()
         );
         final Set<String> internalFiles = compoundCommit.internalFiles();
-        final Map<BccBlob, Long> timestampPerBlob = new HashMap<>();
+        final Map<Blob, Long> timestampPerBlob = new HashMap<>();
         for (Map.Entry<String, BlobLocation> commitFile : compoundCommit.commitFiles().entrySet()) {
-            String fileName = commitFile.getKey();
-            BccBlob bccBlob = commitFile.getValue().bccBlob();
-            if (bccBlobsToPrefetches.contains(bccBlob) == false) {
+            Blob blob = commitFile.getValue().blob();
+            if (shouldPrefetchBlob.test(blob) == false) {
                 continue;
             }
             // This call to fileTimestampResolver has a benign race with searchDirectory. It is possible that the directory is updated
             // midway through iteration.
+            String fileName = commitFile.getKey();
             long fileTimestamp = internalFiles.contains(fileName)
                 ? notificationCommitTimestamp
                 : fileTimestampResolver.getTimestampMillis(fileName);
-            timestampPerBlob.merge(bccBlob, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
+            timestampPerBlob.merge(blob, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
         }
         // When a blob has no known timestamp of its own, prefer this (triggering) commit's timestamp, then resolve the raw value to a
         // stampable region timestamp.
@@ -525,7 +533,6 @@ public class SearchCommitPrefetcher {
                 BlobFileRanges.firstKnownTimestamp(rawMillis, notificationCommitTimestamp)
             )
         );
-        assert timestampPerBlob.keySet().containsAll(bccBlobsToPrefetches);
         return timestampPerBlob;
     }
 
@@ -578,11 +585,11 @@ public class SearchCommitPrefetcher {
 
     public interface CacheBlobReaderSupplier {
         /**
-         * @param bccBlob   the file to prefetch
+         * @param blob      the blob containing the file to prefetch
          * @param isUploaded {@code true} when the notification already confirms this file's BCC generation is uploaded; the caller should
          *                   pass this from the notification rather than relying on the upload tracker, which may not yet be updated
          */
-        CacheBlobReader getCacheBlobReaderForPreFetching(BccBlob bccBlob, boolean isUploaded);
+        CacheBlobReader getCacheBlobReaderForPreFetching(Blob blob, boolean isUploaded);
     }
 
     /**

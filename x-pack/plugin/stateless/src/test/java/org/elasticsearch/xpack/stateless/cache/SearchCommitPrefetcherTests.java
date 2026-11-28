@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.FileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -204,9 +205,9 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final Map<String, Long> resolvedTimestamps = Map.of("referenced_a", 500L, "referenced_b1", 1500L, "referenced_b2", 2500L);
         final FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(fileName, UNKNOWN_TIMESTAMP);
 
-        final Map<BccBlob, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+        final Map<Blob, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
             commit,
-            Set.of(internalBlob, referencedBlobA, referencedBlobB, referencedBlobC),
+            blob -> true, // every blob referenced by the commit is prefetched
             resolver,
             x -> x
         );
@@ -234,9 +235,9 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         final StatelessCompoundCommit commit = compoundCommit(4, commitFiles, Set.of(), null);
         final FileTimestampResolver resolver = fileName -> UNKNOWN_TIMESTAMP;
 
-        final Map<BccBlob, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+        final Map<Blob, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
             commit,
-            Set.of(referencedBlob),
+            referencedBlob::equals,
             resolver,
             x -> x
         );
@@ -247,9 +248,9 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         );
 
         final long resolvedTimestamp = randomNonNegativeLong();
-        final Map<BccBlob, Long> resolvedTimestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+        final Map<Blob, Long> resolvedTimestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
             commit,
-            Set.of(referencedBlob),
+            referencedBlob::equals,
             resolver,
             ignored -> resolvedTimestamp
         );

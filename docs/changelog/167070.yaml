@@ -1,0 +1,5 @@
+area: Recovery
+issues: [167063]
+pr: 167070
+summary: Add a regression test for peer recovery after dynamic mapping changes
+type: bug

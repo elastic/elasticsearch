@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
+
 /**
  * Reduction for {@code NESTED_ANY}, kept separate from the child-to-parent mapping. A parent is true when any child is
  * true. A child null does not make the parent null. {@link #add} may be called for many batches, and parent positions
@@ -14,43 +17,58 @@ package org.elasticsearch.xpack.esql.predicate;
  * exhausted: until then a parent with no true child is unfinished, not false.
  */
 public final class AnyReduction {
+    private final BlockFactory factory;
     private final boolean[] trues;
     private boolean sealed;
 
-    public AnyReduction(int parentCount) {
+    public AnyReduction(BlockFactory factory, int parentCount) {
+        this.factory = factory;
         this.trues = new boolean[parentCount];
     }
 
-    /** Parents already proven true. A false bit is unfinished until {@link #seal()}, not a proven false. */
-    public SelectionMask knownTrues() {
+    /**
+     * Parents already proven true, one position per parent. A false position is unfinished until {@link #seal()}, not a
+     * proven false. The caller closes the block.
+     */
+    public BooleanBlock knownTrues() {
         if (sealed) {
             throw new IllegalStateException("this reduction is already sealed");
         }
-        return SelectionMask.of(trues.clone());
+        return parents();
     }
 
-    /** Folds an already evaluated child batch. The reducer does not evaluate the child predicate. */
-    public void add(ChildBatch batch, PredicateResult result) {
+    /**
+     * Folds an already evaluated child batch. {@code result} has one position per entry of {@code selection}, in selection
+     * order. The reducer does not evaluate the child predicate.
+     */
+    public void add(ChildBatch batch, int[] selection, BooleanBlock result) {
         if (sealed) {
             throw new IllegalStateException("this reduction is already sealed");
         }
-        if (result.trues().positionCount() != batch.positionCount()) {
+        if (result.getPositionCount() != selection.length) {
             throw new IllegalArgumentException(
-                "result covers [" + result.trues().positionCount() + "] positions and the batch has [" + batch.positionCount() + "]"
+                "result covers [" + result.getPositionCount() + "] positions and the selection has [" + selection.length + "]"
             );
         }
-        if (batch.positionCount() == 0) {
-            return;
-        }
-        for (int i = 0; i < batch.positionCount(); i++) {
-            if (result.trues().get(i)) {
-                trues[batch.parentPosition(i)] = true;
+        for (int i = 0; i < selection.length; i++) {
+            if (result.isNull(i) == false && result.getBoolean(result.getFirstValueIndex(i))) {
+                trues[batch.parentPosition(selection[i])] = true;
             }
         }
     }
 
-    public PredicateResult seal() {
+    /** True or false for every parent; a parent is never null. The caller closes the block. */
+    public BooleanBlock seal() {
         sealed = true;
-        return PredicateResult.of(SelectionMask.of(trues), SelectionMask.none(trues.length));
+        return parents();
+    }
+
+    private BooleanBlock parents() {
+        try (BooleanBlock.Builder builder = factory.newBooleanBlockBuilder(trues.length)) {
+            for (boolean parent : trues) {
+                builder.appendBoolean(parent);
+            }
+            return builder.build();
+        }
     }
 }

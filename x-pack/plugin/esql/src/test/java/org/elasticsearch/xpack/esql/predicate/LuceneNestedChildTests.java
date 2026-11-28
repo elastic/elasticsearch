@@ -27,33 +27,21 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.predicate.PredicateTestBlocks.all;
+import static org.elasticsearch.xpack.esql.predicate.PredicateTestBlocks.tri;
+import static org.elasticsearch.xpack.esql.predicate.PredicateTestBlocks.values;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -61,9 +49,17 @@ import static org.hamcrest.Matchers.equalTo;
  * ordinary ES|QL evaluator decides {@code qty * price > 100} on those same positions. A parent stays unfinished until
  * the child cursor ends.
  */
-public class LuceneNestedChildTests extends ESTestCase {
-    private static final FieldRef QTY = new FieldRef("qty");
-    private static final FieldRef PRICE = new FieldRef("price");
+public class LuceneNestedChildTests extends ComputeTestCase {
+    private static final PredicateExpr EXPENSIVE = new PredicateExpr.ProductGreaterThan("qty", "price", 100);
+
+    private BlockFactory factory;
+    private DriverContext context;
+
+    @Before
+    public void createContext() {
+        factory = blockFactory();
+        context = new DriverContext(nonBreakingBigArrays(), factory, null);
+    }
 
     public void testSameChildAcrossBatches() throws IOException {
         try (Directory directory = newDirectory(); IndexWriter writer = new IndexWriter(directory, writerConfig())) {
@@ -81,29 +77,41 @@ public class LuceneNestedChildTests extends ESTestCase {
 
                 List<SourceRow> loaded = new ArrayList<>();
                 RowSpace children = new RowSpace("children");
-                DriverContext context = driverContext();
-                try (ExpressionEvaluator evaluator = evaluator(context)) {
-                    AnyReduction reduction = new AnyReduction(3);
-                    List<SelectionMask> unfinished = new ArrayList<>();
+                try (RowPredicate expensive = Predicates.compile(EXPENSIVE, PredicateTestBlocks.scanOnly(), context)) {
+                    AnyReduction reduction = new AnyReduction(factory, 3);
+                    List<List<Boolean>> unfinished = new ArrayList<>();
                     CandidateCursor cursor = pages(children, leaf.reader(), matches, parents, loaded, 1);
                     for (SelectionBatch batch = cursor.nextBatch(); batch != null; batch = cursor.nextBatch()) {
                         assertThat(batch.positionCount(), equalTo(1));
-                        reduction.add((ChildBatch) batch, expensive(evaluator).evaluate(batch, batch.candidates()));
-                        unfinished.add(reduction.knownTrues());
+                        int[] selection = batch.candidates();
+                        try (BooleanBlock result = expensive.evaluate(batch, selection)) {
+                            reduction.add((ChildBatch) batch, selection, result);
+                        }
+                        try (BooleanBlock known = reduction.knownTrues()) {
+                            unfinished.add(values(known));
+                        }
                     }
-                    PredicateResult sealed = reduction.seal();
-                    PredicateResult planned = NestedAnyPlan.evaluate(
-                        3,
-                        pages(children, leaf.reader(), matches, parents, new ArrayList<>(), 1),
-                        expensive(evaluator)
-                    );
+                    List<Boolean> sealed;
+                    try (BooleanBlock block = reduction.seal()) {
+                        sealed = values(block);
+                    }
+                    List<Boolean> planned;
+                    try (
+                        BooleanBlock block = NestedAnyPlan.evaluate(
+                            factory,
+                            3,
+                            pages(children, leaf.reader(), matches, parents, new ArrayList<>(), 1),
+                            expensive
+                        )
+                    ) {
+                        planned = values(block);
+                    }
 
-                    assertThat(unfinished.get(0), equalTo(SelectionMask.of(false, false, false)));
-                    assertThat(unfinished.get(1), equalTo(SelectionMask.of(false, false, false)));
-                    assertThat(unfinished.get(2), equalTo(SelectionMask.of(false, true, false)));
-                    assertThat(unfinished.get(3), equalTo(SelectionMask.of(false, true, false)));
-                    assertThat(sealed.trues(), equalTo(SelectionMask.of(false, true, false)));
-                    assertThat(sealed.nulls(), equalTo(SelectionMask.none(3)));
+                    assertThat(unfinished.get(0), equalTo(tri(false, false, false)));
+                    assertThat(unfinished.get(1), equalTo(tri(false, false, false)));
+                    assertThat(unfinished.get(2), equalTo(tri(false, true, false)));
+                    assertThat(unfinished.get(3), equalTo(tri(false, true, false)));
+                    assertThat(sealed, equalTo(tri(false, true, false)));
                     assertThat(planned, equalTo(sealed));
                     assertThat(loaded.contains(new SourceRow(children, 1)), equalTo(false));
                 }
@@ -111,51 +119,7 @@ public class LuceneNestedChildTests extends ESTestCase {
         }
     }
 
-    private static RowPredicate expensive(ExpressionEvaluator evaluator) {
-        return (batch, candidates) -> {
-            int count = candidates.cardinality();
-            int[] positions = candidates.positions();
-            boolean[] trues = new boolean[batch.positionCount()];
-            boolean[] nulls = new boolean[batch.positionCount()];
-            LongBlock qty = longs(batch.load(QTY, candidates), count);
-            LongBlock price = longs(batch.load(PRICE, candidates), count);
-            try (Page page = new Page(qty, price); Block raw = evaluator.eval(page)) {
-                BooleanBlock flags = (BooleanBlock) raw;
-                for (int ordinal = 0; ordinal < flags.getPositionCount(); ordinal++) {
-                    int position = positions[ordinal];
-                    if (flags.isNull(ordinal)) {
-                        nulls[position] = true;
-                    } else if (flags.getBoolean(flags.getFirstValueIndex(ordinal))) {
-                        trues[position] = true;
-                    }
-                }
-            }
-            return PredicateResult.of(SelectionMask.of(trues), SelectionMask.of(nulls));
-        };
-    }
-
-    private static LongBlock longs(Column column, int count) {
-        try (column; LongBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(count)) {
-            for (int ordinal = 0; ordinal < count; ordinal++) {
-                Object value = column.value(ordinal);
-                if (value == null) {
-                    builder.appendNull();
-                } else {
-                    builder.appendLong((Long) value);
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    private static CandidateCursor pages(
-        RowSpace space,
-        LeafReader reader,
-        int[] docs,
-        int[] parents,
-        List<SourceRow> loaded,
-        int pageSize
-    ) {
+    private CandidateCursor pages(RowSpace space, LeafReader reader, int[] docs, int[] parents, List<SourceRow> loaded, int pageSize) {
         return new CandidateCursor() {
             private int next;
 
@@ -170,22 +134,9 @@ public class LuceneNestedChildTests extends ESTestCase {
                 System.arraycopy(docs, next, pageDocs, 0, pageDocs.length);
                 System.arraycopy(parents, next, pageParents, 0, pageParents.length);
                 next = end;
-                return new ChildLeaf(space, reader, pageDocs, pageParents, loaded);
+                return new ChildLeaf(factory, space, reader, pageDocs, pageParents, loaded);
             }
         };
-    }
-
-    private static ExpressionEvaluator evaluator(DriverContext context) {
-        FieldAttribute qty = field("qty");
-        FieldAttribute price = field("price");
-        Layout layout = new Layout.Builder().append(qty).append(price).build();
-        var expression = new GreaterThan(
-            Source.EMPTY,
-            new Mul(Source.EMPTY, qty, price),
-            new Literal(Source.EMPTY, 100L, DataType.LONG),
-            null
-        );
-        return EvalMapper.toEvaluator(FoldContext.small(), expression, layout).get(context);
     }
 
     private static void add(IndexWriter writer, int parent, String sku, long qty, Long price) throws IOException {
@@ -237,30 +188,16 @@ public class LuceneNestedChildTests extends ESTestCase {
         return parents;
     }
 
-    private static FieldAttribute field(String name) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            name,
-            new EsField(name, DataType.LONG, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
-        );
-    }
-
-    private static DriverContext driverContext() {
-        return new DriverContext(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            TestBlockFactory.getNonBreakingInstance(),
-            null
-        );
-    }
-
     private static final class ChildLeaf implements ChildBatch {
+        private final BlockFactory factory;
         private final RowSpace space;
         private final LeafReader reader;
         private final int[] docs;
         private final int[] parents;
         private final List<SourceRow> loaded;
 
-        private ChildLeaf(RowSpace space, LeafReader reader, int[] docs, int[] parents, List<SourceRow> loaded) {
+        private ChildLeaf(BlockFactory factory, RowSpace space, LeafReader reader, int[] docs, int[] parents, List<SourceRow> loaded) {
+            this.factory = factory;
             this.space = space;
             this.reader = reader;
             this.docs = docs;
@@ -274,24 +211,24 @@ public class LuceneNestedChildTests extends ESTestCase {
         }
 
         @Override
-        public SelectionMask candidates() {
-            return SelectionMask.all(docs.length);
+        public int[] candidates() {
+            return all(docs.length);
         }
 
         @Override
-        public Column load(FieldRef field, SelectionMask selection) {
-            try {
+        public Block load(FieldRef field, int[] selection) {
+            try (LongBlock.Builder builder = factory.newLongBlockBuilder(selection.length)) {
                 SortedNumericDocValues values = reader.getSortedNumericDocValues(field.name());
-                int[] positions = selection.positions();
-                Object[] compacted = new Object[positions.length];
-                for (int ordinal = 0; ordinal < positions.length; ordinal++) {
-                    int doc = docs[positions[ordinal]];
+                for (int position : selection) {
+                    int doc = docs[position];
                     loaded.add(new SourceRow(space, doc));
                     if (values != null && values.advanceExact(doc) && values.docValueCount() == 1) {
-                        compacted[ordinal] = values.nextValue();
+                        builder.appendLong(values.nextValue());
+                    } else {
+                        builder.appendNull();
                     }
                 }
-                return ordinal -> compacted[ordinal];
+                return builder.build();
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }

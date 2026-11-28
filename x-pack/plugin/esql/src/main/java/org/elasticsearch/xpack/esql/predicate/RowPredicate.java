@@ -7,7 +7,17 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
-/** Three-valued evaluation over the candidates of a batch. Positions outside the mask are left false and are not read. */
-public interface RowPredicate {
-    PredicateResult evaluate(SelectionBatch batch, SelectionMask candidates);
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.core.Releasable;
+
+/**
+ * Three-valued evaluation over a selection of a batch. The result has one position per selected position, in selection
+ * order: true, false, or null. Positions outside the selection are not read and are not part of the result. The caller
+ * closes the result block. Closing the predicate releases the evaluators it holds.
+ */
+public interface RowPredicate extends Releasable {
+    BooleanBlock evaluate(SelectionBatch batch, int[] selection);
+
+    @Override
+    default void close() {}
 }

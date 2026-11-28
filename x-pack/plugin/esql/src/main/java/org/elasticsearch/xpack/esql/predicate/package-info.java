@@ -11,7 +11,9 @@
  * A source adapter owns candidate production, pruning, and column access. The engine owns exact expression evaluation,
  * three-valued Boolean composition, and collection reduction. A filtering cursor may return extra rows and must include
  * every row that could satisfy the whole predicate. A guarantee about one comparison does not become a guarantee about
- * the plan that contains it. The caller closes each loaded column before releasing its batch.
+ * the plan that contains it. A source loads each column as a {@code Block} for a selection of positions, and a
+ * predicate answers a selection with a three-valued {@code BooleanBlock}. The caller closes each loaded block before
+ * releasing its batch.
  * <p>
  * These types stay a prototype. Production {@code NESTED_ANY} already has this shape:
  * {@code NestedChildren} emits a {@code Page} whose first block is the parent position and whose later blocks are the

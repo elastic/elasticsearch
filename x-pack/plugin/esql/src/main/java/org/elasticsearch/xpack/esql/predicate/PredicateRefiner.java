@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
+import org.elasticsearch.compute.data.BooleanBlock;
+
 /**
  * Evaluates a predicate over positions already present in a batch. Used when the engine must keep false and null rows,
- * as {@code EVAL} does, and when one branch of an {@code OR} is tested without replacing the input stream.
+ * as {@code EVAL} does, and when one branch of an {@code OR} is tested without replacing the input stream. The result is
+ * a {@link RowPredicate} result: one three-valued position per selected position, closed by the caller.
  */
 public interface PredicateRefiner {
-    PredicateResult evaluate(SelectionBatch batch, SelectionMask candidates);
+    BooleanBlock evaluate(SelectionBatch batch, int[] selection);
 }

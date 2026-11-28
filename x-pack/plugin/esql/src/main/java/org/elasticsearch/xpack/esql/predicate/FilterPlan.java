@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,7 +18,7 @@ import java.util.List;
  * A filter plan: the source produces candidate batches, and the residual predicate decides which of those rows are true.
  * Null is not accepted.
  */
-public final class FilterPlan {
+public final class FilterPlan implements Releasable {
     private final CandidateConstraint constraint;
     private final CandidateCoverage coverage;
     private final Projection projection;
@@ -59,16 +63,23 @@ public final class FilterPlan {
         }
         List<SourceRow> rows = new ArrayList<>();
         for (SelectionBatch batch = cursor.nextBatch(); batch != null; batch = cursor.nextBatch()) {
-            PredicateResult result = residual.evaluate(batch, batch.candidates());
-            for (int i = 0; i < batch.positionCount(); i++) {
-                if (result.trues().get(i)) {
-                    rows.add(batch.sourceRow(i));
+            int[] selection = batch.candidates();
+            try (BooleanBlock result = residual.evaluate(batch, selection)) {
+                for (int i = 0; i < selection.length; i++) {
+                    if (result.isNull(i) == false && result.getBoolean(result.getFirstValueIndex(i))) {
+                        rows.add(batch.sourceRow(selection[i]));
+                    }
                 }
             }
         }
         rows.sort(FilterPlan::compareRows);
         accepted = List.copyOf(rows);
         return accepted;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(cursor, residual);
     }
 
     /** Order within one row space is by id. Ids from different spaces stay distinct and are grouped by space. */

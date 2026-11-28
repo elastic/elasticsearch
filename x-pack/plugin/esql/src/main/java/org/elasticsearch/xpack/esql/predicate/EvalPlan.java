@@ -7,18 +7,27 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.core.Releasable;
+
 /**
  * In-place evaluation of a predicate. Unlike {@link FilterPlan}, this does not ask the source for a new candidate stream,
  * so rows that are false or null stay in the batch.
  */
-public final class EvalPlan {
+public final class EvalPlan implements Releasable {
     private final RowPredicate predicate;
 
     EvalPlan(RowPredicate predicate) {
         this.predicate = predicate;
     }
 
-    public PredicateResult evaluate(SelectionBatch batch) {
+    /** One three-valued position per candidate of the batch, in candidate order. The caller closes the block. */
+    public BooleanBlock evaluate(SelectionBatch batch) {
         return predicate.evaluate(batch, batch.candidates());
+    }
+
+    @Override
+    public void close() {
+        predicate.close();
     }
 }

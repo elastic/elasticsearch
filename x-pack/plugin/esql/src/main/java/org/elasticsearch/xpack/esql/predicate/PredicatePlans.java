@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,7 +26,7 @@ import java.util.Set;
 public final class PredicatePlans {
     private PredicatePlans() {}
 
-    public static FilterPlan filter(PredicateExpr predicate, PredicateSource source) {
+    public static FilterPlan filter(PredicateExpr predicate, PredicateSource source, DriverContext context) {
         List<PredicateExpr> constraint = new ArrayList<>();
         List<PredicateExpr> residual = new ArrayList<>();
         for (PredicateExpr conjunct : flattenAnd(predicate)) {
@@ -40,25 +44,30 @@ public final class PredicatePlans {
             : residual.isEmpty() ? CandidateCoverage.EXACT
             : CandidateCoverage.SUPERSET;
         Projection projection = new Projection(fields(residual));
-        RowPredicate evaluator = residual.isEmpty() ? Predicates.alwaysTrue() : compileAll(residual, source);
-        return new FilterPlan(
-            new CandidateConstraint(constraint),
-            coverage,
-            projection,
-            source.open(new CandidateConstraint(constraint), projection),
-            evaluator
-        );
+        RowPredicate evaluator = residual.isEmpty() ? Predicates.alwaysTrue(context) : compileAll(residual, source, context);
+        try {
+            return new FilterPlan(
+                new CandidateConstraint(constraint),
+                coverage,
+                projection,
+                source.open(new CandidateConstraint(constraint), projection),
+                evaluator
+            );
+        } catch (RuntimeException e) {
+            Releasables.closeWhileHandlingException(evaluator);
+            throw e;
+        }
     }
 
     /** In-place evaluation. The input batch is kept, so false and null rows are still positions in the result. */
-    public static EvalPlan eval(PredicateExpr predicate, PredicateSource source) {
-        return new EvalPlan(Predicates.compile(predicate, source));
+    public static EvalPlan eval(PredicateExpr predicate, PredicateSource source, DriverContext context) {
+        return new EvalPlan(Predicates.compile(predicate, source, context));
     }
 
-    private static RowPredicate compileAll(List<PredicateExpr> conjuncts, PredicateSource source) {
-        RowPredicate combined = Predicates.compile(conjuncts.get(0), source);
+    private static RowPredicate compileAll(List<PredicateExpr> conjuncts, PredicateSource source, DriverContext context) {
+        RowPredicate combined = Predicates.compile(conjuncts.get(0), source, context);
         for (int i = 1; i < conjuncts.size(); i++) {
-            combined = Predicates.and(combined, Predicates.compile(conjuncts.get(i), source));
+            combined = Predicates.and(combined, Predicates.compile(conjuncts.get(i), source, context), context);
         }
         return combined;
     }
@@ -88,10 +97,10 @@ public final class PredicatePlans {
 
     private static void fields(PredicateExpr predicate, Set<FieldRef> fields) {
         switch (predicate) {
-            case PredicateExpr.FieldEquals equals -> fields.add(new FieldRef(equals.field()));
+            case PredicateExpr.FieldEquals equals -> fields.add(new FieldRef(equals.field(), DataType.KEYWORD));
             case PredicateExpr.ProductGreaterThan product -> {
-                fields.add(new FieldRef(product.left()));
-                fields.add(new FieldRef(product.right()));
+                fields.add(new FieldRef(product.left(), DataType.LONG));
+                fields.add(new FieldRef(product.right(), DataType.LONG));
             }
             case PredicateExpr.And and -> {
                 fields(and.left(), fields);

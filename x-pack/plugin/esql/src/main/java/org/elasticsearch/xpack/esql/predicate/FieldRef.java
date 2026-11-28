@@ -7,5 +7,7 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
-/** A column the engine asks a source to load. The source decides how the values are read. */
-public record FieldRef(String name) {}
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
+/** A column the engine asks a source to load, as a block of {@code type}. The source decides how the values are read. */
+public record FieldRef(String name, DataType type) {}

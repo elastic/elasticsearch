@@ -27,86 +27,76 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.planner.Layout;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.predicate.PredicateTestBlocks.all;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * A Lucene doc-id iterator selects candidate positions, and the ordinary ES|QL evaluator decides the residual
  * {@code price * quantity > 100} on those positions only. Doc ids are compared inside one leaf's row space.
  */
-public class LuceneSelectedPositionsTests extends ESTestCase {
-    private static final FieldRef PRICE = new FieldRef("price");
-    private static final FieldRef QUANTITY = new FieldRef("quantity");
+public class LuceneSelectedPositionsTests extends ComputeTestCase {
+    private static final FieldRef PRICE = new FieldRef("price", DataType.LONG);
+    private static final PredicateExpr EXPENSIVE = new PredicateExpr.ProductGreaterThan("price", "quantity", 100);
+
+    private BlockFactory factory;
+    private DriverContext context;
+
+    @Before
+    public void createContext() {
+        factory = blockFactory();
+        context = new DriverContext(nonBreakingBigArrays(), factory, null);
+    }
 
     public void testIteratorAndEvaluatorAgreeAcrossSegments() throws IOException {
         try (Directory directory = newDirectory()) {
             writeTwoSegments(directory);
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+            try (DirectoryReader reader = DirectoryReader.open(directory); RowPredicate predicate = expensive()) {
                 assertThat(reader.leaves().size(), equalTo(2));
                 Weight category = categoryWeight(new IndexSearcher(reader));
-                DriverContext context = driverContext();
-                FieldAttribute price = field("price");
-                FieldAttribute quantity = field("quantity");
-                Layout layout = new Layout.Builder().append(price).append(quantity).build();
-                var expression = new GreaterThan(
-                    Source.EMPTY,
-                    new Mul(Source.EMPTY, price, quantity),
-                    new Literal(Source.EMPTY, 100L, DataType.LONG),
-                    null
-                );
-                try (ExpressionEvaluator evaluator = EvalMapper.toEvaluator(FoldContext.small(), expression, layout).get(context)) {
-                    List<SourceRow> selectedTrues = new ArrayList<>();
-                    List<SourceRow> selectedNulls = new ArrayList<>();
-                    List<SourceRow> scannedTrues = new ArrayList<>();
-                    List<SourceRow> scannedNulls = new ArrayList<>();
-                    List<SourceRow> loaded = new ArrayList<>();
-                    for (LeafReaderContext leaf : reader.leaves()) {
-                        RowSpace space = new RowSpace("segment-" + leaf.ord);
-                        int[] matches = matchingDocs(category, leaf);
-                        Outcome selected = evaluate(evaluator, new LeafBatch(space, leaf.reader(), matches, loaded), null);
-                        selectedTrues.addAll(selected.trues());
-                        selectedNulls.addAll(selected.nulls());
-                        Outcome scanned = evaluate(
-                            evaluator,
-                            new LeafBatch(space, leaf.reader(), everyDoc(leaf.reader().maxDoc()), new ArrayList<>()),
-                            matches
-                        );
-                        scannedTrues.addAll(scanned.trues());
-                        scannedNulls.addAll(scanned.nulls());
-                    }
-                    RowSpace first = selectedTrues.get(0).space();
-                    assertThat(selectedTrues, equalTo(List.of(new SourceRow(first, 0))));
-                    assertThat(selectedTrues, equalTo(scannedTrues));
-                    assertThat(selectedNulls, equalTo(scannedNulls));
-                    assertThat(selectedNulls, equalTo(List.of(new SourceRow(readerSpace(selectedNulls), 1))));
-                    assertThat(loaded.contains(new SourceRow(first, 1)), equalTo(false));
+                List<SourceRow> selectedTrues = new ArrayList<>();
+                List<SourceRow> selectedNulls = new ArrayList<>();
+                List<SourceRow> scannedTrues = new ArrayList<>();
+                List<SourceRow> scannedNulls = new ArrayList<>();
+                List<SourceRow> selectedLoads = new ArrayList<>();
+                List<SourceRow> scannedLoads = new ArrayList<>();
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    RowSpace space = new RowSpace("segment-" + leaf.ord);
+                    int[] matches = matchingDocs(category, leaf);
+                    Outcome selected = evaluate(
+                        predicate,
+                        new LeafBatch(factory, space, leaf.reader(), matches, selectedLoads),
+                        all(matches.length)
+                    );
+                    selectedTrues.addAll(selected.trues());
+                    selectedNulls.addAll(selected.nulls());
+                    Outcome scanned = evaluate(
+                        predicate,
+                        new LeafBatch(factory, space, leaf.reader(), everyDoc(leaf.reader().maxDoc()), scannedLoads),
+                        matches
+                    );
+                    scannedTrues.addAll(scanned.trues());
+                    scannedNulls.addAll(scanned.nulls());
                 }
+                RowSpace first = selectedTrues.get(0).space();
+                assertThat(selectedTrues, equalTo(List.of(new SourceRow(first, 0))));
+                assertThat(selectedTrues, equalTo(scannedTrues));
+                assertThat(selectedNulls, equalTo(scannedNulls));
+                assertThat(selectedNulls, equalTo(List.of(new SourceRow(readerSpace(selectedNulls), 1))));
+                assertThat(selectedLoads.contains(new SourceRow(first, 1)), equalTo(false));
+                assertThat(scannedLoads.contains(new SourceRow(first, 1)), equalTo(false));
             }
         }
     }
@@ -118,63 +108,34 @@ public class LuceneSelectedPositionsTests extends ESTestCase {
             writer.commit();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext leaf = reader.leaves().get(0);
-                LeafBatch batch = new LeafBatch(new RowSpace("segment"), leaf.reader(), new int[] { 0, 1 }, new ArrayList<>());
-                try (var column = batch.load(PRICE, SelectionMask.of(false, true))) {
-                    assertThat(column.value(0), equalTo(null));
+                LeafBatch batch = new LeafBatch(factory, new RowSpace("segment"), leaf.reader(), new int[] { 0, 1 }, new ArrayList<>());
+                try (LongBlock block = (LongBlock) batch.load(PRICE, new int[] { 1 })) {
+                    assertThat(block.getPositionCount(), equalTo(1));
+                    assertThat(block.isNull(0), equalTo(true));
                 }
                 assertThat(batch.loaded, equalTo(List.of(new SourceRow(batch.rowSpace(), 1))));
             }
         }
     }
 
-    private static Outcome evaluate(ExpressionEvaluator evaluator, LeafBatch batch, int[] restrictTo) {
-        int count = batch.positionCount();
-        if (count == 0) {
-            return new Outcome(List.of(), List.of());
-        }
-        LongBlock priceBlock = longs(batch.load(PRICE, batch.candidates()), count);
-        LongBlock quantityBlock = longs(batch.load(QUANTITY, batch.candidates()), count);
-        try (Page page = new Page(priceBlock, quantityBlock); Block raw = evaluator.eval(page)) {
-            BooleanBlock flags = (BooleanBlock) raw;
-            List<SourceRow> trues = new ArrayList<>();
-            List<SourceRow> nulls = new ArrayList<>();
-            for (int position = 0; position < flags.getPositionCount(); position++) {
-                int doc = batch.docs[position];
-                if (restrictTo != null && contains(restrictTo, doc) == false) {
-                    continue;
-                }
-                SourceRow row = batch.sourceRow(position);
-                if (flags.isNull(position)) {
+    private RowPredicate expensive() {
+        return Predicates.compile(EXPENSIVE, PredicateTestBlocks.scanOnly(), context);
+    }
+
+    private static Outcome evaluate(RowPredicate predicate, LeafBatch batch, int[] selection) {
+        List<SourceRow> trues = new ArrayList<>();
+        List<SourceRow> nulls = new ArrayList<>();
+        try (BooleanBlock flags = predicate.evaluate(batch, selection)) {
+            for (int ordinal = 0; ordinal < flags.getPositionCount(); ordinal++) {
+                SourceRow row = batch.sourceRow(selection[ordinal]);
+                if (flags.isNull(ordinal)) {
                     nulls.add(row);
-                } else if (flags.getBoolean(flags.getFirstValueIndex(position))) {
+                } else if (flags.getBoolean(flags.getFirstValueIndex(ordinal))) {
                     trues.add(row);
                 }
             }
-            return new Outcome(trues, nulls);
         }
-    }
-
-    private static boolean contains(int[] docs, int doc) {
-        for (int candidate : docs) {
-            if (candidate == doc) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static LongBlock longs(Column column, int count) {
-        try (column; LongBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(count)) {
-            for (int ordinal = 0; ordinal < count; ordinal++) {
-                Object value = column.value(ordinal);
-                if (value == null) {
-                    builder.appendNull();
-                } else {
-                    builder.appendLong((Long) value);
-                }
-            }
-            return builder.build();
-        }
+        return new Outcome(trues, nulls);
     }
 
     private static RowSpace readerSpace(List<SourceRow> rows) {
@@ -229,38 +190,20 @@ public class LuceneSelectedPositionsTests extends ESTestCase {
     }
 
     private static int[] everyDoc(int maxDoc) {
-        int[] docs = new int[maxDoc];
-        for (int doc = 0; doc < maxDoc; doc++) {
-            docs[doc] = doc;
-        }
-        return docs;
-    }
-
-    private static FieldAttribute field(String name) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            name,
-            new EsField(name, DataType.LONG, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
-        );
-    }
-
-    private static DriverContext driverContext() {
-        return new DriverContext(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            TestBlockFactory.getNonBreakingInstance(),
-            null
-        );
+        return all(maxDoc);
     }
 
     private record Outcome(List<SourceRow> trues, List<SourceRow> nulls) {}
 
     private static final class LeafBatch implements SelectionBatch {
+        private final BlockFactory factory;
         private final RowSpace space;
         private final LeafReader reader;
         private final int[] docs;
         private final List<SourceRow> loaded;
 
-        private LeafBatch(RowSpace space, LeafReader reader, int[] docs, List<SourceRow> loaded) {
+        private LeafBatch(BlockFactory factory, RowSpace space, LeafReader reader, int[] docs, List<SourceRow> loaded) {
+            this.factory = factory;
             this.space = space;
             this.reader = reader;
             this.docs = docs;
@@ -273,24 +216,24 @@ public class LuceneSelectedPositionsTests extends ESTestCase {
         }
 
         @Override
-        public SelectionMask candidates() {
-            return SelectionMask.all(docs.length);
+        public int[] candidates() {
+            return all(docs.length);
         }
 
         @Override
-        public Column load(FieldRef field, SelectionMask selection) {
-            try {
+        public Block load(FieldRef field, int[] selection) {
+            try (LongBlock.Builder builder = factory.newLongBlockBuilder(selection.length)) {
                 SortedNumericDocValues values = reader.getSortedNumericDocValues(field.name());
-                int[] positions = selection.positions();
-                Object[] compacted = new Object[positions.length];
-                for (int ordinal = 0; ordinal < positions.length; ordinal++) {
-                    int doc = docs[positions[ordinal]];
+                for (int position : selection) {
+                    int doc = docs[position];
                     loaded.add(new SourceRow(space, doc));
                     if (values != null && values.advanceExact(doc) && values.docValueCount() == 1) {
-                        compacted[ordinal] = values.nextValue();
+                        builder.appendLong(values.nextValue());
+                    } else {
+                        builder.appendNull();
                     }
                 }
-                return ordinal -> compacted[ordinal];
+                return builder.build();
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }

@@ -138,7 +138,8 @@ public enum IndexingStrategy {
             }
             if (engineBatch == null) {
                 if (failure.thrown instanceof UnsupportedOperationException
-                    || isIgnoredMalformedDateFallback(lookup, failure.thrown, sources)) {
+                    || isIgnoredMalformedDateFallback(lookup, failure.thrown, sources)
+                    || isIgnoredMalformedNumberFallback(lookup, failure.thrown, sources)) {
                     return indexRows(mapperService, indexWriter, escfBatch, firstSeqNo, String.valueOf(failure.thrown.getMessage()));
                 }
                 throw new AssertionError("the mappers failed to map a batch, which is not a request to fall back", failure.thrown);
@@ -180,6 +181,34 @@ public enum IndexingStrategy {
                 try {
                     date.fieldType().parse(value);
                 } catch (IllegalArgumentException | DateTimeException | ElasticsearchParseException e) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static final Pattern NUMBER_PARSE_FAILURE = Pattern.compile("For input string: \"(.*?)\"");
+
+    // NOTE: NumberFieldMapper#doMapColumnBatch maps a UNION column through NumberColumnTransform, which does not apply ignore_malformed.
+    // It throws the parse failure of a malformed string and relies on the engine falling back. The same restrictions as for dates apply.
+    private static boolean isIgnoredMalformedNumberFallback(MappingLookup lookup, Throwable thrown, List<String> sources) {
+        if (thrown instanceof IllegalArgumentException == false) {
+            return false;
+        }
+        final Matcher matcher = NUMBER_PARSE_FAILURE.matcher(String.valueOf(thrown.getMessage()));
+        if (matcher.find() == false) {
+            return false;
+        }
+        final String value = matcher.group(1);
+        if (decodedStrings(sources).contains(value) == false) {
+            return false;
+        }
+        for (final Mapper mapper : lookup.fieldMappers()) {
+            if (mapper instanceof NumberFieldMapper number && number.ignoreMalformed()) {
+                try {
+                    number.type().parse(value, true);
+                } catch (IllegalArgumentException | ElasticsearchParseException e) {
                     return true;
                 }
             }

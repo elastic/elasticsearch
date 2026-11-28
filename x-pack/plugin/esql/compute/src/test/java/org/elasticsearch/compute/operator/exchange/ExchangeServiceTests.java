@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -87,6 +88,23 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ExchangeServiceTests extends ESTestCase {
+
+    public void testSourceHandlerCompletionListener() {
+        ExchangeSourceHandler finishedEarly = new ExchangeSourceHandler(10, threadPool.generic());
+        PlainActionFuture<Void> earlyCompletion = new PlainActionFuture<>();
+        finishedEarly.addCompletionListener(earlyCompletion);
+        assertFalse(earlyCompletion.isDone());
+        finishedEarly.finishEarly(true, ActionListener.noop());
+        earlyCompletion.actionGet();
+
+        ExchangeSourceHandler lastSinkFinished = new ExchangeSourceHandler(10, threadPool.generic());
+        PlainActionFuture<Void> sinkCompletion = new PlainActionFuture<>();
+        lastSinkFinished.addCompletionListener(sinkCompletion);
+        Releasable emptySink = lastSinkFinished.addEmptySink();
+        assertFalse(sinkCompletion.isDone());
+        emptySink.close();
+        sinkCompletion.actionGet();
+    }
 
     private TestThreadPool threadPool;
 

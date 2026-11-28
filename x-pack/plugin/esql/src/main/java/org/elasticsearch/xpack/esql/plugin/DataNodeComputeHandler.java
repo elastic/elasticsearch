@@ -144,6 +144,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final ExternalSourceAuthorizer externalSourceAuthorizer;
     /** {@link ExternalSourceSettings#WORKER_READY_TIMEOUT}, tracked live; see {@link #waitUntilReady}. */
     private final AtomicReference<TimeValue> workerReadyTimeout = new AtomicReference<>();
+    private final AtomicReference<TimeValue> shardRoutingWaitTimeout = new AtomicReference<>();
+    private final ShardResolutionMetrics shardResolutionMetrics;
 
     DataNodeComputeHandler(
         ComputeService computeService,
@@ -163,6 +165,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.exchangeService = exchangeService;
         this.searchExecutor = searchExecutor;
         this.threadPool = transportService.getThreadPool();
+        this.shardResolutionMetrics = new ShardResolutionMetrics(transportService.getTelemetryProvider().getMeterRegistry());
         this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
         this.externalSourceAuthorizer = new ExternalSourceAuthorizer(
             client,
@@ -174,6 +177,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // watched otherwise, like the other dynamic external-source settings in EsqlPlugin.
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(ExternalSourceSettings.WORKER_READY_TIMEOUT, workerReadyTimeout::set);
+        clusterService.getClusterSettings().initializeAndWatch(EsqlPlugin.SHARD_ROUTING_WAIT_TIMEOUT, shardRoutingWaitTimeout::set);
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
@@ -212,8 +216,20 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             clusterAlias,
             configuration.allowPartialResults(),
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,
-            configuration.pragmas().unavailableShardResolutionAttempts()
+            configuration.pragmas().unavailableShardResolutionAttempts(),
+            shardRoutingWaitTimeout.get(),
+            shardResolutionMetrics
         ) {
+            @Override
+            boolean isQueryFinished() {
+                return exchangeSource.isFinished();
+            }
+
+            @Override
+            void addQueryFinishedListener(ActionListener<Void> listener) {
+                exchangeSource.addCompletionListener(listener);
+            }
+
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
@@ -228,12 +244,18 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 final AtomicLong pagesFetched = new AtomicLong();
                 final AtomicBoolean requestSent = new AtomicBoolean();
+                final AtomicReference<DataNodeRequestSender.NodeFailure> computeNodeFailure = new AtomicReference<>();
                 // A node that was sent an INTO may have written rows before it failed, without a page for the coordinator to have
                 // fetched, and another copy of the shard would write the same rows again
-                var listener = ActionListener.wrap(
-                    nodeListener::onResponse,
-                    e -> nodeListener.onFailure(e, pagesFetched.get() > 0 || (writesInto && requestSent.get()))
-                );
+                var listener = ActionListener.wrap(nodeListener::onResponse, e -> {
+                    final boolean receivedData = pagesFetched.get() > 0 || (writesInto && requestSent.get());
+                    final DataNodeRequestSender.NodeFailure nodeFailure = computeNodeFailure.get();
+                    if (nodeFailure == null) {
+                        nodeListener.onFailure(e, receivedData);
+                    } else {
+                        nodeListener.onFailure(e, receivedData, nodeFailure);
+                    }
+                });
                 final Transport.Connection connection;
                 try {
                     connection = transportService.getConnection(node);
@@ -252,6 +274,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
+                        computeNodeFailure.set(DataNodeRequestSender.NodeFailure.OTHER);
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -303,20 +326,23 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
                             final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
                             requestSent.set(true);
+                            final ActionListener<DataNodeComputeResponse> dataNodeListener = ComputeService.finishRemoteSinkIfNotSent(
+                                remoteSink,
+                                computeListener.acquireCompute().map(r -> {
+                                    nodeResponseRef.set(r);
+                                    return r.completionInfo();
+                                })
+                            );
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
                                 groupTask,
                                 computeService.planRequestOptions(),
-                                new ActionListenerResponseHandler<>(
-                                    ComputeService.finishRemoteSinkIfNotSent(remoteSink, computeListener.acquireCompute().map(r -> {
-                                        nodeResponseRef.set(r);
-                                        return r.completionInfo();
-                                    })),
-                                    in -> new DataNodeComputeResponse(in, threadContext),
-                                    searchExecutor
-                                )
+                                new ActionListenerResponseHandler<>(dataNodeListener.delegateResponse((dl, e) -> {
+                                    computeNodeFailure.set(DataNodeRequestSender.classifyDataRequestFailure(e));
+                                    dl.onFailure(e);
+                                }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
                             );
                             exchangeSource.addRemoteSink(remoteSink, configuration.allowPartialResults() == false, page -> {
                                 pagesFetched.incrementAndGet();

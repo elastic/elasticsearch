@@ -7,27 +7,39 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.junit.After;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests that graceful shutdown of a data node waits for the ES|QL tasks it runs on behalf of a coordinator on another node.
@@ -45,7 +57,20 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlAsyncActionIT.LocalStateEsqlAsync.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
+        plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(AbstractEsqlIntegTestCase.InternalExchangePlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // long enough that within a test only an explicit close removes a sink that no data node request claimed
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(10))
+            .build();
     }
 
     /**
@@ -113,6 +138,207 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
         var getResultRequest = new GetAsyncResultRequest(id);
         getResultRequest.setWaitForCompletionTimeout(TimeValue.timeValueSeconds(30));
         assertQueryResult(client(dataNode).execute(EsqlAsyncGetResultAction.INSTANCE, getResultRequest));
+    }
+
+    /**
+     * The coordinator cannot reach the node a shard has left. It resolves the shard again and gets the result from the node the shard
+     * moved to.
+     */
+    public void testOpenToUnreachableNodeIsRetriedOnTheNodeTheShardMovedTo() throws Exception {
+        assertOpenRetriedOnTheNodeTheShardMovedTo();
+    }
+
+    /**
+     * Holds the coordinator's open to the data node until the shard has moved to a new node, so the coordinator still targets the data
+     * node, then fails the open as if the node could not be reached.
+     */
+    private void assertOpenRetriedOnTheNodeTheShardMovedTo() throws Exception {
+        String replacement = internalCluster().startDataOnlyNode();
+        ExchangeService dataNodeExchanges = internalCluster().getInstance(ExchangeService.class, dataNode);
+        AtomicInteger opensOnDataNode = countOpens(dataNode);
+        AtomicInteger opensOnReplacement = countOpens(replacement);
+
+        CountDownLatch openSent = new CountDownLatch(1);
+        CountDownLatch shardMoved = new CountDownLatch(1);
+        MockTransportService.getInstance(coordinator)
+            .addSendBehavior(
+                internalCluster().getInstance(TransportService.class, dataNode),
+                (connection, requestId, action, request, options) -> {
+                    if (action.equals(ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
+                        openSent.countDown();
+                        safeAwait(shardMoved, TimeValue.timeValueSeconds(30));
+                        throw new NodeNotConnectedException(connection.getNode(), "simulated");
+                    }
+                    connection.sendRequest(requestId, action, request, options);
+                }
+            );
+
+        scriptPermits.drainPermits();
+        scriptPermits.release(numberOfDocs());
+        ActionFuture<EsqlQueryResponse> query = client(coordinator).execute(
+            EsqlQueryAction.INSTANCE,
+            EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(randomBoolean())
+        );
+        safeAwait(openSent);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", replacement), "test");
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForGreenStatus().setWaitForNoRelocatingShards(true).get();
+        shardMoved.countDown();
+
+        try (EsqlQueryResponse response = safeGet(query)) {
+            assertFalse(response.isPartial());
+            assertThat(getValuesList(response), equalTo(List.of(List.of((long) numberOfDocs()))));
+        }
+        assertThat(opensOnDataNode.get(), equalTo(0));
+        assertThat(opensOnReplacement.get(), equalTo(1));
+        assertTrue("an open that was never delivered leaves no sink", dataNodeExchanges.isEmpty());
+    }
+
+    /**
+     * The data node request to the node a shard is leaving cannot be sent. The coordinator closes the exchange it opened there,
+     * resolves the shard again, and gets the result from the node the shard moved to.
+     */
+    public void testDataRequestFailedOnSendIsRetriedOnTheNodeTheShardMovedTo() throws Exception {
+        assertDataRequestCutOffBeforeFirstPage(false, true);
+    }
+
+    /**
+     * Like {@link #testDataRequestFailedOnSendIsRetriedOnTheNodeTheShardMovedTo}, for a data node request whose connection closes
+     * before the old node answered or sent a page. The closed connection cancels the request's task on the old node, which finishes
+     * the sink there.
+     */
+    public void testDataRequestDisconnectedInFlightIsRetriedOnTheNodeTheShardMovedTo() throws Exception {
+        assertDataRequestCutOffBeforeFirstPage(true, true);
+    }
+
+    /**
+     * Without partial results, a data node request cut off before its first page fails the query, as before.
+     */
+    public void testDataRequestCutOffWithoutPartialResultsFailsTheQuery() throws Exception {
+        assertDataRequestCutOffBeforeFirstPage(randomBoolean(), false);
+    }
+
+    /**
+     * Lets the open to the data node through, then cuts its data node request off once the shard has moved to a new node: either the
+     * request fails to send, or the coordinator drops its connection to the data node while the request is held there. The query runs
+     * from a coordinating-only node, so dropping that connection does not make the master remove the data node from the cluster.
+     */
+    private void assertDataRequestCutOffBeforeFirstPage(boolean inFlight, boolean allowPartialResults) throws Exception {
+        String queryCoordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        String replacement = internalCluster().startDataOnlyNode();
+        TransportService coordinatorTransport = internalCluster().getInstance(TransportService.class, queryCoordinator);
+        TransportService dataNodeTransport = internalCluster().getInstance(TransportService.class, dataNode);
+        ExchangeService dataNodeExchanges = internalCluster().getInstance(ExchangeService.class, dataNode);
+        AtomicInteger opensOnDataNode = countOpens(dataNode);
+        AtomicInteger opensOnReplacement = countOpens(replacement);
+        AtomicInteger dataAnsweredOnDataNode = countAnswered(dataNode, ComputeService.DATA_ACTION_NAME);
+        AtomicInteger dataAnsweredOnReplacement = countAnswered(replacement, ComputeService.DATA_ACTION_NAME);
+
+        CountDownLatch dataRequestSent = new CountDownLatch(1);
+        CountDownLatch cutOff = new CountDownLatch(1);
+        if (inFlight) {
+            MockTransportService.getInstance(dataNode)
+                .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                    dataRequestSent.countDown();
+                    // the real handler, which adds the cancellation listener that finishes the sink, only runs after the disconnect
+                    safeAwait(cutOff, TimeValue.timeValueSeconds(30));
+                    handler.messageReceived(request, channel, task);
+                });
+        } else {
+            MockTransportService.getInstance(queryCoordinator)
+                .addSendBehavior(dataNodeTransport, (connection, requestId, action, request, options) -> {
+                    if (action.equals(ComputeService.DATA_ACTION_NAME)) {
+                        dataRequestSent.countDown();
+                        safeAwait(cutOff, TimeValue.timeValueSeconds(30));
+                        throw new NodeNotConnectedException(connection.getNode(), "simulated");
+                    }
+                    connection.sendRequest(requestId, action, request, options);
+                });
+        }
+
+        scriptPermits.drainPermits();
+        scriptPermits.release(numberOfDocs());
+        ActionFuture<EsqlQueryResponse> query = client(queryCoordinator).execute(
+            EsqlQueryAction.INSTANCE,
+            EsqlQueryRequest.syncEsqlQueryRequest(QUERY).allowPartialResults(allowPartialResults)
+        );
+        safeAwait(dataRequestSent);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", replacement), "test");
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForGreenStatus().setWaitForNoRelocatingShards(true).get();
+        if (inFlight) {
+            coordinatorTransport.disconnectFromNode(dataNodeTransport.getLocalNode());
+            var dataNodeTasks = dataNodeTransport.getTaskManager();
+            assertBusy(
+                () -> assertTrue(
+                    dataNodeTasks.getCancellableTasks()
+                        .values()
+                        .stream()
+                        .anyMatch(t -> ComputeService.DATA_ACTION_NAME.equals(t.getAction()) && t.isCancelled())
+                )
+            );
+        }
+        cutOff.countDown();
+
+        if (allowPartialResults) {
+            try (EsqlQueryResponse response = safeGet(query)) {
+                assertFalse(response.isPartial());
+                assertThat(getValuesList(response), equalTo(List.of(List.of((long) numberOfDocs()))));
+            }
+            assertThat(opensOnDataNode.get(), equalTo(1));
+            assertThat(opensOnReplacement.get(), equalTo(1));
+            assertThat(dataAnsweredOnDataNode.get(), equalTo(0));
+            assertThat(dataAnsweredOnReplacement.get(), equalTo(1));
+        } else {
+            Exception failure = expectThrows(Exception.class, () -> query.actionGet(30, TimeUnit.SECONDS));
+            Throwable cause = ExceptionsHelper.unwrapCause(failure);
+            assertThat(cause, anyOf(instanceOf(TaskCancelledException.class), instanceOf(ConnectTransportException.class)));
+        }
+        // within the assertBusy timeout, far less than the inactive-sink interval
+        assertBusy(() -> assertTrue(dataNodeExchanges.isEmpty()));
+    }
+
+    private static AtomicInteger countOpens(String nodeName) {
+        return countRequests(nodeName, ExchangeService.OPEN_EXCHANGE_ACTION_NAME);
+    }
+
+    /**
+     * Counts the requests for the action that reach the node's handler, which a request rejected at task registration does not.
+     */
+    private static AtomicInteger countRequests(String nodeName, String action) {
+        AtomicInteger requests = new AtomicInteger();
+        MockTransportService.getInstance(nodeName).addRequestHandlingBehavior(action, (handler, request, channel, task) -> {
+            requests.incrementAndGet();
+            handler.messageReceived(request, channel, task);
+        });
+        return requests;
+    }
+
+    /**
+     * Counts the requests for the action that the node answered with a response rather than a failure.
+     */
+    private static AtomicInteger countAnswered(String nodeName, String action) {
+        AtomicInteger answered = new AtomicInteger();
+        MockTransportService.getInstance(nodeName)
+            .addRequestHandlingBehavior(
+                action,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        answered.incrementAndGet();
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+                }, task)
+            );
+        return answered;
     }
 
     private ActionFuture<EsqlQueryResponse> startQuery() {

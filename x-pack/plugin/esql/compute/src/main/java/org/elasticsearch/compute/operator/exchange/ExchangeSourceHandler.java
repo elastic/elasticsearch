@@ -78,6 +78,13 @@ public final class ExchangeSourceHandler {
         return buffer.isFinished();
     }
 
+    /**
+     * Adds a listener that completes, on any thread, when this source will take no more pages.
+     */
+    public void addCompletionListener(ActionListener<Void> listener) {
+        buffer.addCompletionListener(listener);
+    }
+
     private void checkFailure() {
         if (aborted) {
             throw new TaskCancelledException("remote sinks failed");

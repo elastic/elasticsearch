@@ -285,6 +285,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
     private static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory) {
+        // Exhaustive so a new element type does not compile until it has a grouping hash.
         return switch (type) {
             case NULL -> new NullBlockHash(channel, blockFactory);
             case BOOLEAN -> new BooleanBlockHash(channel, blockFactory);
@@ -293,7 +294,8 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
             case DOUBLE_RANGE -> new DoubleRangeBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
-            default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
+            case FLOAT, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
+                throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
     }
 

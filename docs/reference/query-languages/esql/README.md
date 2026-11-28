@@ -458,6 +458,16 @@ The reserved-keyword list is generated from identifier-shaped literals in `EsqlB
 
 The snippet is written to [`_snippets/generated/x-pack-esql/syntax/reserved-keywords.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/syntax/reserved-keywords.md) and included from [Identifiers](esql-syntax.md#esql-identifiers).
 
+### DEDUP unsupported types
+
+The types `DEDUP` rejects are generated from `DataType.isGroupable()` by `DedupUnsupportedTypesDocsTests`. Types that cannot appear as a `DEDUP` column (widened numerics, `unsupported`, `object`, `_doc`, partial aggregates, time-series metadata) are left out. To regenerate:
+
+```
+./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.DedupUnsupportedTypesDocsTests
+```
+
+The snippet is written to [`_snippets/generated/x-pack-esql/syntax/dedup-unsupported-types.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/syntax/dedup-unsupported-types.md) and included from the [`DEDUP`](commands/dedup.md) limitations.
+
 ## Understand how generated content works
 
 There are four overlapping mechanisms for generating the content:

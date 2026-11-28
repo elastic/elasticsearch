@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.AllSupportedFieldsTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -70,6 +71,12 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
             remoteNodeToInfo = fetchNodeToInfo(remoteClient(), "remote_cluster");
         }
         return remoteNodeToInfo;
+    }
+
+    @Override
+    protected boolean groupingCapabilitySupported(EsqlCapabilities.Cap capability) throws IOException {
+        return super.groupingCapabilitySupported(capability)
+            && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of(capability.capabilityName())).orElse(false);
     }
 
     @Override
@@ -144,6 +151,52 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     @Override
     protected boolean fetchAllIsCrossCluster() {
         return true;
+    }
+
+    @Override
+    protected boolean inlineStatsGroupingSupported() throws IOException {
+        return super.inlineStatsGroupingSupported()
+            && clusterHasCapability(
+                client(),
+                "GET",
+                "/_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.capabilityName())
+            ).orElse(false)
+            && clusterHasCapability(
+                remoteClient(),
+                "GET",
+                "/_query",
+                List.of(),
+                List.of(
+                    EsqlCapabilities.Cap.INLINE_STATS.capabilityName(),
+                    EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.capabilityName()
+                )
+            ).orElse(false);
+    }
+
+    @Override
+    protected boolean limitByGroupingSupported() throws IOException {
+        return super.limitByGroupingSupported()
+            && clusterHasCapability(
+                remoteClient(),
+                "GET",
+                "/_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.ESQL_LIMIT_BY.capabilityName())
+            ).orElse(false);
+    }
+
+    @Override
+    protected boolean dedupGroupingSupported() throws IOException {
+        return super.dedupGroupingSupported()
+            && clusterHasCapability(
+                remoteClient(),
+                "GET",
+                "/_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.DEDUP_COMMAND.capabilityName())
+            ).orElse(false);
     }
 
     @Override

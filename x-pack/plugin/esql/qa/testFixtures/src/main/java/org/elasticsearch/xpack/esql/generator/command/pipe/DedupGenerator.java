@@ -33,21 +33,12 @@ public class DedupGenerator implements CommandGenerator {
         if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled() == false) {
             return EMPTY_DESCRIPTION;
         }
-        // DEDUP runs over every column in scope, so any column with a type the runtime group-key
-        // encoder can't handle would produce a VerificationException. Skip rather than emit a
-        // query we know would be rejected. Must stay in sync with Aggregate.checkUnsupportedGroupingType.
+        // DEDUP runs over every column in scope, so a non-groupable column would produce a
+        // VerificationException. Skip rather than emit a query we know would be rejected.
+        // Unsupported columns are the exception: DEDUP ignores them instead of rejecting them.
         for (Column c : previousOutput) {
             DataType dt = DataType.fromTypeName(c.type());
-            if (dt != null
-                && (dt == DataType.AGGREGATE_METRIC_DOUBLE
-                    || dt == DataType.DATE_PERIOD
-                    || dt == DataType.DATE_RANGE
-                    || dt == DataType.DOUBLE_RANGE
-                    || dt == DataType.EXPONENTIAL_HISTOGRAM
-                    || dt == DataType.PARTIAL_AGG
-                    || dt == DataType.TDIGEST
-                    || dt == DataType.TIME_DURATION
-                    || dt.isCounter())) {
+            if (dt != null && dt != DataType.UNSUPPORTED && dt.isGroupable() == false) {
                 return EMPTY_DESCRIPTION;
             }
         }

@@ -43,14 +43,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
-import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
@@ -258,20 +251,38 @@ public class Aggregate extends UnaryPlan
     }
 
     static void checkUnsupportedGroupingType(Expression e, Failures failures) {
-        if ((e instanceof FieldAttribute f && f.dataType().isCounter())
-            || e.dataType() == AGGREGATE_METRIC_DOUBLE
-            || e.dataType() == DATE_PERIOD
-            || e.dataType() == DATE_RANGE
-            || e.dataType() == EXPONENTIAL_HISTOGRAM
-            || e.dataType() == PARTIAL_AGG
-            || e.dataType() == TDIGEST
-            || e.dataType() == TIME_DURATION) {
-            failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
+        if (isUnsupportedGrouping(e)) {
+            failures.add(
+                fail(
+                    e,
+                    "cannot group by on [{}] type for grouping [{}]; convert it to a groupable type or drop it",
+                    e.dataType().typeName(),
+                    e.sourceText()
+                )
+            );
         }
+    }
+
+    /**
+     * A type {@link org.elasticsearch.xpack.esql.core.type.DataType#isGroupable()} rejects, except a counter
+     * reached indirectly.
+     * <p>
+     * Counters are not groupable. A direct counter field is a {@link FieldAttribute} and stays rejected.
+     * {@code RENAME} and {@code BY c = <counter>} are not a {@link FieldAttribute}, and those queries group
+     * today. Making counters groupable is a follow-up of
+     * <a href="https://github.com/elastic/elasticsearch/issues/163024">#163024</a>.
+     */
+    static boolean isUnsupportedGrouping(Expression e) {
+        if (e.dataType().isGroupable()) {
+            return false;
+        }
+        return e.dataType().isCounter() == false || e instanceof FieldAttribute;
     }
 
     private static void checkUnsupportedStatsGroupingType(Expression e, Failures failures) {
         checkUnsupportedGroupingType(e, failures);
+        // BlockHash cannot group dense_vector values. LIMIT BY and DEDUP encode their keys row by row, which can,
+        // so the type stays groupable and only STATS rejects it. Remove this exception when BlockHash supports it.
         if (e.dataType() == DENSE_VECTOR) {
             failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
         }

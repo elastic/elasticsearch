@@ -191,6 +191,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Index is read only
         ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+        assertNoLeakedAnalyzerReferences();
     }
 
     public void testRunnerGeoMatchType() throws Exception {

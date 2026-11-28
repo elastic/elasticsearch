@@ -190,6 +190,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -1759,6 +1760,20 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public AnalysisRegistry getAnalysis() {
         return analysisRegistry;
+    }
+
+    /**
+     * For tests: analyzer cache references held by something other than this node's indices, such as a {@link MapperService}
+     * that was never closed. Zero once in-flight operations finish. Empty if an index was created or closed while counting,
+     * since the difference would then be meaningless; callers retry.
+     */
+    public OptionalLong leakedAnalyzerReferences() {
+        long inRegistry = analysisRegistry.heldReferences();
+        long heldByIndices = 0;
+        for (IndexService indexService : this) {
+            heldByIndices += indexService.getIndexAnalyzers().heldReferences();
+        }
+        return analysisRegistry.heldReferences() == inRegistry ? OptionalLong.of(inRegistry - heldByIndices) : OptionalLong.empty();
     }
 
     /**

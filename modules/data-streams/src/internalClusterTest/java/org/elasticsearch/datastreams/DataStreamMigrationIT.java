@@ -87,6 +87,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         int numDocsDs = randomIntBetween(2, 16);
         indexDocs(alias, numDocsDs);
         DataStreamIT.verifyDocs(alias, numDocs1 + numDocs2 + numDocsDs, List.of("index1", "index2"));
+        internalCluster().assertNoLeakedAnalyzerReferences();
     }
 
     public void testMigrationWithoutTemplate() throws Exception {
@@ -196,6 +197,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         );
 
         assertTrue(throwableOrItsCause(e, IllegalArgumentException.class, "data stream timestamp field [@timestamp] does not exist"));
+        internalCluster().assertNoLeakedAnalyzerReferences();
     }
 
     public void testMigrationWithoutWriteIndex() throws Exception {

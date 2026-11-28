@@ -327,6 +327,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex, true);
         downsample(sourceIndex, downsampleIndex, config);
         assertDownsampleIndex(sourceIndex, downsampleIndex, config);
+        assertNoLeakedAnalyzerReferences();
     }
 
     public void testDownsampleIndexWithFlattenedAndMultiFieldDimensions() throws Exception {
@@ -1163,18 +1164,19 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .getProject(Metadata.DEFAULT_PROJECT_ID)
             .index(sourceIndex);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
-        final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
-        MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
-            if (TimeSeriesFields.isTimeSeriesMetric(fieldMapping)) {
-                metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
-            } else if (TimeSeriesFields.isTimeSeriesLabel(field, mapperService, config.getTimestampField())) {
-                labelFields.put(field, fieldMapping.get("type").toString());
-            }
-        });
+        try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata)) {
+            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+            MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
+                if (TimeSeriesFields.isTimeSeriesMetric(fieldMapping)) {
+                    metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
+                } else if (TimeSeriesFields.isTimeSeriesLabel(field, mapperService, config.getTimestampField())) {
+                    labelFields.put(field, fieldMapping.get("type").toString());
+                }
+            });
+        }
 
         assertDownsampleIndexAggregations(sourceIndex, downsampleIndex, config, metricFields, labelFields);
 

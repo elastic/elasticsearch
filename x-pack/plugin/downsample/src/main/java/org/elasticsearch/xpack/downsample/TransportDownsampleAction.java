@@ -354,17 +354,22 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .orElseThrow(() -> new IllegalArgumentException("No mapping found for downsample source index [" + sourceIndexName + "]"));
 
             // 2. Extract downsample config from index mappings
-            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
-            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+            final TimeSeriesFields timeSeriesFields;
+            try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata)) {
+                final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+                mapperService.merge(
+                    MapperService.SINGLE_MAPPING_NAME,
+                    sourceIndexCompressedXContent,
+                    MapperService.MergeReason.INDEX_TEMPLATE
+                );
 
-            // Validate downsampling interval
-            validateDownsamplingConfiguration(mapperService, request.getDownsampleConfig(), sourceIndexMetadata);
+                // Validate downsampling interval
+                validateDownsamplingConfiguration(mapperService, request.getDownsampleConfig(), sourceIndexMetadata);
 
-            final TimeSeriesFields timeSeriesFields = new TimeSeriesFields.Collector(
-                mapperService,
-                request.getDownsampleConfig().getTimestampField()
-            ).collect(sourceIndexMappings);
+                timeSeriesFields = new TimeSeriesFields.Collector(mapperService, request.getDownsampleConfig().getTimestampField()).collect(
+                    sourceIndexMappings
+                );
+            }
 
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (timeSeriesFields.dimensionFields().length == 0) {

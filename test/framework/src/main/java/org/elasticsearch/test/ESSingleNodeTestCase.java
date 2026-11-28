@@ -76,6 +76,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -365,6 +366,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Get an instance for a particular class using the injector of the singleton node.
      */
+    /** Asserts that the node's analyzer cache holds no references beyond those of its indices, e.g. from an unclosed MapperService. */
+    protected void assertNoLeakedAnalyzerReferences() throws Exception {
+        assertBusy(() -> assertEquals(OptionalLong.of(0), getInstanceFromNode(IndicesService.class).leakedAnalyzerReferences()));
+    }
+
     protected <T> T getInstanceFromNode(Class<T> clazz) {
         return NODE.injector().getInstance(clazz);
     }

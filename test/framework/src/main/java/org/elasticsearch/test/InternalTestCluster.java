@@ -126,6 +126,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1467,6 +1468,15 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }, 60, TimeUnit.SECONDS);
+    }
+
+    /** Asserts that no node's analyzer cache holds references beyond those of its indices, e.g. from an unclosed MapperService. */
+    public void assertNoLeakedAnalyzerReferences() throws Exception {
+        assertBusy(() -> {
+            for (IndicesService indicesService : getInstances(IndicesService.class)) {
+                assertEquals(OptionalLong.of(0), indicesService.leakedAnalyzerReferences());
+            }
+        });
     }
 
     /**

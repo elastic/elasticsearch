@@ -263,7 +263,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
         int numShards = randomIntBetween(1, 4);
-        SearchPhaseController controller = reducingController();
+        SearchPhaseController controller = reducingController(() -> {});
 
         SearchResponse response = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY);
         long estimate;
@@ -362,11 +362,20 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     }
 
     private QueryPhaseResultConsumer newReducingConsumer(SearchRequest searchRequest, CircuitBreaker circuitBreaker, int numShards) {
+        return newReducingConsumer(searchRequest, circuitBreaker, numShards, () -> {});
+    }
+
+    private QueryPhaseResultConsumer newReducingConsumer(
+        SearchRequest searchRequest,
+        CircuitBreaker circuitBreaker,
+        int numShards,
+        Runnable beforeFinalReduction
+    ) {
         return new QueryPhaseResultConsumer(
             searchRequest,
             executor,
             circuitBreaker,
-            reducingController(),
+            reducingController(beforeFinalReduction),
             () -> false,
             SearchProgressListener.NOOP,
             numShards,
@@ -386,9 +395,9 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     /**
      * A controller that reduces with the request's aggregation builders, unlike the one of the other tests, so the reduced aggregations
-     * are real.
+     * are real. {@code beforeFinalReduction} runs when the final reduction starts, after the reduce charged its estimate.
      */
-    private static SearchPhaseController reducingController() {
+    private static SearchPhaseController reducingController(Runnable beforeFinalReduction) {
         return new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
@@ -397,6 +406,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
             @Override
             public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                beforeFinalReduction.run();
                 return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
             }
         });
@@ -1139,6 +1149,42 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 // A final +0.5x is added to account for the serialized->deserialized extra size
                 assertThat(e.getBytesWanted(), equalTo(Math.round(totalAggregationsEstimatedSize * 0.5)));
             }
+        }
+    }
+
+    /**
+     * After partial merges on the coordinating node, the final reduce must only add its 0.5x estimate on top of what is
+     * already charged: the partial merge result is charged once, when it replaces the estimate of the merge. The charge is
+     * read when the final aggregation reduce starts, so it doesn't depend on how the reduced result is charged afterwards.
+     */
+    public void testFinalReduceDoesNotChargePartialMergeResultTwice() throws Exception {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        AtomicLong chargedAtFinalReduce = new AtomicLong(-1);
+        int numShards = randomIntBetween(3, 10);
+        SearchRequest request = new SearchRequest("index");
+        request.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        request.setBatchedReduceSize(2);
+
+        try (
+            QueryPhaseResultConsumer consumer = newReducingConsumer(
+                request,
+                breaker,
+                numShards,
+                () -> chargedAtFinalReduce.set(breaker.getUsed())
+            )
+        ) {
+            CountDownLatch latch = new CountDownLatch(numShards);
+            for (int i = 0; i < numShards; i++) {
+                QuerySearchResult result = queryResultWithAggs(i);
+                consumer.consumeResult(result, latch::countDown);
+                result.decRef();
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertThat("partial merges must have run", consumer.getNumReducePhases(), greaterThan(0));
+
+            long chargedBeforeReduce = breaker.getUsed();
+            consumer.reduce();
+            assertEquals(chargedBeforeReduce + Math.round(0.5d * chargedBeforeReduce), chargedAtFinalReduce.get());
         }
     }
 

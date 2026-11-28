@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166225
+summary: Avoid charging the local partial merge result twice in the final aggregation reduce
+type: bug

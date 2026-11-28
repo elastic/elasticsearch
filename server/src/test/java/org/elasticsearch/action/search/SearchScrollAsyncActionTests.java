@@ -8,31 +8,54 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchScrollAsyncActionTests extends ESTestCase {
@@ -653,6 +676,121 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         for (int i = 0; i < results.length(); i++) {
             assertNull(results.get(i));
+        }
+    }
+
+    /**
+     * A node that leaves between the query and fetch phases of a scroll makes {@code getConnection} throw while the fetch phase is
+     * still sending requests. Fetch results that already arrived for other shards must still be released.
+     */
+    public void testQueryThenFetchReleasesFetchResultsWhenConnectionFailsDuringFetchPhase() throws Exception {
+        final DiscoveryNode node1 = DiscoveryNodeUtils.create("node1");
+        final DiscoveryNode node2 = DiscoveryNodeUtils.create("node2");
+        // The fetch phase visits shards in order, so node1's fetch completes before node2's connection fails
+        final ParsedScrollId scrollId = new ParsedScrollId(
+            "test",
+            new SearchContextIdForNode[] {
+                new SearchContextIdForNode(null, "node1", new ShardSearchContextId(UUIDs.randomBase64UUID(), 1)),
+                new SearchContextIdForNode(null, "node2", new ShardSearchContextId(UUIDs.randomBase64UUID(), 2)) }
+        );
+        final AtomicBoolean fetchStarted = new AtomicBoolean();
+        final List<FetchSearchResult> fetchResults = new CopyOnWriteArrayList<>();
+        final SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+            @Override
+            public Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                if (fetchStarted.get() && node.equals(node2)) {
+                    throw new NodeNotConnectedException(node, "simulated disconnect");
+                }
+                return new SearchAsyncActionTests.MockConnection(node);
+            }
+
+            @Override
+            public void sendExecuteScrollQuery(
+                Transport.Connection connection,
+                InternalScrollSearchRequest request,
+                SearchTask task,
+                ActionListener<ScrollQuerySearchResult> listener
+            ) {
+                final DiscoveryNode node = connection.getNode();
+                final SearchShardTarget target = new SearchShardTarget(
+                    node.getId(),
+                    new ShardId("test", "_na_", node.equals(node1) ? 0 : 1),
+                    null
+                );
+                final QuerySearchResult queryResult = new QuerySearchResult(request.contextId(), target, null);
+                try {
+                    queryResult.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                            1.0F
+                        ),
+                        new DocValueFormat[0]
+                    );
+                    queryResult.size(10);
+                    final ScrollQuerySearchResult result = new ScrollQuerySearchResult(queryResult, target);
+                    try {
+                        listener.onResponse(result);
+                    } finally {
+                        result.decRef();
+                    }
+                } finally {
+                    queryResult.decRef();
+                }
+            }
+
+            @Override
+            public void sendExecuteFetchScroll(
+                Transport.Connection connection,
+                ShardFetchRequest request,
+                SearchTask task,
+                ActionListener<FetchSearchResult> listener
+            ) {
+                fetchStarted.set(true);
+                final FetchSearchResult fetchResult = new FetchSearchResult(
+                    request.contextId(),
+                    new SearchShardTarget(connection.getNode().getId(), new ShardId("test", "_na_", 0), null)
+                );
+                fetchResult.shardResult(
+                    new SearchHits(new SearchHit[] { new SearchHit(42) }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F),
+                    null
+                );
+                fetchResults.add(fetchResult);
+                try {
+                    listener.onResponse(fetchResult);
+                } finally {
+                    // as the transport layer does once the response handler returns
+                    fetchResult.decRef();
+                }
+            }
+        };
+
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool)) {
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state())
+                    .nodes(DiscoveryNodes.builder(clusterService.state().nodes()).add(node1).add(node2))
+            );
+            final SearchScrollRequest request = new SearchScrollRequest();
+            request.scroll(TimeValue.timeValueMinutes(1));
+            final PlainActionFuture<int[]> future = new PlainActionFuture<>();
+            new SearchScrollQueryThenFetchAsyncAction(
+                logger,
+                clusterService,
+                searchTransportService,
+                request,
+                new SearchTask(1, "transport", TransportSearchScrollAction.TYPE.name(), () -> "", TaskId.EMPTY_TASK_ID, Map.of()),
+                scrollId,
+                future.map(response -> new int[] { response.getSuccessfulShards(), response.getFailedShards() })
+            ).run();
+
+            assertThat(fetchResults, hasSize(1));
+            assertFalse("fetch result of node1 was not released", fetchResults.get(0).hasReferences());
+            final int[] shards = future.actionGet(SAFE_AWAIT_TIMEOUT);
+            assertEquals(1, shards[0]);
+            assertEquals(1, shards[1]);
+        } finally {
+            terminate(threadPool);
         }
     }
 

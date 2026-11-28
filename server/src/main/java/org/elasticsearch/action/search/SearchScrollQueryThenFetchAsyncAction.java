@@ -95,41 +95,45 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                             lastEmittedDoc
                         );
                         SearchShardTarget searchShardTarget = querySearchResult.getSearchShardTarget();
+                        final SearchActionListener<FetchSearchResult> fetchListener = new SearchActionListener<>(searchShardTarget, index) {
+                            @Override
+                            protected void innerOnResponse(FetchSearchResult response) {
+                                // Scroll fetch has no SearchPhaseResults pipeline; accumulate per-shard DirectoryMetrics here directly
+                                accumulateDirectoryMetrics(response.getDirectoryMetrics());
+                                fetchResults.setOnce(response.getShardIndex(), response);
+                                response.incRef();
+                                countDownAndFinish(counter, onFetchPhaseFinished);
+                            }
+
+                            @Override
+                            public void onFailure(Exception t) {
+                                onShardFailure(
+                                    getName(),
+                                    counter,
+                                    querySearchResult.getContextId(),
+                                    t,
+                                    querySearchResult.getSearchShardTarget(),
+                                    () -> new SearchPhase("fetch") {
+                                        @Override
+                                        protected void run() {
+                                            onFetchPhaseFinished.run();
+                                        }
+                                    }
+                                );
+                            }
+                        };
                         DiscoveryNode node = clusterNodeLookup.apply(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
                         assert node != null : "target node is null in secondary phase";
-                        Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), node);
-                        searchTransportService.sendExecuteFetchScroll(
-                            connection,
-                            shardFetchRequest,
-                            task,
-                            new SearchActionListener<>(querySearchResult.getSearchShardTarget(), index) {
-                                @Override
-                                protected void innerOnResponse(FetchSearchResult response) {
-                                    // Scroll fetch has no SearchPhaseResults pipeline; accumulate per-shard DirectoryMetrics here directly
-                                    accumulateDirectoryMetrics(response.getDirectoryMetrics());
-                                    fetchResults.setOnce(response.getShardIndex(), response);
-                                    response.incRef();
-                                    countDownAndFinish(counter, onFetchPhaseFinished);
-                                }
-
-                                @Override
-                                public void onFailure(Exception t) {
-                                    onShardFailure(
-                                        getName(),
-                                        counter,
-                                        querySearchResult.getContextId(),
-                                        t,
-                                        querySearchResult.getSearchShardTarget(),
-                                        () -> new SearchPhase("fetch") {
-                                            @Override
-                                            protected void run() {
-                                                onFetchPhaseFinished.run();
-                                            }
-                                        }
-                                    );
-                                }
-                            }
-                        );
+                        final Transport.Connection connection;
+                        try {
+                            connection = getConnection(searchShardTarget.getClusterAlias(), node);
+                        } catch (Exception e) {
+                            // Count this shard down as failed: fetches already sent for earlier shards are only released once every
+                            // shard has completed.
+                            fetchListener.onFailure(e);
+                            continue;
+                        }
+                        searchTransportService.sendExecuteFetchScroll(connection, shardFetchRequest, task, fetchListener);
                     } else {
                         // the counter is set to the total size of docIdsToLoad
                         // which can have null values so we have to count them down too

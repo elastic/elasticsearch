@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.autodetect.ForecastTelemetry;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AnomalyResultsTestUtils;
@@ -194,7 +195,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             new AnnotationPersister(resultsPersisterService),
             process,
             new ModelSizeStats.Builder(JOB_ID).build(),
-            new TimingStats(JOB_ID)
+            new TimingStats(JOB_ID),
+            ForecastTelemetry.NOOP
         ) {
             @Override
             protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {

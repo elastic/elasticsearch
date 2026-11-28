@@ -175,6 +175,11 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
     }
 
     protected Response query(String query, String filterPath) throws IOException {
+        return query(client(), query, filterPath);
+    }
+
+    /** Like {@link #query(String, String)}, through {@code restClient}, for a test that sends to one node and must not fail over. */
+    protected Response query(RestClient restClient, String query, String filterPath) throws IOException {
         Request request = new Request("POST", "/_query");
         request.addParameter("error_trace", "");
         if (filterPath != null) {
@@ -187,7 +192,7 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 .setWarningsHandler(WarningsHandler.PERMISSIVE)
         );
         logger.info("Running query: {}", query);
-        return runQuery(() -> client().performRequest(request));
+        return runQuery(() -> restClient.performRequest(request));
     }
 
     protected Response runQuery(CheckedSupplier<Response, IOException> run) throws IOException {

@@ -177,9 +177,9 @@ public class EsqlFlags {
     );
 
     /**
-     * When enabled, time-series aggregates are reduced separately in each index before results are combined. This uses less memory and can
-     * improve query performance, but results may be approximate for time buckets that overlap index rollover boundaries and for windowed
-     * aggregates whose windows reach across those boundaries.
+     * When enabled, eligible time-series aggregates are reduced separately in each index before results are combined. This uses less memory
+     * and can improve query performance, but results may be approximate for time buckets that overlap index rollover boundaries.
+     * This setting applies only to aggregations without a window.
      */
     public static final Setting<Boolean> ESQL_TIME_SERIES_REDUCE_PER_INDEX = Setting.boolSetting(
         "esql.query.time_series.reduce_per_index",

@@ -129,7 +129,7 @@ If a dashboard already runs against another {{prom}}-compatible backend, switch 
 
 1. Go to **Dashboards → New → New dashboard → Add visualization**.
 2. Select the **Elasticsearch** data source.
-3. In the query editor, write a {{promql}} query (for example, `sum(up)`). Autocompletion and the metric browser are backed by the {{es}} [metadata and discovery endpoints](promql-http-api.md#promql-http-api-metadata).
+3. In the query editor, write a {{promql}} query (for example, `sum(up)`). Autocompletion and the metric browser are backed by the [{{prom}} APIs]({{es-apis}}group/endpoint-prometheus).
 4. Choose a visualization, then save the dashboard.
 
 ## Show exemplars [promql-grafana-exemplars]
@@ -137,7 +137,7 @@ If a dashboard already runs against another {{prom}}-compatible backend, switch 
 {applies_to}`stack: preview 9.7` {applies_to}`serverless: preview`
 
 Grafana can display [exemplars](https://grafana.com/docs/grafana/latest/fundamentals/exemplars/) on time series panels, so you can jump from a spike in a metric to the trace of a request behind it.
-{{es}} serves them through the [`query_exemplars`](promql-http-api.md#promql-http-api-query-exemplars) endpoint from the `exemplars-*` data streams that {{prom}} remote write fills next to the metrics.
+{{es}} serves them through the [query exemplars API]({{es-apis}}operation/operation-prometheus-query-exemplars) from the `exemplars-*` data streams that {{prom}} remote write fills next to the metrics.
 The API key from [Before you begin](#promql-grafana-prerequisites) already grants access to them.
 
 ## Troubleshooting [promql-grafana-troubleshooting]
@@ -176,7 +176,7 @@ curl "https://<es_endpoint>/_prometheus/api/v1/query_range" \
   --data-urlencode 'step=15s'
 ```
 
-For metric discovery, autocompletion, or template-variable problems, check the relevant [metadata endpoint](promql-http-api.md#promql-http-api-metadata) instead (for example `/_prometheus/api/v1/labels` or `/_prometheus/api/v1/series`).
+For metric discovery, autocompletion, or template-variable problems, check the relevant endpoint instead (for example, [label names API]({{es-apis}}operation/operation-prometheus-labels) or the [series API]({{es-apis}}operation/operation-prometheus-series)).
 
 ### Step 3: Decide where the issue belongs [promql-grafana-troubleshooting-decide]
 

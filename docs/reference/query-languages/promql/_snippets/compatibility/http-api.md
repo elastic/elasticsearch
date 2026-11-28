@@ -1,4 +1,4 @@
-% Section of prometheus-compatibility.md, also included in promql-http-api.md.
+% Section of prometheus-compatibility.md.
 % Headings follow https://prometheus.io/docs/prometheus/latest/querying/api/.
 % Rows are numbered across all snippets in _snippets/compatibility/, in page order. A row without a version badge
 % applies to every version. "Not supported yet" columns: # | Construct | Example | Workaround | Issue.
@@ -28,7 +28,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 **Supported**
 
-[Instant queries](/reference/query-languages/promql/promql-http-api.md#promql-http-api-query-instant) and [range queries](/reference/query-languages/promql/promql-http-api.md#promql-http-api-query-range).
+[Instant queries]({{es-apis}}operation/operation-prometheus-query) and [range queries]({{es-apis}}operation/operation-prometheus-query-range).
 
 **Not supported yet**
 
@@ -37,14 +37,14 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 64 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939]({{es-issue}}149939) |
+| 64 | Query parameters that the [{{promql}} HTTP API]({{es-apis}}group/endpoint-prometheus) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939]({{es-issue}}149939) |
 :::
 
 ### Querying metric metadata [prometheus-compatibility-querying-metric-metadata]
 
 **Supported**
 
-{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` The type and unit of each metric in [`/api/v1/metadata`](/reference/query-languages/promql/promql-http-api.md#promql-http-api-metadata-endpoint).
+{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` The type and unit of each metric in the [metric metadata API]({{es-apis}}operation/operation-prometheus-metadata).
 
 **Behaves differently**
 
@@ -53,14 +53,14 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 65 | `help` in [`/api/v1/metadata`](/reference/query-languages/promql/promql-http-api.md#promql-http-api-metadata-endpoint) {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `GET /api/v1/metadata` | Empty | The metric's `HELP` text | [#157230]({{es-issue}}157230) |
+| 65 | `help` in the [metric metadata API]({{es-apis}}operation/operation-prometheus-metadata) {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `GET /api/v1/metadata` | Empty | The metric's `HELP` text | [#157230]({{es-issue}}157230) |
 :::
 
 ### Querying exemplars [prometheus-compatibility-querying-exemplars]
 
 **Supported**
 
-{applies_to}`stack: preview 9.7` {applies_to}`serverless: preview` [Exemplar queries](/reference/query-languages/promql/promql-http-api.md#promql-http-api-query-exemplars) for the expressions that the query endpoints accept, such as `GET /api/v1/query_exemplars?query=rate(http_requests_total{job="api"}[5m])&start=...&end=...`.
+{applies_to}`stack: preview 9.7` {applies_to}`serverless: preview` [Exemplar queries]({{es-apis}}operation/operation-prometheus-query-exemplars) for the expressions that the query endpoints accept, such as `GET /api/v1/query_exemplars?query=rate(http_requests_total{job="api"}[5m])&start=...&end=...`.
 
 **Behaves differently**
 

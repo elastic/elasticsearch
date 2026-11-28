@@ -167,7 +167,7 @@ In practice, you ingest {{prom}} metrics continuously with remote write or anoth
 
 ## Step 1: Run basic {{promql}} queries with the HTTP API
 
-{{es}} exposes a [{{prom}}-compatible HTTP API](promql-http-api.md) for running {{promql}} against stored metrics. The queries in this step use the [instant query](promql-http-api.md#promql-http-api-query-instant) endpoint, scoped to the `promql-tutorial` index with the `/_prometheus/{index}/api/v1/query` path form. Each query sets `time=1792670839`, which is 2026-10-22T12:07:19Z, thirty seconds after the last sample. If you omit `time`, the query runs at the current time.
+{{es}} exposes a [{{prom}}-compatible HTTP API](promql-http-api.md) for running {{promql}} against stored metrics. The queries in this step use the [instant query API]({{es-apis}}operation/operation-prometheus-query), scoped to the `promql-tutorial` index with the `/_prometheus/{index}/api/v1/query` path form. Each query sets `time=1792670839`, which is 2026-10-22T12:07:19Z, thirty seconds after the last sample. If you omit `time`, the query runs at the current time.
 
 ### Run an instant query
 

@@ -41,8 +41,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyStore;
+import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -56,6 +59,7 @@ import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.anyRemoteHo
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.removePreviousAutoconfiguration;
 import static org.elasticsearch.xpack.security.cli.CertGenUtilsTests.assertExpectedKeyUsage;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -514,6 +518,62 @@ public class AutoConfigureNodeTests extends ESTestCase {
             try (SecureString activeId = result.getString("cluster.state.encryption.active_password_id")) {
                 assertThat(activeId.toString(), equalTo("my-hsm-key"));
             }
+        } finally {
+            deleteDirectory(tempDir);
+        }
+    }
+
+    public void testTransportKeystoreChainContainsCa() throws Exception {
+        assertTransportKeystoreChainContainsCa(CliKeyStoreFormat.PKCS12);
+    }
+
+    public void testBcfksTransportKeystoreChainContainsCa() throws Exception {
+        assertTransportKeystoreChainContainsCa(CliKeyStoreFormatTests.bcfks());
+    }
+
+    /**
+     * Node enrollment finds the transport CA in the certificate chains of the transport keystore's entries, as
+     * {@code TransportNodeEnrollmentAction} does. Trusted certificate entries have no chain, so the CA has to be in the chain of the
+     * transport key entry. Not every format rebuilds that chain from the other certificates in the keystore when it is loaded.
+     */
+    private void assertTransportKeystoreChainContainsCa(CliKeyStoreFormat format) throws Exception {
+        final Path tempDir = createTempDir();
+        try {
+            Files.createDirectory(tempDir.resolve("config"));
+            Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
+            final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
+            new AutoConfigureNode(false, CommandLineHttpClient::new, format).execute(
+                MockTerminal.create(),
+                new OptionParser().parse(),
+                env,
+                null
+            );
+
+            final KeyStoreWrapper nodeKeystore = KeyStoreWrapper.load(env.configDir());
+            nodeKeystore.decrypt(new char[0]);
+            final char[] password = nodeKeystore.getString("xpack.security.transport.ssl.keystore.secure_password").getChars();
+            final Settings newSettings = Settings.builder().loadFromPath(env.configDir().resolve("elasticsearch.yml")).build();
+            assertThat(newSettings.get("xpack.security.transport.ssl.keystore.type"), equalTo(format.settingsType()));
+
+            final KeyStore keyStore = format.newKeyStore();
+            try (
+                InputStream in = Files.newInputStream(
+                    env.configDir().resolve(newSettings.get("xpack.security.transport.ssl.keystore.path"))
+                )
+            ) {
+                keyStore.load(in, password);
+            }
+            final List<X509Certificate> caCerts = new ArrayList<>();
+            for (String alias : Collections.list(keyStore.aliases())) {
+                final Certificate[] chain = keyStore.getCertificateChain(alias);
+                for (Certificate certificate : chain == null ? new Certificate[0] : chain) {
+                    if (((X509Certificate) certificate).getBasicConstraints() != -1) {
+                        caCerts.add((X509Certificate) certificate);
+                    }
+                }
+            }
+            assertThat(caCerts, hasSize(1));
+            ((X509Certificate) keyStore.getCertificate("transport")).verify(caCerts.get(0).getPublicKey());
         } finally {
             deleteDirectory(tempDir);
         }

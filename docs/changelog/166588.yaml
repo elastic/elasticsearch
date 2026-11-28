@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 166588
+summary: Default security CLI keystores to BCFKS with BCFIPS
+type: enhancement

@@ -90,7 +90,7 @@ class CertificateTool extends MultiCommand {
     private static final String DEFAULT_CSR_ZIP = "csr-bundle.zip";
     private static final String DEFAULT_CERT_ZIP = "certificate-bundle.zip";
     private static final String DEFAULT_CA_ZIP = "elastic-stack-ca.zip";
-    private static final String DEFAULT_CA_P12 = "elastic-stack-ca.p12";
+    private static final String DEFAULT_CA_KEYSTORE_BASENAME = "elastic-stack-ca";
 
     static final String DEFAULT_CERT_NAME = "instance";
 
@@ -145,11 +145,15 @@ class CertificateTool extends MultiCommand {
     }
 
     CertificateTool() {
+        this(CliKeyStoreFormat.forRuntime());
+    }
+
+    CertificateTool(CliKeyStoreFormat keyStoreFormat) {
         super(DESCRIPTION);
-        subcommands.put("csr", new SigningRequestCommand());
-        subcommands.put("cert", new GenerateCertificateCommand());
-        subcommands.put("ca", new CertificateAuthorityCommand());
-        subcommands.put("http", new HttpCertificateCommand());
+        subcommands.put("csr", new SigningRequestCommand(keyStoreFormat));
+        subcommands.put("cert", new GenerateCertificateCommand(keyStoreFormat));
+        subcommands.put("ca", new CertificateAuthorityCommand(keyStoreFormat));
+        subcommands.put("http", new HttpCertificateCommand(keyStoreFormat));
     }
 
     @Override
@@ -204,7 +208,7 @@ class CertificateTool extends MultiCommand {
         OptionSpec<Void> pemFormatSpec;
         OptionSpec<Integer> daysSpec;
 
-        OptionSpec<String> caPkcs12PathSpec;
+        OptionSpec<String> caKeyStorePathSpec;
         OptionSpec<String> caCertPathSpec;
         OptionSpec<String> caKeyPathSpec;
         OptionSpec<String> caPasswordSpec;
@@ -217,24 +221,28 @@ class CertificateTool extends MultiCommand {
 
         OptionSpec<String> inputFileSpec;
 
-        CertificateCommand(String description) {
+        final CliKeyStoreFormat keyStoreFormat;
+
+        CertificateCommand(String description, CliKeyStoreFormat keyStoreFormat) {
             super(description);
+            this.keyStoreFormat = keyStoreFormat;
             outputPathSpec = parser.accepts("out", "path to the output file that should be produced").withRequiredArg();
             outputPasswordSpec = parser.accepts("pass", "password for generated private keys").withOptionalArg();
             keysizeSpec = parser.accepts("keysize", "size in bits of RSA keys").withRequiredArg().ofType(Integer.class);
         }
 
         final void acceptCertificateGenerationOptions() {
-            pemFormatSpec = parser.accepts("pem", "output certificates and keys in PEM format instead of PKCS#12");
+            pemFormatSpec = parser.accepts("pem", "output certificates and keys in PEM format instead of " + keyStoreFormat.description());
             daysSpec = parser.accepts("days", "number of days that the generated certificates are valid")
                 .withRequiredArg()
                 .ofType(Integer.class);
         }
 
         final void acceptsCertificateAuthority() {
-            caPkcs12PathSpec = parser.accepts("ca", "path to an existing ca key pair (in PKCS#12 format)").withRequiredArg();
+            caKeyStorePathSpec = parser.accepts("ca", "path to an existing ca key pair (in " + keyStoreFormat.description() + " format)")
+                .withRequiredArg();
             caCertPathSpec = parser.accepts("ca-cert", "path to an existing ca certificate")
-                .availableUnless(caPkcs12PathSpec)
+                .availableUnless(caKeyStorePathSpec)
                 .withRequiredArg();
             caKeyPathSpec = parser.accepts("ca-key", "path to an existing ca private key")
                 .availableIf(caCertPathSpec)
@@ -252,8 +260,8 @@ class CertificateTool extends MultiCommand {
                 "ca-dn",
                 "distinguished name to use for the generated ca. defaults to " + AUTO_GEN_CA_DN
             );
-            if (caPkcs12PathSpec != null) {
-                builder = builder.availableUnless(caPkcs12PathSpec);
+            if (caKeyStorePathSpec != null) {
+                builder = builder.availableUnless(caKeyStorePathSpec);
             }
             if (caCertPathSpec != null) {
                 builder = builder.availableUnless(caCertPathSpec);
@@ -346,6 +354,15 @@ class CertificateTool extends MultiCommand {
             return options.has(pemFormatSpec);
         }
 
+        void printCompatibilityNote(Terminal terminal) {
+            final String note = keyStoreFormat.compatibilityNote();
+            if (note != null) {
+                terminal.println(note);
+                terminal.println("Use the -pem option to generate files for other applications.");
+                terminal.println("");
+            }
+        }
+
         boolean useOutputPassword(OptionSet options) {
             return options.has(outputPasswordSpec);
         }
@@ -369,8 +386,8 @@ class CertificateTool extends MultiCommand {
          * @return CA cert and private key
          */
         CAInfo getCAInfo(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            if (options.has(caPkcs12PathSpec)) {
-                return loadPkcs12CA(terminal, options, env);
+            if (options.has(caKeyStorePathSpec)) {
+                return loadKeyStoreCA(terminal, options, env);
             } else if (options.has(caCertPathSpec)) {
                 return loadPemCA(terminal, options, env);
             } else {
@@ -381,15 +398,15 @@ class CertificateTool extends MultiCommand {
             }
         }
 
-        private CAInfo loadPkcs12CA(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            Path path = resolvePath(options, caPkcs12PathSpec);
+        private CAInfo loadKeyStoreCA(Terminal terminal, OptionSet options, Environment env) throws Exception {
+            Path path = resolvePath(options, caKeyStorePathSpec);
             char[] passwordOption = getChars(caPasswordSpec.value(options));
             Map<Certificate, Key> keys = withPassword(
                 "CA (" + path + ")",
                 passwordOption,
                 terminal,
                 false,
-                password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password)
+                password -> keyStoreFormat.readKeyPairs(path, password, a -> password)
             );
 
             if (keys.size() != 1) {
@@ -573,7 +590,7 @@ class CertificateTool extends MultiCommand {
             return caDirName;
         }
 
-        static void writePkcs12(
+        void writeKeyStore(
             String fileName,
             OutputStream output,
             String alias,
@@ -582,19 +599,21 @@ class CertificateTool extends MultiCommand {
             char[] password,
             Terminal terminal
         ) throws Exception {
-            final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
-            pkcs12.load(null);
-            withPassword(fileName, password, terminal, true, p12Password -> {
-                if (isAscii(p12Password)) {
-                    pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[] { pair.cert });
-                    if (caCert != null) {
-                        pkcs12.setCertificateEntry("ca", caCert);
-                    }
-                    pkcs12.store(output, p12Password);
-                    return null;
-                } else {
-                    throw new UserException(ExitCodes.CONFIG, "PKCS#12 passwords must be plain ASCII");
+            final KeyStore keyStore = keyStoreFormat.newKeyStore();
+            withPassword(fileName, password, terminal, true, keyStorePassword -> {
+                final String passwordError = keyStoreFormat.passwordError(keyStorePassword);
+                if (passwordError != null) {
+                    throw new UserException(ExitCodes.CONFIG, passwordError);
                 }
+                if (caCert == null) {
+                    keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert });
+                } else {
+                    // node enrollment finds the CA in the key entry's chain, which not every keystore format rebuilds from other entries
+                    keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert, caCert });
+                    keyStore.setCertificateEntry("ca", caCert);
+                }
+                keyStore.store(output, keyStorePassword);
+                return null;
             });
         }
 
@@ -644,7 +663,11 @@ class CertificateTool extends MultiCommand {
     static class SigningRequestCommand extends CertificateCommand {
 
         SigningRequestCommand() {
-            super("generate certificate signing requests");
+            this(CliKeyStoreFormat.forRuntime());
+        }
+
+        SigningRequestCommand(CliKeyStoreFormat keyStoreFormat) {
+            super("generate certificate signing requests", keyStoreFormat);
             acceptInstanceDetails();
             acceptInputFile();
         }
@@ -745,13 +768,17 @@ class CertificateTool extends MultiCommand {
         OptionSpec<Void> selfSigned;
 
         GenerateCertificateCommand() {
-            super("generate X.509 certificates and keys");
+            this(CliKeyStoreFormat.forRuntime());
+        }
+
+        GenerateCertificateCommand(CliKeyStoreFormat keyStoreFormat) {
+            super("generate X.509 certificates and keys", keyStoreFormat);
             acceptCertificateGenerationOptions();
             acceptInstanceDetails();
             acceptsCertificateAuthority();
             acceptInputFile();
             selfSigned = parser.accepts("self-signed", "generate self signed certificates")
-                .availableUnless(caPkcs12PathSpec, caCertPathSpec);
+                .availableUnless(caKeyStorePathSpec, caCertPathSpec);
         }
 
         @Override
@@ -770,7 +797,7 @@ class CertificateTool extends MultiCommand {
             terminal.println("");
             terminal.println(CA_EXPLANATION);
             terminal.println("");
-            terminal.println("By default the 'cert' mode produces a single PKCS#12 output file which holds:");
+            terminal.println("By default the 'cert' mode produces a single " + keyStoreFormat.description() + " output file which holds:");
             terminal.println("    * The instance certificate");
             terminal.println("    * The private key for the instance certificate");
             terminal.println("    * The CA certificate");
@@ -781,6 +808,7 @@ class CertificateTool extends MultiCommand {
             terminal.println("    * -in (generate certificates from an input file)");
             terminal.println("then the output will be be a zip file containing individual certificate/key files");
             terminal.println("");
+            printCompatibilityNote(terminal);
 
             CAInfo caInfo = getCAInfo(terminal, options, env);
             Collection<CertificateInformation> certInfo = getCertificateInformationList(terminal, options);
@@ -791,9 +819,9 @@ class CertificateTool extends MultiCommand {
             if (writeZipFile) {
                 outputName = DEFAULT_CERT_ZIP;
             } else if (options.has(nameSpec)) {
-                outputName = nameSpec.value(options) + ".p12";
+                outputName = nameSpec.value(options) + keyStoreFormat.extension();
             } else {
-                outputName = "elastic-certificates.p12";
+                outputName = "elastic-certificates" + keyStoreFormat.extension();
             }
             final Path output = resolveOutputPath(terminal, options, outputName);
 
@@ -817,13 +845,19 @@ class CertificateTool extends MultiCommand {
                     terminal.println("Each instance has a certificate and private key.");
                     filesDescription = "the certificate, key, and CA certificate";
                 } else {
-                    terminal.println("Each instance has a single PKCS#12 (.p12) file containing the instance");
+                    terminal.println(
+                        "Each instance has a single "
+                            + keyStoreFormat.description()
+                            + " ("
+                            + keyStoreFormat.extension()
+                            + ") file containing the instance"
+                    );
                     terminal.println("certificate, instance private key and the CA certificate");
-                    filesDescription = "this '.p12' file";
+                    filesDescription = "this '" + keyStoreFormat.extension() + "' file";
                 }
             } else {
                 terminal.println("This file is a self contained file and can be copied and used 'as is'");
-                filesDescription = "this '.p12' file";
+                filesDescription = "this '" + keyStoreFormat.extension() + "' file";
             }
             terminal.println("For each Elastic product that you wish to configure, you should copy");
             terminal.println(filesDescription + " to the relevant configuration directory");
@@ -837,17 +871,17 @@ class CertificateTool extends MultiCommand {
 
         @Override
         CAInfo getCAInfo(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            if (false == options.has(selfSigned) && false == options.has(caPkcs12PathSpec) && false == options.has(caCertPathSpec)) {
+            if (false == options.has(selfSigned) && false == options.has(caKeyStorePathSpec) && false == options.has(caCertPathSpec)) {
                 throw new UserException(ExitCodes.USAGE, "Must specify either --ca or --ca-cert/--ca-key or --self-signed");
             }
             return options.has(selfSigned) ? null : super.getCAInfo(terminal, options, env);
         }
 
         /**
-         * Generates signed certificates in either PKCS#12 format or PEM format, wrapped in a zip file if necessary.
+         * Generates signed certificates in either keystore format or PEM format, wrapped in a zip file if necessary.
          *
-         * @param output       the output file (either zip, or PKCS#12)
-         * @param writeZipFile if true, output a zip file, otherwise output a single PKCS#12 file
+         * @param output       the output file (either zip, or keystore)
+         * @param writeZipFile if true, output a zip file, otherwise output a single keystore file
          * @param options      the current command line options
          * @param certs        the certificates to write to the file
          * @param caInfo       the CA information to sign the certificates with
@@ -889,10 +923,10 @@ class CertificateTool extends MultiCommand {
                             // write private key
                             writePemPrivateKey(terminal, options, outputStream, pemWriter, entryBase + ".key", pair.key);
                         } else {
-                            final String fileName = entryBase + ".p12";
+                            final String fileName = entryBase + keyStoreFormat.extension();
                             final char[] outputPassword = super.getOutputPassword(options);
                             outputStream.putNextEntry(new ZipEntry(fileName));
-                            writePkcs12(
+                            writeKeyStore(
                                 fileName,
                                 outputStream,
                                 certificateInformation.name.originalName,
@@ -912,7 +946,7 @@ class CertificateTool extends MultiCommand {
                 CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
                 fullyWriteFile(
                     output,
-                    stream -> writePkcs12(
+                    stream -> writeKeyStore(
                         output.getFileName().toString(),
                         stream,
                         certificateInformation.name.originalName,
@@ -970,7 +1004,11 @@ class CertificateTool extends MultiCommand {
     static class CertificateAuthorityCommand extends CertificateCommand {
 
         CertificateAuthorityCommand() {
-            super("generate a new local certificate authority");
+            this(CliKeyStoreFormat.forRuntime());
+        }
+
+        CertificateAuthorityCommand(CliKeyStoreFormat keyStoreFormat) {
+            super("generate a new local certificate authority", keyStoreFormat);
             acceptCertificateGenerationOptions();
             acceptsCertificateAuthorityName();
             acceptCertificateAuthorityKeyUsage();
@@ -988,17 +1026,22 @@ class CertificateTool extends MultiCommand {
             terminal.println("Use the 'ca-dn' option if you wish to configure the 'distinguished name'");
             terminal.println("of the certificate authority");
             terminal.println("");
-            terminal.println("By default the 'ca' mode produces a single PKCS#12 output file which holds:");
+            terminal.println("By default the 'ca' mode produces a single " + keyStoreFormat.description() + " output file which holds:");
             terminal.println("    * The CA certificate");
             terminal.println("    * The CA's private key");
             terminal.println("");
             terminal.println("If you elect to generate PEM format certificates (the -pem option), then the output will");
             terminal.println("be a zip file containing individual files for the CA certificate and private key");
             terminal.println("");
+            printCompatibilityNote(terminal);
 
             CAInfo caInfo = generateCA(terminal, options);
             final boolean writeZipFile = usePemFormat(options);
-            final Path output = resolveOutputPath(terminal, options, writeZipFile ? DEFAULT_CA_ZIP : DEFAULT_CA_P12);
+            final Path output = resolveOutputPath(
+                terminal,
+                options,
+                writeZipFile ? DEFAULT_CA_ZIP : DEFAULT_CA_KEYSTORE_BASENAME + keyStoreFormat.extension()
+            );
             writeCertificateAuthority(output, caInfo, writeZipFile, terminal);
         }
 
@@ -1010,7 +1053,7 @@ class CertificateTool extends MultiCommand {
                 final String fileName = output.getFileName().toString();
                 fullyWriteFile(
                     output,
-                    outputStream -> writePkcs12(fileName, outputStream, "ca", caInfo.certAndKey, null, caInfo.password, terminal)
+                    outputStream -> writeKeyStore(fileName, outputStream, "ca", caInfo.certAndKey, null, caInfo.password, terminal)
                 );
             }
         }

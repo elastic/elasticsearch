@@ -1,11 +1,11 @@
 There are two files in this directory:
 
 1. This README file
-2. ${P12}
+2. ${KEYSTORE}
 
-## ${P12}
+## ${KEYSTORE}
 
-The "${P12}" file is a PKCS#12 format keystore.
+The "${KEYSTORE}" file is a ${KEYSTORE_FORMAT} format keystore.
 It contains a copy of the certificate and private key for your Certificate Authority.
 
 You should keep this file secure, and should not provide it to anyone else.
@@ -28,6 +28,6 @@ It is important that you protect this file - if someone else gains access to you
 If you wish to create additional certificates for the nodes in your cluster you can provide this keystore to the "elasticsearch-certutil"
 utility as shown in the example below:
 
-    elasticsearch-certutil cert --ca ${P12} --dns "hostname.of.your.node" --pass
+    elasticsearch-certutil cert --ca ${KEYSTORE} --dns "hostname.of.your.node" --pass
 
 See the elasticsearch-certutil documentation for additional options.

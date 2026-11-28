@@ -106,7 +106,14 @@ public class CertParsingUtils {
         return readKeyPairsFromKeystore(store, keyPassword);
     }
 
-    private static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
+    /**
+     * Read all certificate-key pairs from a keystore that has already been loaded. Callers that need the keystore to come from a
+     * specific {@link java.security.Provider}, rather than whichever registered provider supplies its type, load it themselves.
+     *
+     * @param store       The loaded keystore.
+     * @param keyPassword Returns the password for the key entry with the given alias.
+     */
+    public static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
         throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         final Enumeration<String> enumeration = store.aliases();
         final Map<Certificate, Key> map = Maps.newMapWithExpectedSize(store.size());

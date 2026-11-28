@@ -1,12 +1,12 @@
 There are three files in this directory:
 
 1. This README file
-2. ${P12}
+2. ${KEYSTORE}
 3. ${YML}
 
-## ${P12}
+## ${KEYSTORE}
 
-The "${P12}" file is a PKCS#12 format keystore.
+The "${KEYSTORE}" file is a ${KEYSTORE_FORMAT} format keystore.
 It contains a copy of your certificate and the associated private key.
 You should keep this file secure, and should not provide it to anyone else.
 
@@ -35,4 +35,4 @@ You can use this sample to update the "elasticsearch.yml" configuration file in 
 The location of this directory can vary depending on how you installed Elasticsearch, but based on your system it appears that your config
 directory is ${CONF_DIR}
 
-This sample configuration assumes that you have copied your ${P12} file directly into the config directory without renaming it.
+This sample configuration assumes that you have copied your ${KEYSTORE} file directly into the config directory without renaming it.

@@ -1,0 +1,5 @@
+pr: 167797
+summary: Evaluate independent `EVAL` columns in one operator
+area: ES|QL
+type: enhancement
+issues: []

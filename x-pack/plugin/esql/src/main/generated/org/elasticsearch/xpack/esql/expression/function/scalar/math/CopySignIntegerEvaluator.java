@@ -149,7 +149,20 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
 
     @Override
     public CopySignIntegerEvaluator get(DriverContext context) {
-      return new CopySignIntegerEvaluator(source, magnitude.get(context), sign.get(context), context);
+      ExpressionEvaluator magnitude = null;
+      ExpressionEvaluator sign = null;
+      boolean success = false;
+      try {
+        magnitude = this.magnitude.get(context);
+        sign = this.sign.get(context);
+        CopySignIntegerEvaluator result = new CopySignIntegerEvaluator(source, magnitude, sign, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(magnitude, sign);
+        }
+      }
     }
 
     @Override

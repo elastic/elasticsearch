@@ -113,7 +113,18 @@ public final class StXMinFromCartesianDocValuesEvaluator implements ExpressionEv
 
     @Override
     public StXMinFromCartesianDocValuesEvaluator get(DriverContext context) {
-      return new StXMinFromCartesianDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator encodedBlock = null;
+      boolean success = false;
+      try {
+        encodedBlock = this.encodedBlock.get(context);
+        StXMinFromCartesianDocValuesEvaluator result = new StXMinFromCartesianDocValuesEvaluator(source, encodedBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedBlock);
+        }
+      }
     }
 
     @Override

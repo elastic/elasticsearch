@@ -170,7 +170,22 @@ public final class RepeatEvaluator implements ExpressionEvaluator {
 
     @Override
     public RepeatEvaluator get(DriverContext context) {
-      return new RepeatEvaluator(source, scratch.apply(context), str.get(context), number.get(context), context);
+      BreakingBytesRefBuilder scratch = null;
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator number = null;
+      boolean success = false;
+      try {
+        scratch = this.scratch.apply(context);
+        str = this.str.get(context);
+        number = this.number.get(context);
+        RepeatEvaluator result = new RepeatEvaluator(source, scratch, str, number, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(scratch, str, number);
+        }
+      }
     }
 
     @Override

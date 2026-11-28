@@ -125,7 +125,20 @@ public final class FilterUnsupportedTemporalityTDigestEvaluator implements Expre
 
     @Override
     public FilterUnsupportedTemporalityTDigestEvaluator get(DriverContext context) {
-      return new FilterUnsupportedTemporalityTDigestEvaluator(source, histogram.get(context), temporality.get(context), accessor.apply(context), cumulativeWarnings.apply(context), context);
+      ExpressionEvaluator histogram = null;
+      ExpressionEvaluator temporality = null;
+      boolean success = false;
+      try {
+        histogram = this.histogram.get(context);
+        temporality = this.temporality.get(context);
+        FilterUnsupportedTemporalityTDigestEvaluator result = new FilterUnsupportedTemporalityTDigestEvaluator(source, histogram, temporality, accessor.apply(context), cumulativeWarnings.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(histogram, temporality);
+        }
+      }
     }
 
     @Override

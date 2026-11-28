@@ -112,7 +112,18 @@ public final class StEnvelopeFromWKBEvaluator implements ExpressionEvaluator {
 
     @Override
     public StEnvelopeFromWKBEvaluator get(DriverContext context) {
-      return new StEnvelopeFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StEnvelopeFromWKBEvaluator result = new StEnvelopeFromWKBEvaluator(source, wkbBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

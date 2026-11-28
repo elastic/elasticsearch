@@ -128,7 +128,20 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implem
 
     @Override
     public SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator get(DriverContext context) {
-      return new SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator(source, encodedPoints.get(context), gridIds.get(context), gridType, context);
+      ExpressionEvaluator encodedPoints = null;
+      ExpressionEvaluator gridIds = null;
+      boolean success = false;
+      try {
+        encodedPoints = this.encodedPoints.get(context);
+        gridIds = this.gridIds.get(context);
+        SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator result = new SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator(source, encodedPoints, gridIds, gridType, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedPoints, gridIds);
+        }
+      }
     }
 
     @Override

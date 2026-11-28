@@ -118,7 +118,20 @@ public final class StDistanceGeoSourceAndSourceEvaluator implements ExpressionEv
 
     @Override
     public StDistanceGeoSourceAndSourceEvaluator get(DriverContext context) {
-      return new StDistanceGeoSourceAndSourceEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        StDistanceGeoSourceAndSourceEvaluator result = new StDistanceGeoSourceAndSourceEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

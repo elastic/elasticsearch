@@ -131,7 +131,20 @@ public final class RangeIntersectsPointEvaluator implements ExpressionEvaluator 
 
     @Override
     public RangeIntersectsPointEvaluator get(DriverContext context) {
-      return new RangeIntersectsPointEvaluator(source, point.get(context), range.get(context), context);
+      ExpressionEvaluator point = null;
+      ExpressionEvaluator range = null;
+      boolean success = false;
+      try {
+        point = this.point.get(context);
+        range = this.range.get(context);
+        RangeIntersectsPointEvaluator result = new RangeIntersectsPointEvaluator(source, point, range, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(point, range);
+        }
+      }
     }
 
     @Override

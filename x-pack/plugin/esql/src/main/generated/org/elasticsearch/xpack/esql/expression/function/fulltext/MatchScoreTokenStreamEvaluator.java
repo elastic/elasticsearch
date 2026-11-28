@@ -123,7 +123,18 @@ public final class MatchScoreTokenStreamEvaluator implements ExpressionEvaluator
 
     @Override
     public MatchScoreTokenStreamEvaluator get(DriverContext context) {
-      return new MatchScoreTokenStreamEvaluator(source, fieldBlock.get(context), analyzer, queryTerms, totalWeight, scratch.apply(context), context);
+      ExpressionEvaluator fieldBlock = null;
+      boolean success = false;
+      try {
+        fieldBlock = this.fieldBlock.get(context);
+        MatchScoreTokenStreamEvaluator result = new MatchScoreTokenStreamEvaluator(source, fieldBlock, analyzer, queryTerms, totalWeight, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(fieldBlock);
+        }
+      }
     }
 
     @Override

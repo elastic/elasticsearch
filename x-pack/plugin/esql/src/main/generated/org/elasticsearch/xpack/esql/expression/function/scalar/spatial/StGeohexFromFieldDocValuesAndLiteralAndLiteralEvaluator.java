@@ -112,7 +112,18 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
     @Override
     public StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), bounds.apply(context), context);
+      ExpressionEvaluator encoded = null;
+      boolean success = false;
+      try {
+        encoded = this.encoded.get(context);
+        StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator result = new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded, bounds.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encoded);
+        }
+      }
     }
 
     @Override

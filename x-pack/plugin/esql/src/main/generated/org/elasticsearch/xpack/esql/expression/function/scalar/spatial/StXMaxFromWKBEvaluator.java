@@ -113,7 +113,18 @@ public final class StXMaxFromWKBEvaluator implements ExpressionEvaluator {
 
     @Override
     public StXMaxFromWKBEvaluator get(DriverContext context) {
-      return new StXMaxFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StXMaxFromWKBEvaluator result = new StXMaxFromWKBEvaluator(source, wkbBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

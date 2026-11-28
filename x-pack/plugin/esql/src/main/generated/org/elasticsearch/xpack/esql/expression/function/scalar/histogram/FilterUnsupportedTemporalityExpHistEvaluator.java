@@ -118,7 +118,20 @@ public final class FilterUnsupportedTemporalityExpHistEvaluator implements Expre
 
     @Override
     public FilterUnsupportedTemporalityExpHistEvaluator get(DriverContext context) {
-      return new FilterUnsupportedTemporalityExpHistEvaluator(source, histogram.get(context), temporality.get(context), accessor.apply(context), context);
+      ExpressionEvaluator histogram = null;
+      ExpressionEvaluator temporality = null;
+      boolean success = false;
+      try {
+        histogram = this.histogram.get(context);
+        temporality = this.temporality.get(context);
+        FilterUnsupportedTemporalityExpHistEvaluator result = new FilterUnsupportedTemporalityExpHistEvaluator(source, histogram, temporality, accessor.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(histogram, temporality);
+        }
+      }
     }
 
     @Override

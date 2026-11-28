@@ -151,7 +151,20 @@ public final class HistogramFractionTDigestEvaluator implements ExpressionEvalua
 
     @Override
     public HistogramFractionTDigestEvaluator get(DriverContext context) {
-      return new HistogramFractionTDigestEvaluator(source, histogram.get(context), bucket.get(context), decimals, tdigestArrays.apply(context), context);
+      ExpressionEvaluator histogram = null;
+      ExpressionEvaluator bucket = null;
+      boolean success = false;
+      try {
+        histogram = this.histogram.get(context);
+        bucket = this.bucket.get(context);
+        HistogramFractionTDigestEvaluator result = new HistogramFractionTDigestEvaluator(source, histogram, bucket, decimals, tdigestArrays.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(histogram, bucket);
+        }
+      }
     }
 
     @Override

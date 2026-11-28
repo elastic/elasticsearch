@@ -113,7 +113,18 @@ public final class StGeometryTypeFromWKBEvaluator implements ExpressionEvaluator
 
     @Override
     public StGeometryTypeFromWKBEvaluator get(DriverContext context) {
-      return new StGeometryTypeFromWKBEvaluator(source, wkbBlock.get(context), scratch.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StGeometryTypeFromWKBEvaluator result = new StGeometryTypeFromWKBEvaluator(source, wkbBlock, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

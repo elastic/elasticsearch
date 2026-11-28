@@ -113,7 +113,18 @@ public final class StYMaxFromWKBEvaluator implements ExpressionEvaluator {
 
     @Override
     public StYMaxFromWKBEvaluator get(DriverContext context) {
-      return new StYMaxFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StYMaxFromWKBEvaluator result = new StYMaxFromWKBEvaluator(source, wkbBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

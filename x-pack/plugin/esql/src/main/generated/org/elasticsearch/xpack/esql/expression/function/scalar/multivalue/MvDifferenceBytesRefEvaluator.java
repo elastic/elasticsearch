@@ -112,7 +112,20 @@ public final class MvDifferenceBytesRefEvaluator implements ExpressionEvaluator 
 
     @Override
     public MvDifferenceBytesRefEvaluator get(DriverContext context) {
-      return new MvDifferenceBytesRefEvaluator(source, field1.get(context), field2.get(context), context);
+      ExpressionEvaluator field1 = null;
+      ExpressionEvaluator field2 = null;
+      boolean success = false;
+      try {
+        field1 = this.field1.get(context);
+        field2 = this.field2.get(context);
+        MvDifferenceBytesRefEvaluator result = new MvDifferenceBytesRefEvaluator(source, field1, field2, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field1, field2);
+        }
+      }
     }
 
     @Override

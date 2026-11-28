@@ -156,7 +156,18 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
 
     @Override
     public ToTDigestFromHistogramEvaluator get(DriverContext context) {
-      return new ToTDigestFromHistogramEvaluator(source, in.get(context), decoder.apply(context), scratch.apply(context), context);
+      ExpressionEvaluator in = null;
+      boolean success = false;
+      try {
+        in = this.in.get(context);
+        ToTDigestFromHistogramEvaluator result = new ToTDigestFromHistogramEvaluator(source, in, decoder.apply(context), scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(in);
+        }
+      }
     }
 
     @Override

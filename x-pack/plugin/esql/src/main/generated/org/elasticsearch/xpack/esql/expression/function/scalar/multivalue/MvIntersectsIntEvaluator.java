@@ -101,7 +101,20 @@ public final class MvIntersectsIntEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvIntersectsIntEvaluator get(DriverContext context) {
-      return new MvIntersectsIntEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        MvIntersectsIntEvaluator result = new MvIntersectsIntEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

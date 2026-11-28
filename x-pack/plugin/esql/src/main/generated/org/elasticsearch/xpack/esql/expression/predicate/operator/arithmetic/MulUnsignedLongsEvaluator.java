@@ -158,7 +158,20 @@ public final class MulUnsignedLongsEvaluator implements ExpressionEvaluator {
 
     @Override
     public MulUnsignedLongsEvaluator get(DriverContext context) {
-      return new MulUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        MulUnsignedLongsEvaluator result = new MulUnsignedLongsEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

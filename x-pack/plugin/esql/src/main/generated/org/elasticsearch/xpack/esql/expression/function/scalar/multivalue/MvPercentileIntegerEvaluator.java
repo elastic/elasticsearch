@@ -137,7 +137,20 @@ public final class MvPercentileIntegerEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvPercentileIntegerEvaluator get(DriverContext context) {
-      return new MvPercentileIntegerEvaluator(source, values.get(context), percentile.get(context), scratch.apply(context), context);
+      ExpressionEvaluator values = null;
+      ExpressionEvaluator percentile = null;
+      boolean success = false;
+      try {
+        values = this.values.get(context);
+        percentile = this.percentile.get(context);
+        MvPercentileIntegerEvaluator result = new MvPercentileIntegerEvaluator(source, values, percentile, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(values, percentile);
+        }
+      }
     }
 
     @Override

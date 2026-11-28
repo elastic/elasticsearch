@@ -115,7 +115,18 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ex
 
     @Override
     public StGeohashFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), shapeTiler.apply(context), context);
+      ExpressionEvaluator in = null;
+      boolean success = false;
+      try {
+        in = this.in.get(context);
+        StGeohashFromFieldAndLiteralAndLiteralEvaluator result = new StGeohashFromFieldAndLiteralAndLiteralEvaluator(source, in, bounds.apply(context), shapeTiler.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(in);
+        }
+      }
     }
 
     @Override

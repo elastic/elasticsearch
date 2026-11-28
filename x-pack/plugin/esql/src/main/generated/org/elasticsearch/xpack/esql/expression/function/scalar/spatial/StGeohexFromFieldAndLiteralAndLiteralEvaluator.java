@@ -115,7 +115,18 @@ public final class StGeohexFromFieldAndLiteralAndLiteralEvaluator implements Exp
 
     @Override
     public StGeohexFromFieldAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in.get(context), bounds.apply(context), shapeTiler.apply(context), context);
+      ExpressionEvaluator in = null;
+      boolean success = false;
+      try {
+        in = this.in.get(context);
+        StGeohexFromFieldAndLiteralAndLiteralEvaluator result = new StGeohexFromFieldAndLiteralAndLiteralEvaluator(source, in, bounds.apply(context), shapeTiler.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(in);
+        }
+      }
     }
 
     @Override

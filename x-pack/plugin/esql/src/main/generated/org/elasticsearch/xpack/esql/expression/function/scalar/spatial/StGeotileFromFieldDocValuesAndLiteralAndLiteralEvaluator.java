@@ -113,7 +113,18 @@ public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
     @Override
     public StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), bounds.apply(context), context);
+      ExpressionEvaluator encoded = null;
+      boolean success = false;
+      try {
+        encoded = this.encoded.get(context);
+        StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator result = new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded, bounds.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encoded);
+        }
+      }
     }
 
     @Override

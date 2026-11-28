@@ -125,7 +125,22 @@ public final class MvInRangeLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvInRangeLongEvaluator get(DriverContext context) {
-      return new MvInRangeLongEvaluator(source, field.get(context), lower.get(context), upper.get(context), includeLower, includeUpper, context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator lower = null;
+      ExpressionEvaluator upper = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        lower = this.lower.get(context);
+        upper = this.upper.get(context);
+        MvInRangeLongEvaluator result = new MvInRangeLongEvaluator(source, field, lower, upper, includeLower, includeUpper, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, lower, upper);
+        }
+      }
     }
 
     @Override

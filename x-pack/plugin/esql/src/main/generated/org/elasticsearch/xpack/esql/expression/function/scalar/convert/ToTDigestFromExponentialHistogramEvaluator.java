@@ -119,7 +119,20 @@ public final class ToTDigestFromExponentialHistogramEvaluator extends AbstractCo
 
     @Override
     public ToTDigestFromExponentialHistogramEvaluator get(DriverContext context) {
-      return new ToTDigestFromExponentialHistogramEvaluator(source, in.get(context), scratch.apply(context), context);
+      ExpressionEvaluator in = null;
+      BreakingTDigestHolder scratch = null;
+      boolean success = false;
+      try {
+        in = this.in.get(context);
+        scratch = this.scratch.apply(context);
+        ToTDigestFromExponentialHistogramEvaluator result = new ToTDigestFromExponentialHistogramEvaluator(source, in, scratch, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(in, scratch);
+        }
+      }
     }
 
     @Override

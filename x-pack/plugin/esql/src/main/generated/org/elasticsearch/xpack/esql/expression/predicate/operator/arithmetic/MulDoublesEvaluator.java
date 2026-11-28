@@ -164,7 +164,20 @@ public final class MulDoublesEvaluator implements ExpressionEvaluator {
 
     @Override
     public MulDoublesEvaluator get(DriverContext context) {
-      return new MulDoublesEvaluator(source, lhs.get(context), rhs.get(context), allowNonFinite, context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        MulDoublesEvaluator result = new MulDoublesEvaluator(source, lhs, rhs, allowNonFinite, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

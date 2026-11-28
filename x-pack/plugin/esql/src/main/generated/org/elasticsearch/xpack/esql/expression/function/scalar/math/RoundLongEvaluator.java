@@ -147,7 +147,20 @@ public final class RoundLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public RoundLongEvaluator get(DriverContext context) {
-      return new RoundLongEvaluator(source, val.get(context), decimals.get(context), context);
+      ExpressionEvaluator val = null;
+      ExpressionEvaluator decimals = null;
+      boolean success = false;
+      try {
+        val = this.val.get(context);
+        decimals = this.decimals.get(context);
+        RoundLongEvaluator result = new RoundLongEvaluator(source, val, decimals, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(val, decimals);
+        }
+      }
     }
 
     @Override

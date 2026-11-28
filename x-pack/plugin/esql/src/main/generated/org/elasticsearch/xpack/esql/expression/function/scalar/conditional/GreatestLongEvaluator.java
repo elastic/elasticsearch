@@ -141,8 +141,20 @@ public final class GreatestLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public GreatestLongEvaluator get(DriverContext context) {
-      ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-      return new GreatestLongEvaluator(source, values, context);
+      ExpressionEvaluator[] values = new ExpressionEvaluator[this.values.length];
+      boolean success = false;
+      try {
+        for (int i = 0; i < values.length; i++) {
+          values[i] = this.values[i].get(context);
+        }
+        GreatestLongEvaluator result = new GreatestLongEvaluator(source, values, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(() -> Releasables.close(values));
+        }
+      }
     }
 
     @Override

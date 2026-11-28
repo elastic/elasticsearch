@@ -164,7 +164,20 @@ public final class ToLongBaseEvaluator implements ExpressionEvaluator {
 
     @Override
     public ToLongBaseEvaluator get(DriverContext context) {
-      return new ToLongBaseEvaluator(source, string.get(context), base.get(context), context);
+      ExpressionEvaluator string = null;
+      ExpressionEvaluator base = null;
+      boolean success = false;
+      try {
+        string = this.string.get(context);
+        base = this.base.get(context);
+        ToLongBaseEvaluator result = new ToLongBaseEvaluator(source, string, base, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(string, base);
+        }
+      }
     }
 
     @Override

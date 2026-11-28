@@ -119,7 +119,20 @@ public final class StDifferenceBothCartesianPointDocValuesEvaluator implements E
 
     @Override
     public StDifferenceBothCartesianPointDocValuesEvaluator get(DriverContext context) {
-      return new StDifferenceBothCartesianPointDocValuesEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        StDifferenceBothCartesianPointDocValuesEvaluator result = new StDifferenceBothCartesianPointDocValuesEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

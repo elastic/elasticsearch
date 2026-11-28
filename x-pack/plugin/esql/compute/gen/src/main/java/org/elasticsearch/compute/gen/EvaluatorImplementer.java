@@ -15,7 +15,9 @@ import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.gen.argument.Argument;
+import org.elasticsearch.compute.gen.argument.ArrayArgument;
 import org.elasticsearch.compute.gen.argument.BlockArgument;
 import org.elasticsearch.compute.gen.argument.BuilderArgument;
 import org.elasticsearch.compute.gen.argument.ConstantSpecializedFixedArgument;
@@ -511,11 +513,24 @@ public class EvaluatorImplementer {
             builder.addParameter(DRIVER_CONTEXT, "context");
             builder.returns(implementation);
 
+            /*
+             * If get fails after building something that must be released then
+             * nothing else can release it. When that can happen we build into locals
+             * and release them on failure.
+             */
+            boolean guarded = factoryGetCanLeak();
+            if (guarded) {
+                args.forEach(a -> a.declareFactoryLocal(builder));
+                builder.addStatement("boolean success = false");
+                builder.beginControlFlow("try");
+                args.forEach(a -> a.buildFactoryLocal(builder));
+            }
+
             // Collect non-jit ctor args in order
             List<String> ctorArgs = new ArrayList<>();
             ctorArgs.add("source");
             for (Argument arg : this.args) {
-                String invocation = arg.factoryInvocation(builder);
+                String invocation = arg.factoryInvocation(guarded);
                 if (invocation != null) ctorArgs.add(invocation);
             }
             ctorArgs.add("context");
@@ -533,7 +548,8 @@ public class EvaluatorImplementer {
             }
 
             if (jit == null) {
-                builder.addStatement("return new $T($L)", implementation, String.join(", ", ctorArgs));
+                factoryGetReturn(builder, guarded, implementation, "new $T($L)", implementation, String.join(", ", ctorArgs));
+                factoryGetReleaseOnFailure(builder, guarded);
                 return builder.build();
             }
 
@@ -575,8 +591,11 @@ public class EvaluatorImplementer {
                 implementation
             );
             builder.beginControlFlow("try");
-            builder.addStatement(
-                "return ($T) constantSpecializedClass.getConstructors()[0].newInstance($L)",
+            factoryGetReturn(
+                builder,
+                guarded,
+                implementation,
+                "($T) constantSpecializedClass.getConstructors()[0].newInstance($L)",
                 implementation,
                 String.join(", ", ctorArgs)
             );
@@ -598,8 +617,72 @@ public class EvaluatorImplementer {
             // "context". The Standard ctor inserts the jit value just before "context".
             List<String> standardArgs = new ArrayList<>(ctorArgs);
             standardArgs.add(standardArgs.size() - 1, "this." + jit.name());
-            builder.addStatement("return new $T($L)", implementation.nestedClass("Standard"), String.join(", ", standardArgs));
+            factoryGetReturn(
+                builder,
+                guarded,
+                implementation,
+                "new $T($L)",
+                implementation.nestedClass("Standard"),
+                String.join(", ", standardArgs)
+            );
+            factoryGetReleaseOnFailure(builder, guarded);
             return builder.build();
+        }
+
+        /**
+         * Can {@code Factory#get} fail after building something that must be released?
+         * It can if it builds an array of evaluators because any element after the first
+         * can fail. Otherwise it can if it builds something that must be released and
+         * builds anything else.
+         */
+        private boolean factoryGetCanLeak() {
+            if (args.stream().anyMatch(a -> a instanceof ArrayArgument)) {
+                return true;
+            }
+            long released = args.stream().filter(a -> a.closeFactoryLocalInvocation() != null).count();
+            long notReleased = args.stream()
+                .filter(a -> a instanceof FixedArgument f && f.scope() == Fixed.Scope.THREAD_LOCAL && f.releasable() == false)
+                .count();
+            return released > 0 && released + notReleased > 1;
+        }
+
+        /**
+         * Emits the {@code return} from {@code Factory#get}, marking the build as
+         * successful first if it is {@code guarded}.
+         */
+        private static void factoryGetReturn(
+            MethodSpec.Builder builder,
+            boolean guarded,
+            ClassName implementation,
+            String construct,
+            Object... constructArgs
+        ) {
+            if (guarded == false) {
+                builder.addStatement("return " + construct, constructArgs);
+                return;
+            }
+            List<Object> args = new ArrayList<>();
+            args.add(implementation);
+            args.addAll(List.of(constructArgs));
+            builder.addStatement("$T result = " + construct, args.toArray());
+            builder.addStatement("success = true");
+            builder.addStatement("return result");
+        }
+
+        /**
+         * Closes the {@code try} opened by a {@code guarded} {@code Factory#get},
+         * releasing everything it built if it failed.
+         */
+        private void factoryGetReleaseOnFailure(MethodSpec.Builder builder, boolean guarded) {
+            if (guarded == false) {
+                return;
+            }
+            List<String> invocations = args.stream().map(Argument::closeFactoryLocalInvocation).filter(Objects::nonNull).toList();
+            builder.nextControlFlow("finally");
+            builder.beginControlFlow("if (success == false)");
+            builder.addStatement("$T.closeExpectNoException($L)", Types.RELEASABLES, String.join(", ", invocations));
+            builder.endControlFlow();
+            builder.endControlFlow();
         }
 
         /** Returns the ConstantMethodResultSpecializer method name for a primitive type, or null for references. */

@@ -164,7 +164,20 @@ public final class DivDoublesEvaluator implements ExpressionEvaluator {
 
     @Override
     public DivDoublesEvaluator get(DriverContext context) {
-      return new DivDoublesEvaluator(source, lhs.get(context), rhs.get(context), allowNonFinite, context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        DivDoublesEvaluator result = new DivDoublesEvaluator(source, lhs, rhs, allowNonFinite, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

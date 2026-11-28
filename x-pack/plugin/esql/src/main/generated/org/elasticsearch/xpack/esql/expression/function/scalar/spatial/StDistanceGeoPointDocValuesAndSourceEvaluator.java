@@ -119,7 +119,20 @@ public final class StDistanceGeoPointDocValuesAndSourceEvaluator implements Expr
 
     @Override
     public StDistanceGeoPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new StDistanceGeoPointDocValuesAndSourceEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        StDistanceGeoPointDocValuesAndSourceEvaluator result = new StDistanceGeoPointDocValuesAndSourceEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

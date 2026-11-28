@@ -176,11 +176,33 @@ public interface Argument {
     void implementFactoryCtor(MethodSpec.Builder builder);
 
     /**
-     * Invocation called in the ExpressionEvaluator.Factory#get method to
-     * convert from whatever the factory holds to what the evaluator needs,
-     * or {@code null} this parameter isn't passed to the evaluator's ctor.
+     * Expression that {@code ExpressionEvaluator.Factory#get} passes to the evaluator's ctor
+     * for this parameter, or {@code null} if it isn't passed to the ctor.
+     * @param guarded if {@code true} and {@link #declareFactoryLocal} declared a local then
+     *                this is that local. Otherwise this converts from whatever the factory
+     *                holds to what the evaluator needs.
      */
-    String factoryInvocation(MethodSpec.Builder factoryMethodBuilder);
+    String factoryInvocation(boolean guarded);
+
+    /**
+     * Declares the local that {@code ExpressionEvaluator.Factory#get} builds this parameter
+     * into so it can release it if it fails before handing it to the evaluator. Noop if
+     * building this parameter doesn't make anything that must be released.
+     */
+    default void declareFactoryLocal(MethodSpec.Builder builder) {}
+
+    /**
+     * Assigns the local declared by {@link #declareFactoryLocal}. Noop if it didn't declare one.
+     */
+    default void buildFactoryLocal(MethodSpec.Builder builder) {}
+
+    /**
+     * Invocation that releases the local declared by {@link #declareFactoryLocal}
+     * or {@code null} if it didn't declare one.
+     */
+    default String closeFactoryLocalInvocation() {
+        return null;
+    }
 
     /**
      * Emits code to evaluate this parameter to a Block or array of Blocks

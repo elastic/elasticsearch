@@ -146,7 +146,20 @@ public final class HistogramPercentileTDigestEvaluator implements ExpressionEval
 
     @Override
     public HistogramPercentileTDigestEvaluator get(DriverContext context) {
-      return new HistogramPercentileTDigestEvaluator(source, value.get(context), percentile.get(context), tdigestArrays.apply(context), context);
+      ExpressionEvaluator value = null;
+      ExpressionEvaluator percentile = null;
+      boolean success = false;
+      try {
+        value = this.value.get(context);
+        percentile = this.percentile.get(context);
+        HistogramPercentileTDigestEvaluator result = new HistogramPercentileTDigestEvaluator(source, value, percentile, tdigestArrays.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(value, percentile);
+        }
+      }
     }
 
     @Override

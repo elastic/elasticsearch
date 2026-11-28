@@ -154,7 +154,26 @@ public final class ConfidenceIntervalEvaluator implements ExpressionEvaluator {
 
     @Override
     public ConfidenceIntervalEvaluator get(DriverContext context) {
-      return new ConfidenceIntervalEvaluator(source, bestEstimateBlock.get(context), estimatesBlock.get(context), trialCountBlock.get(context), bucketCountBlock.get(context), confidenceLevelBlock.get(context), context);
+      ExpressionEvaluator bestEstimateBlock = null;
+      ExpressionEvaluator estimatesBlock = null;
+      ExpressionEvaluator trialCountBlock = null;
+      ExpressionEvaluator bucketCountBlock = null;
+      ExpressionEvaluator confidenceLevelBlock = null;
+      boolean success = false;
+      try {
+        bestEstimateBlock = this.bestEstimateBlock.get(context);
+        estimatesBlock = this.estimatesBlock.get(context);
+        trialCountBlock = this.trialCountBlock.get(context);
+        bucketCountBlock = this.bucketCountBlock.get(context);
+        confidenceLevelBlock = this.confidenceLevelBlock.get(context);
+        ConfidenceIntervalEvaluator result = new ConfidenceIntervalEvaluator(source, bestEstimateBlock, estimatesBlock, trialCountBlock, bucketCountBlock, confidenceLevelBlock, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(bestEstimateBlock, estimatesBlock, trialCountBlock, bucketCountBlock, confidenceLevelBlock);
+        }
+      }
     }
 
     @Override

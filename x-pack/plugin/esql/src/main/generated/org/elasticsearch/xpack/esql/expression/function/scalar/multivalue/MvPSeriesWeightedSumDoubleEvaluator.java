@@ -119,7 +119,18 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements ExpressionEval
 
     @Override
     public MvPSeriesWeightedSumDoubleEvaluator get(DriverContext context) {
-      return new MvPSeriesWeightedSumDoubleEvaluator(source, block.get(context), sum.apply(context), p, context);
+      ExpressionEvaluator block = null;
+      boolean success = false;
+      try {
+        block = this.block.get(context);
+        MvPSeriesWeightedSumDoubleEvaluator result = new MvPSeriesWeightedSumDoubleEvaluator(source, block, sum.apply(context), p, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(block);
+        }
+      }
     }
 
     @Override

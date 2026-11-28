@@ -67,11 +67,38 @@ public record FixedArgument(TypeName type, String name, boolean includeInToStrin
     }
 
     @Override
-    public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+    public String factoryInvocation(boolean guarded) {
         return switch (scope) {
             case SINGLETON -> name;
-            case THREAD_LOCAL -> name + ".apply(context)";
+            case THREAD_LOCAL -> guarded && releasable ? name : name + ".apply(context)";
         };
+    }
+
+    /**
+     * Does {@code ExpressionEvaluator.Factory#get} make a new instance that must be released?
+     * {@link Fixed.Scope#SINGLETON} parameters are shared so {@code get} never releases them.
+     */
+    private boolean factoryMakesReleasable() {
+        return releasable && scope == Fixed.Scope.THREAD_LOCAL;
+    }
+
+    @Override
+    public void declareFactoryLocal(MethodSpec.Builder builder) {
+        if (factoryMakesReleasable()) {
+            builder.addStatement("$T $L = null", type, name);
+        }
+    }
+
+    @Override
+    public void buildFactoryLocal(MethodSpec.Builder builder) {
+        if (factoryMakesReleasable()) {
+            builder.addStatement("$L = this.$L.apply(context)", name, name);
+        }
+    }
+
+    @Override
+    public String closeFactoryLocalInvocation() {
+        return factoryMakesReleasable() ? name : null;
     }
 
     @Override

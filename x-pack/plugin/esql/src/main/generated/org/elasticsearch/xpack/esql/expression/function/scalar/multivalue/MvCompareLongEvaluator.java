@@ -113,7 +113,20 @@ public final class MvCompareLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvCompareLongEvaluator get(DriverContext context) {
-      return new MvCompareLongEvaluator(source, field.get(context), bound.get(context), greater, includeBound, context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator bound = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        bound = this.bound.get(context);
+        MvCompareLongEvaluator result = new MvCompareLongEvaluator(source, field, bound, greater, includeBound, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, bound);
+        }
+      }
     }
 
     @Override

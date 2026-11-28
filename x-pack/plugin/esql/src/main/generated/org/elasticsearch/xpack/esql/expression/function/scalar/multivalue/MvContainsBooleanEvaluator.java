@@ -101,7 +101,20 @@ public final class MvContainsBooleanEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvContainsBooleanEvaluator get(DriverContext context) {
-      return new MvContainsBooleanEvaluator(source, superset.get(context), subset.get(context), context);
+      ExpressionEvaluator superset = null;
+      ExpressionEvaluator subset = null;
+      boolean success = false;
+      try {
+        superset = this.superset.get(context);
+        subset = this.subset.get(context);
+        MvContainsBooleanEvaluator result = new MvContainsBooleanEvaluator(source, superset, subset, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(superset, subset);
+        }
+      }
     }
 
     @Override

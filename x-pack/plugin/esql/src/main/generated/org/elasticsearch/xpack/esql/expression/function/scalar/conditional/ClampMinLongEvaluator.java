@@ -147,7 +147,20 @@ public final class ClampMinLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public ClampMinLongEvaluator get(DriverContext context) {
-      return new ClampMinLongEvaluator(source, field.get(context), min.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator min = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        min = this.min.get(context);
+        ClampMinLongEvaluator result = new ClampMinLongEvaluator(source, field, min, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, min);
+        }
+      }
     }
 
     @Override

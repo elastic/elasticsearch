@@ -147,7 +147,20 @@ public final class ParseIpLeadingZerosRejectedEvaluator extends AbstractConvertF
 
     @Override
     public ParseIpLeadingZerosRejectedEvaluator get(DriverContext context) {
-      return new ParseIpLeadingZerosRejectedEvaluator(source, string.get(context), scratch.apply(context), context);
+      ExpressionEvaluator string = null;
+      BreakingBytesRefBuilder scratch = null;
+      boolean success = false;
+      try {
+        string = this.string.get(context);
+        scratch = this.scratch.apply(context);
+        ParseIpLeadingZerosRejectedEvaluator result = new ParseIpLeadingZerosRejectedEvaluator(source, string, scratch, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(string, scratch);
+        }
+      }
     }
 
     @Override

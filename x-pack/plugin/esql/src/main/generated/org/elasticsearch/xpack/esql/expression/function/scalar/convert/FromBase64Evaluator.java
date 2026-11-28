@@ -141,7 +141,20 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
 
     @Override
     public FromBase64Evaluator get(DriverContext context) {
-      return new FromBase64Evaluator(source, field.get(context), oScratch.apply(context), context);
+      ExpressionEvaluator field = null;
+      BreakingBytesRefBuilder oScratch = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        oScratch = this.oScratch.apply(context);
+        FromBase64Evaluator result = new FromBase64Evaluator(source, field, oScratch, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, oScratch);
+        }
+      }
     }
 
     @Override

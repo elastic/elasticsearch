@@ -176,7 +176,20 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
 
     @Override
     public ReplaceConstantEvaluator get(DriverContext context) {
-      return new ReplaceConstantEvaluator(source, str.get(context), regex, literalPrefix, newStr.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator newStr = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        newStr = this.newStr.get(context);
+        ReplaceConstantEvaluator result = new ReplaceConstantEvaluator(source, str, regex, literalPrefix, newStr, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, newStr);
+        }
+      }
     }
 
     @Override

@@ -114,7 +114,18 @@ public final class StGeohexFromFieldAndLiteralEvaluator implements ExpressionEva
 
     @Override
     public StGeohexFromFieldAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldAndLiteralEvaluator(source, wkbBlock.get(context), precision, shapeTiler.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StGeohexFromFieldAndLiteralEvaluator result = new StGeohexFromFieldAndLiteralEvaluator(source, wkbBlock, precision, shapeTiler.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

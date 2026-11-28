@@ -167,7 +167,20 @@ public final class RightEvaluator implements ExpressionEvaluator {
 
     @Override
     public RightEvaluator get(DriverContext context) {
-      return new RightEvaluator(source, out.apply(context), cp.apply(context), str.get(context), length.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator length = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        length = this.length.get(context);
+        RightEvaluator result = new RightEvaluator(source, out.apply(context), cp.apply(context), str, length, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, length);
+        }
+      }
     }
 
     @Override

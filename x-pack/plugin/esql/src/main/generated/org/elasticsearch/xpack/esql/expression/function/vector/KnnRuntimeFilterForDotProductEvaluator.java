@@ -119,7 +119,18 @@ public final class KnnRuntimeFilterForDotProductEvaluator implements ExpressionE
 
     @Override
     public KnnRuntimeFilterForDotProductEvaluator get(DriverContext context) {
-      return new KnnRuntimeFilterForDotProductEvaluator(source, fieldBlock.get(context), queryVector, similarityThreshold, scratchVector.apply(context), context);
+      ExpressionEvaluator fieldBlock = null;
+      boolean success = false;
+      try {
+        fieldBlock = this.fieldBlock.get(context);
+        KnnRuntimeFilterForDotProductEvaluator result = new KnnRuntimeFilterForDotProductEvaluator(source, fieldBlock, queryVector, similarityThreshold, scratchVector.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(fieldBlock);
+        }
+      }
     }
 
     @Override

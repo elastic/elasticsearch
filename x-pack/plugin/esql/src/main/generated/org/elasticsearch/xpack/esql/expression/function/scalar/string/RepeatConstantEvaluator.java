@@ -147,7 +147,20 @@ public final class RepeatConstantEvaluator implements ExpressionEvaluator {
 
     @Override
     public RepeatConstantEvaluator get(DriverContext context) {
-      return new RepeatConstantEvaluator(source, scratch.apply(context), str.get(context), number, context);
+      BreakingBytesRefBuilder scratch = null;
+      ExpressionEvaluator str = null;
+      boolean success = false;
+      try {
+        scratch = this.scratch.apply(context);
+        str = this.str.get(context);
+        RepeatConstantEvaluator result = new RepeatConstantEvaluator(source, scratch, str, number, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(scratch, str);
+        }
+      }
     }
 
     @Override

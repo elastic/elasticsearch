@@ -131,7 +131,20 @@ public final class RangeWithinDoublePointEvaluator implements ExpressionEvaluato
 
     @Override
     public RangeWithinDoublePointEvaluator get(DriverContext context) {
-      return new RangeWithinDoublePointEvaluator(source, point.get(context), range.get(context), context);
+      ExpressionEvaluator point = null;
+      ExpressionEvaluator range = null;
+      boolean success = false;
+      try {
+        point = this.point.get(context);
+        range = this.range.get(context);
+        RangeWithinDoublePointEvaluator result = new RangeWithinDoublePointEvaluator(source, point, range, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(point, range);
+        }
+      }
     }
 
     @Override

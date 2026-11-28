@@ -149,7 +149,20 @@ public final class GreaterThanDoublesEvaluator implements ExpressionEvaluator {
 
     @Override
     public GreaterThanDoublesEvaluator get(DriverContext context) {
-      return new GreaterThanDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        GreaterThanDoublesEvaluator result = new GreaterThanDoublesEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

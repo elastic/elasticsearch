@@ -154,7 +154,20 @@ public final class LocateNoStartEvaluator implements ExpressionEvaluator {
 
     @Override
     public LocateNoStartEvaluator get(DriverContext context) {
-      return new LocateNoStartEvaluator(source, str.get(context), substr.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator substr = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        substr = this.substr.get(context);
+        LocateNoStartEvaluator result = new LocateNoStartEvaluator(source, str, substr, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, substr);
+        }
+      }
     }
 
     @Override

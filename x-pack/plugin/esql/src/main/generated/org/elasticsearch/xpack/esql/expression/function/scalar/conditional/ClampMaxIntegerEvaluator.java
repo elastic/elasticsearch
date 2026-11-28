@@ -147,7 +147,20 @@ public final class ClampMaxIntegerEvaluator implements ExpressionEvaluator {
 
     @Override
     public ClampMaxIntegerEvaluator get(DriverContext context) {
-      return new ClampMaxIntegerEvaluator(source, field.get(context), max.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator max = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        max = this.max.get(context);
+        ClampMaxIntegerEvaluator result = new ClampMaxIntegerEvaluator(source, field, max, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, max);
+        }
+      }
     }
 
     @Override

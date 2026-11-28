@@ -101,7 +101,20 @@ public final class MvContainsLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvContainsLongEvaluator get(DriverContext context) {
-      return new MvContainsLongEvaluator(source, superset.get(context), subset.get(context), context);
+      ExpressionEvaluator superset = null;
+      ExpressionEvaluator subset = null;
+      boolean success = false;
+      try {
+        superset = this.superset.get(context);
+        subset = this.subset.get(context);
+        MvContainsLongEvaluator result = new MvContainsLongEvaluator(source, superset, subset, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(superset, subset);
+        }
+      }
     }
 
     @Override

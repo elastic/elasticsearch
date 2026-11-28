@@ -106,7 +106,18 @@ public final class RuntimeSearchBytesRefEvaluator implements ExpressionEvaluator
 
     @Override
     public RuntimeSearchBytesRefEvaluator get(DriverContext context) {
-      return new RuntimeSearchBytesRefEvaluator(source, fieldBlock.get(context), queryStringBytesRef, scratch.apply(context), context);
+      ExpressionEvaluator fieldBlock = null;
+      boolean success = false;
+      try {
+        fieldBlock = this.fieldBlock.get(context);
+        RuntimeSearchBytesRefEvaluator result = new RuntimeSearchBytesRefEvaluator(source, fieldBlock, queryStringBytesRef, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(fieldBlock);
+        }
+      }
     }
 
     @Override

@@ -155,7 +155,20 @@ public final class ContainsEvaluator implements ExpressionEvaluator {
 
     @Override
     public ContainsEvaluator get(DriverContext context) {
-      return new ContainsEvaluator(source, str.get(context), substr.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator substr = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        substr = this.substr.get(context);
+        ContainsEvaluator result = new ContainsEvaluator(source, str, substr, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, substr);
+        }
+      }
     }
 
     @Override

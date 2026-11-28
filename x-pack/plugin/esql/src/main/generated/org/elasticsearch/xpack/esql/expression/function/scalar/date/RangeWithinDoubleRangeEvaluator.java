@@ -130,7 +130,20 @@ public final class RangeWithinDoubleRangeEvaluator implements ExpressionEvaluato
 
     @Override
     public RangeWithinDoubleRangeEvaluator get(DriverContext context) {
-      return new RangeWithinDoubleRangeEvaluator(source, a.get(context), b.get(context), context);
+      ExpressionEvaluator a = null;
+      ExpressionEvaluator b = null;
+      boolean success = false;
+      try {
+        a = this.a.get(context);
+        b = this.b.get(context);
+        RangeWithinDoubleRangeEvaluator result = new RangeWithinDoubleRangeEvaluator(source, a, b, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(a, b);
+        }
+      }
     }
 
     @Override

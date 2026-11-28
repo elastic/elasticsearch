@@ -146,7 +146,20 @@ public final class HypotEvaluator implements ExpressionEvaluator {
 
     @Override
     public HypotEvaluator get(DriverContext context) {
-      return new HypotEvaluator(source, n1.get(context), n2.get(context), context);
+      ExpressionEvaluator n1 = null;
+      ExpressionEvaluator n2 = null;
+      boolean success = false;
+      try {
+        n1 = this.n1.get(context);
+        n2 = this.n2.get(context);
+        HypotEvaluator result = new HypotEvaluator(source, n1, n2, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(n1, n2);
+        }
+      }
     }
 
     @Override

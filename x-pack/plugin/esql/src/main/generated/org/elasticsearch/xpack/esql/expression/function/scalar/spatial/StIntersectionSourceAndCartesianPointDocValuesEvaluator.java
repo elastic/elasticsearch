@@ -119,7 +119,20 @@ public final class StIntersectionSourceAndCartesianPointDocValuesEvaluator imple
 
     @Override
     public StIntersectionSourceAndCartesianPointDocValuesEvaluator get(DriverContext context) {
-      return new StIntersectionSourceAndCartesianPointDocValuesEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        StIntersectionSourceAndCartesianPointDocValuesEvaluator result = new StIntersectionSourceAndCartesianPointDocValuesEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

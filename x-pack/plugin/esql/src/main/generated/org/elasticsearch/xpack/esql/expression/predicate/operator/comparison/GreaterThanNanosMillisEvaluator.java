@@ -149,7 +149,20 @@ public final class GreaterThanNanosMillisEvaluator implements ExpressionEvaluato
 
     @Override
     public GreaterThanNanosMillisEvaluator get(DriverContext context) {
-      return new GreaterThanNanosMillisEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        GreaterThanNanosMillisEvaluator result = new GreaterThanNanosMillisEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

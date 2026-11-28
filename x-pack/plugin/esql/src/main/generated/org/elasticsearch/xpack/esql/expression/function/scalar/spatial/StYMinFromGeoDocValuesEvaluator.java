@@ -113,7 +113,18 @@ public final class StYMinFromGeoDocValuesEvaluator implements ExpressionEvaluato
 
     @Override
     public StYMinFromGeoDocValuesEvaluator get(DriverContext context) {
-      return new StYMinFromGeoDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator encodedBlock = null;
+      boolean success = false;
+      try {
+        encodedBlock = this.encodedBlock.get(context);
+        StYMinFromGeoDocValuesEvaluator result = new StYMinFromGeoDocValuesEvaluator(source, encodedBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedBlock);
+        }
+      }
     }
 
     @Override

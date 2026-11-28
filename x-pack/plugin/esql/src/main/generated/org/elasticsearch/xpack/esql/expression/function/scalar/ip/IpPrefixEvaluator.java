@@ -200,7 +200,22 @@ public final class IpPrefixEvaluator implements ExpressionEvaluator {
 
     @Override
     public IpPrefixEvaluator get(DriverContext context) {
-      return new IpPrefixEvaluator(source, ip.get(context), prefixLengthV4.get(context), prefixLengthV6.get(context), scratch.apply(context), context);
+      ExpressionEvaluator ip = null;
+      ExpressionEvaluator prefixLengthV4 = null;
+      ExpressionEvaluator prefixLengthV6 = null;
+      boolean success = false;
+      try {
+        ip = this.ip.get(context);
+        prefixLengthV4 = this.prefixLengthV4.get(context);
+        prefixLengthV6 = this.prefixLengthV6.get(context);
+        IpPrefixEvaluator result = new IpPrefixEvaluator(source, ip, prefixLengthV4, prefixLengthV6, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(ip, prefixLengthV4, prefixLengthV6);
+        }
+      }
     }
 
     @Override

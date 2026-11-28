@@ -111,7 +111,20 @@ public final class MvIntersectionDoubleEvaluator implements ExpressionEvaluator 
 
     @Override
     public MvIntersectionDoubleEvaluator get(DriverContext context) {
-      return new MvIntersectionDoubleEvaluator(source, field1.get(context), field2.get(context), context);
+      ExpressionEvaluator field1 = null;
+      ExpressionEvaluator field2 = null;
+      boolean success = false;
+      try {
+        field1 = this.field1.get(context);
+        field2 = this.field2.get(context);
+        MvIntersectionDoubleEvaluator result = new MvIntersectionDoubleEvaluator(source, field1, field2, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field1, field2);
+        }
+      }
     }
 
     @Override

@@ -125,7 +125,18 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
 
     @Override
     public KnnRuntimeScoreEvaluator get(DriverContext context) {
-      return new KnnRuntimeScoreEvaluator(source, fieldBlock.get(context), queryVector, similarityMetric, boost, scratchVector.apply(context), context);
+      ExpressionEvaluator fieldBlock = null;
+      boolean success = false;
+      try {
+        fieldBlock = this.fieldBlock.get(context);
+        KnnRuntimeScoreEvaluator result = new KnnRuntimeScoreEvaluator(source, fieldBlock, queryVector, similarityMetric, boost, scratchVector.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(fieldBlock);
+        }
+      }
     }
 
     @Override

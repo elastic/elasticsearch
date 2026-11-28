@@ -108,7 +108,20 @@ public final class JsonExtractSourceEvaluator implements ExpressionEvaluator {
 
     @Override
     public JsonExtractSourceEvaluator get(DriverContext context) {
-      return new JsonExtractSourceEvaluator(source, strBlock.get(context), pathBlock.get(context), context);
+      ExpressionEvaluator strBlock = null;
+      ExpressionEvaluator pathBlock = null;
+      boolean success = false;
+      try {
+        strBlock = this.strBlock.get(context);
+        pathBlock = this.pathBlock.get(context);
+        JsonExtractSourceEvaluator result = new JsonExtractSourceEvaluator(source, strBlock, pathBlock, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(strBlock, pathBlock);
+        }
+      }
     }
 
     @Override

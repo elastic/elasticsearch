@@ -158,7 +158,20 @@ public final class DivLongsEvaluator implements ExpressionEvaluator {
 
     @Override
     public DivLongsEvaluator get(DriverContext context) {
-      return new DivLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        DivLongsEvaluator result = new DivLongsEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

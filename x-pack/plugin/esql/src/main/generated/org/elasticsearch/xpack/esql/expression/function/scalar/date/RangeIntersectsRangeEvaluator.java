@@ -130,7 +130,20 @@ public final class RangeIntersectsRangeEvaluator implements ExpressionEvaluator 
 
     @Override
     public RangeIntersectsRangeEvaluator get(DriverContext context) {
-      return new RangeIntersectsRangeEvaluator(source, a.get(context), b.get(context), context);
+      ExpressionEvaluator a = null;
+      ExpressionEvaluator b = null;
+      boolean success = false;
+      try {
+        a = this.a.get(context);
+        b = this.b.get(context);
+        RangeIntersectsRangeEvaluator result = new RangeIntersectsRangeEvaluator(source, a, b, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(a, b);
+        }
+      }
     }
 
     @Override

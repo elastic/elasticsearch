@@ -176,7 +176,20 @@ public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluato
 
     @Override
     public DateDiffConstantMillisEvaluator get(DriverContext context) {
-      return new DateDiffConstantMillisEvaluator(source, datePartFieldUnit, startTimestamp.get(context), endTimestamp.get(context), zoneId, context);
+      ExpressionEvaluator startTimestamp = null;
+      ExpressionEvaluator endTimestamp = null;
+      boolean success = false;
+      try {
+        startTimestamp = this.startTimestamp.get(context);
+        endTimestamp = this.endTimestamp.get(context);
+        DateDiffConstantMillisEvaluator result = new DateDiffConstantMillisEvaluator(source, datePartFieldUnit, startTimestamp, endTimestamp, zoneId, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(startTimestamp, endTimestamp);
+        }
+      }
     }
 
     @Override

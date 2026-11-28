@@ -101,7 +101,20 @@ public final class MvContainsIntEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvContainsIntEvaluator get(DriverContext context) {
-      return new MvContainsIntEvaluator(source, superset.get(context), subset.get(context), context);
+      ExpressionEvaluator superset = null;
+      ExpressionEvaluator subset = null;
+      boolean success = false;
+      try {
+        superset = this.superset.get(context);
+        subset = this.subset.get(context);
+        MvContainsIntEvaluator result = new MvContainsIntEvaluator(source, superset, subset, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(superset, subset);
+        }
+      }
     }
 
     @Override

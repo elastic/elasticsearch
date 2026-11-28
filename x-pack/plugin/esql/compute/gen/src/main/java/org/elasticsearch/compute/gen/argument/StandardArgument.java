@@ -74,8 +74,23 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
-        return name + ".get(context)";
+    public String factoryInvocation(boolean guarded) {
+        return guarded ? name : name + ".get(context)";
+    }
+
+    @Override
+    public void declareFactoryLocal(MethodSpec.Builder builder) {
+        builder.addStatement("$T $L = null", EXPRESSION_EVALUATOR, name);
+    }
+
+    @Override
+    public void buildFactoryLocal(MethodSpec.Builder builder) {
+        builder.addStatement("$L = this.$L.get(context)", name, name);
+    }
+
+    @Override
+    public String closeFactoryLocalInvocation() {
+        return name;
     }
 
     @Override

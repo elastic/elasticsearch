@@ -119,7 +119,20 @@ public final class StIntersectionBothGeoPointDocValuesEvaluator implements Expre
 
     @Override
     public StIntersectionBothGeoPointDocValuesEvaluator get(DriverContext context) {
-      return new StIntersectionBothGeoPointDocValuesEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        StIntersectionBothGeoPointDocValuesEvaluator result = new StIntersectionBothGeoPointDocValuesEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

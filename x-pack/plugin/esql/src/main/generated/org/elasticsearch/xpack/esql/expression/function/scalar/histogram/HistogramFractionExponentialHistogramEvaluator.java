@@ -143,7 +143,20 @@ public final class HistogramFractionExponentialHistogramEvaluator implements Exp
 
     @Override
     public HistogramFractionExponentialHistogramEvaluator get(DriverContext context) {
-      return new HistogramFractionExponentialHistogramEvaluator(source, histogram.get(context), bucket.get(context), decimals, context);
+      ExpressionEvaluator histogram = null;
+      ExpressionEvaluator bucket = null;
+      boolean success = false;
+      try {
+        histogram = this.histogram.get(context);
+        bucket = this.bucket.get(context);
+        HistogramFractionExponentialHistogramEvaluator result = new HistogramFractionExponentialHistogramEvaluator(source, histogram, bucket, decimals, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(histogram, bucket);
+        }
+      }
     }
 
     @Override

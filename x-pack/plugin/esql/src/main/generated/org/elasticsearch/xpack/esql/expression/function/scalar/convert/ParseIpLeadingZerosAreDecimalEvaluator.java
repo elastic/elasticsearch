@@ -147,7 +147,20 @@ public final class ParseIpLeadingZerosAreDecimalEvaluator extends AbstractConver
 
     @Override
     public ParseIpLeadingZerosAreDecimalEvaluator get(DriverContext context) {
-      return new ParseIpLeadingZerosAreDecimalEvaluator(source, string.get(context), scratch.apply(context), context);
+      ExpressionEvaluator string = null;
+      BreakingBytesRefBuilder scratch = null;
+      boolean success = false;
+      try {
+        string = this.string.get(context);
+        scratch = this.scratch.apply(context);
+        ParseIpLeadingZerosAreDecimalEvaluator result = new ParseIpLeadingZerosAreDecimalEvaluator(source, string, scratch, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(string, scratch);
+        }
+      }
     }
 
     @Override

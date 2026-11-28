@@ -148,7 +148,20 @@ public final class CopySignDoubleEvaluator implements ExpressionEvaluator {
 
     @Override
     public CopySignDoubleEvaluator get(DriverContext context) {
-      return new CopySignDoubleEvaluator(source, magnitude.get(context), sign.get(context), context);
+      ExpressionEvaluator magnitude = null;
+      ExpressionEvaluator sign = null;
+      boolean success = false;
+      try {
+        magnitude = this.magnitude.get(context);
+        sign = this.sign.get(context);
+        CopySignDoubleEvaluator result = new CopySignDoubleEvaluator(source, magnitude, sign, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(magnitude, sign);
+        }
+      }
     }
 
     @Override

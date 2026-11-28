@@ -133,7 +133,20 @@ public final class ToRangeDoubleEvaluator implements ExpressionEvaluator {
 
     @Override
     public ToRangeDoubleEvaluator get(DriverContext context) {
-      return new ToRangeDoubleEvaluator(source, from.get(context), to.get(context), context);
+      ExpressionEvaluator from = null;
+      ExpressionEvaluator to = null;
+      boolean success = false;
+      try {
+        from = this.from.get(context);
+        to = this.to.get(context);
+        ToRangeDoubleEvaluator result = new ToRangeDoubleEvaluator(source, from, to, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(from, to);
+        }
+      }
     }
 
     @Override

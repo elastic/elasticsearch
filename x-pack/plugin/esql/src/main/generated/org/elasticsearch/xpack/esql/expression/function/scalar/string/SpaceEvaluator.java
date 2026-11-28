@@ -139,7 +139,20 @@ public final class SpaceEvaluator implements ExpressionEvaluator {
 
     @Override
     public SpaceEvaluator get(DriverContext context) {
-      return new SpaceEvaluator(source, scratch.apply(context), number.get(context), context);
+      BreakingBytesRefBuilder scratch = null;
+      ExpressionEvaluator number = null;
+      boolean success = false;
+      try {
+        scratch = this.scratch.apply(context);
+        number = this.number.get(context);
+        SpaceEvaluator result = new SpaceEvaluator(source, scratch, number, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(scratch, number);
+        }
+      }
     }
 
     @Override

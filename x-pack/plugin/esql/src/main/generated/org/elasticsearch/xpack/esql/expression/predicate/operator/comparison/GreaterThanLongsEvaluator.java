@@ -149,7 +149,20 @@ public final class GreaterThanLongsEvaluator implements ExpressionEvaluator {
 
     @Override
     public GreaterThanLongsEvaluator get(DriverContext context) {
-      return new GreaterThanLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        GreaterThanLongsEvaluator result = new GreaterThanLongsEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

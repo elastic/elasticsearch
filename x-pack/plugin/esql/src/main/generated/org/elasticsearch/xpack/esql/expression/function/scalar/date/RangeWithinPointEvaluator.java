@@ -131,7 +131,20 @@ public final class RangeWithinPointEvaluator implements ExpressionEvaluator {
 
     @Override
     public RangeWithinPointEvaluator get(DriverContext context) {
-      return new RangeWithinPointEvaluator(source, point.get(context), range.get(context), context);
+      ExpressionEvaluator point = null;
+      ExpressionEvaluator range = null;
+      boolean success = false;
+      try {
+        point = this.point.get(context);
+        range = this.range.get(context);
+        RangeWithinPointEvaluator result = new RangeWithinPointEvaluator(source, point, range, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(point, range);
+        }
+      }
     }
 
     @Override

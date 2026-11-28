@@ -131,7 +131,20 @@ public final class NaturalSortKeyEvaluator implements ExpressionEvaluator {
 
     @Override
     public NaturalSortKeyEvaluator get(DriverContext context) {
-      return new NaturalSortKeyEvaluator(source, scratch.apply(context), v.get(context), context);
+      BreakingBytesRefBuilder scratch = null;
+      ExpressionEvaluator v = null;
+      boolean success = false;
+      try {
+        scratch = this.scratch.apply(context);
+        v = this.v.get(context);
+        NaturalSortKeyEvaluator result = new NaturalSortKeyEvaluator(source, scratch, v, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(scratch, v);
+        }
+      }
     }
 
     @Override

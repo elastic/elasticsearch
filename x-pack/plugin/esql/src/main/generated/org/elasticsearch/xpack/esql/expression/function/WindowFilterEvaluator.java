@@ -144,7 +144,18 @@ public final class WindowFilterEvaluator implements ExpressionEvaluator {
 
     @Override
     public WindowFilterEvaluator get(DriverContext context) {
-      return new WindowFilterEvaluator(source, window, bucket, nextTimestamps.apply(context), timestamp.get(context), context);
+      ExpressionEvaluator timestamp = null;
+      boolean success = false;
+      try {
+        timestamp = this.timestamp.get(context);
+        WindowFilterEvaluator result = new WindowFilterEvaluator(source, window, bucket, nextTimestamps.apply(context), timestamp, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(timestamp);
+        }
+      }
     }
 
     @Override

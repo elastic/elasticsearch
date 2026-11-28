@@ -138,7 +138,20 @@ public final class HistogramPercentileExponentialHistogramEvaluator implements E
 
     @Override
     public HistogramPercentileExponentialHistogramEvaluator get(DriverContext context) {
-      return new HistogramPercentileExponentialHistogramEvaluator(source, value.get(context), percentile.get(context), context);
+      ExpressionEvaluator value = null;
+      ExpressionEvaluator percentile = null;
+      boolean success = false;
+      try {
+        value = this.value.get(context);
+        percentile = this.percentile.get(context);
+        HistogramPercentileExponentialHistogramEvaluator result = new HistogramPercentileExponentialHistogramEvaluator(source, value, percentile, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(value, percentile);
+        }
+      }
     }
 
     @Override

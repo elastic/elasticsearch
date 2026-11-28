@@ -149,7 +149,20 @@ public final class LessThanLongsEvaluator implements ExpressionEvaluator {
 
     @Override
     public LessThanLongsEvaluator get(DriverContext context) {
-      return new LessThanLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        LessThanLongsEvaluator result = new LessThanLongsEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

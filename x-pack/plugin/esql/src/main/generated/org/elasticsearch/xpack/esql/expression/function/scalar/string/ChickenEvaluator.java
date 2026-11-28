@@ -144,7 +144,20 @@ public final class ChickenEvaluator implements ExpressionEvaluator {
 
     @Override
     public ChickenEvaluator get(DriverContext context) {
-      return new ChickenEvaluator(source, scratch.apply(context), message.get(context), chickenStyle, width, context);
+      BreakingBytesRefBuilder scratch = null;
+      ExpressionEvaluator message = null;
+      boolean success = false;
+      try {
+        scratch = this.scratch.apply(context);
+        message = this.message.get(context);
+        ChickenEvaluator result = new ChickenEvaluator(source, scratch, message, chickenStyle, width, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(scratch, message);
+        }
+      }
     }
 
     @Override

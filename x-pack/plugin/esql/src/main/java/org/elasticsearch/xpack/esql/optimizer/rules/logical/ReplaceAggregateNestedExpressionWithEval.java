@@ -76,6 +76,8 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         List<Alias> evals = new ArrayList<>();
         Map<String, Attribute> evalNames = new HashMap<>();
         Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
+        // non-evaluatable grouping functions whose arguments were extracted into the eval, mapped to their rewritten form
+        Map<GroupingFunction.NonEvaluatableGroupingFunction, Expression> rewrittenNonEvalGroupings = new HashMap<>();
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
         boolean groupingChanged = false;
 
@@ -90,6 +92,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     Expression newGroupingFunction = transformNonEvaluatableGroupingFunction(gf, evals);
                     if (newGroupingFunction != gf) {
                         groupingChanged = true;
+                        rewrittenNonEvalGroupings.put(gf, newGroupingFunction);
                         newGroupings.set(i, as.replaceChild(newGroupingFunction));
                     }
                 } else {
@@ -146,6 +149,19 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.
                     return groupingAttributes.get(gf);
                 });
+                // Rewrite non-evaluatable grouping functions the same way as in the groupings, so they still match the grouping,
+                // e.g. the CATEGORIZE(TO_LOWER(x)) in STATS MV_APPEND(CATEGORIZE(TO_LOWER(x)), c) BY c = CATEGORIZE(TO_LOWER(x)).
+                // ReplaceAggregateAggExpressionWithEval relies on this to replace them with a reference to the grouping.
+                if (rewrittenNonEvalGroupings.isEmpty() == false) {
+                    replaced = replaced.transformUp(GroupingFunction.NonEvaluatableGroupingFunction.class, gf -> {
+                        Expression rewritten = rewrittenNonEvalGroupings.get(gf);
+                        if (rewritten == null) {
+                            return gf;
+                        }
+                        aggsChanged.set(true);
+                        return rewritten;
+                    });
+                }
 
                 return as.replaceChild(replaced);
             });

@@ -83,10 +83,11 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                     throw new EsqlIllegalArgumentException("Expected an attribute or grouping function, got {}", grouping);
                 }
             }
-            assert groupings.size() <= 1
-                || groupings.stream()
-                    .anyMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction)) == false
-                : "CombineProjections only tested with a single CATEGORIZE with no additional groups";
+            // The deduplication of the groupings below uses regular equality, which is only sufficient with at most one
+            // non-evaluatable grouping (see the TODO below). The verifier allows only a single CATEGORIZE.
+            assert groupings.stream()
+                .filter(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction))
+                .count() <= 1 : "CombineProjections only supports a single non-evaluatable grouping function, got " + groupings;
 
             // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
             AttributeMap.Builder<Attribute> aliasesBuilder = AttributeMap.builder();

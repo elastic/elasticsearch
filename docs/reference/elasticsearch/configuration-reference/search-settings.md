@@ -146,3 +146,11 @@ $$$search-task-watchdog-cooldown-period$$$
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Minimum time between hot threads logging on this node. This prevents flooding the logs when many tasks are slow simultaneously. Defaults to `30s`.
 
 
+## Field capabilities settings [search-field-caps-settings]
+
+$$$search-field-caps-routing-wait-timeout$$$
+
+`search.field_caps.routing_wait_timeout`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Maximum time a field capabilities request waits for newer routing when every initially resolved copy of a shard has become unavailable. This can happen when a shard relocates between the moment the request resolves its routing and the moment it reaches the target node. The budget is spent once per request and is shared by all of its indices, however many of them wait. At zero the dispatcher still resolves copies from the applied cluster state but does not wait for further routing changes. Defaults to `10s`.
+
+

@@ -737,6 +737,114 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Like {@link #testRelocation()}, but the indices have a single shard and no replica. The first node-level request moves the shards
+     * of its node away and waits until the node has dropped them, then runs the handler. That node held the only copy of at least one
+     * requested index, so every copy the coordinator resolved for it is gone. Without a second resolution the index would fail; with
+     * it, the dispatcher finds the new copy in newer routing.
+     */
+    public void testRelocationWithoutReplica() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        // One shard per index: the node asked first then holds the only copy of an index, whatever the seed.
+        assertAcked(
+            prepareCreate("nr-index-1").setSettings(indexSettings(1, 0)).setMapping("timestamp", "type=date", "field1", "type=keyword"),
+            prepareCreate("nr-index-2").setSettings(indexSettings(1, 0)).setMapping("timestamp", "type=date", "field1", "type=long")
+        );
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(prepareIndex("nr-index-1").setSource("timestamp", "2020-03-03", "field1", "val1"));
+        reqs.add(prepareIndex("nr-index-2").setSource("timestamp", "2020-10-10", "field1", 42));
+        indexRandom(true, reqs);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("nr-index-*")
+                .setSettings(Settings.builder().put("index.routing.rebalance.enable", "none").build())
+                .get()
+        );
+        ensureGreen("nr-index-*");
+        try {
+            final AtomicBoolean relocated = new AtomicBoolean();
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
+                        if (relocated.compareAndSet(false, true)) {
+                            moveShardsAwayFromNode(node, indexName -> indexName.startsWith("nr-index-"));
+                        }
+                        handler.messageReceived(request, channel, task);
+                    });
+            }
+            FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+            request.indices("nr-index-*");
+            request.fields("*");
+            if (randomBoolean()) {
+                request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
+            }
+            if (randomBoolean()) {
+                request.includeEmptyFields(false);
+            }
+            final FieldCapabilitiesResponse response = safeGet(client().execute(TransportFieldCapabilitiesAction.TYPE, request));
+            assertThat(response.getIndices(), arrayContainingInAnyOrder("nr-index-1", "nr-index-2"));
+            assertThat(response.getField("field1"), aMapWithSize(2));
+            assertThat(response.getField("field1"), hasKey("keyword"));
+            assertThat(response.getField("field1"), hasKey("long"));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+    }
+
+    /**
+     * Moves every matching shard on the node to another data node and returns once the node no longer holds any of them. A reroute is
+     * acknowledged when the relocation has started, while the source still serves the shard; waiting for the source to drop it is what
+     * makes a request to this node find no copy.
+     */
+    private void moveShardsAwayFromNode(String nodeName, Predicate<String> indexNamePredicate) throws Exception {
+        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+        final ClusterState clusterState = clusterService().state();
+        final List<ShardId> shardIds = new ArrayList<>();
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                if (indexNamePredicate.test(indexShard.shardId().getIndexName())) {
+                    shardIds.add(indexShard.shardId());
+                }
+            }
+        }
+        for (ShardId shardId : shardIds) {
+            final var assignedNodes = new HashSet<String>();
+            clusterState.routingTable().shardRoutingTable(shardId).allShards().forEach(shr -> {
+                if (shr.currentNodeId() != null) {
+                    assignedNodes.add(shr.currentNodeId());
+                }
+                if (shr.relocatingNodeId() != null) {
+                    assignedNodes.add(shr.relocatingNodeId());
+                }
+            });
+            final var targetNodes = new ArrayList<String>();
+            for (final var targetIndicesService : internalCluster().getInstances(IndicesService.class)) {
+                final var targetNode = targetIndicesService.clusterService().localNode();
+                if (targetNode.canContainData()
+                    && targetIndicesService.getShardOrNull(shardId) == null
+                    && assignedNodes.contains(targetNode.getId()) == false) {
+                    targetNodes.add(targetNode.getId());
+                }
+            }
+            assertThat("no node to move " + shardId + " to", targetNodes, not(empty()));
+            ClusterRerouteUtils.reroute(
+                client(),
+                new MoveAllocationCommand(
+                    shardId.getIndexName(),
+                    shardId.id(),
+                    indicesService.clusterService().localNode().getId(),
+                    randomFrom(targetNodes)
+                )
+            );
+        }
+        for (ShardId shardId : shardIds) {
+            assertBusy(() -> assertNull("shard " + shardId + " is still on " + nodeName, indicesService.getShardOrNull(shardId)));
+        }
+    }
+
     public void testManyIndicesWithSameMapping() {
         final String mapping = """
              {

@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
@@ -41,7 +43,9 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -70,6 +74,45 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
         );
 
         assertThat(failure, sameInstance(a));
+    }
+
+    public void testTerminalDispatcherTaskIsForcedAfterRejectedHandOff() {
+        final Executor rejectUnlessForced = command -> {
+            final AbstractRunnable abstractRunnable = (AbstractRunnable) command;
+            if (abstractRunnable.isForceExecution()) {
+                abstractRunnable.run();
+            } else {
+                abstractRunnable.onRejection(new EsRejectedExecutionException("rejected"));
+            }
+        };
+        final TransportFieldCapabilitiesAction.DispatcherExecutors executors = TransportFieldCapabilitiesAction.buildSingleThreadedExecutor(
+            rejectUnlessForced
+        );
+        final AtomicBoolean terminalRan = new AtomicBoolean();
+
+        executors.regular().execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                executors.terminal().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception terminalFailure) {
+                        throw new AssertionError(terminalFailure);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        terminalRan.set(true);
+                    }
+                });
+            }
+
+            @Override
+            protected void doRun() {
+                fail("regular task should have been rejected");
+            }
+        });
+
+        assertTrue(terminalRan.get());
     }
 
     /**

@@ -2,7 +2,6 @@ avg_over_time_of_double_no_grouping
 required_capability: ts_command_v0
 TS k8s
 | STATS cost=sum(avg_over_time(network.cost)) BY time_bucket = bucket(@timestamp,1minute)
-| EVAL cost = round(cost, 4)
 | KEEP cost, time_bucket
 | SORT cost DESC, time_bucket DESC 
 | LIMIT 10;
@@ -14,7 +13,7 @@ cost:double       | time_bucket:datetime
 48.3125           | 2024-05-10T00:22:00.000Z
 45.8125           | 2024-05-10T00:15:00.000Z
 40.4375           | 2024-05-10T00:06:00.000Z
-39.5417           | 2024-05-10T00:13:00.000Z
+39.54167          | 2024-05-10T00:13:00.000Z
 37.9375           | 2024-05-10T00:12:00.000Z
 36.6875           | 2024-05-10T00:19:00.000Z
 36.375            | 2024-05-10T00:11:00.000Z
@@ -24,7 +23,6 @@ avg_over_time_of_double_no_grouping_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1m cost=(sum(avg_over_time(network.cost[1m])))
-| EVAL cost = round(cost, 4)
 | KEEP cost, step
 | SORT cost DESC, step DESC 
 | LIMIT 10;
@@ -37,7 +35,7 @@ cost:double | step:datetime
 46.4375     | 2024-05-10T00:20:00.000Z
 45.875      | 2024-05-10T00:09:00.000Z
 40.4375     | 2024-05-10T00:07:00.000Z
-39.5417     | 2024-05-10T00:14:00.000Z
+39.54167    | 2024-05-10T00:14:00.000Z
 37.9375     | 2024-05-10T00:13:00.000Z
 36.375      | 2024-05-10T00:12:00.000Z
 ;
@@ -47,22 +45,20 @@ required_capability: ts_command_v0
 required_capability: tbucket
 TS k8s
 | STATS cost=sum(avg_over_time(network.cost)) BY time_bucket = tbucket(1h)
-| EVAL cost = round(cost, 4)
 | KEEP cost, time_bucket;
 
 cost:double       | time_bucket:datetime
-56.3225           | 2024-05-10T00:00:00.000Z
+56.32254          | 2024-05-10T00:00:00.000Z
 ;
 
 avg_over_time_of_double_no_grouping_single_bucket_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h cost=(sum(avg_over_time(network.cost[1h])))
-| EVAL cost = round(cost, 4)
 | KEEP cost, step;
 
 cost:double | step:datetime
-56.3225     | 2024-05-10T01:00:00.000Z
+56.32254    | 2024-05-10T01:00:00.000Z
 ;
 
 avg_over_time_of_double_no_grouping_promql_expanded
@@ -70,14 +66,14 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
-PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(sum(avg_over_time(network.cost[1m])))
 | SORT step;
 
 cost:double | step:datetime
 13.25       | 2024-05-10T00:11:00.000Z
 36.375      | 2024-05-10T00:12:00.000Z
 37.9375     | 2024-05-10T00:13:00.000Z
-39.5417     | 2024-05-10T00:14:00.000Z
+39.54167    | 2024-05-10T00:14:00.000Z
 ;
 
 avg_over_time_of_double_no_grouping_promql_collapsed
@@ -86,11 +82,11 @@ required_capability: ts_collapse
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
-PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(sum(avg_over_time(network.cost[1m])))
 | TS_COLLAPSE;
 
-cost:double                      | step:datetime
-[13.25, 36.375, 37.9375, 39.5417] | [2024-05-10T00:11:00.000Z, 2024-05-10T00:12:00.000Z, 2024-05-10T00:13:00.000Z, 2024-05-10T00:14:00.000Z]
+cost:double                     | step:datetime
+[13.25, 36.375, 37.9375, 39.54167] | [2024-05-10T00:11:00.000Z, 2024-05-10T00:12:00.000Z, 2024-05-10T00:13:00.000Z, 2024-05-10T00:14:00.000Z]
 ;
 
 // Range window (1m) smaller than the step (10m): the per-step result at B is the average over (B-1m, B], identical to
@@ -126,7 +122,6 @@ avg_over_time_of_integer
 required_capability: ts_command_v0
 TS k8s 
 | STATS clients = avg(avg_over_time(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) 
-| EVAL clients = round(clients, 4)
 | KEEP clients, time_bucket
 | SORT time_bucket 
 | LIMIT 10;

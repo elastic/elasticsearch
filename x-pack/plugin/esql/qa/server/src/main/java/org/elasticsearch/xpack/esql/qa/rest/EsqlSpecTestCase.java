@@ -727,7 +727,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             actualValues,
             testCase.ignoreOrder,
             ignoreValueOrder(),
-            enableRoundingDoubleValuesOnAsserting(),
+            enableRoundingDoubleValuesOnAsserting() || testCase.includeTimeSeriesAggregation(),
             logger
         );
     }

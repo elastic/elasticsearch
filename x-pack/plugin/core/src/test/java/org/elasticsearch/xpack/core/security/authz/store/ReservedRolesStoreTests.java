@@ -4484,6 +4484,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, ".entities.v2.updates.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entities.v2.metadata." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entities.v2.metadata.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.system.events." + randomAlphaOfLengthBetween(1, 8));
+        assertOnlyReadAllowed(role, ".entities.v2.system.extraction_runs." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".asset-criticality.asset-criticality-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.entity-leads" + randomIntBetween(0, 5));
@@ -4584,6 +4586,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, ".entities.v2.updates.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entities.v2.metadata." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entities.v2.metadata.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.system.events." + randomAlphaOfLengthBetween(1, 8));
+        assertOnlyReadAllowed(role, ".entities.v2.system.extraction_runs." + randomAlphaOfLengthBetween(1, 8));
         assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.entity-leads" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.watchlists." + randomIntBetween(0, 5));

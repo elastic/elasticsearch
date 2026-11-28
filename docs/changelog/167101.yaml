@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 167101
+summary: Grant viewer/editor read on Entity Store v2 system event streams
+type: enhancement

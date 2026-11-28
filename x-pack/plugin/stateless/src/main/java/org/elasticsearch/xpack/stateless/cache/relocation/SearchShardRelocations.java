@@ -37,6 +37,12 @@ final class SearchShardRelocations {
         );
     }
 
+    /// The non-critical recoveries on `targetNodeId`: the relocations, the snapshot restores and the replicas added for performance, which
+    /// use the slots of the target for the non-critical recoveries.
+    static int countNonCriticalInitializing(ClusterState state, String targetNodeId) {
+        return countInitializing(state, targetNodeId, shard -> shard.recoveryPriority().isCritical() == false);
+    }
+
     /// Whether a search node marked for removal still holds shards that have not begun to relocate. The master holds them back while it
     /// throttles, so the relocations to a target that the cluster state shows may be only some of the ones the target will get.
     static boolean hasPendingRelocationsOnShuttingDownNodes(ClusterState state) {

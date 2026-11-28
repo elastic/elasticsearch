@@ -134,6 +134,20 @@ public class TargetRelocationSlotsEstimatorTests extends ESTestCase {
         assertThat(estimator.knownAvailableSlots(state, 1), equalTo(newLimit));
     }
 
+    public void testSlotsForNonCriticalRecoveriesAreTheNonCriticalLimit() {
+        // 4 slots in total, 2 of them for the non-critical recoveries
+        final var settings = Settings.builder()
+            .put(dataNodeLimit(4))
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "50%"
+            )
+            .build();
+        final var estimator = newEstimator(newClusterSettings(settings, true), Settings.EMPTY);
+
+        assertThat(estimator.slotsForNonCriticalRecoveries(), equalTo(2));
+    }
+
     private static TargetRelocationSlotsEstimator newEstimator(ClusterSettings clusterSettings, Settings nodeSettings) {
         return new TargetRelocationSlotsEstimator(clusterSettings, nodeSettings, ByteSizeValue.ofGb(1));
     }

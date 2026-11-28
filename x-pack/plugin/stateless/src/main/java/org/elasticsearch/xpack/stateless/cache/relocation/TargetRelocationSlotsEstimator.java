@@ -22,9 +22,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /// The slots that a target has for incoming non-critical recoveries, which relocations share with the recoveries of unassigned shards
-/// added for performance reasons and with snapshot restores. [RelocationSourceShutdownTimeouts] shares them when it turns the time left
-/// until the grace deadline of a shutting-down node, see [ShutdownWarmingDeadline], into a warming timeout. It only counts the
-/// relocations as using the slots.
+/// added for performance reasons and with snapshot restores. It only counts the relocations as using the slots.
 public class TargetRelocationSlotsEstimator {
 
     /// The values of the master settings at which the master leaves the throttling of the recoveries to a search node to the data nodes, as
@@ -69,6 +67,13 @@ public class TargetRelocationSlotsEstimator {
             && SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state) == false
                 ? maxRecoveries
                 : Math.min(maxRecoveries, relocationsInFlight);
+    }
+
+    /// The slots of a target for the non-critical recoveries, as the relocations: the data node limit on the non-critical recoveries. It is
+    /// very large when the data nodes have no limit. The critical recoveries are not taken into account, as they have slots of their own
+    /// above this limit, and only take the non-critical ones when they exceed those, which is rare and short-lived.
+    public int slotsForNonCriticalRecoveries() {
+        return maxConcurrentNonCriticalRecoveries;
     }
 
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not

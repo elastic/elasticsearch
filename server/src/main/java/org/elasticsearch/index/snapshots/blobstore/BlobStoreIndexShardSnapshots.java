@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -25,8 +26,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,40 +148,46 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return this.shardSnapshots;
     }
 
-    // index of Lucene file name to collection of file info in the repository
-    // lazy computed because building this is map is rather expensive and only needed for the snapshot create operation
-    private Map<String, Collection<FileInfo>> physicalFiles;
+    public record FilesForSnapshot(List<FileInfo> reusableFiles, List<StoreFileMetadata> newFiles) {}
 
     /**
-     * Finds reference to a snapshotted file by its {@link StoreFileMetadata}
+     * Finds reusable repository files for the given commit files in a single pass over the shard's snapshot history.
+     * Keeps only matches for the requested files so that lookup memory depends on the size of the commit.
      *
-     * @param storeFileMetadata store file metadata to find file info for
-     * @return the file info that matches the specified physical file or null if the file is not present in any of snapshots
+     * @param fileNames Lucene filenames to match, each present in {@code metadata}
+     * @param metadata metadata for the current commit
+     * @return reusable and new files for the snapshot
      */
-    public FileInfo findPhysicalIndexFile(StoreFileMetadata storeFileMetadata) {
-        var p = this.physicalFiles;
-        if (p == null) {
-            p = new HashMap<>();
-            for (SnapshotFiles snapshot : shardSnapshots) {
-                for (FileInfo fileInfo : snapshot.indexFiles()) {
-                    // we use identity hash set since we lookup all instances from the same map and thus equality == instance equality
-                    // and we don't want to add the same file to the map multiple times
-                    p.computeIfAbsent(fileInfo.physicalName(), k -> Collections.newSetFromMap(new IdentityHashMap<>()))
-                        .add(files.get(fileInfo.name()));
+    public FilesForSnapshot classifySnapshotFiles(Collection<String> fileNames, Store.MetadataSnapshot metadata) {
+        if (fileNames.isEmpty()) {
+            return new FilesForSnapshot(List.of(), List.of());
+        }
+
+        final Map<String, StoreFileMetadata> remainingFilesByName = new LinkedHashMap<>();
+        for (String fileName : fileNames) {
+            final StoreFileMetadata currentFileMetadata = metadata.get(fileName);
+            remainingFilesByName.put(fileName, currentFileMetadata);
+        }
+
+        final List<FileInfo> reusableFiles = new ArrayList<>();
+        for (SnapshotFiles snapshot : shardSnapshots) {
+            for (FileInfo fileInfo : snapshot.indexFiles()) {
+                final String name = fileInfo.physicalName();
+                final StoreFileMetadata currentFile = remainingFilesByName.get(name);
+                if (currentFile != null) {
+                    final FileInfo candidate = files.get(fileInfo.name());
+                    if (candidate.isSame(currentFile)) {
+                        reusableFiles.add(candidate);
+                        remainingFilesByName.remove(name);
+                        if (remainingFilesByName.isEmpty()) {
+                            return new FilesForSnapshot(List.copyOf(reusableFiles), List.of());
+                        }
+                    }
                 }
             }
-            physicalFiles = p;
         }
-        final var found = p.get(storeFileMetadata.name());
-        if (found == null) {
-            return null;
-        }
-        for (FileInfo fileInfo : found) {
-            if (fileInfo.isSame(storeFileMetadata)) {
-                return fileInfo;
-            }
-        }
-        return null;
+
+        return new FilesForSnapshot(List.copyOf(reusableFiles), List.copyOf(remainingFilesByName.values()));
     }
 
     /**

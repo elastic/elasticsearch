@@ -3622,40 +3622,46 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                 metadataFromStore = context.metadataSnapshot();
                 fileNames = context.fileNames();
-                for (String fileName : fileNames) {
+
+                if (!fileNames.isEmpty()) {
+                    ensureNotAborted(shardId, snapshotId, snapshotStatus, fileNames.iterator().next());
+                }
+                final var filesForSnapshot = snapshots.classifySnapshotFiles(fileNames, metadataFromStore);
+                indexTotalNumberOfFiles = fileNames.size();
+
+                // a commit point file with the same name, size and checksum was already copied to repository
+                // we will reuse it for this snapshot
+                for (BlobStoreIndexShardSnapshot.FileInfo existingFileInfo : filesForSnapshot.reusableFiles()) {
+                    final String fileName = existingFileInfo.physicalName();
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
-
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
-                    final StoreFileMetadata md = metadataFromStore.get(fileName);
-                    BlobStoreIndexShardSnapshot.FileInfo existingFileInfo = snapshots.findPhysicalIndexFile(md);
+                    indexTotalFileSize += existingFileInfo.length();
+                    indexCommitPointFiles.add(existingFileInfo);
+                }
 
+                for (StoreFileMetadata md : filesForSnapshot.newFiles()) {
+                    final String fileName = md.name();
+                    ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
+                    logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
                     // We can skip writing blobs where the metadata hash is equal to the blob's contents because we store the hash/contents
                     // directly in the shard level metadata in this case
                     final boolean needsWrite = md.hashEqualsContents() == false;
                     indexTotalFileSize += md.length();
-                    indexTotalNumberOfFiles++;
-
-                    if (existingFileInfo == null) {
-                        indexIncrementalFileCount++;
-                        indexIncrementalSize += md.length();
-                        // create a new FileInfo
-                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
-                            (needsWrite ? UPLOADED_DATA_BLOB_PREFIX : VIRTUAL_DATA_BLOB_PREFIX) + UUIDs.randomBase64UUID(),
-                            md,
-                            chunkSize()
-                        );
-                        indexCommitPointFiles.add(snapshotFileInfo);
-                        if (needsWrite) {
-                            filesToSnapshot.add(snapshotFileInfo);
-                        } else {
-                            assert context.assertFileContentsMatchHash(snapshotFileInfo);
-                            filesInShardMetadataCount += 1;
-                            filesInShardMetadataSize += md.length();
-                        }
+                    indexIncrementalFileCount++;
+                    indexIncrementalSize += md.length();
+                    // create a new FileInfo
+                    BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
+                        (needsWrite ? UPLOADED_DATA_BLOB_PREFIX : VIRTUAL_DATA_BLOB_PREFIX) + UUIDs.randomBase64UUID(),
+                        md,
+                        chunkSize()
+                    );
+                    indexCommitPointFiles.add(snapshotFileInfo);
+                    if (needsWrite) {
+                        filesToSnapshot.add(snapshotFileInfo);
                     } else {
-                        // a commit point file with the same name, size and checksum was already copied to repository
-                        // we will reuse it for this snapshot
-                        indexCommitPointFiles.add(existingFileInfo);
+                        assert context.assertFileContentsMatchHash(snapshotFileInfo);
+                        filesInShardMetadataCount += 1;
+                        filesInShardMetadataSize += md.length();
                     }
                 }
             } else {

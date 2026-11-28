@@ -14,6 +14,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
@@ -31,15 +33,22 @@ import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeFailure;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
 import org.junit.After;
 import org.junit.Before;
@@ -62,9 +71,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
@@ -81,11 +92,16 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DataNodeRequestSenderTests extends ComputeTestCase {
+
+    /** The resolution attempts of a sender, unless a test sets them. */
+    private static final int DEFAULT_RESOLUTION_ATTEMPTS = 10;
 
     private ThreadPool threadPool;
     private Executor executor = null;
@@ -680,6 +696,567 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(attempt.get(), equalTo(1));
     }
 
+    public void testNodeFailureClassification() {
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME)),
+            equalTo(NodeFailure.UNREACHABLE)
+        );
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(new NodeNotConnectedException(node1, "not connected")),
+            equalTo(NodeFailure.UNREACHABLE)
+        );
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(
+                new SendRequestTransportException(node1, "action", new NodeNotConnectedException(node1, "not connected"))
+            ),
+            equalTo(NodeFailure.UNREACHABLE)
+        );
+        assertThat(
+            "a coordinator that is closing itself says nothing about the target",
+            DataNodeRequestSender.classifyNodeFailure(localNodeClosed(node1)),
+            equalTo(NodeFailure.OTHER)
+        );
+        assertThat(
+            "a failure that the target sends back as it closes says nothing about whether it can be reached",
+            DataNodeRequestSender.classifyNodeFailure(new RemoteTransportException("remote", new NodeClosedException(node1))),
+            equalTo(NodeFailure.OTHER)
+        );
+        assertThat(
+            "a connection failure of the target to another node",
+            DataNodeRequestSender.classifyNodeFailure(
+                new RemoteTransportException("remote", new NodeDisconnectedException(node2, ComputeService.DATA_ACTION_NAME))
+            ),
+            equalTo(NodeFailure.OTHER)
+        );
+        assertThat(
+            DataNodeRequestSender.classifyNodeFailure(new RemoteTransportException("remote", new IOException("io"))),
+            equalTo(NodeFailure.OTHER)
+        );
+        assertThat(DataNodeRequestSender.classifyNodeFailure(new IOException("io")), equalTo(NodeFailure.OTHER));
+    }
+
+    /**
+     * A lost connection leaves the node out only for the shard that lost it: another one may be resolved onto that node, since the
+     * loss may have been transient.
+     */
+    public void testUnreachableNodeIsLeftOutOnlyForItsShard() {
+        Exception lostConnection = new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME);
+        var resolved = ConcurrentCollections.<Set<ShardId>>newQueue();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        var node1Attempts = new AtomicInteger();
+        // shard2 is only resolved again once shard1 has been retried, so node1 has failed by then
+        var shard1Retried = new SubscribableListener<Void>();
+        var future = sendRequests(true, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
+            resolved.add(Set.copyOf(shardIds));
+            // the routing places both shards on node1, alone for shard2
+            return shardIds.contains(shard1.shardId())
+                ? Map.of(shard1.shardId(), List.of(node1, node3))
+                : Map.of(shard2.shardId(), List.of(node1));
+        }, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            if (node.equals(node2)) {
+                shard1Retried.addListener(
+                    ActionListener.running(
+                        () -> runWithDelay(
+                            () -> listener.onResponse(
+                                new DataNodeComputeResponse(
+                                    DriverCompletionInfo.EMPTY,
+                                    Map.of(shard2.shardId(), new ShardNotFoundException(shard2.shardId()))
+                                )
+                            )
+                        )
+                    )
+                );
+            } else if (node.equals(node1) && node1Attempts.incrementAndGet() == 1) {
+                runWithDelay(() -> listener.onFailure(lostConnection, false));
+            } else {
+                if (shardIds.contains(shard1)) {
+                    shard1Retried.onResponse(null);
+                }
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+            }
+        });
+        var response = safeGet(future);
+        assertThat(resolved, contains(Set.of(shard1.shardId()), Set.of(shard2.shardId())));
+        assertThat(response.totalShards, equalTo(2));
+        assertThat(
+            "shard1 does not go back to the node that failed it, and shard2 goes to the node that was unreachable for shard1",
+            sent,
+            containsInAnyOrder(
+                nodeRequest(node1, shard1),
+                nodeRequest(node2, shard2),
+                nodeRequest(node3, shard1),
+                nodeRequest(node1, shard2)
+            )
+        );
+        assertThat(response.successfulShards, equalTo(2));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
+    /**
+     * The failure of a compute comes out of a {@code ComputeListener} without its transport wrapper, so it cannot be classified any
+     * more: a connection failure that the data node ran into itself would look like a lost connection to that node. The caller says
+     * what the request's failure meant, and here it meant nothing about the node, so the shard is not resolved again.
+     */
+    public void testUnwrappedConnectionFailureOfTheDataNodeIsNotResolvedAgain() {
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            runWithDelay(
+                () -> listener.onFailure(new NodeDisconnectedException(node2, ComputeService.DATA_ACTION_NAME), false, NodeFailure.OTHER)
+            );
+        }));
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(response.failures.get(0).getCause(), instanceOf(NodeDisconnectedException.class));
+        assertThat(sent, contains(nodeRequest(node1, shard1)));
+    }
+
+    /**
+     * A shard-level failure in a response says nothing about the node, which did answer: even a connection failure there does not make
+     * the shard resolve again.
+     */
+    public void testConnectionFailureAsShardLevelFailureIsNotResolvedAgain() {
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            runWithDelay(
+                () -> listener.onResponse(
+                    new DataNodeComputeResponse(
+                        DriverCompletionInfo.EMPTY,
+                        Map.of(shard1.shardId(), new NodeDisconnectedException(node2, ComputeService.DATA_ACTION_NAME))
+                    )
+                )
+            );
+        }));
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(response.failures.get(0).getCause(), instanceOf(NodeDisconnectedException.class));
+        assertThat(sent, contains(nodeRequest(node1, shard1)));
+    }
+
+    /**
+     * A node that cannot be reached, before any page was received, makes the shard resolve again. The node is left out of the new
+     * copies, also when the routing still lists it, and before the other copy.
+     */
+    public void testRetryUnreachableNodeElsewhere() {
+        var attempt = new AtomicInteger();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        Exception lostConnection = randomLostConnection(node1);
+        // the routing may still list the departing node
+        boolean departingNodeListedFirst = randomBoolean();
+        var response = safeGet(sendRequests(randomBoolean(), -1, List.of(targetShard(shard1, node1)), shardIds -> {
+            attempt.incrementAndGet();
+            return Map.of(shard1.shardId(), departingNodeListedFirst ? List.of(node1, node2) : List.of(node2, node1));
+        }, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            if (node.equals(node1)) {
+                runWithDelay(() -> listener.onFailure(lostConnection, false));
+            } else {
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+            }
+        }));
+        assertThat(response.totalShards, equalTo(1));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(attempt.get(), equalTo(1));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+    }
+
+    /**
+     * If the only copy that resolving again finds is on the node that could not be reached, the shard fails in the same pass, with
+     * that original failure: nothing waits for the routing to change, and the node is not asked again.
+     */
+    public void testUnreachableNodeIsNotRetriedWhenItHoldsTheOnlyCopy() {
+        var attempt = new AtomicInteger();
+        var sentTo = ConcurrentCollections.<DiscoveryNode>newQueue();
+        Exception lostConnection = randomLostConnection(node1);
+        boolean allowPartialResults = randomBoolean();
+        var future = sendRequests(allowPartialResults, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), shardIds -> {
+            attempt.incrementAndGet();
+            return Map.of(shard1.shardId(), List.of(node1));
+        }, (node, shardIds, aliasFilters, listener) -> {
+            sentTo.add(node);
+            if (node.equals(node1)) {
+                runWithDelay(() -> listener.onFailure(lostConnection, false));
+            } else {
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+            }
+        });
+        if (allowPartialResults) {
+            var response = safeGet(future);
+            assertThat(response.totalShards, equalTo(2));
+            assertThat(response.successfulShards, equalTo(1));
+            assertThat(response.failedShards, equalTo(1));
+            assertThat(response.failures, hasSize(1));
+            assertThat(response.failures.get(0).getCause(), instanceOf(lostConnection.getCause().getClass()));
+        } else {
+            Exception e = expectThrows(Exception.class, future::actionGet);
+            assertThat(e, instanceOf(lostConnection.getCause().getClass()));
+        }
+        assertThat(attempt.get(), equalTo(1));
+        assertThat("the node is asked once", sentTo.stream().filter(node1::equals).count(), equalTo(1L));
+    }
+
+    /**
+     * A node that cannot be reached while the routing still lists it does not use up the resolution attempts: the shard that failed
+     * on it is not given that node again, so resolving it gives no copy and is not charged. Here a single attempt is left for a
+     * shard that moved afterwards, which `main` would retry too.
+     */
+    public void testUnreachableNodeDoesNotSpendTheAttemptsOfOtherShards() {
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        // shard2 only fails once the failure of shard1 has been handled
+        var shard1Failed = new SubscribableListener<Void>();
+        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1), targetShard(shard2, node2)), 1, shardIds -> {
+            var resolved = new HashMap<ShardId, List<DiscoveryNode>>();
+            if (shardIds.contains(shard1.shardId())) {
+                resolved.put(shard1.shardId(), List.of(node1));
+            }
+            if (shardIds.contains(shard2.shardId())) {
+                resolved.put(shard2.shardId(), List.of(node3));
+            }
+            return resolved;
+        }, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            if (node.equals(node1)) {
+                runWithDelay(() -> {
+                    listener.onFailure(randomLostConnection(node1), false);
+                    shard1Failed.onResponse(null);
+                });
+            } else if (node.equals(node2)) {
+                shard1Failed.addListener(ActionListener.running(() -> runWithDelay(() -> listener.onResponse(shardNotFound(shard2)))));
+            } else {
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+            }
+        }));
+        assertThat(sent, containsInAnyOrder(nodeRequest(node1, shard1), nodeRequest(node2, shard2), nodeRequest(node3, shard2)));
+        assertThat(response.totalShards, equalTo(2));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(response.failures.get(0).shard().getShardId(), equalTo(shard1.shardId()));
+    }
+
+    /**
+     * A request that fails while it is being sent, as one to a node that is not connected does, is picked up by the loop that is
+     * sending, in its next pass, and not by another loop entered from inside it. Here every resolution places the shard on yet
+     * another node that cannot be reached, so its request fails in every pass: entered from inside, the loops would nest once per
+     * pass. The requests of the other tests complete on another thread, so they do not get here.
+     */
+    public void testInlineConnectionFailureDoesNotNestTheSendLoop() {
+        int passes = 1000;
+        var resolutions = new AtomicInteger();
+        var stackDepths = ConcurrentCollections.<Long>newQueue();
+        var response = safeGet(sendRequests(randomBoolean(), -1, List.of(targetShard(shard1, node1)), -1, shardIds -> {
+            int resolution = resolutions.incrementAndGet();
+            DiscoveryNode node = resolution < passes ? DiscoveryNodeUtils.create("not-connected-" + resolution) : node2;
+            return Map.of(shard1.shardId(), List.of(node));
+        }, (node, shardIds, aliasFilters, listener) -> {
+            if (node.equals(node2)) {
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+            } else {
+                stackDepths.add(StackWalker.getInstance().walk(Stream::count));
+                // on the calling thread, which is sending and holds the lock for it, as a failed getConnection does
+                listener.onFailure(new NodeNotConnectedException(node, "not connected"), false);
+            }
+        }));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(stackDepths, hasSize(passes));
+        assertThat("every request is sent from the same depth of the stack", Set.copyOf(stackDepths), hasSize(1));
+    }
+
+    /**
+     * A node that may have received data of the query fails its shards for good, whatever its failure says about the node and
+     * whatever is left of the resolution attempts: another copy would produce the same data again.
+     */
+    public void testReceivedDataFailureIsNeverResolvedAgain() {
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        NodeFailure nodeFailure = randomFrom(NodeFailure.UNREACHABLE, NodeFailure.OTHER);
+        var response = safeGet(
+            sendRequests(true, -1, List.of(targetShard(shard1, node1, node2)), randomFrom(-1, 0, DEFAULT_RESOLUTION_ATTEMPTS), shardIds -> {
+                throw new AssertionError("no shard resolution is expected here");
+            }, (node, shardIds, aliasFilters, listener) -> {
+                sent.add(nodeRequest(node, shardIds));
+                // either failure sends the shard to another copy, unless the node may have received data
+                Exception failure = switch (nodeFailure) {
+                    case UNREACHABLE -> new NodeDisconnectedException(node, ComputeService.DATA_ACTION_NAME);
+                    case OTHER -> new ShardNotFoundException(shard1.shardId());
+                };
+                runWithDelay(() -> listener.onFailure(failure, true, nodeFailure));
+            })
+        );
+        assertThat("the other listed copy is not asked either", sent, contains(nodeRequest(node1, shard1)));
+        assertThat(response.failedShards, equalTo(1));
+        Class<? extends Exception> reported = switch (nodeFailure) {
+            case UNREACHABLE -> NodeDisconnectedException.class;
+            // a shard that is not available is reported as that, whichever failure said so
+            case OTHER -> NoShardAvailableActionException.class;
+        };
+        assertThat(response.failures.get(0).getCause(), instanceOf(reported));
+    }
+
+    /**
+     * With partial results the failure of the data node request says about the node what any failure of a request does. Without
+     * them no failure of it is read as one of the node, a lost connection included: it has cancelled the query by the time the sender
+     * hears of it.
+     */
+    public void testDataRequestFailureClassification() {
+        Exception disconnected = new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME);
+        assertThat(DataNodeRequestSender.classifyDataRequestFailure(disconnected, true), equalTo(NodeFailure.UNREACHABLE));
+        assertThat(DataNodeRequestSender.classifyDataRequestFailure(new IOException("io"), true), equalTo(NodeFailure.OTHER));
+        for (Exception e : List.of(disconnected, randomLostConnection(node1), new IOException("io"))) {
+            assertThat(e.toString(), DataNodeRequestSender.classifyDataRequestFailure(e, false), equalTo(NodeFailure.OTHER));
+        }
+    }
+
+    /**
+     * A coordinator that is closing fails its own requests with a {@link NodeClosedException}. That says nothing about the target:
+     * the shard is not resolved again.
+     */
+    public void testLocalNodeClosedIsNotResolvedAgain() {
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            runWithDelay(() -> listener.onFailure(localNodeClosed(node), false));
+        }));
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(response.failures.get(0).getCause(), instanceOf(NodeClosedException.class));
+        assertThat(sent, contains(nodeRequest(node1, shard1)));
+    }
+
+    /**
+     * A shard is resolved again only if every failure seen for it allows that: a failure that does not, followed by a disconnect from
+     * another copy, fails the shard with the first failure.
+     */
+    public void testIneligibleFailureThenDisconnectDoesNotResolveAgain() {
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        var response = safeGet(
+            sendRequests(true, -1, List.of(targetShard(shard1, node1, node2)), (node, shardIds, aliasFilters, listener) -> {
+                sent.add(nodeRequest(node, shardIds));
+                if (node.equals(node1)) {
+                    runWithDelay(() -> listener.onFailure(new IOException("not retryable elsewhere"), false));
+                } else {
+                    runWithDelay(() -> listener.onFailure(randomLostConnection(node), false));
+                }
+            })
+        );
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(response.failures.get(0).getCause(), instanceOf(IOException.class));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+    }
+
+    /**
+     * Once pages were received from a node, its disconnect fails the shard as before, without resolving it again.
+     */
+    public void testDisconnectAfterPagesIsNotRetried() {
+        var response = safeGet(
+            sendRequests(
+                true,
+                -1,
+                List.of(targetShard(shard1, node1)),
+                (node, shardIds, aliasFilters, listener) -> runWithDelay(
+                    () -> listener.onFailure(new NodeDisconnectedException(node, ComputeService.DATA_ACTION_NAME), true)
+                )
+            )
+        );
+        assertThat(response.failedShards, equalTo(1));
+        assertThat(response.failures.get(0).getCause(), instanceOf(NodeDisconnectedException.class));
+    }
+
+    /**
+     * A shard that was retried on another node, and fails there for good because that node disconnects after pages were received,
+     * reports the failure of that node and not the one of the node it was retried from.
+     */
+    public void testDisconnectAfterPagesOnReplacementReportsThatFailure() {
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        boolean allowPartialResults = randomBoolean();
+        // the nodes of this test have no name, so the two failures are told apart by instance
+        Exception disconnected = new NodeDisconnectedException(node2, ComputeService.DATA_ACTION_NAME);
+        var future = sendRequests(
+            allowPartialResults,
+            -1,
+            List.of(targetShard(shard1, node1)),
+            shardIds -> Map.of(shard1.shardId(), List.of(node2)),
+            (node, shardIds, aliasFilters, listener) -> {
+                sent.add(nodeRequest(node, shardIds));
+                if (node.equals(node1)) {
+                    runWithDelay(() -> listener.onFailure(randomLostConnection(node1), false));
+                } else {
+                    runWithDelay(() -> listener.onFailure(disconnected, true, NodeFailure.UNREACHABLE));
+                }
+            }
+        );
+        final Throwable reported;
+        if (allowPartialResults) {
+            var response = safeGet(future);
+            assertThat(response.failedShards, equalTo(1));
+            assertThat(response.failures, hasSize(1));
+            reported = response.failures.get(0).getCause();
+        } else {
+            reported = expectThrows(Exception.class, future::actionGet);
+        }
+        assertThat(reported, sameInstance(disconnected));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+    }
+
+    /**
+     * A query that is cancelled before the lost connection to its data node arrives does not resolve the shard again: nothing is
+     * started on another node for the cancellation to stop.
+     */
+    public void testCancelledQueryIsNotResolvedAgain() {
+        var resolutions = new AtomicInteger();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        CancellableTask task = newTask();
+        Exception lostConnection = randomLostConnection(node1);
+        boolean allowPartialResults = randomBoolean();
+        PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
+        newSender(
+            SliceSelection.UNSPECIFIED,
+            allowPartialResults,
+            -1,
+            List.of(targetShard(shard1, node1)),
+            DEFAULT_RESOLUTION_ATTEMPTS,
+            task,
+            shardIds -> {
+                resolutions.incrementAndGet();
+                return Map.of(shard1.shardId(), List.of(node2));
+            },
+            (node, shardIds, aliasFilters, listener) -> {
+                sent.add(nodeRequest(node, shardIds));
+                if (node.equals(node1)) {
+                    runWithDelay(() -> {
+                        TaskCancelHelper.cancel(task, "test");
+                        listener.onFailure(lostConnection, false);
+                    });
+                } else {
+                    runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+                }
+            }
+        ).startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, usage -> {}, future);
+        if (allowPartialResults) {
+            var response = safeGet(future);
+            assertThat(response.failedShards, equalTo(1));
+            assertThat(response.failures.get(0).getCause(), instanceOf(lostConnection.getCause().getClass()));
+        } else {
+            Exception e = expectThrows(Exception.class, future::actionGet);
+            assertThat(e, instanceOf(lostConnection.getCause().getClass()));
+        }
+        assertThat("the shard is not resolved again", resolutions.get(), equalTo(0));
+        assertThat(sent, contains(nodeRequest(node1, shard1)));
+    }
+
+    /**
+     * A data node request that loses its connection before any page was received lets the shard be resolved again, unless a page
+     * fetch from the node also failed for a reason of the node's own: the shard then fails with that failure when its listed copies
+     * are used up, as it would without the lost connection. The failures are passed through the listener the handler builds.
+     */
+    public void testLostConnectionWithAnIndependentFetchFailureIsNotResolvedAgain() {
+        assertLostConnectionOfDataRequest(true);
+        assertLostConnectionOfDataRequest(false);
+    }
+
+    private void assertLostConnectionOfDataRequest(boolean independentFetchFailure) {
+        var resolutions = new AtomicInteger();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        Exception disconnected = new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME);
+        EsRejectedExecutionException rejected = new EsRejectedExecutionException("rejected");
+        // the replacement only shows when the shard is resolved again
+        var response = safeGet(sendRequests(true, -1, List.of(targetShard(shard1, node1)), shardIds -> {
+            resolutions.incrementAndGet();
+            return Map.of(shard1.shardId(), List.of(node2));
+        }, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            if (node.equals(node1)) {
+                // the exchange was opened, the data node request was sent and lost its connection
+                ActionListener<DataNodeComputeResponse> nodeRequestListener = DataNodeComputeHandler.nodeRequestListener(
+                    listener,
+                    new AtomicLong(),
+                    false,
+                    new AtomicBoolean(true),
+                    new AtomicReference<>(NodeFailure.UNREACHABLE),
+                    new AtomicReference<>(independentFetchFailure ? new RemoteTransportException("fetch", rejected) : null)
+                );
+                runWithDelay(() -> nodeRequestListener.onFailure(disconnected));
+            } else {
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+            }
+        }));
+        if (independentFetchFailure) {
+            assertThat("the shard is not resolved again", resolutions.get(), equalTo(0));
+            assertThat(sent, contains(nodeRequest(node1, shard1)));
+            assertThat(response.failedShards, equalTo(1));
+            assertThat(response.failures.get(0).getCause(), sameInstance(rejected));
+        } else {
+            assertThat(resolutions.get(), equalTo(1));
+            assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+            assertThat(response.successfulShards, equalTo(1));
+            assertThat(response.failedShards, equalTo(0));
+        }
+    }
+
+    /**
+     * A data node request that loses its connection before any page was received is resolved again with partial results, and not
+     * without them: the failure is passed to the sender the way the handler classifies it, and without partial results the shard
+     * fails with it, the resolver is not asked and no other node gets a request.
+     */
+    public void testDataRequestDisconnectIsOnlyResolvedAgainWithPartialResults() {
+        assertDataRequestDisconnectIsOnlyResolvedAgainWithPartialResults(true);
+        assertDataRequestDisconnectIsOnlyResolvedAgainWithPartialResults(false);
+    }
+
+    private void assertDataRequestDisconnectIsOnlyResolvedAgainWithPartialResults(boolean allowPartialResults) {
+        var resolutions = new AtomicInteger();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        Exception disconnected = new NodeDisconnectedException(node1, ComputeService.DATA_ACTION_NAME);
+        var future = sendRequests(allowPartialResults, -1, List.of(targetShard(shard1, node1)), shardIds -> {
+            resolutions.incrementAndGet();
+            return Map.of(shard1.shardId(), List.of(node2));
+        }, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            if (node.equals(node1)) {
+                NodeFailure nodeFailure = DataNodeRequestSender.classifyDataRequestFailure(disconnected, allowPartialResults);
+                runWithDelay(() -> listener.onFailure(disconnected, false, nodeFailure));
+            } else {
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of())));
+            }
+        });
+        if (allowPartialResults) {
+            var response = safeGet(future);
+            assertThat(response.successfulShards, equalTo(1));
+            assertThat(response.failedShards, equalTo(0));
+            assertThat(resolutions.get(), equalTo(1));
+            assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+        } else {
+            Exception e = expectThrows(Exception.class, future::actionGet);
+            assertThat(e, instanceOf(NodeDisconnectedException.class));
+            assertThat("the shard is not resolved again", resolutions.get(), equalTo(0));
+            assertThat(sent, contains(nodeRequest(node1, shard1)));
+        }
+    }
+
+    private static SendRequestTransportException localNodeClosed(DiscoveryNode target) {
+        DiscoveryNode coordinator = DiscoveryNodeUtils.create("coordinator");
+        return new SendRequestTransportException(target, ComputeService.DATA_ACTION_NAME, new NodeClosedException(coordinator));
+    }
+
+    /**
+     * A connection that was lost when sending; the cause is what the shard failure reports.
+     */
+    private static Exception randomLostConnection(DiscoveryNode node) {
+        return randomBoolean()
+            ? new SendRequestTransportException(
+                node,
+                ComputeService.DATA_ACTION_NAME,
+                new NodeDisconnectedException(node, ComputeService.DATA_ACTION_NAME)
+            )
+            : new SendRequestTransportException(node, "open_exchange", new NodeNotConnectedException(node, "not connected"));
+    }
+
+    private static DataNodeComputeResponse shardNotFound(DataNodeRequest.Shard shard) {
+        return new DataNodeComputeResponse(
+            DriverCompletionInfo.EMPTY,
+            Map.of(shard.shardId(), new ShardNotFoundException(shard.shardId()))
+        );
+    }
+
     static DataNodeRequestSender.TargetShard targetShard(DataNodeRequest.Shard shard, DiscoveryNode... nodes) {
         return new DataNodeRequestSender.TargetShard(
             shard.shardId(),
@@ -733,7 +1310,26 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Resolver resolver,
         Sender sender
     ) {
-        return sendRequests(allowPartialResults, concurrentRequests, shards, resolver, sender, usage -> {});
+        return sendRequests(allowPartialResults, concurrentRequests, shards, DEFAULT_RESOLUTION_ATTEMPTS, resolver, sender);
+    }
+
+    PlainActionFuture<ComputeResponse> sendRequests(
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        int unavailableShardResolutionAttempts,
+        Resolver resolver,
+        Sender sender
+    ) {
+        return sendRequests(
+            allowPartialResults,
+            concurrentRequests,
+            shards,
+            unavailableShardResolutionAttempts,
+            resolver,
+            sender,
+            usage -> {}
+        );
     }
 
     PlainActionFuture<ComputeResponse> sendRequests(
@@ -744,13 +1340,29 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Sender sender,
         Consumer<DriverCompletionInfo> onFailureUsage
     ) {
+        return sendRequests(allowPartialResults, concurrentRequests, shards, DEFAULT_RESOLUTION_ATTEMPTS, resolver, sender, onFailureUsage);
+    }
+
+    PlainActionFuture<ComputeResponse> sendRequests(
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        int unavailableShardResolutionAttempts,
+        Resolver resolver,
+        Sender sender,
+        Consumer<DriverCompletionInfo> onFailureUsage
+    ) {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
-        newSender(SliceSelection.UNSPECIFIED, allowPartialResults, concurrentRequests, shards, resolver, sender).startComputeOnDataNodes(
-            Set.of(randomAlphaOfLength(10)),
-            () -> {},
-            onFailureUsage,
-            future
-        );
+        newSender(
+            SliceSelection.UNSPECIFIED,
+            allowPartialResults,
+            concurrentRequests,
+            shards,
+            unavailableShardResolutionAttempts,
+            newTask(),
+            resolver,
+            sender
+        ).startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, onFailureUsage, future);
         return future;
     }
 
@@ -762,19 +1374,35 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Resolver resolver,
         Sender sender
     ) {
-        TransportService transportService = MockTransportService.createNewService(
-            Settings.EMPTY,
-            VersionInformation.CURRENT,
-            TransportVersion.current(),
-            threadPool
-        );
-        CancellableTask task = new CancellableTask(
+        return newSender(slices, allowPartialResults, concurrentRequests, shards, DEFAULT_RESOLUTION_ATTEMPTS, newTask(), resolver, sender);
+    }
+
+    private static CancellableTask newTask() {
+        return new CancellableTask(
             randomNonNegativeLong(),
             "type",
             "action",
             randomAlphaOfLength(10),
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
+        );
+    }
+
+    private DataNodeRequestSender newSender(
+        SliceSelection slices,
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        int unavailableShardResolutionAttempts,
+        CancellableTask task,
+        Resolver resolver,
+        Sender sender
+    ) {
+        TransportService transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
         );
         return new DataNodeRequestSender(
             null,
@@ -788,7 +1416,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             "",
             allowPartialResults,
             concurrentRequests,
-            10
+            unavailableShardResolutionAttempts
         ) {
             @Override
             void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {

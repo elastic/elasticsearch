@@ -7,14 +7,38 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.SendRequestTransportException;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -22,12 +46,22 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeFailure;
+import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DataNodeComputeHandlerTests extends ESTestCase {
 
@@ -69,6 +103,342 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
         assertThat(DataNodeComputeHandler.readerContextKeepAlive(request(plan, shorter), clusterSettings), equalTo(shorter));
         TimeValue longer = TimeValue.timeValueMillis(maxKeepAlive.millis() + between(1, 3_600_000));
         assertThat(DataNodeComputeHandler.readerContextKeepAlive(request(plan, longer), clusterSettings), equalTo(maxKeepAlive));
+    }
+
+    /**
+     * A node that returned a page, or that was sent an INTO, may hold results of the query. A node that was sent a read and
+     * returned no page does not, and neither does one whose INTO was never sent.
+     */
+    public void testMayHaveReceivedData() {
+        for (boolean writesInto : List.of(true, false)) {
+            for (boolean requestSent : List.of(true, false)) {
+                assertTrue(DataNodeComputeHandler.mayHaveReceivedData(between(1, 100), writesInto, requestSent));
+            }
+        }
+        assertFalse(DataNodeComputeHandler.mayHaveReceivedData(0, false, false));
+        assertFalse(DataNodeComputeHandler.mayHaveReceivedData(0, false, true));
+        assertFalse(DataNodeComputeHandler.mayHaveReceivedData(0, true, false));
+        assertTrue("an INTO may have written rows without returning a page", DataNodeComputeHandler.mayHaveReceivedData(0, true, true));
+    }
+
+    /**
+     * The listener of a data node tells the sender what the node may hold as of the time it fails, not as of the time the listener
+     * was built: a failure after the request of an INTO was sent must not send the INTO to another copy of the shards, also when
+     * the failure says that the node was unreachable, which would otherwise have the shards resolved again.
+     */
+    public void testNodeRequestListenerTellsTheSenderWhatTheNodeMayHold() {
+        assertNodeRequestListenerTellsTheSenderWhatTheNodeMayHold(true);
+        assertNodeRequestListenerTellsTheSenderWhatTheNodeMayHold(false);
+    }
+
+    private static void assertNodeRequestListenerTellsTheSenderWhatTheNodeMayHold(boolean writesInto) {
+        AtomicLong pagesFetched = new AtomicLong();
+        AtomicBoolean requestSent = new AtomicBoolean();
+        AtomicReference<NodeFailure> computeNodeFailure = new AtomicReference<>();
+        AtomicReference<ReportedFailure> reported = new AtomicReference<>();
+        ActionListener<DataNodeComputeResponse> listener = DataNodeComputeHandler.nodeRequestListener(
+            recordFailure(reported),
+            pagesFetched,
+            writesInto,
+            requestSent,
+            computeNodeFailure,
+            new AtomicReference<>()
+        );
+        DiscoveryNode node = DiscoveryNodeUtils.create("data-node");
+
+        // the open failed: nothing was sent, and the failure is classified as the transport delivered it
+        Exception openFailure = new NodeDisconnectedException(node, "open_exchange");
+        listener.onFailure(openFailure);
+        assertThat(reported.get(), equalTo(new ReportedFailure(openFailure, false, NodeFailure.UNREACHABLE)));
+
+        // the data node request was sent and lost: only an INTO may have left something behind
+        computeNodeFailure.set(NodeFailure.UNREACHABLE);
+        requestSent.set(true);
+        Exception computeFailure = new IOException("picked by the compute listener");
+        listener.onFailure(computeFailure);
+        assertThat(reported.get(), equalTo(new ReportedFailure(computeFailure, writesInto, NodeFailure.UNREACHABLE)));
+
+        // a page arrived
+        pagesFetched.incrementAndGet();
+        computeNodeFailure.set(NodeFailure.OTHER);
+        listener.onFailure(computeFailure);
+        assertThat(reported.get(), equalTo(new ReportedFailure(computeFailure, true, NodeFailure.OTHER)));
+    }
+
+    /**
+     * A data node request counts as sent from before it leaves, so that a failure of it, however early it comes back, finds the
+     * node marked: the connection that drops under a sent INTO must not have the INTO sent to another copy of the shards.
+     */
+    public void testDataNodeRequestIsMarkedSentBeforeItLeaves() {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            assertDataNodeRequestIsMarkedSentBeforeItLeaves(threadPool, true);
+            assertDataNodeRequestIsMarkedSentBeforeItLeaves(threadPool, false);
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    private static void assertDataNodeRequestIsMarkedSentBeforeItLeaves(ThreadPool threadPool, boolean writesInto) {
+        boolean allowPartialResults = randomBoolean();
+        AtomicBoolean requestSent = new AtomicBoolean();
+        AtomicReference<Boolean> sentWhenLeaving = new AtomicReference<>();
+        AtomicLong sentRequestId = new AtomicLong(-1);
+        // Stands for the wire: the request goes nowhere, and the test answers it. This shows the mark at the very moment the
+        // request leaves, which a real transport does not expose.
+        MockTransport transport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                assertThat(action, equalTo(ComputeService.DATA_ACTION_NAME));
+                sentWhenLeaving.set(requestSent.get());
+                sentRequestId.set(requestId);
+            }
+        };
+        DiscoveryNode dataNode = DiscoveryNodeUtils.create("data-node");
+        TransportService transportService = transport.createTransportService(
+            Settings.EMPTY,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            address -> DiscoveryNodeUtils.create("coordinator"),
+            null,
+            Set.of()
+        );
+        try (transportService) {
+            transportService.start();
+            transportService.acceptIncomingRequests();
+
+            AtomicReference<NodeFailure> computeNodeFailure = new AtomicReference<>(NodeFailure.OTHER);
+            AtomicReference<ReportedFailure> reported = new AtomicReference<>();
+            ActionListener<DataNodeComputeResponse> listener = DataNodeComputeHandler.nodeRequestListener(
+                recordFailure(reported),
+                new AtomicLong(),
+                writesInto,
+                requestSent,
+                computeNodeFailure,
+                new AtomicReference<>()
+            );
+            ExchangeSinkExec plan = new ExchangeSinkExec(
+                Source.EMPTY,
+                List.of(),
+                false,
+                new ExchangeSourceExec(Source.EMPTY, List.of(), false)
+            );
+            DataNodeComputeHandler.sendDataNodeRequest(
+                transportService,
+                transportService.getConnection(dataNode),
+                request(plan, null),
+                new Task(randomNonNegativeLong(), "type", "action", "", TaskId.EMPTY_TASK_ID, Map.of()),
+                TransportRequestOptions.EMPTY,
+                requestSent,
+                new ActionListenerResponseHandler<>(
+                    DataNodeComputeHandler.classifyingDataRequestFailure(listener, computeNodeFailure, allowPartialResults),
+                    in -> {
+                        throw new AssertionError("no response is expected here");
+                    },
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                )
+            );
+            assertThat("the request left unmarked", sentWhenLeaving.get(), equalTo(true));
+
+            NodeDisconnectedException disconnected = new NodeDisconnectedException(dataNode, ComputeService.DATA_ACTION_NAME);
+            transport.handleError(sentRequestId.get(), disconnected);
+            // without partial results the failure has cancelled the query, and is not read as one of the node
+            NodeFailure expected = allowPartialResults ? NodeFailure.UNREACHABLE : NodeFailure.OTHER;
+            assertThat(reported.get(), equalTo(new ReportedFailure(disconnected, writesInto, expected)));
+        }
+    }
+
+    /**
+     * A page fetch that fails for a reason of the node's own, before any page, next to a data node request that lost its
+     * connection: the lost connection does not make the node count as unreachable, whichever of the two completes first and
+     * whichever the compute listener picks. The failure of the fetch reaches the sender, to be retried as it allows.
+     */
+    public void testIndependentFetchFailureOverridesTheLostConnectionOfTheDataRequest() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("data-node");
+        for (boolean dataRequestFirst : new boolean[] { true, false }) {
+            Exception disconnected = new NodeDisconnectedException(node, ComputeService.DATA_ACTION_NAME);
+
+            // a client error, which the compute listener prefers to the lost connection
+            EsRejectedExecutionException rejected = new EsRejectedExecutionException("rejected");
+            ReportedFailure reported = failDataRequestAndFetch(
+                disconnected,
+                new RemoteTransportException("fetch", rejected),
+                dataRequestFirst
+            );
+            assertThat(reported, equalTo(new ReportedFailure(rejected, false, NodeFailure.OTHER)));
+
+            // a server error, as the lost connection is: the compute listener picks whichever came first
+            IllegalStateException serverError = new IllegalStateException("failed on the data node");
+            reported = failDataRequestAndFetch(disconnected, new RemoteTransportException("fetch", serverError), dataRequestFirst);
+            assertThat(ExceptionsHelper.unwrapCause(reported.failure()), sameInstance(serverError));
+            assertThat(reported.receivedData(), equalTo(false));
+            assertThat(reported.nodeFailure(), equalTo(NodeFailure.OTHER));
+        }
+    }
+
+    /**
+     * A page fetch that fails because the same connection was lost, or because the failure of the data node request cancelled it,
+     * or that does not fail at all, says nothing of its own: the node counts as unreachable for the lost connection of the data
+     * node request.
+     */
+    public void testFetchFailureThatFollowsFromTheLostConnectionLeavesTheNodeUnreachable() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("data-node");
+        Exception disconnected = new NodeDisconnectedException(node, ComputeService.DATA_ACTION_NAME);
+        List<Exception> fetchOutcomes = Arrays.asList(
+            null,
+            new NodeDisconnectedException(node, "exchange"),
+            new SendRequestTransportException(node, "exchange", new NodeNotConnectedException(node, "not connected")),
+            new TaskCancelledException("cancelled"),
+            new RemoteTransportException("fetch", new TaskCancelledException("cancelled"))
+        );
+        for (Exception fetchOutcome : fetchOutcomes) {
+            for (boolean dataRequestFirst : new boolean[] { true, false }) {
+                ReportedFailure reported = failDataRequestAndFetch(disconnected, fetchOutcome, dataRequestFirst);
+                assertThat(String.valueOf(fetchOutcome), reported.nodeFailure(), equalTo(NodeFailure.UNREACHABLE));
+                assertThat(String.valueOf(fetchOutcome), reported.failure(), instanceOf(ConnectTransportException.class));
+                assertThat(reported.receivedData(), equalTo(false));
+            }
+        }
+    }
+
+    /**
+     * Without a lost connection of the data node request there is nothing for a failed fetch to override.
+     */
+    public void testFetchFailureAloneIsReportedAsItWas() {
+        IllegalStateException serverError = new IllegalStateException("failed on the data node");
+        Exception remoteFailure = new RemoteTransportException("data", new IOException("failed on the data node"));
+        ReportedFailure reported = failDataRequestAndFetch(
+            remoteFailure,
+            new RemoteTransportException("fetch", serverError),
+            randomBoolean()
+        );
+        assertThat(reported.nodeFailure(), equalTo(NodeFailure.OTHER));
+        assertThat(reported.failure(), not(instanceOf(TransportException.class)));
+    }
+
+    /**
+     * Closing the wrapped remote sink closes the sink itself, and is not taken for a fetch.
+     */
+    public void testRecordingFetchFailureClosesTheSinkItself() {
+        AtomicBoolean closed = new AtomicBoolean();
+        AtomicReference<Exception> independentFetchFailure = new AtomicReference<>();
+        RemoteSink sink = DataNodeComputeHandler.recordingFetchFailure(new RemoteSink() {
+            @Override
+            public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
+                throw new AssertionError("no fetch is expected here");
+            }
+
+            @Override
+            public void close(ActionListener<Void> listener) {
+                closed.set(true);
+                listener.onFailure(new IllegalStateException("failed to close"));
+            }
+        }, independentFetchFailure);
+        sink.close(ActionListener.noop());
+        assertTrue(closed.get());
+        assertNull(independentFetchFailure.get());
+    }
+
+    /**
+     * Drives the two inputs of the compute listener of one data node as the shard path wires them: the data node request, whose
+     * failure is classified on the way in, and the page fetch of its exchange, through the recording sink.
+     *
+     * @param fetchFailure the failure of the fetch as the transport delivers it, or null if the exchange ends normally
+     */
+    private static ReportedFailure failDataRequestAndFetch(
+        Exception dataRequestFailure,
+        @Nullable Exception fetchFailure,
+        boolean dataRequestFirst
+    ) {
+        // the exchange was opened, and the data node request was sent
+        AtomicReference<NodeFailure> computeNodeFailure = new AtomicReference<>(NodeFailure.OTHER);
+        AtomicReference<Exception> independentFetchFailure = new AtomicReference<>();
+        AtomicReference<ReportedFailure> reported = new AtomicReference<>();
+        ActionListener<DataNodeComputeResponse> listener = DataNodeComputeHandler.nodeRequestListener(
+            recordFailure(reported),
+            new AtomicLong(),
+            false,
+            new AtomicBoolean(true),
+            computeNodeFailure,
+            independentFetchFailure
+        );
+        RemoteSink remoteSink = DataNodeComputeHandler.recordingFetchFailure((allSourcesFinished, fetchListener) -> {
+            if (fetchFailure == null) {
+                fetchListener.onResponse(new ExchangeResponse(null, true));
+            } else {
+                fetchListener.onFailure(fetchFailure);
+            }
+        }, independentFetchFailure);
+        try (var computeListener = new ComputeListener(() -> {}, listener.map(ignored -> {
+            throw new AssertionError("no response is expected here");
+        }))) {
+            ActionListener<DriverCompletionInfo> dataRequest = DataNodeComputeHandler.classifyingDataRequestFailure(
+                computeListener.acquireCompute(),
+                computeNodeFailure,
+                true
+            );
+            ActionListener<Void> fetch = computeListener.acquireAvoid();
+            Runnable failDataRequest = () -> dataRequest.onFailure(dataRequestFailure);
+            Runnable completeFetch = () -> remoteSink.fetchPageAsync(false, ActionListener.wrap(response -> {
+                response.close();
+                fetch.onResponse(null);
+            }, fetch::onFailure));
+            if (dataRequestFirst) {
+                failDataRequest.run();
+                completeFetch.run();
+            } else {
+                completeFetch.run();
+                failDataRequest.run();
+            }
+        }
+        assertNotNull("the listener of the node was not failed", reported.get());
+        return reported.get();
+    }
+
+    public void testIsIndependentFetchFailure() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("data-node");
+        assertTrue(DataNodeComputeHandler.isIndependentFetchFailure(new RemoteTransportException("fetch", new IOException("io"))));
+        assertTrue(
+            "a connection of the data node to another node",
+            DataNodeComputeHandler.isIndependentFetchFailure(
+                new RemoteTransportException("fetch", new NodeDisconnectedException(node, "lookup"))
+            )
+        );
+        assertTrue(
+            "raised on this node, as a circuit breaker does",
+            DataNodeComputeHandler.isIndependentFetchFailure(new IOException("io"))
+        );
+        assertFalse(DataNodeComputeHandler.isIndependentFetchFailure(new NodeDisconnectedException(node, "exchange")));
+        assertFalse(
+            DataNodeComputeHandler.isIndependentFetchFailure(
+                new SendRequestTransportException(node, "exchange", new NodeNotConnectedException(node, "not connected"))
+            )
+        );
+        assertFalse(DataNodeComputeHandler.isIndependentFetchFailure(new TaskCancelledException("cancelled")));
+        assertFalse(
+            DataNodeComputeHandler.isIndependentFetchFailure(new RemoteTransportException("fetch", new TaskCancelledException("cancelled")))
+        );
+    }
+
+    private record ReportedFailure(Exception failure, boolean receivedData, NodeFailure nodeFailure) {}
+
+    private static NodeListener recordFailure(AtomicReference<ReportedFailure> reported) {
+        return new NodeListener() {
+            @Override
+            public void onResponse(DataNodeComputeResponse response) {
+                throw new AssertionError("no response is expected here");
+            }
+
+            @Override
+            public void onFailure(Exception e, boolean receivedData, NodeFailure nodeFailure) {
+                reported.set(new ReportedFailure(e, receivedData, nodeFailure));
+            }
+
+            @Override
+            public void onSkip() {
+                throw new AssertionError("no skip is expected here");
+            }
+        };
     }
 
     private static DataNodeRequest request(ExchangeSinkExec plan, @Nullable TimeValue readerContextKeepAlive) {

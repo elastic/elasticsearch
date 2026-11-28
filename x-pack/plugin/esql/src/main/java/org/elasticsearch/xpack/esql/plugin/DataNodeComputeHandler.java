@@ -39,11 +39,13 @@ import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.DetachingExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -74,6 +76,8 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -228,11 +232,19 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 final AtomicLong pagesFetched = new AtomicLong();
                 final AtomicBoolean requestSent = new AtomicBoolean();
-                // A node that was sent an INTO may have written rows before it failed, without a page for the coordinator to have
-                // fetched, and another copy of the shard would write the same rows again
-                var listener = ActionListener.wrap(
-                    nodeListener::onResponse,
-                    e -> nodeListener.onFailure(e, pagesFetched.get() > 0 || (writesInto && requestSent.get()))
+                // Set once the open succeeded, to what the failure of the data node request, if any, says about the node. A failure
+                // of the open reaches the listener as the transport delivered it and is classified there. One of the compute comes
+                // out of a ComputeListener, unwrapped and possibly another one than the request's, so it is classified on arrival.
+                final AtomicReference<DataNodeRequestSender.NodeFailure> computeNodeFailure = new AtomicReference<>();
+                // The first failure of a page fetch that is one of the node's own, see recordingFetchFailure
+                final AtomicReference<Exception> independentFetchFailure = new AtomicReference<>();
+                var listener = nodeRequestListener(
+                    nodeListener,
+                    pagesFetched,
+                    writesInto,
+                    requestSent,
+                    computeNodeFailure,
+                    independentFetchFailure
                 );
                 final Transport.Connection connection;
                 try {
@@ -252,6 +264,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
+                        computeNodeFailure.set(DataNodeRequestSender.NodeFailure.OTHER);
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -302,29 +315,40 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
                             final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
-                            requestSent.set(true);
-                            transportService.sendChildRequest(
+                            final ActionListener<DataNodeComputeResponse> dataNodeListener = ComputeService.finishRemoteSinkIfNotSent(
+                                remoteSink,
+                                computeListener.acquireCompute().map(r -> {
+                                    nodeResponseRef.set(r);
+                                    return r.completionInfo();
+                                })
+                            );
+                            sendDataNodeRequest(
+                                transportService,
                                 connection,
-                                ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
                                 groupTask,
                                 computeService.planRequestOptions(),
+                                requestSent,
                                 new ActionListenerResponseHandler<>(
-                                    ComputeService.finishRemoteSinkIfNotSent(remoteSink, computeListener.acquireCompute().map(r -> {
-                                        nodeResponseRef.set(r);
-                                        return r.completionInfo();
-                                    })),
+                                    classifyingDataRequestFailure(
+                                        dataNodeListener,
+                                        computeNodeFailure,
+                                        configuration.allowPartialResults()
+                                    ),
                                     in -> new DataNodeComputeResponse(in, threadContext),
                                     searchExecutor
                                 )
                             );
-                            exchangeSource.addRemoteSink(remoteSink, configuration.allowPartialResults() == false, page -> {
-                                pagesFetched.incrementAndGet();
-                                if (fetchContexts != null) {
-                                    // before the exchange buffers the page, so the execution learns of the contexts it names
-                                    fetchContexts.track(page);
-                                }
-                            },
+                            exchangeSource.addRemoteSink(
+                                recordingFetchFailure(remoteSink, independentFetchFailure),
+                                configuration.allowPartialResults() == false,
+                                page -> {
+                                    pagesFetched.incrementAndGet();
+                                    if (fetchContexts != null) {
+                                        // before the exchange buffers the page, so the execution learns of the contexts it names
+                                        fetchContexts.track(page);
+                                    }
+                                },
                                 queryPragmas.concurrentExchangeClients(),
                                 ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)
                             );
@@ -701,6 +725,124 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     static boolean writesInto(PhysicalPlan plan) {
         return plan.anyMatch(p -> p instanceof FragmentExec f && f.fragment().anyMatch(Into.class::isInstance));
+    }
+
+    /**
+     * Whether a data node whose request failed may hold results of the query already, so that another copy of its shards must not be
+     * asked. A node that was sent an INTO may have written rows before it failed, without a page for the coordinator to have
+     * fetched, and another copy of the shard would write the same rows again.
+     */
+    static boolean mayHaveReceivedData(long pagesFetched, boolean writesInto, boolean requestSent) {
+        return pagesFetched > 0 || (writesInto && requestSent);
+    }
+
+    /**
+     * Sends the data node request, marking it as sent before it leaves: from then on the node may have run the plan, and a failure
+     * of the request must find it {@link #mayHaveReceivedData marked} whenever it is reported.
+     */
+    static void sendDataNodeRequest(
+        TransportService transportService,
+        Transport.Connection connection,
+        DataNodeRequest request,
+        Task parentTask,
+        TransportRequestOptions options,
+        AtomicBoolean requestSent,
+        TransportResponseHandler<DataNodeComputeResponse> handler
+    ) {
+        requestSent.set(true);
+        transportService.sendChildRequest(connection, ComputeService.DATA_ACTION_NAME, request, parentTask, options, handler);
+    }
+
+    /**
+     * Wraps the listener of the data node request so that a failure of the request is classified as the transport delivered it,
+     * before it goes on into a {@link ComputeListener}; {@link #nodeRequestListener} reads the result.
+     */
+    static <T> ActionListener<T> classifyingDataRequestFailure(
+        ActionListener<T> listener,
+        AtomicReference<DataNodeRequestSender.NodeFailure> computeNodeFailure,
+        boolean allowPartialResults
+    ) {
+        return listener.delegateResponse((l, e) -> {
+            computeNodeFailure.set(DataNodeRequestSender.classifyDataRequestFailure(e, allowPartialResults));
+            l.onFailure(e);
+        });
+    }
+
+    /**
+     * Wraps the remote sink of a data node so that the first failure of a page fetch that is one of the node's own is recorded, as
+     * the transport delivered it, before it goes on into the exchange source; {@link #nodeRequestListener} reads the result. The
+     * exchange source hands on one failure of all its fetches, and a {@link ComputeListener} then picks between that one and the
+     * failure of the data node request, so what a fetch said cannot be read from the failure that comes out.
+     */
+    static RemoteSink recordingFetchFailure(RemoteSink remoteSink, AtomicReference<Exception> independentFetchFailure) {
+        return new RemoteSink() {
+            @Override
+            public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
+                remoteSink.fetchPageAsync(allSourcesFinished, listener.delegateResponse((l, e) -> {
+                    if (isIndependentFetchFailure(e)) {
+                        independentFetchFailure.compareAndSet(null, e);
+                    }
+                    l.onFailure(e);
+                }));
+            }
+
+            @Override
+            public void close(ActionListener<Void> listener) {
+                remoteSink.close(listener);
+            }
+        };
+    }
+
+    /**
+     * Whether the failure of a page fetch, as the transport delivered it, is one of the data node's own. It is not if the
+     * connection to the node was lost, or if the fetch was cancelled, which is what the failure of the data node request does to
+     * the fetches of its exchange: either follows from that failure and says nothing more than it does.
+     */
+    static boolean isIndependentFetchFailure(Exception e) {
+        return DataNodeRequestSender.classifyNodeFailure(e) != DataNodeRequestSender.NodeFailure.UNREACHABLE
+            && ExceptionsHelper.unwrap(e, TaskCancelledException.class) == null;
+    }
+
+    /**
+     * The listener of the shard path for the request to one data node. On failure it tells the sender whether the node
+     * {@link #mayHaveReceivedData may hold results already}, and what the failure says about the node.
+     *
+     * @param pagesFetched            the pages fetched from the node so far
+     * @param requestSent             whether the data node request was sent
+     * @param computeNodeFailure      empty until the exchange was opened: the failure is then the one of the open, as the transport
+     *                                delivered it, and the sender classifies it. Afterwards, what the failure of the data node
+     *                                request, if any, said about the node: the failure that arrives here went through a
+     *                                {@link ComputeListener}, which unwraps it and may pick another one, so it cannot be classified
+     *                                any more.
+     * @param independentFetchFailure a failure of a page fetch that was one of the node's own, see {@link #recordingFetchFailure}.
+     *                                With one, a data node request that lost its connection does not make the node count as
+     *                                unreachable: the node failed for a reason of its own as well, and the shards are retried as
+     *                                that failure allows and report it.
+     */
+    static ActionListener<DataNodeComputeResponse> nodeRequestListener(
+        DataNodeRequestSender.NodeListener nodeListener,
+        AtomicLong pagesFetched,
+        boolean writesInto,
+        AtomicBoolean requestSent,
+        AtomicReference<DataNodeRequestSender.NodeFailure> computeNodeFailure,
+        AtomicReference<Exception> independentFetchFailure
+    ) {
+        return ActionListener.wrap(nodeListener::onResponse, e -> {
+            final boolean receivedData = mayHaveReceivedData(pagesFetched.get(), writesInto, requestSent.get());
+            final DataNodeRequestSender.NodeFailure nodeFailure = computeNodeFailure.get();
+            if (nodeFailure == null) {
+                nodeListener.onFailure(e, receivedData);
+                return;
+            }
+            final Exception fetchFailure = independentFetchFailure.get();
+            if (nodeFailure == DataNodeRequestSender.NodeFailure.UNREACHABLE && fetchFailure != null) {
+                // If the compute listener picked the lost connection, the failure of the fetch is the one to go by
+                final Exception failure = e instanceof ConnectTransportException ? fetchFailure : e;
+                nodeListener.onFailure(failure, receivedData, DataNodeRequestSender.NodeFailure.OTHER);
+            } else {
+                nodeListener.onFailure(e, receivedData, nodeFailure);
+            }
+        });
     }
 
     /**

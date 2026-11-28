@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167727
+summary: Resolve shards again after node failure
+type: enhancement

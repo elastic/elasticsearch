@@ -100,7 +100,7 @@ PUT my-index-000004
           }
         },
         "chunking_settings": { <3>
-          "type": "none"
+          "strategy": "none"
         }
       }
     }

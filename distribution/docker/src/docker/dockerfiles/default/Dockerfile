@@ -106,10 +106,10 @@ COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
 
 FROM ${base_image}
 
-# Upgrade the base image's packages first, so that the image gets fixes such as an updated set of trusted CA
-# certificates as soon as Red Hat publishes them, rather than only when the base image is next rebuilt.
-RUN microdnf upgrade --setopt=tsflags=nodocs -y && \\
-    microdnf install --setopt=tsflags=nodocs -y \\
+# Packages are not upgraded on top of the base image: fixes such as an updated set of trusted CA certificates come
+# from Red Hat rebuilding the base image. An upgrade step would make the image build differently from one day to
+# the next, which the Docker Official Images do not accept.
+RUN microdnf install --setopt=tsflags=nodocs -y \\
     nc shadow-utils tar zip unzip findutils procps-ng && \\
     microdnf clean all
 

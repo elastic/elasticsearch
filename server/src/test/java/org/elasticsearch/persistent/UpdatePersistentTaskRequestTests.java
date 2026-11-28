@@ -15,6 +15,7 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction.Request;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
@@ -27,7 +28,16 @@ public class UpdatePersistentTaskRequestTests extends AbstractWireSerializingTes
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String taskId = instance.getTaskId();
+        long allocationId = instance.getAllocationId();
+        PersistentTaskState state = instance.getState();
+        switch (between(0, 2)) {
+            case 0 -> taskId = randomValueOtherThan(taskId, UUIDs::base64UUID);
+            case 1 -> allocationId = randomValueOtherThan(allocationId, ESTestCase::randomLong);
+            case 2 -> state = randomValueOtherThan(state, () -> new State(randomAlphaOfLength(10)));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Request(instance.masterNodeTimeout(), taskId, allocationId, state);
     }
 
     @Override

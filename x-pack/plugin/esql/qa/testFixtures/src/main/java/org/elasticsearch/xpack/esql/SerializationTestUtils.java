@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.TsidPrefixRangeQueryBuilder;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 
@@ -125,6 +126,7 @@ public class SerializationTestUtils {
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, KqlQueryBuilder.NAME, KqlQueryBuilder::new));
         entries.add(SingleValueQuery.ENTRY);
+        entries.add(TsidPrefixRangeQueryBuilder.ENTRY);
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
         entries.add(

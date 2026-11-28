@@ -91,6 +91,7 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -1288,6 +1289,33 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public static void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) {
         ClusterServiceUtils.awaitClusterState(statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
+    }
+
+    /**
+     * Executes a noop cluster state update (only bumping a version) so that a new cluster state version is published.
+     * This is useful in tests that disrupt cluster state publication. We want nodes that were disrupted to receive
+     * the latest state and as such publications they missed for clean test teardown. This helper achieves that and is cheap.
+     */
+    public static void bumpClusterStateVersion() {
+        safeAwait(
+            l -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                .submitUnbatchedStateUpdateTask("bump cluster state version", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return ClusterState.builder(currentState).build();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        l.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        l.onResponse(null);
+                    }
+                })
+        );
     }
 
     public static String getNodeId(String nodeName) {

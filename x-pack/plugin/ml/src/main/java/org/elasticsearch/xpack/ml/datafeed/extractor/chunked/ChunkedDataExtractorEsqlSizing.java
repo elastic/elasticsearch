@@ -30,7 +30,7 @@ final class ChunkedDataExtractorEsqlSizing {
 
     /**
      * Maximum ES|QL shrink retries per chunk after a result hits {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}; the interval shrinks by
-     * at least {@link #CHUNK_HEADROOM_FACTOR} except where the one-grouping-interval floor applies.
+     * at least {@link #CHUNK_HEADROOM_FACTOR} except where the one-time-bucket floor applies.
      */
     static final int MAX_ESQL_SHRINK_ATTEMPTS = 6;
 

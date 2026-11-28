@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlIntoDestinationAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
@@ -179,6 +180,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.TsidPrefixRangeQueryBuilder;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -858,6 +860,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
             new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+            new ActionHandler(EsqlIntoDestinationAction.TYPE, EsqlIntoDestinationAction.class),
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
@@ -983,6 +986,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(MvExpandOperator.Status.ENTRY);
         entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
         entries.add(SingleValueQuery.ENTRY);
+        entries.add(TsidPrefixRangeQueryBuilder.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichQuerySourceOperator.Status.ENTRY);
         entries.add(LookupQueryOperator.Status.ENTRY);

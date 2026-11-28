@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 
 import java.util.Objects;
 
@@ -49,7 +48,6 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         // DSL ceils start and floors end, so a window inside one histogram bucket inverts and is treated as empty.
         assert hasEsqlQuery == false || alignedStart <= alignedEnd
             : "window start [" + alignedStart + "] is after end [" + alignedEnd + "]";
-        boolean injectsEsqlRowLimit = hasEsqlQuery && EsqlDataExtractor.injectsRowLimit(datafeedConfig.getEsqlQuery());
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),
@@ -60,7 +58,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             datafeedConfig.hasAggregations(),
             datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null,
             hasEsqlQuery,
-            injectsEsqlRowLimit
+            hasEsqlQuery ? singleChunkSpan() : 0L
         );
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
     }
@@ -71,6 +69,19 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
      */
     private long alignStart(ChunkedDataExtractorContext.TimeAligner timeAligner, long start) {
         return datafeedConfig.getEsqlQuery() != null ? timeAligner.alignToFloor(start) : timeAligner.alignToCeil(start);
+    }
+
+    /**
+     * ES|QL windows up to the datafeed frequency are extracted in one query without a preceding summary: a realtime cycle spans at
+     * most one frequency, so the summary would only cost a second query.
+     */
+    private long singleChunkSpan() {
+        return datafeedConfig.getFrequencyOrDefault(job.getAnalysisConfig().getBucketSpan(), xContentRegistry, timeBucketMillis()).millis();
+    }
+
+    @Override
+    public long timeBucketMillis() {
+        return dataExtractorFactory.timeBucketMillis();
     }
 
     @Override
@@ -92,9 +103,11 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             // dropping or duplicating data.
             return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis(xContentRegistry));
         }
-        if (EsqlDataExtractor.emitsBucketTimes(datafeedConfig.getEsqlQuery())) {
-            // Raw rows keep source timestamps, so their windows need no grid; flooring a resume start would re-read posted rows.
-            return newIntervalTimeAligner(datafeedConfig.getGroupingInterval().millis());
+        long timeBucketMillis = dataExtractorFactory.timeBucketMillis();
+        if (timeBucketMillis > 0) {
+            // ES|QL stamps rows with the bucket start when DESCRIBE reports a bucket interval for the time column. Raw rows keep source
+            // timestamps, so their windows need no grid, and flooring a resume start would re-read posted rows.
+            return newIntervalTimeAligner(timeBucketMillis);
         }
         return newIdentityTimeAligner();
     }

@@ -297,8 +297,7 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
         return getIndexStore(field, VectorSimilarityFunction.EUCLIDEAN, contents);
     }
 
-    private Directory getStableIndexStore(String field, VectorSimilarityFunction vectorSimilarityFunction, float[]... contents)
-        throws IOException {
+    Directory getStableIndexStore(String field, VectorSimilarityFunction vectorSimilarityFunction, float[]... contents) throws IOException {
         Directory indexStore = newDirectoryForTest();
         try (IndexWriter writer = new IndexWriter(indexStore, new IndexWriterConfig())) {
             for (int i = 0; i < contents.length; ++i) {

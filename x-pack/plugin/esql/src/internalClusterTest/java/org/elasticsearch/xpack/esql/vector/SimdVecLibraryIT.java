@@ -18,14 +18,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
+import org.elasticsearch.xpack.diskbbq.TrialLicenseStateDiskBBQPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
@@ -77,22 +74,11 @@ public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
             .build();
     }
 
-    public static class DiskBBQPluginEnabler extends DiskBBQPlugin {
-        public DiskBBQPluginEnabler(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        protected XPackLicenseState getLicenseState() {
-            return new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
-        plugins.add(DiskBBQPluginEnabler.class);
+        plugins.add(TrialLicenseStateDiskBBQPlugin.class);
         return plugins;
     }
 

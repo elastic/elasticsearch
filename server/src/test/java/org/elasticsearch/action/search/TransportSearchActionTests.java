@@ -115,6 +115,7 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -2563,6 +2564,12 @@ public class TransportSearchActionTests extends ESTestCase {
                         .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
                         .build()
                 );
+            // coordinate() opens the part whose breaker the search charges. This search fails the compatibility check before using it.
+            QueryScheduler queryScheduler = new QueryScheduler(System::nanoTime);
+            when(searchService.coordinate(any())).thenAnswer(invocation -> {
+                SearchTask searchTask = invocation.getArgument(0);
+                return queryScheduler.part(new TaskId(localNode.getId(), searchTask.getId()), searchTask.getId());
+            });
 
             TransportSearchAction action = new TransportSearchAction(
                 threadPool,

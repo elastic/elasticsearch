@@ -17,13 +17,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
+import org.elasticsearch.xpack.diskbbq.TrialLicenseStateDiskBBQPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
@@ -81,20 +78,9 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         this.indexType = indexType;
     }
 
-    public static class DiskBBQPluginEnabler extends DiskBBQPlugin {
-        public DiskBBQPluginEnabler(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        protected XPackLicenseState getLicenseState() {
-            return new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), DiskBBQPluginEnabler.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TrialLicenseStateDiskBBQPlugin.class);
     }
 
     public void testKnnDefaults() {

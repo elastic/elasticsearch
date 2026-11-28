@@ -89,17 +89,25 @@ public final class InferenceToXContentCompressor {
 
             if (streamSizeCause != null) {
                 // The root cause is that the model is too big.
-                throw new CircuitBreakingException(
-                    "Cannot parse model definition as the content is larger than the maximum stream size "
-                        + "of ["
-                        + streamSizeCause.getMaxBytes()
-                        + "] bytes. Max stream size is 10% of the JVM heap or 1GB whichever is smallest",
-                    CircuitBreaker.Durability.PERMANENT
-                );
+                throw modelTooLargeException(streamSizeCause);
             } else {
                 throw parseException;
             }
+        } catch (SimpleBoundedInputStream.StreamSizeExceededException streamSizeException) {
+            // The JSON parser only wraps some IO exceptions in an XContentParseException, so depending on where in the content
+            // the limit is hit, the exception can also arrive as it is.
+            throw modelTooLargeException(streamSizeException);
         }
+    }
+
+    private static CircuitBreakingException modelTooLargeException(SimpleBoundedInputStream.StreamSizeExceededException cause) {
+        return new CircuitBreakingException(
+            "Cannot parse model definition as the content is larger than the maximum stream size "
+                + "of ["
+                + cause.getMaxBytes()
+                + "] bytes. Max stream size is 25% of the JVM heap or 1GB, whichever is smaller",
+            CircuitBreaker.Durability.PERMANENT
+        );
     }
 
     static Map<String, Object> inflateToMap(BytesReference compressedBytes) throws IOException {

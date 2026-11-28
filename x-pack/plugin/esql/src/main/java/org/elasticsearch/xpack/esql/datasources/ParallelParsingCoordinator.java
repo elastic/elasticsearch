@@ -246,6 +246,7 @@ public final class ParallelParsingCoordinator {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot;
             // conservatively false preserves the prior never-file-final-for-macro-splits behavior.
             false
@@ -334,6 +335,7 @@ public final class ParallelParsingCoordinator {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             // No stripe addressing on this convenience path (stripeSize == -1), so file-final is moot.
             false
         );
@@ -361,6 +363,7 @@ public final class ParallelParsingCoordinator {
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         boolean splitIsFileFinal
     ) throws IOException {
         return parallelRead(
@@ -380,6 +383,7 @@ public final class ParallelParsingCoordinator {
             maxRecordBytes,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             splitIsFileFinal,
             ExternalSourceMetrics.NOOP
         );
@@ -407,6 +411,7 @@ public final class ParallelParsingCoordinator {
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics
     ) throws IOException {
@@ -427,6 +432,7 @@ public final class ParallelParsingCoordinator {
             maxRecordBytes,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             splitIsFileFinal,
             metrics,
             null,
@@ -465,6 +471,7 @@ public final class ParallelParsingCoordinator {
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics,
         @Nullable Consumer<String> warningSink,
@@ -489,6 +496,7 @@ public final class ParallelParsingCoordinator {
             maxRecordBytes,
             statsStripeSize,
             statsColumnScope,
+            statsMaxExtremumBytes,
             splitIsFileFinal,
             metrics,
             warningSink,
@@ -521,6 +529,7 @@ public final class ParallelParsingCoordinator {
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         boolean splitIsFileFinal,
         ExternalSourceMetrics metrics,
         @Nullable Consumer<String> warningSink,
@@ -575,6 +584,7 @@ public final class ParallelParsingCoordinator {
                 // macro-split is never file-final — a later split supplies the terminal stripe.
                 .stats(baseFileOffset, statsStripeSize, splitIsFileFinal)
                 .statsColumnScope(statsColumnScope)
+                .statsMaxExtremumBytes(statsMaxExtremumBytes)
                 .informationalWarningSink(warningSink)
                 .readCounters(formatCounters)
                 .build();
@@ -643,6 +653,7 @@ public final class ParallelParsingCoordinator {
                 maxRecordBytes,
                 statsStripeSize,
                 statsColumnScope,
+                statsMaxExtremumBytes,
                 splitIsFileFinal,
                 metrics,
                 warningSink,
@@ -693,6 +704,7 @@ public final class ParallelParsingCoordinator {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             false,
             ExternalSourceMetrics.NOOP,
             null,
@@ -854,6 +866,7 @@ public final class ParallelParsingCoordinator {
         private final long statsStripeSize;
         /** How much per-stripe statistics each segment harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
+        private final int statsMaxExtremumBytes;
         /**
          * Where the segments of this read hand their pieces of a stripe, so a stripe several segments observed
          * is staged once rather than once per segment. {@code null} when there is no sink to stage into or no
@@ -948,6 +961,7 @@ public final class ParallelParsingCoordinator {
             int maxRecordBytes,
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             boolean splitIsFileFinal,
             ExternalSourceMetrics metrics,
             @Nullable Consumer<String> warningSink,
@@ -971,6 +985,7 @@ public final class ParallelParsingCoordinator {
             this.statsStripeSize = statsStripeSize;
             this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
             this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.warningSink = warningSink;
             this.readCounters = readCounters;
@@ -1118,6 +1133,7 @@ public final class ParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
+                .statsMaxExtremumBytes(statsMaxExtremumBytes)
                 .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSink)
                 .readCounters(formatCounters)

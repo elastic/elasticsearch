@@ -12,9 +12,13 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -218,7 +222,7 @@ public class EsqlCCSUtils {
          */
         for (String c : clustersWithNoMatchingIndices) {
             var cluster = executionInfo.getCluster(c);
-            if (concreteIndexRequested(cluster.getIndexExpression())) {
+            if (concreteIndexRequested(executionInfo.getIndexExpressions(c))) {
                 String error = unknownIndexError(cluster.getQualifiedIndexExpression(), indexViewOrigins);
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
@@ -311,24 +315,99 @@ public class EsqlCCSUtils {
         return indexViewOrigins.describe(indexExpression).map(views -> error + " " + views).orElse(error);
     }
 
+    /**
+     * Whether any of the expressions, each the part of one source pattern, requests a concrete index.
+     * See {@link #concreteIndexRequested(String)}.
+     */
+    static boolean concreteIndexRequested(List<String> indexExpressions) {
+        for (String indexExpression : indexExpressions) {
+            if (concreteIndexRequested(indexExpression)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether the expression names at least one concrete (non-wildcard) index that must exist, so that resolving
+     * it to nothing is an "Unknown index" error rather than an empty result. Exclusions only ever remove names, so
+     * they are never requests on their own, and a concrete inclusion stops counting once a later exclusion removes
+     * it, mirroring the ordered evaluation in {@code IndexNameExpressionResolver}: {@code index-1,-index-1} and
+     * {@code index-1,-index*} request nothing, while {@code index-1,index-2,-index-2} still requests {@code index-1}.
+     * <p>
+     * As in the resolver, an exclusion only removes names on its own cluster ({@code -*} is local, {@code remote:-*}
+     * is remote) and with its own selector (no selector means {@code ::data}). The expression must be a single
+     * source pattern: exclusions never reach across from one pattern to another.
+     */
     // visible for testing
     static boolean concreteIndexRequested(String indexExpression) {
         if (Strings.isNullOrBlank(indexExpression)) {
             return false;
         }
+        Set<ConcreteName> concreteInclusions = new HashSet<>();
         for (String expr : indexExpression.split(",")) {
-            if (expr.isEmpty()) {
+            if (expr.isEmpty() || expr.startsWith("<") || expr.startsWith("-<")) {
+                // skip empty segments and date math expressions
                 continue;
             }
-            if (expr.startsWith("<") || expr.startsWith("-<")) {
-                // skip date math expressions
+            boolean exclusion = expr.startsWith("-");
+            RemoteClusterAware.QualifiedIndexExpression qualified = RemoteClusterAware.splitIndexName(exclusion ? expr.substring(1) : expr);
+            String local = qualified.indexExpression();
+            if (exclusion == false && qualified.clusterAlias() != null && local.startsWith("-")) {
+                exclusion = true;
+                local = local.substring(1);
+            }
+            if (local.startsWith("<")) {
+                // skip remote date math expressions
                 continue;
             }
-            if (expr.indexOf('*') < 0) {
-                return true;
+            Tuple<String, String> resourceAndSelector = IndexNameExpressionResolver.splitSelectorExpression(local);
+            String resource = resourceAndSelector.v1();
+            String selector = resourceAndSelector.v2() == null ? IndexComponentSelector.DATA.getKey() : resourceAndSelector.v2();
+            if (exclusion) {
+                excludeFrom(concreteInclusions, qualified.clusterAlias(), resource, selector);
+            } else if (expr.indexOf('*') < 0) {
+                concreteInclusions.add(new ConcreteName(qualified.getClusterGroupingKey(), resource, selector));
             }
         }
-        return false;
+        return concreteInclusions.isEmpty() == false;
+    }
+
+    /**
+     * Removes the concrete inclusions an exclusion cancels. An exact name on a known cluster is a set lookup, so a long
+     * pattern of names and exclusions stays linear. Wildcards are matched one exclusion at a time, as the resolver does,
+     * rather than combined into one automaton, whose determinization can exceed Lucene's limit for several complex wildcards.
+     */
+    private static void excludeFrom(Set<ConcreteName> concreteInclusions, @Nullable String clusterAlias, String resource, String selector) {
+        if (concreteInclusions.isEmpty()) {
+            return;
+        }
+        if (Regex.isSimpleMatchPattern(resource) == false && (clusterAlias == null || Regex.isSimpleMatchPattern(clusterAlias) == false)) {
+            String cluster = clusterAlias == null ? RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY : clusterAlias;
+            concreteInclusions.remove(new ConcreteName(cluster, resource, selector));
+            return;
+        }
+        ExclusionScope scope = new ExclusionScope(clusterAlias, selector);
+        concreteInclusions.removeIf(name -> scope.contains(name) && Regex.simpleMatch(resource, name.resource()));
+    }
+
+    /**
+     * A concrete inclusion: the cluster grouping key, the index, alias, view or data stream name, and its selector.
+     */
+    private record ConcreteName(String cluster, String resource, String selector) {}
+
+    /**
+     * Where an exclusion applies: the cluster alias or alias pattern it was qualified with ({@code null} for the local
+     * cluster), and its selector.
+     */
+    private record ExclusionScope(@Nullable String clusterPattern, String selector) {
+        boolean contains(ConcreteName name) {
+            if (selector.equals(name.selector()) == false) {
+                return false;
+            }
+            boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(name.cluster());
+            return clusterPattern == null ? local : local == false && Regex.simpleMatch(clusterPattern, name.cluster());
+        }
     }
 
     // visible for testing

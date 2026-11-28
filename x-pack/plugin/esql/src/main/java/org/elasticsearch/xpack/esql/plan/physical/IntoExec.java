@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -28,9 +29,9 @@ import java.util.Objects;
  * <p>Operates in two modes:
  * <ul>
  *   <li>{@link Mode#WRITE}: runs per driver (data node or coordinator). Reads all source columns,
- *       bulk-indexes them into the destination index, and emits one row {@code [total, created]}.</li>
- *   <li>{@link Mode#MERGE_STATS}: runs on the coordinator. Receives one {@code [total, created]} row per
- *       upstream driver and sums them into a single final row.</li>
+ *       bulk-indexes them into the destination index, and emits one {@link IntoStats} row.</li>
+ *   <li>{@link Mode#MERGE_STATS}: runs on the coordinator. Receives one {@link IntoStats} row per
+ *       upstream driver and merges them into a single final row.</li>
  * </ul>
  */
 public class IntoExec extends UnaryExec {

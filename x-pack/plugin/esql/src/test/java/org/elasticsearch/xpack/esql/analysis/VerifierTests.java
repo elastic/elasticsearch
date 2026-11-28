@@ -167,6 +167,67 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    /**
+     * Resolving a union type replaces the conversion with per-type conversions, so its other arguments, like the options of
+     * {@code TO_IP}, are validated instead of being dropped.
+     */
+    public void testUnionTypeConversionValidatesOtherArguments() {
+        EsField ipOrKeyword = new InvalidMappedField("ip_or_keyword", Map.of("ip", Set.of("test1"), "keyword", Set.of("test2")));
+        TestAnalyzer analyzer = analyzer().addIndex(
+            "test*",
+            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("ip_or_keyword", ipOrKeyword)))
+        ).stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword, {\"unknown\": \"x\"})",
+            containsString("Invalid option [unknown] in [to_ip(ip_or_keyword, {\"unknown\": \"x\"})], expected one of [leading_zeros]")
+        );
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword, {\"leading_zeros\": \"bad\"})",
+            containsString("Illegal leading_zeros [bad]")
+        );
+        analyzer.query("from test* | eval x = to_ip(ip_or_keyword, {\"leading_zeros\": \"octal\"})");
+    }
+
+    /**
+     * The options of a {@code TO_IP} over another conversion of a union type, like {@code ip_or_keyword::keyword}, are kept and
+     * validated, instead of being dropped when the inner conversion is resolved.
+     */
+    public void testUnionTypeConversionOfConversionValidatesOtherArguments() {
+        EsField ipOrKeyword = new InvalidMappedField("ip_or_keyword", Map.of("ip", Set.of("test1"), "keyword", Set.of("test2")));
+        TestAnalyzer analyzer = analyzer().addIndex(
+            "test*",
+            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("ip_or_keyword", ipOrKeyword)))
+        ).stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword::keyword, {\"unknown\": \"x\"})",
+            containsString(
+                "Invalid option [unknown] in [to_ip(ip_or_keyword::keyword, {\"unknown\": \"x\"})], expected one of [leading_zeros]"
+            )
+        );
+        analyzer.error(
+            "from test* | eval x = to_ip(ip_or_keyword::keyword, {\"leading_zeros\": \"bad\"})",
+            containsString("Illegal leading_zeros [bad]")
+        );
+        analyzer.query("from test* | eval x = to_ip(ip_or_keyword::keyword, {\"leading_zeros\": \"octal\"})");
+    }
+
+    /**
+     * An argument of a conversion of a union type that doesn't resolve, like an unknown column as the base, is reported as such,
+     * instead of a generic error on the field.
+     */
+    public void testUnionTypeConversionWithUnknownColumnInOtherArguments() {
+        EsField keywordOrText = new InvalidMappedField("hex", Map.of("keyword", Set.of("test1"), "text", Set.of("test2")));
+        TestAnalyzer analyzer = analyzer().addIndex(
+            "test*",
+            IndexResolution.valid(EsIndexGenerator.esIndex("test*", Map.of("hex", keywordOrText)))
+        ).stripErrorPrefix(true);
+
+        analyzer.error("from test* | eval x = to_long(hex, typo)", containsString("Unknown column [typo]"));
+        analyzer.error("from test* | eval x = to_integer(hex, typo)", containsString("Unknown column [typo]"));
+    }
+
     public void testUnsupportedAndMultiTypedFields() {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";

@@ -127,7 +127,7 @@ final class BreakerWeightTestUtils {
             long current = used.addAndGet(bytes);
             if (limit >= 0 && current > limit) {
                 used.addAndGet(-bytes);
-                throw new CircuitBreakingException("test breaker tripped", bytes, limit, Durability.TRANSIENT);
+                throw new CircuitBreakingException("test breaker tripped [" + label + "]", bytes, limit, Durability.TRANSIENT);
             }
             peak.accumulateAndGet(current, Math::max);
             charges.add(bytes);

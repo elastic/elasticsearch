@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCac
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -258,6 +257,10 @@ public class NativePrivilegeStore {
         return securityIndexManager;
     }
 
+    /**
+     * Application name expansion must stay within {@link #matchesAnyQueriedName}'s matching rules so that
+     * {@link DescriptorsAndApplicationNamesCache#canReferenceAnyOf} invalidates every affected names cache entry.
+     */
     private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQueryAndPredicate(Collection<String> applications) {
         if (applications.contains("*")) {
             return new Tuple<>(QueryBuilders.existsQuery(APPLICATION.getPreferredName()), null);
@@ -292,8 +295,26 @@ public class NativePrivilegeStore {
             return new Tuple<>(boolQuery, null);
         } else {
             logger.trace("expensive queries are not allowed, switching to filtering application names in memory");
-            return new Tuple<>(null, StringMatcher.of(applications));
+            return new Tuple<>(null, applicationName -> matchesAnyQueriedName(applications, applicationName));
         }
+    }
+
+    /**
+     * Whether the application name matches any of the queried names. The only matching supported is an exact name, or a name
+     * ending in {@code *} which matches by prefix. The loader and the cache invalidation share this so that every affected
+     * names cache entry is invalidated.
+     */
+    private static boolean matchesAnyQueriedName(Collection<String> queriedNames, String applicationName) {
+        for (String queriedName : queriedNames) {
+            if (queriedName.endsWith("*")) {
+                if (applicationName.startsWith(queriedName.substring(0, queriedName.length() - 1))) {
+                    return true;
+                }
+            } else if (applicationName.equals(queriedName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void setAllowExpensiveQueries(boolean allowExpensiveQueries) {
@@ -448,7 +469,7 @@ public class NativePrivilegeStore {
                         .map(r -> r.getId())
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
-                    clearCaches(listener, Collections.singleton(application), deletedNames);
+                    clearCaches(listener, deletedNames.keySet(), deletedNames);
                 }, listener::onFailure));
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(
@@ -463,10 +484,16 @@ public class NativePrivilegeStore {
         }
     }
 
-    private <T> void clearCaches(ActionListener<T> listener, Set<String> applicationNames, T value) {
-        // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
+    private <T> void clearCaches(ActionListener<T> listener, Set<String> changedApplicationNames, T value) {
+        if (changedApplicationNames.isEmpty()) {
+            listener.onResponse(value);
+            return;
+        }
+        // The privilege caches are invalidated only for entries that could reference the named applications (see
+        // DescriptorsAndApplicationNamesCache#invalidate), but this still clears _all_ roles on every node; it could be
+        // improved to clear only those roles that reference the affected applications.
         final ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest().applicationNames(
-            applicationNames.toArray(String[]::new)
+            changedApplicationNames.toArray(String[]::new)
         ).clearRolesCache(true);
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearPrivilegesCacheAction.INSTANCE, request, new ActionListener<>() {
             @Override
@@ -493,7 +520,8 @@ public class NativePrivilegeStore {
     private static Tuple<String, String> nameFromDocId(String docId) {
         final String name = docId.substring(DOC_TYPE_VALUE.length() + 1);
         assert name != null && name.length() > 0 : "Invalid name '" + name + "'";
-        final int colon = name.indexOf(':');
+        // Split at the last colon: an application name may contain one, but a privilege name may not
+        final int colon = name.lastIndexOf(':');
         assert colon > 0 : "Invalid name '" + name + "' (missing colon)";
         return new Tuple<>(name.substring(0, colon), name.substring(colon + 1));
     }
@@ -678,12 +706,41 @@ public class NativePrivilegeStore {
         }
 
         public void invalidate(Collection<String> updatedApplicationNames) {
+            // Increment first: it stops in-flight loads from caching stale results and makes the unlocked scan below safe
             lockingAtomicCounter.increment();
             logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
             final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
-            // Always completely invalidate application names cache due to wildcard
-            applicationNamesCache.invalidateAll();
-            updatedApplicationNames.forEach(descriptorsCache::invalidate);
+            // Collect, do not invalidate, inside forEach: it holds the segment read lock and invalidate needs the write lock
+            final List<Set<String>> staleKeys = new ArrayList<>();
+            applicationNamesCache.forEach((queriedNames, concreteNames) -> {
+                if (canReferenceAnyOf(queriedNames, uniqueNames)) {
+                    staleKeys.add(queriedNames);
+                } else {
+                    // The loader must only resolve applications matched by the queried names.
+                    assert Collections.disjoint(concreteNames, uniqueNames)
+                        : format(
+                            "Application name expansion is broader than invalidation matching: queried [%s], resolved [%s], changed [%s]",
+                            queriedNames,
+                            concreteNames,
+                            uniqueNames
+                        );
+                }
+            });
+            staleKeys.forEach(applicationNamesCache::invalidate);
+            uniqueNames.forEach(descriptorsCache::invalidate);
+        }
+
+        /**
+         * Whether the queried names could match a changed application, including one missing from a cached empty result.
+         * Uses the same {@link NativePrivilegeStore#matchesAnyQueriedName} rule as the loader.
+         */
+        private static boolean canReferenceAnyOf(Set<String> queriedNames, Set<String> applicationNames) {
+            for (String applicationName : applicationNames) {
+                if (matchesAnyQueriedName(queriedNames, applicationName)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public void invalidateAll() {

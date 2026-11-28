@@ -491,6 +491,32 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertResult(emptyList(), future2);
     }
 
+    /**
+     * An empty wildcard expansion must be invalidated when a new application matches it, including when the wildcard is
+     * interpreted by the in-memory matcher because expensive queries are disabled.
+     */
+    public void testNegativeWildcardCacheIsInvalidatedWhenMatchingApplicationIsCreated() throws Exception {
+        clusterService.getClusterSettings().applySettings(Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false).build());
+        final Set<String> applications = Set.of("app-*");
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> initial = new PlainActionFuture<>();
+        store.getPrivileges(applications, null, initial);
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(emptyList())));
+        assertResult(emptyList(), initial);
+        assertEquals(emptySet(), store.getApplicationNamesCache().get(applications));
+
+        // Simulate creating the first privilege for an application that matches the previously empty expansion.
+        store.getDescriptorsAndApplicationNamesCache().invalidate(List.of("app-a"));
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> afterCreation = new PlainActionFuture<>();
+        store.getPrivileges(applications, null, afterCreation);
+        assertThat("A newly matching application must trigger a reload", requests, iterableWithSize(2));
+        final List<ApplicationPrivilegeDescriptor> privileges = List.of(
+            new ApplicationPrivilegeDescriptor("app-a", "read", Set.of("data:read/*"), emptyMap())
+        );
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(privileges)));
+        assertResult(privileges, afterCreation);
+    }
+
     public void testGetPrivilegesCacheWithDifferentMatchAllApplicationNames() throws Exception {
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(emptyList(), null, future);
@@ -594,6 +620,30 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // Before the results can be cached, invalidate the cache to simulate stale search results
         store.getDescriptorsAndApplicationNamesCache().invalidateAll();
+        final SearchHit[] hits = buildHits(sourcePrivileges);
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
+
+        // Nothing should be cached since the results are stale
+        assertEquals(0, store.getApplicationNamesCache().count());
+        assertEquals(0, store.getDescriptorsCache().count());
+    }
+
+    /**
+     * A scoped invalidation must prevent a load that was already in flight from caching its result, exactly like a full
+     * invalidation, since the load's search may predate the write that triggered the invalidation. This is why
+     * {@code DescriptorsAndApplicationNamesCache#invalidate} must bump the invalidation counter even though it also removes
+     * the affected entries individually.
+     */
+    public void testStaleResultsWillNotBeCachedAfterScopedInvalidation() {
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = singletonList(
+            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap())
+        );
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(singletonList("myapp"), null, future);
+
+        // Before the results can be cached, invalidate for the same application to simulate a write landing mid-load
+        store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList("myapp"));
         final SearchHit[] hits = buildHits(sourcePrivileges);
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
 
@@ -1158,13 +1208,137 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(map.get("app1"), containsInAnyOrder("p1", "p3"));
     }
 
+    /**
+     * An application name may contain a colon, so the doc id must be split at the last colon: the cache clear has to name
+     * the full application, otherwise the changed application's cache entries are not invalidated.
+     */
+    public void testDeletePrivilegesClearsCachesForApplicationNameContainingColon() throws Exception {
+        final String application = "app1-x:y";
+
+        final PlainActionFuture<Map<String, List<String>>> future = new PlainActionFuture<>();
+        store.deletePrivileges(application, List.of("p1"), WriteRequest.RefreshPolicy.IMMEDIATE, future);
+        assertThat(requests, iterableWithSize(1));
+        final DeleteRequest delete = (DeleteRequest) requests.get(0);
+        requests.clear();
+        assertThat(delete.id(), equalTo("application-privilege_" + application + ":p1"));
+
+        listener.get()
+            .onResponse(new DeleteResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, "uuid", 0), delete.id(), 1, 1, 1, true));
+        assertBusy(() -> assertFalse(requests.isEmpty()), 1, TimeUnit.SECONDS);
+
+        assertThat(requests, iterableWithSize(1));
+        assertThat(requests.get(0), instanceOf(ClearPrivilegesCacheRequest.class));
+        assertThat(((ClearPrivilegesCacheRequest) requests.get(0)).applicationNames(), arrayContaining(application));
+        listener.get().onResponse(null);
+
+        assertThat(future.actionGet(), equalTo(Map.of(application, List.of("p1"))));
+    }
+
+    /**
+     * Deleting privileges that do not exist must not clear the privileges and roles caches: nothing cached can be stale,
+     * and the cluster-wide clear is expensive (it invalidates the entire role cache on every node).
+     */
+    public void testDeletePrivilegesSkipsCacheClearWhenNothingWasDeleted() throws Exception {
+        final List<String> privilegeNames = Arrays.asList("p1", "p2");
+
+        final PlainActionFuture<Map<String, List<String>>> future = new PlainActionFuture<>();
+        store.deletePrivileges("app1", privilegeNames, WriteRequest.RefreshPolicy.IMMEDIATE, future);
+        assertThat(requests, iterableWithSize(privilegeNames.size()));
+        assertThat(requests, everyItem(instanceOf(DeleteRequest.class)));
+
+        final List<DeleteRequest> deletes = requests.stream().map(DeleteRequest.class::cast).toList();
+        requests.clear();
+
+        final ActionListener<ActionResponse> deleteListener = listener.get();
+        final String uuid = UUIDs.randomBase64UUID(random());
+        for (int i = 0; i < deletes.size(); i++) {
+            deleteListener.onResponse(
+                new DeleteResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, uuid, i), deletes.get(i).id(), 1, 1, 1, false)
+            );
+        }
+
+        final Map<String, List<String>> map = future.actionGet();
+        assertThat(map.entrySet(), empty());
+        assertThat(requests, empty());
+    }
+
+    /**
+     * Scoped invalidation removes names cache entries that could match a changed application, including negative entries,
+     * while preserving unrelated entries in both caches.
+     */
     public void testInvalidate() {
+        // Stale: a wildcard in the queried names matches the changed application, which may just have been created
         store.getApplicationNamesCache().put(singleton("*"), Set.of());
+        store.getApplicationNamesCache().put(singleton("app-*"), Set.of("app-2"));
+        // Stale: the queried names contain the changed application (a negative entry if it resolved to nothing)
+        store.getApplicationNamesCache().put(Set.of("app-1", "other-1"), Set.of("other-1"));
+        // Stale: the changed application is in the resolved names, matched via the wildcard in the queried names
+        store.getApplicationNamesCache().put(singleton("app*"), Set.of("app-1", "app-2"));
+        // Fresh: cannot reference the changed application
+        store.getApplicationNamesCache().put(singleton("unrelated-*"), Set.of("unrelated-1"));
+        store.getApplicationNamesCache().put(Set.of("other-1", "other-2"), Set.of("other-1"));
         store.getDescriptorsCache().put("app-1", singleton(new ApplicationPrivilegeDescriptor("app-1", "read", emptySet(), emptyMap())));
         store.getDescriptorsCache().put("app-2", singleton(new ApplicationPrivilegeDescriptor("app-2", "read", emptySet(), emptyMap())));
+
+        final long invalidationCount = store.getNumInvalidation();
         store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList("app-1"));
-        assertEquals(0, store.getApplicationNamesCache().count());
+
+        // A scoped invalidation still counts as an invalidation, so in-flight loads do not cache potentially stale results
+        assertEquals(invalidationCount + 1, store.getNumInvalidation());
+        assertEquals(2, store.getApplicationNamesCache().count());
+        assertEquals(Set.of("unrelated-1"), store.getApplicationNamesCache().get(singleton("unrelated-*")));
+        assertEquals(Set.of("other-1"), store.getApplicationNamesCache().get(Set.of("other-1", "other-2")));
         assertEquals(1, store.getDescriptorsCache().count());
+    }
+
+    /**
+     * An entry resolving beyond its queried names violates the loader's contract and must trip the invalidation assertion.
+     */
+    public void testInvalidationRejectsEntryResolvedBeyondItsQueriedNames() {
+        store.getApplicationNamesCache().put(singleton("other-*"), Set.of("other-1", "app-1"));
+        final AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList("app-1"))
+        );
+        assertThat(error.getMessage(), containsString("broader"));
+    }
+
+    /**
+     * Only an exact name or a trailing {@code *} (prefix match) is supported. Any other wildcard syntax is a literal name.
+     */
+    public void testInvalidationKeepsEntriesWithUnsupportedWildcardForms() {
+        final String applicationName = randomAlphaOfLengthBetween(3, 10);
+        final List<String> unsupportedNames = List.of(
+            applicationName + "x",
+            applicationName + "x*",
+            "*" + applicationName.substring(1),
+            applicationName.charAt(0) + "*" + applicationName.substring(1),
+            applicationName.charAt(0) + "?" + applicationName.substring(2),
+            "/" + applicationName + "/"
+        );
+        for (String queriedName : unsupportedNames) {
+            store.getApplicationNamesCache().put(singleton(queriedName), Set.of());
+        }
+
+        store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList(applicationName));
+
+        assertEquals(unsupportedNames.size(), store.getApplicationNamesCache().count());
+    }
+
+    /**
+     * Invalidation must evict every entry whose queried names match a changed application under the loader's matching rule.
+     */
+    public void testInvalidationEvictsEntriesMatchedByExactNameOrTrailingWildcard() {
+        final String applicationName = randomAlphaOfLengthBetween(3, 10);
+        for (String queriedName : List.of(
+            applicationName,
+            "*",
+            applicationName.substring(0, randomIntBetween(1, applicationName.length())) + "*"
+        )) {
+            store.getApplicationNamesCache().put(singleton(queriedName), Set.of(applicationName));
+            store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList(applicationName));
+            assertEquals(queriedName, 0, store.getApplicationNamesCache().count());
+        }
     }
 
     public void testInvalidateAll() {

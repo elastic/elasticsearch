@@ -1,0 +1,5 @@
+FROM employees
+| EVAL m = MV_MAX(salary_change.int)
+| RENAME m AS k
+| EVAL d = k - 1
+| STATS count = COUNT(*) BY k, d

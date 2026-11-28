@@ -65,6 +65,22 @@ public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase 
         builder(query).stages(STAGES).datasetMetadata(datasetMetadata()).externalSourceResolution(externalSourceResolution()).run();
     }
 
+    /**
+     * Renaming a column that {@code MV_MAX} reduced to one value, deriving a value from it, then grouping by both: the derived key is
+     * pruned and rebuilt above the aggregate. The rebuilt expression must read the column as the aggregate exposes it, the rename alias
+     * {@code k}, not the name it had below.
+     */
+    public void testRenamedDerivedGroupingOfSingleValuedKey() {
+        String query = """
+            FROM employees
+            | EVAL m = MV_MAX(salary_change.int)
+            | RENAME m AS k
+            | EVAL d = k - 1
+            | STATS count = COUNT(*) BY k, d
+            """;
+        builder(query).stages(STAGES).run();
+    }
+
     /** Registers {@code ext_ds} as an external dataset so {@code FROM ext_ds} becomes an external relation. */
     private static ProjectMetadata datasetMetadata() {
         DataSource dataSource = new DataSource("ext_ds_ds", "test", null, Map.of());

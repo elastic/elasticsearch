@@ -20,26 +20,22 @@
 package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
-import org.junit.runner.RunWith;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.Random;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 
-@RunWith(ESRandomizedRunner.class)
-public class BinaryQuantizationTests extends LuceneTestCase {
-
-    static {
-        LogConfigurator.configureESLogging();
-    }
+public class BinaryQuantizationTests extends ESTestCase {
 
     public void testQuantizeForIndex() {
-        int dimensions = random().nextInt(1, 4097);
+        // the field mapper rejects BBQ for fewer dimensions. With a single dimension a normalized vector and
+        // centroid are both +/-1 and often equal, so vector - centroid is zero and can't be normalized
+        int dimensions = random().nextInt(DenseVectorFieldMapper.BBQ_MIN_DIMS, 4097);
         int discretizedDimensions = BQVectorUtils.discretize(dimensions, 64);
 
         int randIdx = random().nextInt(VectorSimilarityFunction.values().length);
@@ -60,6 +56,15 @@ public class BinaryQuantizationTests extends LuceneTestCase {
             VectorUtil.l2normalize(vector);
             VectorUtil.l2normalize(centroid);
         }
+        assertFalse(
+            "vector and centroid are identical, which is expected to be very very unlikely with at least "
+                + DenseVectorFieldMapper.BBQ_MIN_DIMS
+                + " random dimensions; dims="
+                + dimensions
+                + " similarity="
+                + similarityFunction,
+            Arrays.equals(vector, centroid)
+        );
 
         byte[] destination = new byte[discretizedDimensions / 8];
         float[] corrections = quantizer.quantizeForIndex(vector, destination, centroid);
@@ -80,7 +85,9 @@ public class BinaryQuantizationTests extends LuceneTestCase {
     }
 
     public void testQuantizeForQuery() {
-        int dimensions = random().nextInt(1, 4097);
+        // the field mapper rejects BBQ for fewer dimensions. With a single dimension a normalized vector and
+        // centroid are both +/-1 and often equal, so vector - centroid is zero and can't be normalized
+        int dimensions = random().nextInt(DenseVectorFieldMapper.BBQ_MIN_DIMS, 4097);
         int discretizedDimensions = BQVectorUtils.discretize(dimensions, 64);
 
         int randIdx = random().nextInt(VectorSimilarityFunction.values().length);
@@ -101,6 +108,15 @@ public class BinaryQuantizationTests extends LuceneTestCase {
             VectorUtil.l2normalize(vector);
             VectorUtil.l2normalize(centroid);
         }
+        assertFalse(
+            "vector and centroid are identical, which is expected to be very very unlikely with at least "
+                + DenseVectorFieldMapper.BBQ_MIN_DIMS
+                + " random dimensions; dims="
+                + dimensions
+                + " similarity="
+                + similarityFunction,
+            Arrays.equals(vector, centroid)
+        );
         float cDotC = VectorUtil.dotProduct(centroid, centroid);
         byte[] destination = new byte[discretizedDimensions / 8 * BinaryQuantizer.B_QUERY];
         BinaryQuantizer.QueryFactors corrections = quantizer.quantizeForQuery(vector, destination, centroid);

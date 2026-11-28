@@ -46,19 +46,33 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         XYPolygon polygon = LuceneGeometriesUtils.toXYPolygon(ShapeTestUtils.randomPolygon(false));
-        Query q1 = new CartesianShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
-        Query q2 = new CartesianShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q1 = new CartesianShapeDocValuesQuery(FIELD_NAME, GeometryDocValueFormat.V2, ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q2 = new CartesianShapeDocValuesQuery(FIELD_NAME, GeometryDocValueFormat.V2, ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkEqual(q1, q2);
 
-        Query q3 = new CartesianShapeDocValuesQuery(FIELD_NAME + "x", ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q3 = new CartesianShapeDocValuesQuery(
+            FIELD_NAME + "x",
+            GeometryDocValueFormat.V2,
+            ShapeField.QueryRelation.INTERSECTS,
+            polygon
+        );
         QueryUtils.checkUnequal(q1, q3);
 
         XYRectangle rectangle = XShapeTestUtil.nextBox();
-        Query q4 = new CartesianShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, rectangle);
+        Query q4 = new CartesianShapeDocValuesQuery(FIELD_NAME, GeometryDocValueFormat.V2, ShapeField.QueryRelation.INTERSECTS, rectangle);
         QueryUtils.checkUnequal(q1, q4);
+
+        Query q5 = new CartesianShapeDocValuesQuery(
+            FIELD_NAME,
+            GeometryDocValueFormat.LEGACY,
+            ShapeField.QueryRelation.INTERSECTS,
+            polygon
+        );
+        QueryUtils.checkUnequal(q1, q5);
     }
 
     public void testEmptySegment() throws Exception {
+        GeometryDocValueFormat format = randomFrom(GeometryDocValueFormat.values());
         IndexWriterConfig iwc = newIndexWriterConfig();
         // No merges
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -71,7 +85,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
         for (IndexableField field : fields) {
             document.add(field);
         }
-        BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.CARTESIAN);
+        BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.CARTESIAN, format);
         docVal.add(fields, geometry);
         document.add(docVal);
         w.addDocument(document);
@@ -86,13 +100,14 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
         XYRectangle rectangle = new XYRectangle(-10, 10, -10, 10);
         for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
             Query indexQuery = XYShape.newGeometryQuery(FIELD_NAME, relation, rectangle);
-            Query docValQuery = new CartesianShapeDocValuesQuery(FIELD_NAME, relation, rectangle);
+            Query docValQuery = new CartesianShapeDocValuesQuery(FIELD_NAME, format, relation, rectangle);
             assertQueries(s, indexQuery, docValQuery, 1);
         }
         IOUtils.close(r, dir);
     }
 
     public void testIndexSimpleShapes() throws Exception {
+        GeometryDocValueFormat format = randomFrom(GeometryDocValueFormat.values());
         IndexWriterConfig iwc = newIndexWriterConfig();
         // Else seeds may not reproduce:
         iwc.setMergeScheduler(new SerialMergeScheduler());
@@ -116,7 +131,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
             for (IndexableField field : fields) {
                 doc.add(field);
             }
-            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
+            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO, format);
             docVal.add(fields, geometry);
             doc.add(docVal);
             w.addDocument(doc);
@@ -132,8 +147,8 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             Geometry geometry = ShapeTestUtils.randomGeometry(false);
             for (ShapeRelation relation : ShapeRelation.values()) {
-                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.points(true, false));
-                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.docValuesOnly());
+                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.points(true, false), format);
+                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.docValuesOnly(), format);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
@@ -141,6 +156,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
     }
 
     public void testIndexMultiShapes() throws Exception {
+        GeometryDocValueFormat format = randomFrom(GeometryDocValueFormat.values());
         IndexWriterConfig iwc = newIndexWriterConfig();
         // Else seeds may not reproduce:
         iwc.setMergeScheduler(new SerialMergeScheduler());
@@ -158,7 +174,7 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
             for (IndexableField field : fields) {
                 doc.add(field);
             }
-            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
+            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO, format);
             docVal.add(fields, geometry);
             doc.add(docVal);
             w.addDocument(doc);
@@ -174,8 +190,8 @@ public class CartesianShapeDocValuesQueryTests extends ESTestCase {
         for (int i = 0; i < 25; i++) {
             Geometry geometry = ShapeTestUtils.randomGeometry(false);
             for (ShapeRelation relation : ShapeRelation.values()) {
-                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.points(true, false));
-                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.docValuesOnly());
+                Query indexQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.points(true, false), format);
+                Query docValQuery = XYQueriesUtils.toXYShapeQuery(geometry, FIELD_NAME, relation, IndexType.docValuesOnly(), format);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }

@@ -56,6 +56,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.LatLonShapeDocValuesQuery;
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.Script;
@@ -214,6 +215,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 geoFormatterFactory,
                 context.isSourceSynthetic(),
                 context.isStrictColumnar(),
+                version,
                 meta.get()
             );
             hasScript = script.get() != null;
@@ -246,6 +248,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             FieldValues<Geometry> scriptValues,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
             boolean isSyntheticSource,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
             this(
@@ -259,6 +262,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 geoFormatterFactory,
                 isSyntheticSource,
                 false,
+                indexCreatedVersion,
                 meta
             );
         }
@@ -274,9 +278,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeoFormatterFactory<Geometry> geoFormatterFactory,
             boolean isSyntheticSource,
             boolean isColumnar,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, indexCreatedVersion, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
             this.isSyntheticSource = isSyntheticSource;
@@ -293,6 +298,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             failIfNoDocValues();
             return (cache, breakerService) -> new LatLonShapeIndexFieldData(
                 name(),
+                docValueFormat(),
                 GeoShapeValuesSourceType.instance(),
                 GeoShapeDocValuesField::new
             );
@@ -317,11 +323,16 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             if (indexType.hasPoints()) {
                 query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
                 if (hasDocValues()) {
-                    final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
+                    final Query queryDocValues = new LatLonShapeDocValuesQuery(
+                        fieldName,
+                        docValueFormat(),
+                        relation.getLuceneRelation(),
+                        geometries
+                    );
                     query = new IndexOrDocValuesQuery(query, queryDocValues);
                 }
             } else {
-                query = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
+                query = new LatLonShapeDocValuesQuery(fieldName, docValueFormat(), relation.getLuceneRelation(), geometries);
             }
             return query;
         }
@@ -377,6 +388,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 return switch (config.function()) {
                     case ST_GEOHASH, ST_GEOTILE, ST_GEOHEX -> new GeoGridFromShapeDocValuesBlockLoader(
                         name(),
+                        docValueFormat(),
                         (BlockLoaderFunctionConfig.GeoGrid) config,
                         blContext.warnings()
                     );
@@ -384,13 +396,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 };
             }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
-                return new GeoBoundsBlockLoader(name());
+                return new GeoBoundsBlockLoader(name(), docValueFormat());
             }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_CENTROID) {
-                return new GeoCentroidBlockLoader(name());
+                return new GeoCentroidBlockLoader(name(), docValueFormat());
             }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID) {
-                return new GeoBoundsAndCentroidBlockLoader(name());
+                return new GeoBoundsAndCentroidBlockLoader(name(), docValueFormat());
             }
             if (isColumnar && blContext.parentField(name()) == null) {
                 // Columnar: read the geometry value (WKB) straight from the field-owned doc value. Multi fields are
@@ -407,23 +419,23 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         static class GeoBoundsBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader {
 
-            GeoBoundsBlockLoader(String fieldName) {
-                super(fieldName);
+            GeoBoundsBlockLoader(String fieldName, GeometryDocValueFormat format) {
+                super(fieldName, format);
             }
         }
 
         static class GeoCentroidBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.CentroidBlockLoader {
 
-            GeoCentroidBlockLoader(String fieldName) {
-                super(fieldName, CoordinateEncoder.GEO);
+            GeoCentroidBlockLoader(String fieldName, GeometryDocValueFormat format) {
+                super(fieldName, CoordinateEncoder.GEO, format);
             }
         }
 
         static class GeoBoundsAndCentroidBlockLoader extends
             AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsAndCentroidBlockLoader {
 
-            GeoBoundsAndCentroidBlockLoader(String fieldName) {
-                super(fieldName, CoordinateEncoder.GEO);
+            GeoBoundsAndCentroidBlockLoader(String fieldName, GeometryDocValueFormat format) {
+                super(fieldName, CoordinateEncoder.GEO, format);
             }
         }
     }
@@ -515,10 +527,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             final String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
+                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO, fieldType().docValueFormat());
                 context.doc().addWithKey(name, docValuesField);
             }
-            // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
+            // we pass the original geometry for both precise centroid calculation, and persisted geometry topology
             docValuesField.add(fields, geometry);
 
             if (fieldType().isColumnar() && context.mappingLookup().isMultiField(name) == false) {

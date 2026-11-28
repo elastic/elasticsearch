@@ -286,13 +286,13 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction
         Supplier<BlockLoaderFunctionConfig.GeoGridEncoder> encoders,
         Supplier<ShapeCells> shapeCellsSupplier
     ) {
-        return warnings -> {
+        return (warnings, format) -> {
             Consumer<String> onTruncation = warnings == null ? message -> {} : warnings::registerWarning;
             BlockLoaderFunctionConfig.GeoGridEncoder encoder = encoders.get();
             // Created per reader, like the encoder, since the geohex tiler keeps scratch state
             ShapeCells shapeCells = shapeCellsSupplier.get();
             return encoded -> {
-                GeoShapeDocValues shape = GeoShapeDocValues.fromDocValue(encoded);
+                GeoShapeDocValues shape = GeoShapeDocValues.fromDocValue(encoded, format);
                 if (shape.isSinglePoint()) {
                     long cell = encoder.encode(shape.centroidLon(), shape.centroidLat());
                     return cell == -1L ? EMPTY_LONG_ARRAY : new long[] { cell };

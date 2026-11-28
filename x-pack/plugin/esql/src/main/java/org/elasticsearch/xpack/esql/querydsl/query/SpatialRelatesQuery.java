@@ -15,11 +15,13 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -260,7 +262,11 @@ public class SpatialRelatesQuery extends Query {
             }
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.indexType());
+                GeometryDocValueFormat docValueFormat =
+                    fieldType instanceof AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?> shapeFieldType
+                        ? shapeFieldType.docValueFormat()
+                        : GeometryDocValueFormat.forIndexVersion(context.indexVersionCreated());
+                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.indexType(), docValueFormat);
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }

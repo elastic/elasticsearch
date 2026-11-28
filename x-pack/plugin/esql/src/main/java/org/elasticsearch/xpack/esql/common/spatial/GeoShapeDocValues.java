@@ -16,7 +16,9 @@ import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
+import org.elasticsearch.lucene.spatial.VertexLookupTable;
 
 import java.io.IOException;
 
@@ -30,10 +32,20 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * see {@link TriangleTreeVisitor} for why that duplication is deliberate. The binary format itself is owned by
  * the server's {@code GeometryDocValueWriter}/{@code TriangleTreeWriter}, which also write the values this class
  * reads on the WKB path in {@link #from}.
+ * <p>
+ * Both doc-value formats are supported: the legacy tree with inline coordinate deltas, and the V2 tree whose nodes
+ * reference a vertex table (which also backs geometry reconstruction). V2 values made only of points have no tree
+ * (a zero tree length), and their points are visited straight from the vertex table. Grid functions only traverse
+ * the tree.
  */
 public class GeoShapeDocValues {
     private final ByteArrayStreamInput input;
+    /** The array backing {@link #input}, which the vertex table reads from directly. */
+    private final byte[] bytes;
     private final int treeOffset;
+    /** Length of the tree in bytes for the V2 format, or -1 for the legacy format. */
+    private final int v2TreeLength;
+    private VertexLookupTable vertices;
     private final Extent extent;
     private final int encodedCentroidX;
     private final int encodedCentroidY;
@@ -45,14 +57,18 @@ public class GeoShapeDocValues {
 
     private GeoShapeDocValues(
         ByteArrayStreamInput input,
+        byte[] bytes,
         int treeOffset,
+        int v2TreeLength,
         Extent extent,
         DimensionalShapeType shapeType,
         int encodedCentroidX,
         int encodedCentroidY
     ) {
         this.input = input;
+        this.bytes = bytes;
         this.treeOffset = treeOffset;
+        this.v2TreeLength = v2TreeLength;
         this.extent = extent;
         this.encodedCentroidX = encodedCentroidX;
         this.encodedCentroidY = encodedCentroidY;
@@ -82,9 +98,57 @@ public class GeoShapeDocValues {
     /** Visits the triangle tree, for example with a {@code GeoHexVisitor} to relate it to an H3 cell. */
     public void visit(TriangleTreeVisitor visitor) throws IOException {
         if (visitor.push(extent.minX(), extent.minY(), extent.maxX(), extent.maxY())) {
-            input.setPosition(treeOffset);
-            TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY());
+            if (v2TreeLength < 0) {
+                input.setPosition(treeOffset);
+                TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY());
+            } else if (v2TreeLength == 0) {
+                visitPoints(visitor);
+            } else {
+                VertexLookupTable vertices = vertices();
+                input.setPosition(treeOffset);
+                V2TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY(), vertices);
+            }
         }
+    }
+
+    /**
+     * A V2 value made only of points is just a vertex table of the points after the zero tree length. Blocks of points
+     * whose bounding box the visitor rejects are skipped, just as the visitor would skip a subtree of the legacy tree.
+     */
+    private void visitPoints(TriangleTreeVisitor visitor) throws IOException {
+        if (vertices == null) {
+            input.setPosition(treeOffset);
+            vertices = VertexLookupTable.readPointsFrom(input, bytes, extent);
+        }
+        final int numVertices = vertices.size();
+        final int numBlocks = vertices.numBlocks();
+        for (int block = 0; block < numBlocks; block++) {
+            if (visitor.pushX(vertices.blockMinX(block))
+                && visitor.pushY(vertices.blockMinY(block))
+                && visitor.push(vertices.blockMaxX(block, extent.maxX()), vertices.blockMaxY(block, extent.maxY()))) {
+                int end = Math.min(numVertices, (block + 1) * VertexLookupTable.BLOCK_SIZE);
+                for (int ordinal = block * VertexLookupTable.BLOCK_SIZE; ordinal < end; ordinal++) {
+                    long xy = vertices.getXY(ordinal);
+                    visitor.visitPoint((int) (xy >>> 32), (int) xy);
+                    if (visitor.push() == false) {
+                        return;
+                    }
+                }
+            } else if (visitor.push() == false) {
+                return;
+            }
+        }
+    }
+
+    /** The V2 layout after the tree is {@code connectivityLength(VInt) | connectivity | vertexTable}. */
+    private VertexLookupTable vertices() throws IOException {
+        if (vertices == null) {
+            input.setPosition(treeOffset + v2TreeLength);
+            int connectivityLength = input.readVInt();
+            input.skipBytes(connectivityLength);
+            vertices = VertexLookupTable.readFrom(input, bytes, extent);
+        }
+        return vertices;
     }
 
     /**
@@ -114,14 +178,19 @@ public class GeoShapeDocValues {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
-        return fromDocValue(GeometryDocValueWriter.write(indexer.indexShape(geometry), CoordinateEncoder.GEO, centroidCalculator));
+        // The grid functions only traverse the tree, so skip the vertex table and connectivity of the V2 format
+        return fromDocValue(
+            GeometryDocValueWriter.writeLegacy(indexer.indexShape(geometry), CoordinateEncoder.GEO, centroidCalculator),
+            GeometryDocValueFormat.LEGACY
+        );
     }
 
     /**
      * Wraps a triangle tree as stored in the doc values of a {@code geo_shape} field, or as produced by
      * {@link #from(BytesRef, GeoShapeIndexer)} from WKB. Both paths therefore compute cells on the same representation.
+     * @param format the format of {@code encoded}, which for stored doc values follows the version the index was created on
      */
-    public static GeoShapeDocValues fromDocValue(BytesRef encoded) throws IOException {
+    public static GeoShapeDocValues fromDocValue(BytesRef encoded, GeometryDocValueFormat format) throws IOException {
         ByteArrayStreamInput input = new ByteArrayStreamInput();
         input.reset(encoded.bytes, encoded.offset, encoded.length);
         int encodedCentroidX = input.readInt();
@@ -130,8 +199,9 @@ public class GeoShapeDocValues {
         input.readVLong(); // sum of centroid weights, not needed for grid functions
         Extent extent = new Extent();
         Extent.readFromCompressed(input, extent);
+        int v2TreeLength = format == GeometryDocValueFormat.V2 ? input.readVInt() : -1;
         int treeOffset = input.getPosition();
-        return new GeoShapeDocValues(input, treeOffset, extent, shapeType, encodedCentroidX, encodedCentroidY);
+        return new GeoShapeDocValues(input, encoded.bytes, treeOffset, v2TreeLength, extent, shapeType, encodedCentroidX, encodedCentroidY);
     }
 
     /**

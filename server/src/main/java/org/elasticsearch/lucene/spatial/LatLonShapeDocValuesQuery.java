@@ -19,8 +19,13 @@ import java.util.List;
 /** Lucene geometry query for {@link BinaryShapeDocValuesField}. */
 public class LatLonShapeDocValuesQuery extends ShapeDocValuesQuery<LatLonGeometry> {
 
-    public LatLonShapeDocValuesQuery(String field, ShapeField.QueryRelation relation, LatLonGeometry... geometries) {
-        super(field, CoordinateEncoder.GEO, relation, geometries);
+    public LatLonShapeDocValuesQuery(
+        String field,
+        GeometryDocValueFormat format,
+        ShapeField.QueryRelation relation,
+        LatLonGeometry... geometries
+    ) {
+        super(field, CoordinateEncoder.GEO, format, relation, geometries);
     }
 
     @Override

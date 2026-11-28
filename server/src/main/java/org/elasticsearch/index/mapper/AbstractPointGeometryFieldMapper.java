@@ -159,5 +159,10 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         protected Object nullValueAsSource(T nullValue) {
             return nullValue == null ? null : nullValue.toWKT();
         }
+
+        @Override
+        public boolean supportsGeometryDocValueReconstruction() {
+            return true;
+        }
     }
 }

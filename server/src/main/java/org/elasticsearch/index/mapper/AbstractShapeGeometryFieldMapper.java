@@ -14,10 +14,13 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.io.IOException;
@@ -54,6 +57,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
     public abstract static class AbstractShapeGeometryFieldType<T> extends AbstractGeometryFieldType<T> {
 
         private final Orientation orientation;
+        private final IndexVersion indexCreatedVersion;
 
         protected AbstractShapeGeometryFieldType(
             String name,
@@ -61,14 +65,35 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             boolean isStored,
             Parser<T> parser,
             Orientation orientation,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
             super(name, indexType, isStored, parser, null, meta);
             this.orientation = orientation;
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         public Orientation orientation() {
             return this.orientation;
+        }
+
+        /**
+         * The format of this field's doc-values, which follows the version the index was created on. Every reader of
+         * them must be created for this format, since the bytes don't record it.
+         */
+        public GeometryDocValueFormat docValueFormat() {
+            return GeometryDocValueFormat.forIndexVersion(indexCreatedVersion);
+        }
+
+        /**
+         * Returns true if the doc-values for this field use the V2 format that supports
+         * geometry reconstruction via {@link GeometryDocValueReader#getGeometry}. Indices
+         * created before {@link IndexVersions#GEOMETRY_DOC_VALUES_V2} use the legacy format,
+         * which only supports reconstruction of point geometries.
+         */
+        @Override
+        public boolean supportsGeometryDocValueReconstruction() {
+            return docValueFormat() == GeometryDocValueFormat.V2;
         }
 
         @Override
@@ -79,9 +104,11 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
         protected static class BoundsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
             private final String fieldName;
+            private final GeometryDocValueFormat format;
 
-            protected BoundsBlockLoader(String fieldName) {
+            protected BoundsBlockLoader(String fieldName, GeometryDocValueFormat format) {
                 this.fieldName = fieldName;
+                this.format = format;
             }
 
             @Override
@@ -92,7 +119,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                     breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
                     return ConstantNull.COLUMN_READER;
                 }
-                return new BoundsReader(breaker, binaryDocValues);
+                return new BoundsReader(breaker, binaryDocValues, format);
             }
 
             @Override
@@ -102,11 +129,12 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         }
 
         private static class BoundsReader implements BlockLoader.ColumnAtATimeReader {
-            private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final GeometryDocValueReader reader;
             private final CircuitBreaker breaker;
             private final BinaryDocValues binaryDocValues;
 
-            private BoundsReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues) {
+            private BoundsReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues, GeometryDocValueFormat format) {
+                this.reader = new GeometryDocValueReader(format);
                 this.breaker = breaker;
                 this.binaryDocValues = binaryDocValues;
             }
@@ -161,10 +189,12 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         protected static class CentroidBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
             private final String fieldName;
             private final CoordinateEncoder encoder;
+            private final GeometryDocValueFormat format;
 
-            protected CentroidBlockLoader(String fieldName, CoordinateEncoder encoder) {
+            protected CentroidBlockLoader(String fieldName, CoordinateEncoder encoder, GeometryDocValueFormat format) {
                 this.fieldName = fieldName;
                 this.encoder = encoder;
+                this.format = format;
             }
 
             @Override
@@ -175,7 +205,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                     breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
                     return ConstantNull.COLUMN_READER;
                 }
-                return new CentroidReader(breaker, binaryDocValues, encoder);
+                return new CentroidReader(breaker, binaryDocValues, encoder, format);
             }
 
             @Override
@@ -185,12 +215,18 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         }
 
         private static class CentroidReader implements BlockLoader.ColumnAtATimeReader {
-            private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final GeometryDocValueReader reader;
             private final CircuitBreaker breaker;
             private final BinaryDocValues binaryDocValues;
             private final CoordinateEncoder encoder;
 
-            private CentroidReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues, CoordinateEncoder encoder) {
+            private CentroidReader(
+                CircuitBreaker breaker,
+                BinaryDocValues binaryDocValues,
+                CoordinateEncoder encoder,
+                GeometryDocValueFormat format
+            ) {
+                this.reader = new GeometryDocValueReader(format);
                 this.breaker = breaker;
                 this.binaryDocValues = binaryDocValues;
                 this.encoder = encoder;
@@ -246,10 +282,12 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         protected static class BoundsAndCentroidBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
             private final String fieldName;
             private final CoordinateEncoder encoder;
+            private final GeometryDocValueFormat format;
 
-            protected BoundsAndCentroidBlockLoader(String fieldName, CoordinateEncoder encoder) {
+            protected BoundsAndCentroidBlockLoader(String fieldName, CoordinateEncoder encoder, GeometryDocValueFormat format) {
                 this.fieldName = fieldName;
                 this.encoder = encoder;
+                this.format = format;
             }
 
             @Override
@@ -284,7 +322,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         }
 
         private static class BoundsAndCentroidReader implements BlockLoader.ColumnAtATimeReader {
-            private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final GeometryDocValueReader reader;
             private final CircuitBreaker breaker;
             private final BinaryDocValues binaryDocValues;
             private final CoordinateEncoder encoder;
@@ -296,6 +334,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 CoordinateEncoder encoder,
                 BoundsAndCentroidBlockLoader loader
             ) {
+                this.reader = new GeometryDocValueReader(loader.format);
                 this.breaker = breaker;
                 this.binaryDocValues = binaryDocValues;
                 this.encoder = encoder;

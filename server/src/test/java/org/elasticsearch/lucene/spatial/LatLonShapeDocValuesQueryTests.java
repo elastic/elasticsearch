@@ -46,19 +46,23 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         Polygon polygon = GeoTestUtil.nextPolygon();
-        Query q1 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
-        Query q2 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q1 = new LatLonShapeDocValuesQuery(FIELD_NAME, GeometryDocValueFormat.V2, ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q2 = new LatLonShapeDocValuesQuery(FIELD_NAME, GeometryDocValueFormat.V2, ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkEqual(q1, q2);
 
-        Query q3 = new LatLonShapeDocValuesQuery(FIELD_NAME + "x", ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q3 = new LatLonShapeDocValuesQuery(FIELD_NAME + "x", GeometryDocValueFormat.V2, ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkUnequal(q1, q3);
 
         Rectangle rectangle = GeoTestUtil.nextBox();
-        Query q4 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, rectangle);
+        Query q4 = new LatLonShapeDocValuesQuery(FIELD_NAME, GeometryDocValueFormat.V2, ShapeField.QueryRelation.INTERSECTS, rectangle);
         QueryUtils.checkUnequal(q1, q4);
+
+        Query q5 = new LatLonShapeDocValuesQuery(FIELD_NAME, GeometryDocValueFormat.LEGACY, ShapeField.QueryRelation.INTERSECTS, polygon);
+        QueryUtils.checkUnequal(q1, q5);
     }
 
     public void testEmptySegment() throws Exception {
+        GeometryDocValueFormat format = randomFrom(GeometryDocValueFormat.values());
         IndexWriterConfig iwc = newIndexWriterConfig();
         // No merges
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -71,7 +75,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         for (IndexableField field : fields) {
             document.add(field);
         }
-        BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
+        BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO, format);
         docVal.add(fields, geometry);
         document.add(docVal);
         w.addDocument(document);
@@ -86,13 +90,14 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         Rectangle rectangle = new Rectangle(-10, 10, -10, 10);
         for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
             Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, relation, rectangle);
-            Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, relation, rectangle);
+            Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, format, relation, rectangle);
             assertQueries(s, indexQuery, docValQuery, 1);
         }
         IOUtils.close(r, dir);
     }
 
     public void testIndexSimpleShapes() throws Exception {
+        GeometryDocValueFormat format = randomFrom(GeometryDocValueFormat.values());
         IndexWriterConfig iwc = newIndexWriterConfig();
         // Else seeds may not reproduce:
         iwc.setMergeScheduler(new SerialMergeScheduler());
@@ -116,7 +121,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             for (IndexableField field : fields) {
                 doc.add(field);
             }
-            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
+            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO, format);
             docVal.add(fields, geometry);
             doc.add(docVal);
             w.addDocument(doc);
@@ -133,7 +138,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             LatLonGeometry[] geometries = randomLuceneQueryGeometries();
             for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
                 Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, relation, geometries);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, relation, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, format, relation, geometries);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
@@ -141,6 +146,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
     }
 
     public void testIndexMultiShapes() throws Exception {
+        GeometryDocValueFormat format = randomFrom(GeometryDocValueFormat.values());
         IndexWriterConfig iwc = newIndexWriterConfig();
         // Else seeds may not reproduce:
         iwc.setMergeScheduler(new SerialMergeScheduler());
@@ -158,7 +164,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             for (IndexableField field : fields) {
                 doc.add(field);
             }
-            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
+            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO, format);
             docVal.add(fields, geometry);
             doc.add(docVal);
             w.addDocument(doc);
@@ -175,7 +181,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             LatLonGeometry[] geometries = randomLuceneQueryGeometries();
             for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
                 Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, relation, geometries);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, relation, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, format, relation, geometries);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }

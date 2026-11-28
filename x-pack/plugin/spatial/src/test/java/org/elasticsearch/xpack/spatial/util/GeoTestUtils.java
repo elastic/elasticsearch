@@ -25,6 +25,7 @@ import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -38,42 +39,66 @@ import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
+import java.util.List;
 
 public class GeoTestUtils {
 
     public static GeometryDocValueReader geometryDocValueReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(geometry);
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
-        GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(GeometryDocValueWriter.write(indexer.indexShape(geometry), encoder, centroidCalculator));
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
+        reader.reset(GeometryDocValueWriter.write(indexer.getIndexableFields(normalized), encoder, centroidCalculator, List.of(geometry)));
         return reader;
     }
 
     public static BinaryShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
+        return binaryGeoShapeDocValuesField(name, geometry, GeometryDocValueFormat.V2);
+    }
+
+    public static BinaryShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry, GeometryDocValueFormat format) {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, name);
-        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
-        field.add(indexer.indexShape(geometry), geometry);
+        Geometry normalized = indexer.normalize(geometry);
+        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO, format);
+        field.add(indexer.getIndexableFields(normalized), geometry);
         return field;
     }
 
     // TODO: Should this be in a cartesian specific test class, and if so, which?
     public static BinaryShapeDocValuesField binaryCartesianShapeDocValuesField(String name, Geometry geometry) {
+        return binaryCartesianShapeDocValuesField(name, geometry, GeometryDocValueFormat.V2);
+    }
+
+    public static BinaryShapeDocValuesField binaryCartesianShapeDocValuesField(
+        String name,
+        Geometry geometry,
+        GeometryDocValueFormat format
+    ) {
         CartesianShapeIndexer indexer = new CartesianShapeIndexer(name);
-        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
+        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN, format);
         field.add(indexer.indexShape(geometry), geometry);
         return field;
     }
 
     public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) throws IOException {
-        GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue();
-        value.reset(binaryGeoShapeDocValuesField("test", geometry).binaryValue());
+        return geoShapeValue(geometry, GeometryDocValueFormat.V2);
+    }
+
+    public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry, GeometryDocValueFormat format) throws IOException {
+        GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(format);
+        value.reset(binaryGeoShapeDocValuesField("test", geometry, format).binaryValue());
         return value;
     }
 
     public static CartesianShapeValues.CartesianShapeValue cartesianShapeValue(Geometry geometry) throws IOException {
-        CartesianShapeValues.CartesianShapeValue value = new CartesianShapeValues.CartesianShapeValue();
-        value.reset(binaryCartesianShapeDocValuesField("test", geometry).binaryValue());
+        return cartesianShapeValue(geometry, GeometryDocValueFormat.V2);
+    }
+
+    public static CartesianShapeValues.CartesianShapeValue cartesianShapeValue(Geometry geometry, GeometryDocValueFormat format)
+        throws IOException {
+        CartesianShapeValues.CartesianShapeValue value = new CartesianShapeValues.CartesianShapeValue(format);
+        value.reset(binaryCartesianShapeDocValuesField("test", geometry, format).binaryValue());
         return value;
     }
 

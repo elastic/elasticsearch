@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
@@ -22,15 +23,10 @@ public class GeoShapeValuesGenericWriteableTests extends ShapeValuesGenericWrite
     }
 
     @Override
-    protected GenericWriteableWrapper createTestInstance() {
-        try {
-            GeoBoundingBox bbox = GeoTestUtils.randomBBox();
-            Rectangle rectangle = new Rectangle(bbox.left(), bbox.right(), bbox.top(), bbox.bottom());
-            GeoShapeValues.GeoShapeValue shapeValue = GeoTestUtils.geoShapeValue(rectangle);
-            return new GenericWriteableWrapper(shapeValue);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    protected ShapeValues.ShapeValue randomShapeValue(GeometryDocValueFormat format) throws IOException {
+        GeoBoundingBox bbox = GeoTestUtils.randomBBox();
+        Rectangle rectangle = new Rectangle(bbox.left(), bbox.right(), bbox.top(), bbox.bottom());
+        return GeoTestUtils.geoShapeValue(rectangle, format);
     }
 
     @Override

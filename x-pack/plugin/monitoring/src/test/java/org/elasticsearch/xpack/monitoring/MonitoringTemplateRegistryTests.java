@@ -19,9 +19,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -93,6 +96,65 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             NamedXContentRegistry.EMPTY,
             new FeatureService(List.of())
         );
+    }
+
+    private static final String SHARED_CUSTOM = ".monitoring-mb@custom";
+    private static final String SETTING = "index.refresh_interval";
+
+    private static final Map<String, String> STACK_TEMPLATE_TO_CUSTOM = Map.of(
+        MonitoringTemplateRegistry.BEATS_STACK_INDEX_TEMPLATE_NAME,
+        ".monitoring-beats-mb@custom",
+        MonitoringTemplateRegistry.ES_STACK_INDEX_TEMPLATE_NAME,
+        ".monitoring-es-mb@custom",
+        MonitoringTemplateRegistry.KIBANA_STACK_INDEX_TEMPLATE_NAME,
+        ".monitoring-kibana-mb@custom",
+        MonitoringTemplateRegistry.LOGSTASH_STACK_INDEX_TEMPLATE_NAME,
+        ".monitoring-logstash-mb@custom",
+        MonitoringTemplateRegistry.ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE_NAME,
+        ".monitoring-ent-search-mb@custom"
+    );
+
+    private static ComponentTemplate componentWithRefreshInterval(String value) {
+        return new ComponentTemplate(new Template(Settings.builder().put(SETTING, value).build(), null, null), null, null);
+    }
+
+    /** Resolves the shipped template against the given components, as the cluster would when creating a backing index. */
+    private String resolvedRefreshInterval(String templateName, Map<String, ComponentTemplate> components) {
+        ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(templateName);
+        assertNotNull(templateName, template);
+        return MetadataIndexTemplateService.resolveSettings(template, components).get(SETTING);
+    }
+
+    public void testSharedCustomComponentReachesAllStackTemplates() {
+        assertThat(STACK_TEMPLATE_TO_CUSTOM.keySet(), hasSize(5));
+        Map<String, ComponentTemplate> components = Map.of(SHARED_CUSTOM, componentWithRefreshInterval("11s"));
+        for (String templateName : STACK_TEMPLATE_TO_CUSTOM.keySet()) {
+            assertThat(templateName, resolvedRefreshInterval(templateName, components), equalTo("11s"));
+        }
+    }
+
+    public void testProductCustomComponentWinsOverSharedForItsProductOnly() {
+        for (Map.Entry<String, String> product : STACK_TEMPLATE_TO_CUSTOM.entrySet()) {
+            Map<String, ComponentTemplate> components = Map.of(
+                SHARED_CUSTOM,
+                componentWithRefreshInterval("11s"),
+                product.getValue(),
+                componentWithRefreshInterval("22s")
+            );
+            for (String templateName : STACK_TEMPLATE_TO_CUSTOM.keySet()) {
+                String expected = templateName.equals(product.getKey()) ? "22s" : "11s";
+                assertThat(templateName, resolvedRefreshInterval(templateName, components), equalTo(expected));
+            }
+        }
+    }
+
+    public void testStackTemplatesResolveWithoutCustomComponents() {
+        for (String templateName : STACK_TEMPLATE_TO_CUSTOM.keySet()) {
+            ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(templateName);
+            assertThat(template.composedOf(), equalTo(List.of(SHARED_CUSTOM, STACK_TEMPLATE_TO_CUSTOM.get(templateName))));
+            assertThat(template.getIgnoreMissingComponentTemplates(), equalTo(template.composedOf()));
+            assertNull(templateName, resolvedRefreshInterval(templateName, Map.of()));
+        }
     }
 
     @After

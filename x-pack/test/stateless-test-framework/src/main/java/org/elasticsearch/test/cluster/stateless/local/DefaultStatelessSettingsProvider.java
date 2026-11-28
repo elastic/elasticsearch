@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.cluster.local.DefaultSettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec;
 
@@ -82,7 +83,7 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
 
     /// How recoveries are throttled in the test cluster.
     ///
-    /// - `MASTER`: master only, with its pre-DNRT default limits.
+    /// - `MASTER`: master only, with its pre-DNRT default limits, and randomized heap-based primary recovery limits.
     /// - `DNRT`: DNRT with random limits, the master does not throttle.
     private enum RecoveryThrottlingMode {
         MASTER,
@@ -103,8 +104,7 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
                 // Keep the pre-DNRT serverless default master-side throttling and leave DNRT unbounded
                 settings.put("cluster.routing.allocation.node_concurrent_recoveries", "32");
                 settings.put("cluster.routing.allocation.node_initial_primaries_recoveries", "6");
-                settings.put("cluster.routing.allocation.min_heap_required_for_concurrent_primary_recoveries", "2560mb");
-                settings.put("cluster.routing.allocation.concurrent_primary_recoveries_per_heap_gb", "1.5");
+                settings.putAll(heapBasedPrimaryRecoverySettings(random));
                 settings.put("cluster.routing.allocation.cluster_concurrent_rebalance", "2");
                 settings.putAll(UNBOUNDED_DATA_NODE_RECOVERY_SETTINGS);
             }
@@ -118,5 +118,50 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
         }
         settings.put("indices.recovery.gates.enabled", "false");
         return Map.copyOf(settings);
+    }
+
+    /// Randomized heap-based primary recovery limits matching effective limits for production nodes.
+    ///
+    /// The master limits concurrent primary recoveries per node based on the node's heap, and production nodes have
+    /// far more heap than test nodes. The production limit of a node with a random heap is expressed per GB of the actual
+    /// test node heap, so that a test node gets a similar range of limits as what we would actually see in production.
+    /// The minimum heap for concurrent primary recoveries is disabled.
+    private static Map<String, String> heapBasedPrimaryRecoverySettings(Random random) {
+        final int simulatedHeapGb = random.nextInt(1, 32);
+        final long simulatedConcurrentRecoveries = Math.round(1.5 * simulatedHeapGb);
+        LOGGER.info(
+            "Simulating production node heap [{}gb] with a heap-based limit of [{}] concurrent primary recoveries, "
+                + "before the node_concurrent_recoveries cap",
+            simulatedHeapGb,
+            simulatedConcurrentRecoveries
+        );
+
+        // The decider rounds heap * rate, so derive the rate from the whole recovery count to avoid landing near a rounding cutoff
+        final double testNodeHeapGb = ByteSizeValue.ofBytes(testNodeHeapBytes()).getGbFrac();
+        return Map.of(
+            "cluster.routing.allocation.min_heap_required_for_concurrent_primary_recoveries",
+            "0b",
+            "cluster.routing.allocation.concurrent_primary_recoveries_per_heap_gb",
+            String.valueOf(simulatedConcurrentRecoveries / testNodeHeapGb)
+        );
+    }
+
+    /// The heap of the test nodes, resolved like the cluster launcher does: `tests.heap.size`, unless an `-Xmx` or
+    /// `-XX:MaxHeapSize=` in `tests.jvm.argline` overrides it, in which case the last one wins.
+    private static long testNodeHeapBytes() {
+        long heapBytes = parseJvmMemorySize(System.getProperty("tests.heap.size", "512m"));
+        for (String jvmArg : System.getProperty("tests.jvm.argline", "").split("\\s+")) {
+            if (jvmArg.startsWith("-Xmx")) {
+                heapBytes = parseJvmMemorySize(jvmArg.substring("-Xmx".length()));
+            } else if (jvmArg.startsWith("-XX:MaxHeapSize=")) {
+                heapBytes = parseJvmMemorySize(jvmArg.substring("-XX:MaxHeapSize=".length()));
+            }
+        }
+        return heapBytes;
+    }
+
+    private static long parseJvmMemorySize(String size) {
+        final String sizeWithUnit = size.chars().allMatch(Character::isDigit) ? size + "b" : size;
+        return ByteSizeValue.parseBytesSizeValue(sizeWithUnit, "JVM heap size").getBytes();
     }
 }

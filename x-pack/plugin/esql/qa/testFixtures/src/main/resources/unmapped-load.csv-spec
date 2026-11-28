@@ -4761,6 +4761,26 @@ c:long | unmapped_message:keyword
 3      | Disconnection error
 ;
 
+// The last grouping of a name wins, so the x in the aggregates is the one over the unmapped tag, as it is when the field is mapped.
+loadStatsGroupingTwiceByTheSameNameLastOneUnmapped
+required_capability: optional_fields_v5
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: stats_alias_collision_warnings
+required_capability: stats_shadowed_grouping_resolves_to_the_last_with_unmapped_fields
+
+SET unmapped_fields="load"\;
+FROM unmapped_compound_outputs
+| STATS x = MAX(id), y = COUNT(x) BY x = id, x = tag
+| SORT x ASC
+;
+warning:Line 3:38: Field 'x' shadowed by field at line 3:46
+warning:Line 3:9: Field 'x' shadowed by field at line 3:46
+
+y:long | x:keyword
+2      | t
+0      | null
+;
+
 // An OR across different fields, pushed to the shards as a bool of should clauses, must still filter when it is ANDed with a condition
 // on a field that is unmapped (pushed on its own, best effort, as a filter). The documents of ids 1 and 2 have tag "t", the one of 3 none.
 loadOrAcrossFieldsAndEqualityOnUnmappedField

@@ -133,18 +133,6 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
             Set.of("string.groupByMvMin", "string.groupByMvMax"),
             VerificationException.class,
             Pattern.compile("Found 1 problem\\nline \\d+:\\d+: Unknown column \\[job_positions]")
-        ),
-        // Remove when fixed: STATS grouping twice by the same name, one of them an unmapped field, fails with "optimized incorrectly"
-        new KnownError(
-            "https://github.com/elastic/elasticsearch/issues/165753",
-            "employees",
-            "gender",
-            Set.of("stats.shadowingInternalWithGroup2"),
-            IllegalStateException.class,
-            Pattern.compile(
-                "Found 1 problem\\nline \\d+:\\d+: Plan \\[Aggregate\\[\\[gender\\{f}#\\d+],\\[COUNT\\(x\\{r}#\\d+,true\\[BOOLEAN],"
-                    + "PT0S\\[TIME_DURATION]\\) AS y#\\d+, x\\{r}#\\d+]]] optimized incorrectly due to missing references \\[x\\{r}#\\d+]"
-            )
         )
     );
 

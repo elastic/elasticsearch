@@ -5101,6 +5101,14 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_EXPRESSION_ON_UNMAPPED_LEFT_KEY,
 
         /**
+         * Under {@code unmapped_fields="load"} or {@code "load_all"}, {@code STATS ... BY x = a, x = unmapped_field} resolves a reference
+         * to {@code x} in the aggregates to the last grouping of that name, as it does when every field is mapped. It resolved to the
+         * first one when the last was unmapped, and failed with "optimized incorrectly due to missing references". See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165753">#165753</a>.
+         */
+        STATS_SHADOWED_GROUPING_RESOLVES_TO_THE_LAST_WITH_UNMAPPED_FIELDS,
+
+        /**
          * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
          * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
          */

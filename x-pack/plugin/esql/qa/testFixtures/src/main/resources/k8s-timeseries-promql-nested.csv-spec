@@ -16,8 +16,7 @@ nested_within_series_avg_avg_over_time
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
-required_capability: fix_promql_round_to_nearest
-PROMQL index=k8s step=1h result=(round(avg(avg_over_time(network.cost[1h])), 0.000001));
+PROMQL index=k8s step=1h result=(avg(avg_over_time(network.cost[1h])));
 
 result:double | step:datetime
 6.25806       | 2024-05-10T01:00:00.000Z

@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.Token;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseLexer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -709,6 +712,17 @@ public final class CsvSpecReader {
         public boolean hasPromqlIndexParam() {
             // Also true for that text inside a string literal: a rare case, where it only skips a test that could run.
             return params.isEmpty() == false && PROMQL_INDEX_PARAM.matcher(query).find();
+        }
+
+        public boolean includeTimeSeriesAggregation() {
+            var lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+            lexer.removeErrorListeners();
+            for (int token = lexer.nextToken().getType(); token != Token.EOF; token = lexer.nextToken().getType()) {
+                if (token == EsqlBaseLexer.TS || token == EsqlBaseLexer.PROMQL) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /**

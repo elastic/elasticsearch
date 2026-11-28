@@ -553,7 +553,7 @@ public class CsvIT extends ESTestCase {
                 actualResults.values(),
                 testCase.ignoreOrder,
                 differentialTestStrategy.ignoreValueOrder(),
-                false,
+                testCase.includeTimeSeriesAggregation(),
                 assertionLogger
             );
             var warnings = listener.warnings.stream()

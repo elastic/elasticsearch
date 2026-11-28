@@ -306,6 +306,16 @@ public class CsvSpecReaderTests extends ESTestCase {
         assertFalse(parseWithParams("PROMQL index=?idx (avg(x))").hasPromqlIndexParam());
     }
 
+    public void testUsesTimeSeriesSource() {
+        assertTrue(parseWithParams("ts k8s | STATS max(max_over_time(network.cost))").includeTimeSeriesAggregation());
+        assertTrue(parseWithParams("SET unmapped_fields = \"nullify\"; PROMQL index=k8s (network.cost)").includeTimeSeriesAggregation());
+        assertTrue(parseWithParams("FROM (/* source */ TS k8s | STATS sum(network.cost))").includeTimeSeriesAggregation());
+    }
+
+    public void testTimeSeriesKeywordsOutsideSourceCommand() {
+        assertFalse(parseWithParams("FROM promql | EVAL `TS` = \"PROMQL index=k8s\" /* TS k8s */").includeTimeSeriesAggregation());
+    }
+
     // makeWarningsOptional() tests
 
     public void testMakeWarningsOptionalConvertsExactStringsToPatterns() {

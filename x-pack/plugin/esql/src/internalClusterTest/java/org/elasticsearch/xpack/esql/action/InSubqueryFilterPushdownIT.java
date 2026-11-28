@@ -306,6 +306,10 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
         assertPushedMatchesHashJoin(KeyType.IP);
     }
 
+    public void testIpDocValuesOnlyKey() {
+        assertPushedMatchesHashJoin(KeyType.IP_DOC_VALUES_ONLY);
+    }
+
     public void testDateKey() {
         assertPushedMatchesHashJoin(KeyType.DATE);
     }
@@ -435,6 +439,12 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
             @Override
             Object value(int i) {
                 return "10.0." + (i / 256) + "." + (i % 256);
+            }
+        },
+        IP_DOC_VALUES_ONLY("ip,index=false", true) {
+            @Override
+            Object value(int i) {
+                return IP.value(i);
             }
         },
         DATE("date", false) {

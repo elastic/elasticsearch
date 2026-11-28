@@ -10,6 +10,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.PrefixCodedTerms;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -120,7 +121,7 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
             if (first == false) {
                 sb.append(",");
             }
-            sb.append(term.utf8ToString());
+            sb.append(Term.toString(term));
             first = false;
         }
         sb.append("])");

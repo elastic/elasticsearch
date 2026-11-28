@@ -1,7 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" == "main" ]]; then
+# A merge queue build has no pull request variables; the queue passes the branch the entry merges into instead.
+BASE_BRANCH="${BUILDKITE_PULL_REQUEST_BASE_BRANCH:-${MERGE_QUEUE_BASE_BRANCH:-}}"
+
+if [[ "${BASE_BRANCH}" == "main" ]]; then
   # Don't run on PRs targeting main
   exit 0
 fi
@@ -9,8 +12,8 @@ fi
 echo "--- Looking for transport version changes"
 
 # Get any changes in this pull request to transport definitions
-git fetch origin "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" --quiet
-changed_files=$(git diff --name-only "origin/${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" | grep -E "server/src/main/resources/transport/definitions/.*\.csv" || true)
+git fetch origin "${BASE_BRANCH}" --quiet
+changed_files=$(git diff --name-only "origin/${BASE_BRANCH}" | grep -E "server/src/main/resources/transport/definitions/.*\.csv" || true)
 
 if [[ -z "${changed_files}" ]]; then
   echo "No transport version changes detected."

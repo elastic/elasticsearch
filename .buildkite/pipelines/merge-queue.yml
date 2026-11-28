@@ -1,0 +1,17 @@
+# Merge queue pipeline: runs everything pull request CI ran before suites moved off the pull request gate, against the
+# queued merge commit: every pipeline a pull request with no labels runs, plus the suites that moved off pull requests.
+#
+# NOT ENABLED YET. This pipeline is not registered in Buildkite (it is deliberately absent from catalog-info.yaml and
+# .buildkite/pull-requests.json) and the repository has no GitHub merge queue. Enabling it means creating the
+# pipeline, pointing it at this file, and turning on the merge queue for the target branches.
+#
+# The steps are generated from the pull request definitions by .buildkite/scripts/merge-queue/pipeline.ts, with the pull
+# request selection rules, so they match the pull request versions exactly. Unlike intake, this pipeline must not push to the Gradle
+# build cache or trigger the DRA workflow: the merge commit has not landed yet.
+#
+# They are generated rather than written out here because they depend on the entry: its changed files select the
+# path-gated pipelines, later-branch-bwc depends on its base branch (and branches.json on main), and copying the pull
+# request suites would let them drift from the pull request versions.
+steps:
+  - label: ":pipeline: Generate merge queue steps"
+    command: .buildkite/scripts/merge-queue/pipeline.sh

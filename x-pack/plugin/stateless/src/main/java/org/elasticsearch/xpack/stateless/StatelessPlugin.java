@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvide
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrder;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
+import org.elasticsearch.xpack.stateless.cache.BlobCacheSnapshotService;
 import org.elasticsearch.xpack.stateless.cache.DefaultEvictionPolicyFactory;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.EvictionPolicyFactory;
@@ -813,6 +814,7 @@ public class StatelessPlugin extends Plugin
             commitService = null;
         }
         components.add(new StatelessCommitServiceProvider(commitService));
+        components.add(new BlobCacheSnapshotService(cacheService, indicesService, threadPool, commitService));
 
         if (hasIndexRole) {
             var uploadQueueControllerService = new UploadQueueControllerService(

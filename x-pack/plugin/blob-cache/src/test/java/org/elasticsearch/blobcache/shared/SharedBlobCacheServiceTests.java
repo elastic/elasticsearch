@@ -105,6 +105,7 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Force
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.LowestFrequencyEviction;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Promote;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.SlotAssignment;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -500,6 +501,186 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertEquals(firstTimestamp, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
         } finally {
+            TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testCaptureManifest() throws Exception {
+        final long regionSize = size(100L);
+        try (var testCache = new ManifestTestCache(regionSize)) {
+            final var keyA = generateCacheKey();
+            final var keyB = generateCacheKey();
+            final var keyC = generateCacheKey();
+
+            testCache.populate(keyA, 0, ByteRange.of(0, regionSize), 111L);
+            // adjacent ranges join into one, ranges with a gap stay apart
+            testCache.populate(keyA, 1, ByteRange.of(0, size(10)), 222L);
+            testCache.populate(keyA, 1, ByteRange.of(size(10), size(20)), 222L);
+            testCache.populate(keyA, 1, ByteRange.of(size(30), size(40)), 222L);
+            // a region still waiting for its timestamp is recorded with an unknown one
+            testCache.populate(keyB, 0, ByteRange.of(0, size(5)), BACKFILL_IN_PROGRESS_TIMESTAMP);
+            testCache.populate(keyC, 2, ByteRange.of(0, size(5)), 333L);
+
+            final var manifest = testCache.cacheService.captureManifest(key -> true);
+
+            assertThat(manifest.get(keyA, 0), equalTo(new CacheManifest.Region(111L, List.of(ByteRange.of(0, regionSize)))));
+            assertThat(
+                manifest.get(keyA, 1),
+                equalTo(new CacheManifest.Region(222L, List.of(ByteRange.of(0, size(20)), ByteRange.of(size(30), size(40)))))
+            );
+            assertThat(manifest.get(keyB, 0).timestampMillis(), equalTo(UNKNOWN_TIMESTAMP));
+            assertThat(manifest.get(keyC, 2).timestampMillis(), equalTo(333L));
+            assertNull(manifest.get(keyC, 0));
+            assertThat(manifest.regionCount(), equalTo(4));
+            assertThat(manifest.totalBytes(), equalTo(regionSize + size(30) + size(5) + size(5)));
+
+            // only keys that match the predicate are recorded
+            assertThat(testCache.cacheService.captureManifest(keyA::equals).regions().keySet(), equalTo(Set.of(keyA)));
+
+            // evicted regions are not recorded
+            testCache.cacheService.forceEvict(keyC::equals);
+            assertThat(testCache.cacheService.captureManifest(key -> true).regionCount(), equalTo(3));
+
+            // the manifest is a copy, so later changes to the cache do not alter it
+            assertThat(manifest.regionCount(), equalTo(4));
+        }
+    }
+
+    public void testEvictNotCoveredByManifest() throws Exception {
+        final long regionSize = size(100L);
+        try (var testCache = new ManifestTestCache(regionSize)) {
+            final var wholeRegion = ByteRange.of(0, regionSize);
+            final var firstHalf = ByteRange.of(0, size(50));
+            final var secondHalf = ByteRange.of(size(50), regionSize);
+            final var same = generateCacheKey();
+            final var extra = generateCacheKey();
+            final var smaller = generateCacheKey();
+            final var missing = generateCacheKey();
+            final var late = generateCacheKey();
+
+            testCache.populate(same, 0, wholeRegion, 1L);
+            testCache.populate(extra, 0, firstHalf, 2L);
+            testCache.populate(smaller, 0, wholeRegion, 3L);
+            testCache.populate(missing, 0, wholeRegion, 4L);
+            final var manifest = testCache.cacheService.captureManifest(key -> true);
+
+            // the cache then drifts from the manifest
+            testCache.populate(extra, 0, secondHalf, 2L);
+            testCache.cacheService.forceEvict(smaller::equals);
+            testCache.populate(smaller, 0, firstHalf, 3L);
+            testCache.cacheService.forceEvict(missing::equals);
+            testCache.populate(late, 0, wholeRegion, 5L);
+
+            // evicted: a region the manifest lacks, and a region with data beyond the manifest's ranges
+            assertThat(testCache.cacheService.evictNotCoveredBy(manifest), equalTo(2));
+
+            assertThat(testCache.cacheService.captureManifest(extra::equals).regionCount(), equalTo(0));
+            assertThat(testCache.cacheService.captureManifest(late::equals).regionCount(), equalTo(0));
+            assertThat(testCache.cacheService.captureManifest(same::equals).regionCount(), equalTo(1));
+            assertThat(testCache.cacheService.captureManifest(smaller::equals).regionCount(), equalTo(1));
+
+            // fetching the manifest ranges fills only the gaps and puts the cache back in the recorded state
+            for (var keyRegions : manifest.regions().entrySet()) {
+                for (var regionEntry : keyRegions.getValue().entrySet()) {
+                    for (ByteRange range : regionEntry.getValue().ranges()) {
+                        testCache.populate(keyRegions.getKey(), regionEntry.getKey(), range, regionEntry.getValue().timestampMillis());
+                    }
+                }
+            }
+            assertThat(testCache.cacheService.captureManifest(key -> true), equalTo(manifest));
+            assertThat(testCache.cacheService.evictNotCoveredBy(manifest), equalTo(0));
+        }
+    }
+
+    public void testEvictNotCoveredByManifestConsidersTimestamps() throws Exception {
+        final long regionSize = size(100L);
+        try (var testCache = new ManifestTestCache(regionSize)) {
+            final var wholeRegion = ByteRange.of(0, regionSize);
+            final var sameTimestamp = generateCacheKey();
+            final var otherTimestamp = generateCacheKey();
+            final var waitingForTimestamp = generateCacheKey();
+
+            testCache.populate(sameTimestamp, 0, wholeRegion, 10L);
+            testCache.populate(otherTimestamp, 0, wholeRegion, 20L);
+            testCache.populate(waitingForTimestamp, 0, wholeRegion, BACKFILL_IN_PROGRESS_TIMESTAMP);
+            final var manifest = testCache.cacheService.captureManifest(key -> true);
+
+            // fetching into an existing region does not change its timestamp, so a region with the same ranges and another timestamp is
+            // evicted for the caller to fetch it again
+            testCache.cacheService.forceEvict(otherTimestamp::equals);
+            testCache.populate(otherTimestamp, 0, wholeRegion, 99L);
+
+            assertThat(testCache.cacheService.evictNotCoveredBy(manifest), equalTo(1));
+
+            assertThat(testCache.cacheService.captureManifest(otherTimestamp::equals).regionCount(), equalTo(0));
+            // a region that is still waiting for its timestamp is recorded as unknown, and is the same region when it is still waiting
+            assertThat(testCache.cacheService.captureManifest(waitingForTimestamp::equals).regionCount(), equalTo(1));
+            assertThat(testCache.cacheService.captureManifest(sameTimestamp::equals).regionCount(), equalTo(1));
+        }
+    }
+
+    /**
+     * A cache with three regions of a blob that is 3 regions long, filled through {@link SharedBlobCacheService#fetchRange}.
+     */
+    private static class ManifestTestCache implements AutoCloseable {
+        final TestThreadPool threadPool = new TestThreadPool("manifest-test");
+        final NodeEnvironment environment;
+        final SharedBlobCacheService<TestCacheKey> cacheService;
+        private final long regionSize;
+        private final StoppableExecutorServiceWrapper executor = new StoppableExecutorServiceWrapper(threadPool.generic());
+
+        ManifestTestCache(long regionSize) throws IOException {
+            this.regionSize = regionSize;
+            final Settings settings = Settings.builder()
+                .put(NODE_NAME_SETTING.getKey(), "node")
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(10 * regionSize))
+                .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+                .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+                .put("path.home", createTempDir())
+                .build();
+            this.environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            this.cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            );
+        }
+
+        /**
+         * Fills {@code range} of {@code region}, where the range is relative to the start of the region.
+         */
+        void populate(TestCacheKey key, int region, ByteRange range, long timestampMillis) throws Exception {
+            final RangeMissingHandler writer = (
+                channel,
+                channelPos,
+                streamFactory,
+                relativePos,
+                length,
+                progressUpdater,
+                completionListener) -> completeWith(completionListener, () -> progressUpdater.accept(length));
+            final long regionStart = region * regionSize;
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            cacheService.fetchRange(
+                key,
+                region,
+                ByteRange.of(regionStart + range.start(), regionStart + range.end()),
+                3 * regionSize,
+                writer,
+                executor,
+                true,
+                timestampMillis,
+                false,
+                future
+            );
+            future.get(10, TimeUnit.SECONDS);
+        }
+
+        @Override
+        public void close() {
+            cacheService.close();
+            environment.close();
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }

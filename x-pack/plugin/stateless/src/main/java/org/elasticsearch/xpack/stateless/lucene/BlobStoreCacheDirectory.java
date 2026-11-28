@@ -50,6 +50,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BiPredicate;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -164,69 +165,14 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             final long regionsEvictionTasks = submittedObsoleteRegionsEvictionTasks.get();
             assert regionsEvictionTasks > 0 : regionsEvictionTasks;
 
-            final Map<String, BlobFileRanges> metadata = getCurrentMetadata();
             final Set<String> liveFiles = liveFilesSupplier != null ? liveFilesSupplier.get() : null;
-
-            final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
-            long maxBccGeneration = -1L;
-
-            for (var entry : metadata.entrySet()) {
-                if (liveFiles != null && liveFiles.contains(entry.getKey()) == false) {
-                    continue;
-                }
-                final var file = entry.getValue();
-                long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
-                int startRegion = cacheService.getRegion(file.fileOffset());
-                int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
-                activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet()).set(startRegion, endRegion + 1);
-                maxBccGeneration = Math.max(maxBccGeneration, bccGen);
-
-                if (file.hasReplicatedRanges()) {
-                    file.forEachReplicatedRange(
-                        (offset, length) -> activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet())
-                            .set(cacheService.getRegion(offset), cacheService.getEndingRegion(offset + length) + 1)
-                    );
-                }
-            }
-
-            final long maxBccGen = maxBccGeneration;
+            final BiPredicate<FileCacheKey, Integer> isObsolete = obsoleteRegionPredicate(liveFiles);
             cacheService.forceEvict(shardId, (key, region) -> {
-                final String blobName = key.fileName();
-                final long bccGeneration = BccBlob.parseGenerationFromBlobName(blobName);
-
-                BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
-                if (activeRegions != null && activeRegions.get(region)) {
-                    return false; // Region is active, keep it
+                final boolean obsolete = isObsolete.test(key, region);
+                if (obsolete) {
+                    logger.debug("{} evicting obsolete region [{}] of blob [{}]", shardId, region, key.fileName());
                 }
-
-                if (bccGeneration < maxBccGen) {
-                    logger.debug(
-                        "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}])",
-                        shardId,
-                        region,
-                        blobName,
-                        bccGeneration,
-                        maxBccGen
-                    );
-                    return true; // BCC is older and region is not active, evict
-                }
-                if (bccGeneration == maxBccGen) {
-                    assert activeRegions != null : "activeRegions should not be null for maxBccGen";
-                    int maxKnownRegion = activeRegions.length() - 1;
-                    if (region <= maxKnownRegion) {
-                        logger.debug(
-                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}])",
-                            shardId,
-                            region,
-                            blobName,
-                            bccGeneration,
-                            maxKnownRegion
-                        );
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
+                return obsolete;
             });
 
             final long remainingTasks = submittedObsoleteRegionsEvictionTasks.addAndGet(-regionsEvictionTasks);
@@ -235,6 +181,66 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
                 submitObsoleteRegionsEviction(liveFilesSupplier);
             }
         });
+    }
+
+    /**
+     * Same as {@link #obsoleteRegionPredicate(Set)}, with every file in the current metadata considered as referenced.
+     */
+    public BiPredicate<FileCacheKey, Integer> obsoleteRegionPredicate() {
+        return obsoleteRegionPredicate(null);
+    }
+
+    /**
+     * Returns a predicate that is {@code true} for a cache region of one of this shard's blobs when the region is no longer needed by the
+     * current metadata: it belongs to a BCC older than the newest one that the metadata references and no file or replicated range
+     * of the metadata lies in it, or it lies in the newest referenced BCC within the span of regions the metadata knows about but no file
+     * or replicated range lies in it. The predicate reflects the metadata as it is when this method is called.
+     *
+     * @param liveFiles when not {@code null}, only the metadata files in this set count as referenced
+     */
+    BiPredicate<FileCacheKey, Integer> obsoleteRegionPredicate(@Nullable Set<String> liveFiles) {
+        final Map<String, BlobFileRanges> metadata = getCurrentMetadata();
+
+        final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
+        long maxBccGeneration = -1L;
+
+        for (var entry : metadata.entrySet()) {
+            if (liveFiles != null && liveFiles.contains(entry.getKey()) == false) {
+                continue;
+            }
+            final var file = entry.getValue();
+            long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
+            int startRegion = cacheService.getRegion(file.fileOffset());
+            int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
+            activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet()).set(startRegion, endRegion + 1);
+            maxBccGeneration = Math.max(maxBccGeneration, bccGen);
+
+            if (file.hasReplicatedRanges()) {
+                file.forEachReplicatedRange(
+                    (offset, length) -> activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet())
+                        .set(cacheService.getRegion(offset), cacheService.getEndingRegion(offset + length) + 1)
+                );
+            }
+        }
+
+        final long maxBccGen = maxBccGeneration;
+        return (key, region) -> {
+            final long bccGeneration = BccBlob.parseGenerationFromBlobName(key.fileName());
+
+            BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
+            if (activeRegions != null && activeRegions.get(region)) {
+                return false; // Region is active, keep it
+            }
+            if (bccGeneration < maxBccGen) {
+                return true; // BCC is older and region is not active
+            }
+            if (bccGeneration == maxBccGen) {
+                assert activeRegions != null : "activeRegions should not be null for maxBccGen";
+                int maxKnownRegion = activeRegions.length() - 1;
+                return region <= maxKnownRegion;
+            }
+            return false;
+        };
     }
 
     /// For test usage only. Returns the number of obsolete-region eviction tasks scheduled by [#maybeScheduleObsoleteRegionsEviction]

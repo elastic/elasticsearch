@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167969
+summary: Unbox AND/OR eval and skip uniform intermediates
+type: enhancement

@@ -1,0 +1,7 @@
+area: Transform
+issues:
+ - 153770
+ - 161096
+pr: 167913
+summary: Persist stop at checkpoint requests made while the transform is indexing
+type: bug

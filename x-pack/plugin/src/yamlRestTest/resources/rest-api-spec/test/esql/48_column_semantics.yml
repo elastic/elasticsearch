@@ -292,3 +292,44 @@ setup:
   - match:    { columns.1.name: node }
   - match:    { columns.1._meta.field: host }
   - match:    { columns.1._meta.role: dimension }
+
+---
+"DESCRIBE reports the original types of a conflicting field":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ describe_original_types ]
+      reason: "DESCRIBE reports original_types and suggested_cast"
+  - do:
+      indices.create:
+        index: test_conflict_ip
+        body:
+          mappings:
+            properties:
+              client:
+                type: ip
+              host:
+                type: keyword
+  - do:
+      indices.create:
+        index: test_conflict_keyword
+        body:
+          mappings:
+            properties:
+              client:
+                type: keyword
+              host:
+                type: keyword
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_conflict_* | DESCRIBE | KEEP name, type, original_types, suggested_cast | SORT name'
+
+  - length: { values: 2 }
+  - match: { values.0: [ "client", "unsupported", [ "ip", "keyword" ], "keyword" ] }
+  - match: { values.1: [ "host", "keyword", null, null ] }

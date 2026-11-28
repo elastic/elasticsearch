@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -111,9 +110,7 @@ public class ColumnInfoImpl implements ColumnInfo {
         if (originalTypes == null) {
             return null;
         }
-        return DataType.suggestedCast(
-            originalTypes.stream().map(DataType::fromTypeName).filter(Objects::nonNull).collect(Collectors.toSet())
-        );
+        return DataType.suggestedCastOfTypeNames(originalTypes);
     }
 
     public ColumnInfoImpl(StreamInput in) throws IOException {

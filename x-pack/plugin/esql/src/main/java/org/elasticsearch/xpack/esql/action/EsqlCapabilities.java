@@ -4975,6 +4975,12 @@ public class EsqlCapabilities {
         COLUMN_METADATA_DESCRIBE_COLUMNS,
 
         /**
+         * {@code DESCRIBE} reports the {@code original_types} and {@code suggested_cast} of an unsupported column, as the
+         * columns of the response do.
+         */
+        DESCRIBE_ORIGINAL_TYPES,
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
          * a sibling branch has, with one type in every branch that has it, reads that column from its own {@code _source}, cast to
          * that type, instead of null-filling it. It makes no difference how the sibling got the column: a mapping, an {@code EVAL}, a

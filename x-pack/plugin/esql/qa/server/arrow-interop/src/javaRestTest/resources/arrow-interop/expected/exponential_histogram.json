@@ -1,0 +1,17 @@
+[
+  { "name": "eh",
+    "type": "struct<scale: int32, sum: double, min: double, max: double, zero: struct<count: int64, threshold: double>, positive: struct<indices: list<int64>, counts: list<int64>>, negative: struct<indices: list<int64>, counts: list<int64>>>",
+    "nullable": true,
+    "metadata": {"elastic:type": "exponential_histogram"},
+    "values": [
+      { "scale": 2, "sum": 18, "min": -1.1, "max": 2,
+        "zero": { "count": 3, "threshold": 0.5 },
+        "positive": { "indices": [1, 3], "counts": [5, 7] },
+        "negative": { "indices": [-1], "counts": [2] } },
+      null,
+      { "scale": 1, "sum": null, "min": null, "max": null,
+        "zero": { "count": 0, "threshold": 1.25 },
+        "positive": { "indices": [], "counts": [] },
+        "negative": { "indices": [], "counts": [] } }
+    ] }
+]

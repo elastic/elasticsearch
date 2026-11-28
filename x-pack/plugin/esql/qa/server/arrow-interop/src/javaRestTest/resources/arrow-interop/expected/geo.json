@@ -1,0 +1,30 @@
+[
+  { "name": "gp", "type": "binary", "nullable": true,
+    "metadata": {
+      "elastic:type": "geo_point",
+      "ARROW:extension:name": "geoarrow.wkb",
+      "ARROW:extension:metadata": "{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}"
+    },
+    "values": [{"base64": "AQEAAAAAAAAAAIBWQAAAAAAAgEZA"}, null, {"base64": "AQEAAAAAAAAAAIBWwAAAAAAAgEbA"}] },
+  { "name": "gs", "type": "binary", "nullable": true,
+    "metadata": {
+      "elastic:type": "geo_shape",
+      "ARROW:extension:name": "geoarrow.wkb",
+      "ARROW:extension:metadata": "{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}"
+    },
+    "values": [
+      {"base64": "AQIAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgFZAAAAAAACARkA="},
+      null,
+      {"base64": "AQIAAAACAAAAAAAAAACAVsAAAAAAAIBGwAAAAAAAAAAAAAAAAAAAAAA="}
+    ] },
+  { "name": "cp", "type": "binary", "nullable": true,
+    "metadata": {"elastic:type": "cartesian_point", "ARROW:extension:name": "geoarrow.wkb"},
+    "values": [{"base64": "AQEAAAAAAAAAAAD4PwAAAAAAAARA"}, null, {"base64": "AQEAAAAAAAAAAAD4vwAAAAAAAOA/"}] },
+  { "name": "cs", "type": "binary", "nullable": true,
+    "metadata": {"elastic:type": "cartesian_shape", "ARROW:extension:name": "geoarrow.wkb"},
+    "values": [
+      {"base64": "AQIAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPg/AAAAAAAABEA="},
+      null,
+      {"base64": "AQIAAAACAAAAAAAAAAAA+L8AAAAAAADgPwAAAAAAAAAAAAAAAAAAAAA="}
+    ] }
+]

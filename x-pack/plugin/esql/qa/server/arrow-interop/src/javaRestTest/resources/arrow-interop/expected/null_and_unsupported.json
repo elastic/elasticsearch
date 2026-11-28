@@ -1,0 +1,8 @@
+[
+  { "name": "bin", "type": "null", "nullable": true,
+    "metadata": {"elastic:type": "unsupported"},
+    "values": [null, null, null] },
+  { "name": "n", "type": "null", "nullable": true,
+    "metadata": {"elastic:type": "null"},
+    "values": [null, null, null] }
+]

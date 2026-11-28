@@ -1,0 +1,8 @@
+{
+  "name": "arrow-interop-node",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "apache-arrow": "21.2.0"
+  }
+}

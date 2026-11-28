@@ -1,0 +1,9 @@
+[
+  { "name": "hi", "type": "struct<values: list<double>, counts: list<int64>>", "nullable": true,
+    "metadata": {"elastic:type": "histogram"},
+    "values": [
+      { "values": [1, 2.5], "counts": [2, 4] },
+      null,
+      { "values": [], "counts": [] }
+    ] }
+]

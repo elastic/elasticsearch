@@ -1,0 +1,3 @@
+[
+  { "name": "i", "type": "int32", "nullable": true, "metadata": {"elastic:type": "integer"}, "values": [] }
+]

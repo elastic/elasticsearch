@@ -1,0 +1,50 @@
+apply plugin: 'java'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+description = 'Checks that the official Apache Arrow clients (Python, Node.js) can read ES|QL Arrow responses'
+
+dependencies {
+  // Runs the Arrow clients in Docker containers
+  javaRestTestImplementation project(':test:fixtures:arrow-interop-fixture')
+  javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+
+  // Modules that provide ES|QL and the field types under test, on top of the minimal distribution
+  clusterModules project(xpackModule('esql'))
+  // x-pack-esql extends x-pack-eql (-> x-pack-ql -> mapper-version)
+  clusterModules project(xpackModule('eql'))
+  clusterModules project(xpackModule('ql'))
+  clusterModules project(xpackModule('mapper-version'))
+  clusterModules project(xpackModule('mapper-unsigned-long'))
+  clusterModules project(xpackModule('mapper-aggregate-metric'))
+  clusterModules project(xpackModule('spatial'))
+  clusterModules project(xpackModule('analytics')) // histogram, exponential_histogram, tdigest
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams') // time series
+  clusterModules project(':modules:aggregations')
+  clusterModules project(xpackModule('autoscaling'))
+  clusterModules project(xpackModule('ilm')) // x-pack core registers ILM settings and actions, which must then exist
+}
+
+tasks.named('javaRestTest') {
+  // Docker availability is only checked by a JUnit rule, which skips the whole suite when Docker is missing. It must be a
+  // task input, so that a run skipped for lack of Docker is not reused (up-to-date or from the build cache) once Docker is available.
+  inputs.property('dockerAvailable', providers.provider {
+    try {
+      new ProcessBuilder('docker', 'info')
+        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+        .redirectError(ProcessBuilder.Redirect.DISCARD)
+        .start()
+        .waitFor() == 0
+    } catch (IOException e) {
+      false // no docker command
+    }
+  })
+}

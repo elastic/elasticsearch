@@ -1,0 +1,5 @@
+[
+  { "name": "v", "type": "string", "nullable": true,
+    "metadata": {"elastic:type": "version"},
+    "values": ["1.0.1", null, "2.3.4-beta"] }
+]

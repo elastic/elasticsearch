@@ -1,0 +1,11 @@
+[
+  { "name": "gh", "type": "uint64", "nullable": true,
+    "metadata": {"elastic:type": "geohash"},
+    "values": [15728644, null, 3145732] },
+  { "name": "gx", "type": "int64", "nullable": true,
+    "metadata": {"elastic:type": "geohex"},
+    "values": ["590631601759584255", null, "593618356376961023"] },
+  { "name": "gt", "type": "struct<zoom: uint8, x: uint32, y: uint32>", "nullable": true,
+    "metadata": {"elastic:type": "geotile"},
+    "values": [{ "zoom": 3, "x": 6, "y": 2 }, null, { "zoom": 3, "x": 2, "y": 5 }] }
+]

@@ -1,0 +1,435 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.qa.arrow_interop;
+
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.apache.http.entity.ContentType;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.fixtures.arrowinterop.ArrowInteropContainer;
+import org.elasticsearch.test.fixtures.arrowinterop.ArrowInteropContainer.Language;
+import org.elasticsearch.test.fixtures.testcontainers.DockerAvailability;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.IntStream;
+
+import static java.util.stream.Collectors.toSet;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
+/**
+ * Checks that the official Arrow libraries of other languages ({@code pyarrow} and {@code apache-arrow} for Node.js)
+ * can fetch and decode ES|QL Arrow responses over HTTP.
+ * <p>
+ * The clients run in Docker containers (see {@link ArrowInteropContainer}), which print a normalized JSON description of
+ * what they decoded. As both languages print the same JSON, a single table of expectations is used for all of them.
+ * <p>
+ * Test data and expectations are in {@code src/javaRestTest/resources/arrow-interop}:
+ * <ul>
+ * <li>{@code mapping.json} and {@code bulk.ndjson} define the {@value #INDEX} index that most tests query. It has one
+ * column per type under test, and three documents: a first one with values, a second one with only nulls, and a last one
+ * with other values;</li>
+ * <li>{@code expected/<scenario>.json} is the array of columns that clients must decode for a scenario.</li>
+ * </ul>
+ */
+@ThreadLeakFilters(
+    filters = { TestClustersThreadFilter.class, TestContainersThreadFilter.class, ArrowInteropIT.PortRelayThreadFilter.class }
+)
+public class ArrowInteropIT extends ESRestTestCase {
+
+    private static final String INDEX = "arrow-interop";
+
+    /**
+     * The relay that Testcontainers sets up to expose the node to the containers has an unnamed thread, that is
+     * running for the whole JVM and that we can't stop. It is identified by its stack.
+     */
+    public static class PortRelayThreadFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+            return Arrays.stream(t.getStackTrace()).anyMatch(e -> e.getClassName().startsWith("org.testcontainers.shaded.com.trilead."));
+        }
+    }
+
+    private static String localhostAddress() {
+        try {
+            return NetworkAddress.format(InetAddress.getByName("localhost"));
+        } catch (UnknownHostException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.INTEG_TEST)
+        .module("x-pack-esql")
+        .module("x-pack-eql")
+        .module("x-pack-ql")
+        .module("mapper-version")
+        .module("unsigned-long")
+        .module("x-pack-aggregate-metric")
+        .module("spatial")
+        .module("x-pack-analytics")
+        .module("lang-painless")
+        .module("mapper-extras")
+        .module("data-streams")
+        .module("aggregations")
+        .module("x-pack-autoscaling")
+        .module("x-pack-ilm")
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        // The relay forwards connections to "localhost", whose loopback address (IPv4 or IPv6) depends on the JVM settings
+        .setting("http.host", localhostAddress())
+        .build();
+
+    /**
+     * The Arrow clients run in Docker containers, that reach the node through a relay set up by Testcontainers: the node
+     * only listens on loopback, and isn't exposed to the network. Docker availability is checked first so that nothing is
+     * started if the tests are skipped. The relay is set up once the node is started, and before the clients start, hence
+     * the explicit order of the rules.
+     * <p>
+     * The clients are started once for all tests, as each test then only runs a client in its container.
+     * The tests are skipped if Docker is not available.
+     */
+    private static final ArrowInteropContainer pythonClient = new ArrowInteropContainer(Language.PYTHON);
+    private static final ArrowInteropContainer nodeClient = new ArrowInteropContainer(Language.NODE);
+
+    @ClassRule
+    public static TestRule rules = RuleChain.outerRule(new ExternalResource() {
+        @Override
+        protected void before() {
+            DockerAvailability.assumeDockerIsAvailable();
+        }
+    }).around(cluster).around(new ExternalResource() {
+        @Override
+        protected void before() {
+            ArrowInteropContainer.exposeHostPort(httpPort());
+        }
+    }).around(pythonClient).around(nodeClient);
+
+    private static List<ArrowInteropContainer> clients() {
+        return List.of(pythonClient, nodeClient);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Before
+    public void initIndex() throws IOException {
+        Request request = new Request("PUT", "/" + INDEX);
+        request.setJsonEntity(resource("mapping.json"));
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_bulk?index=" + INDEX + "&refresh=true");
+        request.setJsonEntity(resource("bulk.ndjson"));
+        assertBulkSuccess(client().performRequest(request));
+    }
+
+    public void testBasicTypes() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP i, l, d, k, b, t, mv", "basic_types");
+    }
+
+    /** IPv4 addresses are 4 bytes, IPv6 ones are 16 bytes. */
+    public void testIp() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP ip", "ip");
+    }
+
+    /** Versions are binary-encoded in ES|QL, but are turned into strings in the Arrow output. */
+    public void testVersion() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP v", "version");
+    }
+
+    /**
+     * T-Digests are the only histogram type with an Arrow representation (others are not implemented yet).
+     * A struct is null for a missing digest, and an empty digest is a struct with empty lists and null min/max/sum.
+     */
+    public void testTDigest() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP td", "tdigest");
+    }
+
+    /** A struct of nullable metrics, which is null for a missing summary. */
+    public void testAggregateMetricDouble() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP m", "aggregate_metric_double");
+    }
+
+    /**
+     * Geometries are WKB binary, tagged as GeoArrow through the field metadata (what Arrow calls an extension type, which
+     * libraries that don't know it read as the underlying binary type). Only geographic types have a CRS.
+     * Coordinates are chosen so that they are exactly represented by the encoding of the geo types.
+     */
+    public void testGeo() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP gp, gs, cp, cs", "geo");
+    }
+
+    /** Unsigned longs are unsigned 64-bit integers in Arrow, nanosecond dates keep their unit, and text is a string. */
+    public void testNumericAndTextTypes() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP big, ul, dn, tx", "numeric_and_text");
+    }
+
+    /** Dense vectors are lists of {@code float32}, with no sign of the {@code dims} in the Arrow type. */
+    public void testDenseVector() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP dv", "dense_vector");
+    }
+
+    /** Classic histograms are structs of parallel values and counts lists. */
+    public void testHistogram() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP hi", "histogram");
+    }
+
+    /** Exponential histograms are structs with summary values, a zero bucket and positive and negative buckets. */
+    public void testExponentialHistogram() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP eh", "exponential_histogram");
+    }
+
+    /** {@code _source} and {@code flattened} are JSON text, tagged with the {@code arrow.json} extension type. */
+    public void testJson() throws IOException {
+        assertColumns("FROM arrow-interop METADATA _source | SORT i | KEEP fl, _source", "json");
+    }
+
+    /** Ranges are structs with a {@code from} and a {@code to} field. */
+    public void testRanges() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP dr, dbr", "ranges");
+    }
+
+    /** Geohash and geohex are integers, and geotile is a struct of its zoom, x and y components. */
+    public void testGeoGrids() throws IOException {
+        assertColumns(
+            "FROM arrow-interop | SORT i | EVAL gh = ST_GEOHASH(gp, 4), gx = ST_GEOHEX(gp, 3), gt = ST_GEOTILE(gp, 3) | KEEP gh, gx, gt",
+            "geo_grids"
+        );
+    }
+
+    /** Fields that ES|QL can't handle are reported as the {@code null} type, as is a literal {@code null}. */
+    public void testNullAndUnsupported() throws IOException {
+        assertColumns("FROM arrow-interop | SORT i | KEEP bin | EVAL n = null", "null_and_unsupported");
+    }
+
+    /** Counters have the type of their underlying number, and time series IDs are binary. */
+    public void testTimeSeries() throws IOException {
+        Request request = new Request("PUT", "/arrow-interop-ts");
+        request.setJsonEntity(resource("time_series_mapping.json"));
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_bulk?index=arrow-interop-ts&refresh=true");
+        request.setJsonEntity(resource("time_series_bulk.ndjson"));
+        assertBulkSuccess(client().performRequest(request));
+
+        // The _tsid is a hash that is an implementation detail: only check that every series has a distinct, non-empty one
+        assertColumns("TS arrow-interop-ts METADATA _tsid | SORT host | KEEP ci, cl, cd, _tsid", "time_series", Set.of("_tsid"));
+    }
+
+    /**
+     * Every other test asks for Arrow with {@code format=arrow}, which has precedence: this one only has the {@code Accept} header,
+     * and checks the content type of the response too.
+     */
+    public void testAcceptHeaderNegotiation() throws IOException {
+        // The clients only report the body they decoded, so the content type is checked separately
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity("{\"query\": \"FROM arrow-interop | SORT i | KEEP ip | LIMIT 10\"}");
+        request.setOptions(request.getOptions().toBuilder().addHeader("Accept", "application/vnd.apache.arrow.stream"));
+        // Exact media type, ignoring parameters
+        assertEquals(
+            "application/vnd.apache.arrow.stream",
+            ContentType.parse(client().performRequest(request).getEntity().getContentType().getValue()).getMimeType()
+        );
+
+        List<?> expected = (List<?>) parseJson("{\"columns\":" + resource("expected/ip.json") + "}").get("columns");
+        for (ArrowInteropContainer client : clients()) {
+            Map<String, Object> result = fetch(client, "FROM arrow-interop | SORT i | KEEP ip", Map.of(), false);
+            assertEquals("Columns decoded by " + client.language(), expected, result.get("columns"));
+        }
+    }
+
+    /** The schema is sent even if there are no rows. */
+    public void testEmptyResult() throws IOException {
+        assertColumns("FROM arrow-interop | WHERE i > 100 | KEEP i", "empty_result");
+    }
+
+    /**
+     * A result that is larger than one ES|QL page is streamed as several Arrow record batches, that the clients
+     * must read to the end. A small page size makes the result span several pages without needing a lot of documents.
+     */
+    public void testMultipleBatches() throws IOException {
+        int docCount = 5_000;
+        int pageSize = 1_000;
+        indexNumbers("arrow-interop-big", docCount);
+
+        for (ArrowInteropContainer client : clients()) {
+            String language = client.language().toString();
+            Map<String, Object> result = fetch(
+                client,
+                "FROM arrow-interop-big | KEEP n | LIMIT " + docCount,
+                Map.of("pragma", Map.of("page_size", pageSize), "accept_pragma_risks", true)
+            );
+            List<?> batches = (List<?>) result.get("batches");
+            assertThat("Batches decoded by " + language, batches.size(), greaterThanOrEqualTo(docCount / pageSize));
+            assertEquals("Rows in batches decoded by " + language, docCount, batches.stream().mapToInt(b -> (Integer) b).sum());
+
+            // Rows are not sorted, check that every value is there exactly once
+            List<?> columns = (List<?>) result.get("columns");
+            List<?> values = (List<?>) ((Map<?, ?>) columns.get(0)).get("values");
+            assertEquals("Values decoded by " + language, IntStream.range(0, docCount).boxed().collect(toSet()), Set.copyOf(values));
+            assertEquals("Values decoded by " + language, docCount, values.size());
+        }
+    }
+
+    /** A bulk request that has failing items still returns HTTP 200, which would silently drop test documents. */
+    private static void assertBulkSuccess(Response response) throws IOException {
+        assertOK(response);
+        Map<String, Object> body = entityAsMap(response);
+        assertEquals(body.toString(), false, body.get("errors"));
+    }
+
+    /** Creates an index with an integer field {@code n} that has the values {@code 0..count-1}. */
+    private void indexNumbers(String index, int count) throws IOException {
+        Request request = new Request("PUT", "/" + index);
+        request.setJsonEntity("""
+            { "mappings": { "properties": { "n": { "type": "integer" } } } }""");
+        assertOK(client().performRequest(request));
+
+        StringBuilder bulk = new StringBuilder();
+        for (int n = 0; n < count; n++) {
+            bulk.append("{\"index\": {}}\n{\"n\": ").append(n).append("}\n");
+        }
+        request = new Request("POST", "/_bulk?index=" + index + "&refresh=true");
+        request.setJsonEntity(bulk.toString());
+        assertBulkSuccess(client().performRequest(request));
+    }
+
+    /**
+     * Runs the query with every Arrow client, and checks that the columns they decoded are the expected ones.
+     *
+     * @param expectedColumns name of the resource {@code expected/<name>.json}, a JSON array of the expected columns
+     *                        in the format printed by the clients
+     */
+    private void assertColumns(String query, String expectedColumns) throws IOException {
+        assertColumns(query, expectedColumns, Set.of());
+    }
+
+    /**
+     * Same, where the values of the columns named in {@code opaque} are not compared, as their encoding is an implementation
+     * detail. Instead, the column is compared with a list of booleans that tell for each row if it has a non-empty value, followed
+     * by {@code "not distinct"} if some values are equal.
+     */
+    private void assertColumns(String query, String expectedColumns, Set<String> opaque) throws IOException {
+        // Parsed the same way as the clients' output, so that numbers have the same Java types
+        List<?> expected = (List<?>) parseJson("{\"columns\":" + resource("expected/" + expectedColumns + ".json") + "}").get("columns");
+        expected = expected.stream().map(ArrowInteropIT::parseJsonValues).toList();
+        for (ArrowInteropContainer client : clients()) {
+            List<?> actual = (List<?>) fetch(client, query).get("columns");
+            actual = actual.stream().map(c -> parseJsonValues(opaqueValues(c, opaque))).toList();
+            assertEquals("Columns decoded by " + client.language(), expected, actual);
+        }
+    }
+
+    /** Binary values are decoded as {@code {"base64": "..."}}. */
+    private static boolean isNonEmptyBinary(Object value) {
+        return value instanceof Map<?, ?> map && map.get("base64") instanceof String base64 && base64.isEmpty() == false;
+    }
+
+    /** Values of columns tagged with the {@code arrow.json} extension are JSON text, which is compared as parsed JSON. */
+    private static Object parseJsonValues(Object column) {
+        Map<?, ?> map = (Map<?, ?>) column;
+        if ((map.get("metadata") instanceof Map<?, ?> metadata && "arrow.json".equals(metadata.get("ARROW:extension:name"))) == false) {
+            return column;
+        }
+        Map<Object, Object> copy = new LinkedHashMap<>(map);
+        copy.put("values", ((List<?>) map.get("values")).stream().map(v -> v == null ? null : parseJsonUnchecked((String) v)).toList());
+        return copy;
+    }
+
+    /** Parses a JSON object, and fails if anything follows it: a client parsing the whole cell would reject that. */
+    private static Object parseJsonUnchecked(String json) {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            Map<String, Object> result = parser.map();
+            assertNull("Unexpected content after the JSON object in " + json, parser.nextToken());
+            return result;
+        } catch (IOException e) {
+            throw new AssertionError("Invalid JSON: " + json, e);
+        }
+    }
+
+    private static Object opaqueValues(Object column, Set<String> names) {
+        Map<?, ?> map = (Map<?, ?>) column;
+        if (names.contains(map.get("name")) == false) {
+            return column;
+        }
+        List<?> values = (List<?>) map.get("values");
+        List<Object> summary = new ArrayList<>(values.stream().map(ArrowInteropIT::isNonEmptyBinary).toList());
+        if (values.stream().filter(Objects::nonNull).distinct().count() != values.stream().filter(Objects::nonNull).count()) {
+            summary.add("not distinct");
+        }
+        Map<Object, Object> copy = new LinkedHashMap<>(map);
+        copy.put("values", summary);
+        return copy;
+    }
+
+    /** Runs the query with the given Arrow client, and returns the JSON it printed. */
+    private Map<String, Object> fetch(ArrowInteropContainer client, String query) throws IOException {
+        return fetch(client, query, Map.of());
+    }
+
+    /** Same, with additional fields in the request body. */
+    private Map<String, Object> fetch(ArrowInteropContainer client, String query, Map<String, Object> extraBody) throws IOException {
+        return fetch(client, query, extraBody, true);
+    }
+
+    /** Same, optionally leaving the {@code format} parameter out so that the format is chosen from the {@code Accept} header only. */
+    private Map<String, Object> fetch(ArrowInteropContainer client, String query, Map<String, Object> extraBody, boolean formatParam)
+        throws IOException {
+        String url = "http://" + ArrowInteropContainer.HOST_ADDRESS + ":" + httpPort() + "/_query" + (formatParam ? "?format=arrow" : "");
+        String body = Strings.toString(
+            JsonXContent.contentBuilder().startObject().field("query", query).mapContents(extraBody).endObject()
+        );
+        return parseJson(client.fetch(url, body));
+    }
+
+    private static int httpPort() {
+        String address = cluster.getHttpAddresses().split(",")[0];
+        return Integer.parseInt(address.substring(address.lastIndexOf(':') + 1));
+    }
+
+    private static Map<String, Object> parseJson(String json) throws IOException {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
+    }
+
+    private static String resource(String name) throws IOException {
+        try (InputStream in = ArrowInteropIT.class.getResourceAsStream("/arrow-interop/" + name)) {
+            assertNotNull("Missing resource " + name, in);
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+}

@@ -151,8 +151,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
-import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -312,7 +312,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
-    public static final String FIPS_SYSPROP = "tests.fips.enabled";
+    public static final String FIPS_SYSPROP = ReproduceInfoPrinter.FIPS_SYSPROP;
 
     private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
 

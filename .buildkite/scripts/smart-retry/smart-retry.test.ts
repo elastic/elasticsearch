@@ -127,6 +127,43 @@ describe("transformTaskStatus", () => {
     });
   });
 
+  test("a method with a failing run is not in successfulTests for its passing runs", () => {
+    // Runs of a method repeated with -Dtests.iters are reported under the same name, and a retry excludes tests by name
+    const result = transformTaskStatus(
+      makeReport({
+        tasks: [{ path: ":server:test", outcome: "FAILED" }],
+        tests: [
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "SUCCESS" },
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "SUCCESS" },
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "SUCCESS" },
+        ],
+      }),
+      "",
+    );
+
+    expect(result.successfulTests).toEqual({ ":server:test": ["org.es.FooTest#testBar"] });
+  });
+
+  test("a failure of a method in one task does not keep the same method of another task from being excluded", () => {
+    const result = transformTaskStatus(
+      makeReport({
+        tasks: [
+          { path: ":server:test", outcome: "FAILED" },
+          { path: ":modules:test", outcome: "FAILED" },
+        ],
+        tests: [
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
+          { taskPath: ":modules:test", className: "org.es.FooTest", methodName: "testFoo", result: "SUCCESS" },
+          { taskPath: ":modules:test", className: "org.es.BarTest", methodName: "testBar", result: "FAILURE" },
+        ],
+      }),
+      "",
+    );
+
+    expect(result.successfulTests).toEqual({ ":modules:test": ["org.es.FooTest#testFoo"] });
+  });
+
   test("task failed at Gradle level without test failures — passing tests go into successfulTests", () => {
     const result = transformTaskStatus(
       makeReport({

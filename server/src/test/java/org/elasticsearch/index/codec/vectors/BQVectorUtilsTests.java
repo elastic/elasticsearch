@@ -19,11 +19,16 @@
  */
 package org.elasticsearch.index.codec.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class BQVectorUtilsTests extends LuceneTestCase {
 

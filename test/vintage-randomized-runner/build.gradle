@@ -27,6 +27,9 @@ dependencies {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
 
+  // only for the SuppressForbidden annotation in test code
+  testCompileOnly project(':libs:core')
+
   runtimeOnly "org.junit.jupiter:junit-jupiter:${versions.junit}"
   runtimeOnly("org.junit.vintage:junit-vintage-engine:${versions.junit}") {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'

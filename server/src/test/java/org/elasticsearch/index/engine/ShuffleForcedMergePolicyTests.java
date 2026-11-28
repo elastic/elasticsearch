@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -25,6 +27,8 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseMergePolicyTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -34,6 +38,8 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {

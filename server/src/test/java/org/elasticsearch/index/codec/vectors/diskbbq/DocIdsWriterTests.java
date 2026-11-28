@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexWriter;
@@ -29,6 +31,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -38,6 +41,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class DocIdsWriterTests extends LuceneTestCase {
 

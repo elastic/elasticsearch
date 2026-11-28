@@ -205,8 +205,7 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         given:
         // The fixture compiles a copy of the runner of the Elasticsearch tests, as it cannot be a dependency of this build, see the
         // integTest task definition in build.gradle
-        file("src/test/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text =
-            new File(System.getProperty("es.randomized.runner.source")).text
+        copyRandomizedRunnerSources("src/test/java")
         file("src/test/java/org/acme/ParameterizedTests.java").text = """
             package org.acme;
 
@@ -274,5 +273,12 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         "org.acme.ParameterizedTests.otherTest {phase=2}" | "only that variant"          | ["otherTest {phase=2}"]
         "org.acme.ParameterizedTests.someTest*"           | "all variants of the method" |
             ["someTest {phase=0}", "someTest {phase=1}", "someTest {phase=2}"]
+    }
+
+    private void copyRandomizedRunnerSources(String sourceDir) {
+        file("${sourceDir}/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text =
+            new File(System.getProperty("es.randomized.runner.source")).text
+        file("${sourceDir}/org/elasticsearch/test/junit/runner/IterationSeeds.java").text =
+            new File(System.getProperty("es.randomized.runner.iteration.seeds.source")).text
     }
 }

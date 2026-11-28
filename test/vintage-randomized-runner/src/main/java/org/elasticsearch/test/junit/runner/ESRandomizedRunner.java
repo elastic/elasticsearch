@@ -11,11 +11,15 @@ package org.elasticsearch.test.junit.runner;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 
 import org.junit.runner.Description;
+import org.junit.runner.Result;
 import org.junit.runner.Runner;
 import org.junit.runner.manipulation.Filter;
 import org.junit.runner.manipulation.Filterable;
 import org.junit.runner.manipulation.NoTestsRemainException;
+import org.junit.runner.notification.Failure;
+import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
+import org.junit.runner.notification.StoppedByUserException;
 import org.junit.runners.model.InitializationError;
 
 import java.util.HashSet;
@@ -77,7 +81,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
         for (Description child : description.getChildren()) {
             if (child.isTest()) {
                 if (child.getMethodName() != null) {
-                    flat.addChild(child);
+                    flat.addChild(expose(child));
                 }
             } else {
                 addLeaves(child, flat);
@@ -86,8 +90,110 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
     }
 
     @Override
-    public void run(RunNotifier notifier) {
-        delegate.run(notifier);
+    public void run(RunNotifier actualNotifier) {
+        delegate.run(new ExposingNotifier(actualNotifier));
+    }
+
+    /**
+     * The notifier {@link RandomizedRunner} fires its events on. The actual notifier is called directly, and first, instead of through
+     * a listener, so that what it throws gets to {@link RandomizedRunner} as it would without this wrapper. A listener of
+     * a {@link RunNotifier} has its exceptions turned into a failure, and the Vintage engine cancels a run by throwing
+     * {@link StoppedByUserException} from {@code fireTestStarted}. Being first also keeps the listeners from hearing about a test that
+     * was canceled before it started.
+     * <p>
+     * Every {@code fire*()} method of {@link RunNotifier} is overridden, even though {@link RandomizedRunner} only fires the
+     * events of tests (started, finished, failed, assumption failed and ignored).
+     */
+    private static final class ExposingNotifier extends RunNotifier {
+
+        private final RunNotifier actual;
+
+        ExposingNotifier(RunNotifier actual) {
+            this.actual = actual;
+            // First, as the listeners of the actual notifier are told before the ones RandomizedRunner adds to its own
+            super.addFirstListener(new TestMechanismFailureForwarder());
+        }
+
+        /**
+         * A {@link RunNotifier} turns an exception thrown by a listener, such as one of the test class, into a failure of
+         * {@link Description#TEST_MECHANISM}, and tells the listeners that did not throw about it once all of them have been told about
+         * the event that caused it. It is told to the listeners of this notifier only, though, and the ones that report it to the
+         * Vintage engine, which turns it into a failing test, are the listeners of the actual notifier. This listener, which does not
+         * throw, hears of it with the others and passes it on.
+         * <p>
+         * It is the only way these failures get to the actual notifier, including when {@link RandomizedRunner} fires one itself.
+         */
+        private final class TestMechanismFailureForwarder extends RunListener {
+            @Override
+            public void testFailure(Failure failure) {
+                if (failure.getDescription() == Description.TEST_MECHANISM) {
+                    actual.fireTestFailure(failure);
+                }
+            }
+        }
+
+        @Override
+        public void fireTestRunStarted(Description description) {
+            actual.fireTestRunStarted(description);
+            super.fireTestRunStarted(description);
+        }
+
+        @Override
+        public void fireTestRunFinished(Result result) {
+            actual.fireTestRunFinished(result);
+            super.fireTestRunFinished(result);
+        }
+
+        @Override
+        public void fireTestSuiteStarted(Description description) {
+            actual.fireTestSuiteStarted(exposeIfTest(description));
+            super.fireTestSuiteStarted(description);
+        }
+
+        @Override
+        public void fireTestSuiteFinished(Description description) {
+            actual.fireTestSuiteFinished(exposeIfTest(description));
+            super.fireTestSuiteFinished(description);
+        }
+
+        @Override
+        public void fireTestStarted(Description description) throws StoppedByUserException {
+            actual.fireTestStarted(exposeIfTest(description));
+            super.fireTestStarted(description);
+        }
+
+        @Override
+        public void fireTestFinished(Description description) {
+            actual.fireTestFinished(exposeIfTest(description));
+            super.fireTestFinished(description);
+        }
+
+        @Override
+        public void fireTestFailure(Failure failure) {
+            // The failures of the test mechanism are passed on by the TestMechanismFailureForwarder
+            if (failure.getDescription() != Description.TEST_MECHANISM) {
+                actual.fireTestFailure(new Failure(exposeIfTest(failure.getDescription()), failure.getException()));
+            }
+            super.fireTestFailure(failure);
+        }
+
+        @Override
+        public void fireTestAssumptionFailed(Failure failure) {
+            actual.fireTestAssumptionFailed(new Failure(exposeIfTest(failure.getDescription()), failure.getException()));
+            super.fireTestAssumptionFailed(failure);
+        }
+
+        @Override
+        public void fireTestIgnored(Description description) {
+            actual.fireTestIgnored(exposeIfTest(description));
+            super.fireTestIgnored(description);
+        }
+
+        @Override
+        public void pleaseStop() {
+            actual.pleaseStop();
+            super.pleaseStop();
+        }
     }
 
     @Override
@@ -119,7 +225,7 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
 
     private static void collectAccepted(Description description, Filter filter, Set<Description> accepted) {
         if (description.isTest()) {
-            if (filter.shouldRun(description)) {
+            if (description.getMethodName() != null && filter.shouldRun(expose(description))) {
                 accepted.add(description);
             }
         } else {
@@ -127,5 +233,26 @@ public final class ESRandomizedRunner extends Runner implements Filterable {
                 collectAccepted(child, filter, accepted);
             }
         }
+    }
+
+    private static Description exposeIfTest(Description description) {
+        return description.isTest() && description.getMethodName() != null ? expose(description) : description;
+    }
+
+    /**
+     * The description of a test as seen by the JUnit Platform. With {@code tests.iters} {@link RandomizedRunner} puts the seed of each
+     * iteration in the name of the test ({@code testFoo {p=b seed=[X:Y]}}), so Gradle's {@code --tests Class.method} would not match any
+     * of them. The seed is moved to the description, which is a part of Vintage UniqueId -- it is what tells the iterations apart when they
+     * are filtered.
+     * <p>
+     * The description is made from the class name, so it has none of the annotations of the test method that the one
+     * {@link RandomizedRunner} creates from the class has. Nothing in the Vintage engine or Gradle reads them today.
+     */
+    private static Description expose(Description test) {
+        String name = IterationSeeds.withoutSeed(test.getMethodName());
+        if (name.equals(test.getMethodName())) {
+            return test;
+        }
+        return Description.createTestDescription(test.getClassName(), name, test.getDisplayName());
     }
 }

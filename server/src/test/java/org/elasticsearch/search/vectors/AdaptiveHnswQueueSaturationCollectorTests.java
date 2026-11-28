@@ -9,16 +9,21 @@
 
 package org.elasticsearch.search.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
 import java.util.Random;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
 

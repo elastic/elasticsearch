@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
@@ -37,8 +38,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BasePostingsFormatTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene40.blocktree.FieldReader;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene40.blocktree.Stats;
@@ -47,6 +50,8 @@ import org.junit.runner.RunWith;
 import java.io.IOException;
 
 /** Tests BlockPostingsFormat */
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 public class BlockPostingsFormatTests extends BasePostingsFormatTestCase {

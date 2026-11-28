@@ -9,8 +9,12 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -23,6 +27,8 @@ import org.junit.runner.RunWith;
  * runs for every format under test simply because the class extends this one, with no per-format
  * opt-in required.
  */
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public abstract class ESBaseKnnVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
 

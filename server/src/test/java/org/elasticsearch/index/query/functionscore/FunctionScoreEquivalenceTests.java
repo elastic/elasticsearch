@@ -8,17 +8,23 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.tests.search.SearchEquivalenceTestBase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
     static {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.sun.jna.IntegerType;
 import com.sun.jna.Native;
@@ -21,6 +22,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
 
@@ -45,6 +47,8 @@ import java.time.Duration;
  * not suitable for production, but adequate for this test.
  */
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@Listeners(ReproduceInfoPrinter.class)
+@LuceneTestCase.SuppressReproduceLine
 @RunWith(ESRandomizedRunner.class)
 public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
 

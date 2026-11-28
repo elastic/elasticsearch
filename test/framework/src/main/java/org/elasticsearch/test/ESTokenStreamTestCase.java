@@ -17,7 +17,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.listener.ReproduceInfoPrinter;
 
 @Listeners({ ReproduceInfoPrinter.class })
 @TimeoutSuite(millis = TimeUnits.HOUR)

@@ -46,8 +46,7 @@ import java.lang.annotation.Target;
  * (see <a href="https://github.com/elastic/elasticsearch/issues/160667">#160667</a>). Prefer passing
  * off-heap segments to a binding without {@code @Critical}. Add a {@code @Critical} overload that takes
  * heap segments only when copying the data off-heap is measurably too expensive, and keep it next to an
- * off-heap twin that has no {@code @Critical}; {@code ZstdLibrary} ({@code compress}/{@code compressHeap})
- * is an example of that pairing.
+ * off-heap twin that has no {@code @Critical}.
  *
  * <h2>JDK 21 fallback (required)</h2>
  *

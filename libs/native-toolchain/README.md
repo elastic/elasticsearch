@@ -188,7 +188,9 @@ the libc++ release Apple ships in that macOS version; `versions.env` documents t
 A library is published under a hash of the files its `sources` patterns select, together with the
 toolchain image, `supportedPlatforms`, the docker command, the `collect` mapping and the forwarded
 environment variables that are set. There is no version to bump.
-Every CI job runs with `<LIBRARY>_NATIVE_BUILD=docker` and the correct set of parameters (including credentials): when no artifact exists
+Every CI job that runs the shell hook `.buildkite/hooks/pre-command` (the Linux jobs) runs with `<LIBRARY>_NATIVE_BUILD=docker`
+and the correct set of parameters (including credentials); the Windows jobs (`.buildkite/hooks/pre-command.bat`) set no mode, so they
+only download (see below). When no artifact exists
 for the current hash, the first job to build it uploads `<name>-<hash>.zip` and
 `<name>-<hash>-debuginfo.zip`. Concurrent jobs that build binaries from the same sources (same hash) have their upload refused (the repository refuses to overwrite an artifact).
 
@@ -199,10 +201,15 @@ sources is all it takes.
 Note: this means that artifacts are "immutable": a hash is final once published. To replace a bad
 artifact, change the sources so that a new hash is generated.
 
-Jobs that only download (those whose `<LIBRARY>_NATIVE_BUILD` is not `docker`, such as the Windows jobs
-started by `.buildkite/hooks/pre-command.bat`) need the hash to be published before they start;
-otherwise they fail until a Docker-enabled job has uploaded it, and re-running them is enough. This
-applies to any change to a hashed file, including a comment in a `Makefile`.
+What a job does when the hash has no published artifact depends on `<LIBRARY>_NATIVE_BUILD`:
+- `docker`: builds every platform, and publishes it if it has credentials;
+- `host`: builds the current platform from source, and never publishes;
+- unset (or `artifactory`): download-only. It fails until a `docker` job has published the hash, and
+  re-running it then is enough. This is what the Windows jobs started by
+  `.buildkite/hooks/pre-command.bat` do.
+
+So only download-only jobs need to wait for publication. This applies to any change to a hashed file,
+including a comment in a `Makefile`.
 
 ### Build locally without publishing
 

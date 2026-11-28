@@ -166,6 +166,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     sealed interface PendingAllocationState {
         long primaryTerm();
 
+        int localRecoveryRetries();
+
         /// Marks exclusive ownership of a shard creation attempt: once claimed, nothing else claims or
         /// recreates this allocation until it resolves or the allocation itself goes stale. Lifecycle
         /// covers [#createShardWhenLockAvailable] (including any shard-lock-retry continuation) and the
@@ -192,7 +194,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 return startTimeMillis;
             }
 
-            int localRecoveryRetries() {
+            @Override
+            public int localRecoveryRetries() {
                 return localRecoveryRetries;
             }
 
@@ -227,7 +230,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /// because it is expected to learn of it by some other route. The entry still prevents shard creation, and if a later cluster state
         /// still assigns the allocation then [#updatePendingAllocationTracker] sends the failure then, like it does for any other entry
         /// which master has not yet acted on.
-        record FailureReported(ShardRouting routing, long primaryTerm, ShardFailureType failureType) implements PendingAllocationState {}
+        ///
+        /// Carries forward the retry count this allocation had at the moment of escalation, so the health tracker doesn't drop to 0 while
+        /// master is still catching up with this failure -- otherwise a shard that was already reporting retries could briefly look fully
+        /// healthy again right before master marks it failed.
+        record FailureReported(ShardRouting routing, long primaryTerm, ShardFailureType failureType, int localRecoveryRetries)
+            implements
+                PendingAllocationState {}
     }
 
     /// Keyed by allocation id (not just ShardId) so a new allocation of a shard can never collide with, or
@@ -246,17 +255,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /// Local recovery retry count for the shard allocation identified by `routing`, which must be
-    /// assigned to this node. [pendingAllocationStates] is checked first, since
-    /// it's the only place the count survives during the awaiting-retry window, when no local [Shard]
-    /// exists for this allocation. Otherwise, falls back to the local shard's own [Shard#recoveryState].
+    /// assigned to this node. [pendingAllocationStates] is checked first, since it's the only place
+    /// the count survives while [Shard] instance is non-existent (retry window and after shard failure).
+    /// Otherwise, falls back to the local shard's own [Shard#recoveryState].
     public int getLocalRecoveryRetryCount(ShardRouting routing) {
         final PendingAllocationState pending = pendingAllocationStates.get(ShardAllocationId.fromRouting(routing));
         if (pending != null) {
-            return switch (pending) {
-                case PendingAllocationState.InFlight inFlight -> inFlight.localRecoveryRetries();
-                case PendingAllocationState.AwaitingRecoveryRetry awaiting -> awaiting.localRecoveryRetries();
-                case PendingAllocationState.FailureReported ignored -> 0;
-            };
+            return pending.localRecoveryRetries();
         }
         final AllocatedIndex<? extends Shard> indexService = indicesService.indexService(routing.index());
         final Shard shard = indexService == null ? null : indexService.getShardOrNull(routing.id());
@@ -1760,6 +1765,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 case FAIL_SILENT -> {
                     // sendFailShard (which would otherwise overwrite this entry with FailureReported) didn't run,
                     // so nothing else clears this ticket -- there's no further attempt coming for it.
+                    // TODO: Keep retry count until shard allocation is removed elasticsearch-team/#5864
                     logger.debug("{} clearing creating-shard ticket: recovery failure strategy [{}]", key, finalStrategy);
                     pendingAllocationStates.remove(key, inFlightTicket);
                 }
@@ -1771,13 +1777,25 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     final boolean blocked = pendingAllocationStates.replace(
                         key,
                         inFlightTicket,
-                        new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureTypeOf(failure))
+                        new PendingAllocationState.FailureReported(
+                            shardRouting,
+                            primaryTerm,
+                            failureTypeOf(failure),
+                            inFlightTicket.localRecoveryRetries()
+                        )
                     );
                     assert blocked : "ticket for " + key + " was replaced while handling recovery failure";
                 }
                 case FAIL_SEND -> {
                     // The sendFailShard() method handles its own exceptions.
-                    sendFailShard(shardRouting, primaryTerm, message, failure, clusterService.state());
+                    sendFailShard(
+                        shardRouting,
+                        primaryTerm,
+                        message,
+                        failure,
+                        clusterService.state(),
+                        inFlightTicket.localRecoveryRetries()
+                    );
                 }
                 case ABORT -> {
                     // ShardRecoveryListener.onRecoveryFailure() returns early for ABORT and does not call handleRecoveryFailure()
@@ -1791,7 +1809,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // If we get here, something unexpected has happened. To be on the safe side, send a failure to the master: if it still thinks
             // the shard is recovering, it should be told; if it does not, it will discard the spurious message.
             failure.addSuppressed(e);
-            sendFailShard(shardRouting, primaryTerm, wrappedException.getMessage(), failure, clusterService.state());
+            sendFailShard(
+                shardRouting,
+                primaryTerm,
+                wrappedException.getMessage(),
+                failure,
+                clusterService.state(),
+                inFlightTicket.localRecoveryRetries()
+            );
             assert false : e;
         } finally {
             // A no-op if sendFailShard already overwrote this entry with FailureReported (its put always wins), or we swapped it
@@ -1919,8 +1944,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Executor shardCloseExecutor,
         Releasable onClosed
     ) {
+        // Snapshot before removeShard, which can close the local Shard that this would otherwise read from.
+        final int localRecoveryRetries = getLocalRecoveryRetryCount(shardRouting);
         removeShard(shardRouting, message, failure, shardCloseExecutor, onClosed);
-        sendFailShard(shardRouting, primaryTerm, message, failure, state);
+        sendFailShard(shardRouting, primaryTerm, message, failure, state, localRecoveryRetries);
     }
 
     private void sendFailShard(
@@ -1929,6 +1956,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         String message,
         @Nullable Exception failure,
         ClusterState state
+    ) {
+        sendFailShard(shardRouting, primaryTerm, message, failure, state, getLocalRecoveryRetryCount(shardRouting));
+    }
+
+    private void sendFailShard(
+        ShardRouting shardRouting,
+        long primaryTerm,
+        String message,
+        @Nullable Exception failure,
+        ClusterState state,
+        int localRecoveryRetries
     ) {
         final ShardId shardId = shardRouting.shardId();
         try {
@@ -1941,7 +1979,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
             // Failed-to-master always wins; unconditionally overwrites whatever state preceded it.
             final ShardAllocationId key = ShardAllocationId.fromRouting(shardRouting);
-            pendingAllocationStates.put(key, new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureType));
+            pendingAllocationStates.put(
+                key,
+                new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureType, localRecoveryRetries)
+            );
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);

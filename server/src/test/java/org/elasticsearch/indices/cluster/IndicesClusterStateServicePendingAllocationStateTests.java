@@ -640,8 +640,8 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(0));
     }
 
-    /// A shard whose failure was reported to master contributes nothing.
-    public void testGetLocalRecoveryRetryCountWithFailureReported() {
+    /// A shard whose failure was reported to master still reports the retry count it had at the moment of escalation.
+    public void testGetLocalRecoveryRetryCountCarriesForwardOnFailureReported() {
         ShardRouting shardRouting = applyInitializingPrimary();
         int retries = randomIntBetween(1, 5);
         handleRecoveryFailureWithRetries(shardRouting, retries);
@@ -657,7 +657,50 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         );
         assertTrue(isFailureReported(shardRouting));
 
-        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(0));
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
+    }
+
+    /// [FailureStrategy#FAIL_SILENT_AND_BLOCK] replaces the InFlight ticket directly, make sure it carries the retry count forward.
+    public void testGetLocalRecoveryRetryCountCarriesForwardOnFailSilentAndBlock() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(shardRouting, retries);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertThat(currentInFlight(shardRouting).localRecoveryRetries(), equalTo(retries));
+
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT_AND_BLOCK,
+            primaryTerm(shardRouting),
+            new Exception("master will find out another way"),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
+    }
+
+    /// When failing a shard we must carry forward the retry count for that shard into the failure ticket,
+    /// also when failure doesn't go through [RecoveryListener#onRecoveryFailure]
+    public void testGetLocalRecoveryRetryCountCarriesForwardWhenShardFailsAfterTicketReleased() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(shardRouting, retries);
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        indicesService.completeRecoveryViaListener();
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
+
+        // An unrelated engine failure, reported via the onShardFailure callback
+        final var onShardFailure = indicesService.lastOnShardFailure;
+        assertNotNull(onShardFailure);
+        onShardFailure.accept(new IndexShard.ShardFailure(shardRouting, primaryTerm(shardRouting), "simulated engine failure", null));
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(isFailureReported(shardRouting));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
     }
 
     /// No pending allocation state and no local [IndexShard] at all.
@@ -757,6 +800,10 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
     public void testFailureReportedResentWhileMasterHasNotProcessed() {
         ShardRouting shardRouting = applyInitializingPrimary();
+        int retries = randomIntBetween(1, 5);
+        handleRecoveryFailureWithRetries(shardRouting, retries);
+        deterministicTaskQueue.runAllRunnableTasks();
+
         indicesClusterStateService.handleRecoveryFailure(
             shardRouting,
             FAIL_SEND,
@@ -766,14 +813,16 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         );
         assertTrue(isFailureReported(shardRouting));
         verify(shardStateAction, times(1)).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
 
         // Same allocation, same primary term -- nothing here tells this node master has actually
         // processed the failure, so evictOrResendFailure's resend branch should fire again rather
-        // than silently going quiet.
+        // than silently going quiet. It never reconstructs the ticket, so the retry count must survive too.
         applyState(stateWithShardRouting(shardRouting));
 
         assertTrue(isFailureReported(shardRouting));
         verify(shardStateAction, times(2)).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(retries));
     }
 
     public void testFailSilentAndBlockDoesNotNotifyMasterImmediately() {

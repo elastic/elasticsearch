@@ -137,6 +137,31 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         );
     }
 
+    /**
+     * Prometheus defines {@code quantile} and {@code quantile_over_time} with a φ outside [0, 1] as ∓Inf rather
+     * than errors, so both translations must reach the non-finite {@link Percentile} that emits those infinities —
+     * including {@code quantile_over_time}, whose per-series aggregation is built separately.
+     */
+    public void testQuantilePhiReachesNonFinitePercentileForBothVariants() {
+        for (String function : List.of("quantile", "quantile_over_time")) {
+            for (double phi : List.of(2.0, -1.0, 0.5)) {
+                var ctx = new PromqlFunctionRegistry.PromqlContext(Literal.NULL, Literal.NULL, Literal.NULL, EsqlTestUtils.TEST_CFG);
+                Expression target = Literal.fromDouble(Source.EMPTY, 1.0);
+                Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+                    function,
+                    Source.EMPTY,
+                    target,
+                    ctx,
+                    List.of(Literal.fromDouble(Source.EMPTY, phi))
+                );
+                Percentile percentile = built instanceof PercentileOverTime overTime
+                    ? as(overTime.perTimeSeriesAggregation(), Percentile.class)
+                    : as(built, Percentile.class);
+                assertTrue(function + "(" + phi + ", ...) must preserve non-finite mode", percentile.allowNonFinite());
+            }
+        }
+    }
+
     public void testRound() {
         assertConstantResult("round(vector(pi()))", equalTo(3.0)); // round down to nearest integer
         assertConstantResult("round(vector(pi()), 1)", equalTo(3.0)); // same as above but with explicit argument

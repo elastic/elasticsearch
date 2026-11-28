@@ -51,7 +51,8 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction
                 field,
                 PromqlFunctionDefinition.quantileToPercentile(source, phi),
                 window,
-                timestamp
+                timestamp,
+                true
             )
         )
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
@@ -61,6 +62,11 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction
         .name("quantile_over_time");
 
     private final Expression timestamp;
+    /**
+     * Whether the per-series aggregation preserves non-finite observations and the PromQL φ semantics, as on
+     * {@link Percentile}. Set only by the PromQL translation.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         returnType = "double",
@@ -97,13 +103,37 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction
     public PercentileOverTime(
         Source source,
         Expression field,
+        Expression percentile,
+        Expression window,
+        Expression timestamp,
+        boolean allowNonFinite
+    ) {
+        this(source, field, timestamp, Literal.TRUE, window, percentile, allowNonFinite);
+    }
+
+    public PercentileOverTime(
+        Source source,
+        Expression field,
         Expression timestamp,
         Expression filter,
         Expression window,
         Expression percentile
     ) {
+        this(source, field, timestamp, filter, window, percentile, false);
+    }
+
+    public PercentileOverTime(
+        Source source,
+        Expression field,
+        Expression timestamp,
+        Expression filter,
+        Expression window,
+        Expression percentile,
+        boolean allowNonFinite
+    ) {
         super(source, List.of(field, timestamp), filter, window, List.of(percentile));
         this.timestamp = timestamp;
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Expression percentile() {
@@ -125,7 +155,16 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction
 
     @Override
     protected NodeInfo<PercentileOverTime> info() {
-        return NodeInfo.create(this, PercentileOverTime::new, field(), timestamp, filter(), window(), percentile());
+        return NodeInfo.create(
+            this,
+            PercentileOverTime::new,
+            field(),
+            timestamp,
+            filter(),
+            window(),
+            percentile(),
+            allowNonFinite
+        );
     }
 
     @Override
@@ -156,7 +195,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new Percentile(source(), field(), filter(), window(), percentile());
+        return new Percentile(source(), field(), filter(), window(), percentile(), allowNonFinite);
     }
 
     @Override

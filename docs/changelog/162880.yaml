@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162880
+summary: Fix `unsigned_long` from/to bounds in BUCKET
+type: bug

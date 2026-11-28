@@ -85,14 +85,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
-            var builder = parser.apply(xParser, context);
-            // TODO: remove once all Hugging Face service settings are parser-based and usesParserForServiceSettings can be enabled on
-            // HuggingFaceService, which also creates ELSER models. The object parser reads the map through an XContent view without
-            // consuming its entries, so the parsed fields must be removed explicitly to satisfy the caller's check that no unknown
-            // settings remain in the map.
-            map.remove(ServiceFields.URL);
-            map.remove(RateLimitSettings.FIELD_NAME);
-            return builder.build();
+            return parser.apply(xParser, context).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
@@ -121,11 +114,6 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     public HuggingFaceElserServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
             var update = Update.PARSER.apply(xParser, null);
-            // TODO: remove once all Hugging Face service settings are parser-based and usesParserForServiceSettings can be enabled on
-            // HuggingFaceService, which also creates ELSER models. The object parser reads the map through an XContent view without
-            // consuming its entries, so the parsed field must be removed explicitly to satisfy the caller's check that no unknown
-            // settings remain in the map.
-            serviceSettings.remove(RateLimitSettings.FIELD_NAME);
             return update.mergeInto(this);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse Hugging Face ELSER service settings update", e);

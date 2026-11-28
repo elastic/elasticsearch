@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
@@ -323,21 +324,38 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
 
     /**
      * The sink never turns off the batch path for the whole index, since every new strict columnar index has one. Whether absorbed leaves
-     * can be batched follows its wrapped flattened mapper, which cannot batch a shape such as the inverted index being enabled through
-     * {@code index.mapping.index_disabled_by_default: false}. The sink never maps a column of its own, so its field-level columnar support
-     * is always {@code false}.
+     * can be batched follows its wrapped flattened mapper, which cannot batch a shape such as root doc values being enabled through
+     * {@code index.mapping.flattened.store_root_doc_values: true}, whatever {@code index.mapping.index_disabled_by_default} says.
+     * The sink never maps a column of its own, so its field-level columnar support is always {@code false}.
      */
     public void testSinkColumnarSupportFollowsDelegate() throws IOException {
-        boolean indexDisabled = randomBoolean();
+        boolean rootDocValues = randomBoolean();
         Settings settings = Settings.builder()
             .put(columnarSettings())
-            .put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), indexDisabled)
+            .put(IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES.getKey(), rootDocValues)
+            .put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), randomBoolean())
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         var sink = (UnmappedSinkFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
         assertTrue(sink.supportsColumnarMetadataParse(mapperService.getIndexSettings()));
-        assertEquals(indexDisabled, sink.supportsColumnarAbsorb(mapperService.getIndexSettings()));
+        assertEquals(rootDocValues == false, sink.supportsColumnarAbsorb(mapperService.getIndexSettings()));
         assertFalse(sink.supportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
+    }
+
+    /**
+     * The sink is never indexed, even when {@code index.mapping.index_disabled_by_default: false} turns indexing on for other fields.
+     */
+    public void testSinkNeverIndexed() throws IOException {
+        Settings settings = Settings.builder().put(columnarSettings()).put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), false).build();
+        String key = randomAlphaOfLength(5);
+        String value = randomAlphanumericOfLength(6);
+        ParsedDocument doc = columnarService(settings, b -> {}).documentMapper().parse(source(b -> b.field(key, value)));
+        assertTrue(hasKeyedSlot(doc, key + "\0" + value));
+        for (IndexableField field : doc.rootDoc().getFields()) {
+            if (field.name().startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME)) {
+                assertEquals(field.name(), IndexOptions.NONE, field.fieldType().indexOptions());
+            }
+        }
     }
 
     /**

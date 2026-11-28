@@ -75,8 +75,11 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     }
 
     private static FlattenedFieldMapper buildDelegate(MappingParserContext context) {
+        // Never indexed, whatever index.mapping.index_disabled_by_default says: _search cannot query the sink, and ES|QL queries on
+        // absorbed keys run on its keyed doc values.
+        Map<String, Object> params = new HashMap<>(Map.of("index", false));
         // Synthetic: the sink exists only in strict columnar index modes, which allow only synthetic or columnar_stored source.
-        return (FlattenedFieldMapper) FlattenedFieldMapper.PARSER.parse(FlattenedFieldMapper.UNMAPPED_SINK_NAME, new HashMap<>(), context)
+        return (FlattenedFieldMapper) FlattenedFieldMapper.PARSER.parse(FlattenedFieldMapper.UNMAPPED_SINK_NAME, params, context)
             .build(MapperBuilderContext.root(true, false));
     }
 

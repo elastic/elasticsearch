@@ -908,31 +908,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * The {@code _unmapped} sink writes through the same parser as a flattened field, and is indexed when the index does not disable
-     * indexing by default, so an unmapped null on its own must index next to an unmapped value too.
-     */
-    public void testIndexedUnmappedSinkNullOnlyDocumentInColumnarMode() throws IOException {
-        assumeTrue("requires the unmapped sink", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createMapperService(
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR).getName())
-                .put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), false)
-                .build(),
-            topMapping(b -> b.field("dynamic", "flattened"))
-        );
-        String key = randomAlphaOfLengthBetween(1, 5);
-        String value = randomAlphanumericOfLength(5);
-        assertNullOnlyDocumentIndexes(
-            mapperService,
-            FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX,
-            key,
-            value,
-            b -> b.field(key, value),
-            b -> b.nullField(key)
-        );
-    }
-
-    /**
      * Indexes a document holding {@code key: value} and one holding only {@code key: null}, in both orders, and checks that Lucene
      * accepts both, that only the document with the value has a posting under {@code keyedField}, and that synthetic source gives the
      * null-only document back as it was sent. Both documents get a {@code @timestamp} if the index mode requires one.
@@ -945,7 +920,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         CheckedConsumer<XContentBuilder, IOException> withValue,
         CheckedConsumer<XContentBuilder, IOException> nullOnly
     ) throws IOException {
-        // Added only where required: elsewhere it would be one more field in the document, or a value in the _unmapped sink.
+        // Added only where required: elsewhere it would be one more field in the document.
         String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999());
         CheckedConsumer<XContentBuilder, IOException> withTimestamp = b -> {
             if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {

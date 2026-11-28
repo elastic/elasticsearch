@@ -364,4 +364,26 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         Double value = randomFrom(0.0d, 1.0d, .0d, randomDouble());
         assertThat(errorParsing("any where true |" + query + value), endsWith("expects a positive integer but found [" + value + "]"));
     }
+
+    public void testTooComplexPattern() {
+        String[] queries = {
+            "process where process_name regex \"(a|b)*a(a|b){13}\"",
+            "process where process_name regex~ (\".*a.{8}\", \".*b.{8}\")",
+            "process where process_name like \"*a?????????????\"",
+            "process where process_name : \"*a?????????????\"" };
+        for (String query : queries) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> plan(query));
+            assertEquals(query, "Pattern was too complex to determinize", e.getMessage());
+        }
+    }
+
+    public void testRegexListJoinedIntoTooComplexPattern() {
+        plan("process where process_name regex \".*a.{8}\"");
+        plan("process where process_name regex \".*b.{8}\"");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> plan("process where process_name regex (\".*a.{8}\", \".*b.{8}\")")
+        );
+        assertEquals("Pattern was too complex to determinize", e.getMessage());
+    }
 }

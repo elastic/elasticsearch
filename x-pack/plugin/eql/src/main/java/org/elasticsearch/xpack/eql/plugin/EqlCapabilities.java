@@ -20,11 +20,15 @@ public final class EqlCapabilities {
     /** Invalid timestamp or tiebreaker values fail sequences with 4xx, not 5xx https://github.com/elastic/elasticsearch/issues/156605 */
     private static final String INVALID_TIMESTAMP_TIEBREAKER_4XX = "invalid_timestamp_tiebreaker_4xx";
 
+    /** Too complex regex, like and wildcard patterns fail with 4xx, not 5xx */
+    private static final String TOO_COMPLEX_PATTERN_4XX = "too_complex_pattern_4xx";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
         capabilities.add(FILTERS_ON_KEYS_FIX);
         capabilities.add(INVALID_TIMESTAMP_TIEBREAKER_4XX);
+        capabilities.add(TOO_COMPLEX_PATTERN_4XX);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

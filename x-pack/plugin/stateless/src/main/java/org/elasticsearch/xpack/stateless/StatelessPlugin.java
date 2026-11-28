@@ -1373,6 +1373,7 @@ public class StatelessPlugin extends Plugin
             ObjectStoreGCTask.STALE_TRANSLOGS_GC_FILES_LIMIT_SETTING,
             ObjectStoreGCTask.GC_INTERVAL_SETTING,
             TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING,
+            TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_THRESHOLD_SETTING,
             TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING,
             TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING,
             GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT,

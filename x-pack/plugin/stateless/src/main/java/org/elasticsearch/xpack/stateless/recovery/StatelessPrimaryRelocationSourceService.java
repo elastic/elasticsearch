@@ -103,8 +103,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
-    /// how long the source waits for the prewarm to finish before acquiring permits; value of 0 still sends the prewarm but does not
-    /// wait for it (recorded as timed out)
+    /// How long the source waits for the prewarm to finish before acquiring permits; value of 0 still sends the prewarm but does not
+    /// wait for it (recorded as timed out).
+    /// If you increase the value of this setting, also increase `stateless.cluster.primary_relocation.slow_relocation_warning_threshold`
+    /// accordingly because the relocation time can be increased by up to this prewarm-wait timeout.
     public static final Setting<TimeValue> PREWARM_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
         "stateless.cluster.primary_relocation.prewarm_wait_timeout",
         TimeValue.timeValueSeconds(5),

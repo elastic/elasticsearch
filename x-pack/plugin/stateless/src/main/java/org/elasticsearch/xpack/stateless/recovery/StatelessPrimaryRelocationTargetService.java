@@ -33,6 +33,7 @@ import java.util.Set;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Target-side stateless primary relocation: prewarm and primary-context handoff.
@@ -48,6 +49,7 @@ public class StatelessPrimaryRelocationTargetService {
     private final ThreadPool threadPool;
 
     private volatile TimeValue slowRelocationWarningThreshold;
+    private volatile TimeValue slowHandoffWarningThreshold;
     private volatile int idLookupPrewarmMaxSegments;
 
     public StatelessPrimaryRelocationTargetService(
@@ -67,6 +69,8 @@ public class StatelessPrimaryRelocationTargetService {
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(SLOW_HANDOFF_THRESHOLD_SETTING, value -> this.slowHandoffWarningThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING, value -> this.idLookupPrewarmMaxSegments = value);
     }
@@ -186,7 +190,7 @@ public class StatelessPrimaryRelocationTargetService {
                 threadDumpListener.onResponse(null);
 
                 final long targetHandoffDuration = preRecoveryDuration + openEngineDuration;
-                boolean aboveThreshold = targetHandoffDuration >= slowRelocationWarningThreshold.getMillis();
+                boolean aboveThreshold = targetHandoffDuration >= slowHandoffWarningThreshold.getMillis();
                 if (aboveThreshold || logger.isDebugEnabled()) {
                     final var fields = new HashMap<String, Object>();
                     fields.put("elasticsearch.primary.relocation.shard", request.shardId().toString());
@@ -214,7 +218,7 @@ public class StatelessPrimaryRelocationTargetService {
                         TimeValue.timeValueMillis(preRecoveryDuration),
                         TimeValue.timeValueMillis(openEngineDuration),
                         aboveThreshold ? "above" : "below",
-                        slowRelocationWarningThreshold
+                        slowHandoffWarningThreshold
                     ).withFields(fields);
                     logger.log(Level.INFO, message);
                 }

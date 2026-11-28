@@ -260,10 +260,35 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 return DocValues.singleton(valuesProducer.getNumeric(f));
             }
         };
+        materializeIfFlushing(field, producer);
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, producer);
         }
         writeNumericField(field, producer, null);
+    }
+
+    /**
+     * Upper bound on the segment size for which {@link #materializeIfFlushing} copies a field into arrays. The copy is transient
+     * (one field at a time, 8 bytes per document) and comes on top of the sorted copy Lucene already holds at flush; above this
+     * bound the writer keeps walking the iterator.
+     */
+    private static final int MAX_MATERIALIZED_DOCS = 1 << 24;
+
+    /**
+     * Reads a single-valued numeric field into arrays so that the stats, skip index and block passes of the write do not each
+     * walk a doc values iterator. Applies only at flush: a merge reads through producers that are not backed by one in-memory
+     * copy, and the optimized merge already carries its own stats.
+     *
+     * <p>The written bytes are the same with and without this; only the way the values are read changes.
+     */
+    private void materializeIfFlushing(final FieldInfo field, final TsdbDocValuesProducer source) throws IOException {
+        if (context.context() != IOContext.Context.FLUSH || source.mergeStats.supported() || maxDoc > MAX_MATERIALIZED_DOCS) {
+            return;
+        }
+        final NumericDocValues singleValued = DocValues.unwrapSingleton(source.getSortedNumeric(field));
+        if (singleValued != null) {
+            source.materialized(MaterializedNumericValues.load(singleValued, maxDoc));
+        }
     }
 
     private DocValueFieldCountStats writeNumericField(
@@ -937,7 +962,9 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     public void addSortedNumericField(final FieldInfo field, final DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(SORTED_NUMERIC);
-        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer));
+        final TsdbDocValuesProducer source = new TsdbDocValuesProducer(valuesProducer);
+        materializeIfFlushing(field, source);
+        writeSortedNumericField(field, source);
     }
 
     private void writeSortedNumericField(final FieldInfo field, final TsdbDocValuesProducer valuesSource) throws IOException {
@@ -1218,85 +1245,97 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private void writeSkipIndex(final FieldInfo field, final DocValuesProducer valuesProducer) throws IOException {
         assert field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
-        final long start = skip.getFilePointer();
-        final SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
-        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        long globalMaxValue = Long.MIN_VALUE;
-        long globalMinValue = Long.MAX_VALUE;
-        int globalDocCount = 0;
-        int maxDocId = -1;
-        int globalMaxValueCount = 0;
-        final List<SkipAccumulator> accumulators = new ArrayList<>();
-        SkipAccumulator accumulator = null;
-        final int maxAccumulators = 1 << (formatConfig.skipIndexLevelShift() * (formatConfig.skipIndexMaxLevel() - 1));
-        if (singleton != null) {
-            for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
-                final long value = singleton.longValue();
-                if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), 1, value, doc)) {
-                    globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
-                    globalMinValue = Math.min(globalMinValue, accumulator.minValue);
-                    globalDocCount += accumulator.docCount;
-                    maxDocId = accumulator.maxDocID;
-                    accumulator = null;
-                    if (accumulators.size() == maxAccumulators) {
-                        writeLevels(accumulators);
-                        accumulators.clear();
-                    }
-                }
-                if (accumulator == null) {
-                    accumulator = new SkipAccumulator(doc);
-                    accumulators.add(accumulator);
-                }
-                accumulator.nextDoc(doc);
-                accumulator.accumulate(value);
-            }
-            if (accumulator != null) {
-                globalMaxValueCount = 1;
+        final SkipIndexBuilder builder = new SkipIndexBuilder();
+        final MaterializedNumericValues materialized = valuesProducer instanceof TsdbDocValuesProducer tsdb ? tsdb.materialized() : null;
+        if (materialized != null) {
+            final long[] values = materialized.values();
+            for (int i = 0, size = materialized.size(); i < size; i++) {
+                builder.add(materialized.doc(i), values[i], 1);
             }
         } else {
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                final long firstValue = values.nextValue();
-                final int valueCount = values.docValueCount();
-                globalMaxValueCount = Math.max(globalMaxValueCount, valueCount);
-                if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), valueCount, firstValue, doc)) {
-                    globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
-                    globalMinValue = Math.min(globalMinValue, accumulator.minValue);
-                    globalDocCount += accumulator.docCount;
-                    maxDocId = accumulator.maxDocID;
-                    accumulator = null;
-                    if (accumulators.size() == maxAccumulators) {
-                        writeLevels(accumulators);
-                        accumulators.clear();
+            final SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
+            // Iterate a single-valued field directly: through the wrapper, the call to the underlying iterator is
+            // shared with every other user of the wrapper in the JVM and ends up megamorphic.
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
+                    builder.add(doc, singleton.longValue(), 1);
+                }
+            } else {
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    final long firstValue = values.nextValue();
+                    final int valueCount = values.docValueCount();
+                    builder.add(doc, firstValue, valueCount);
+                    for (int i = 1; i < valueCount; ++i) {
+                        builder.addValue(values.nextValue());
                     }
-                }
-                if (accumulator == null) {
-                    accumulator = new SkipAccumulator(doc);
-                    accumulators.add(accumulator);
-                }
-                accumulator.nextDoc(doc);
-                accumulator.accumulate(firstValue);
-                for (int i = 1; i < valueCount; ++i) {
-                    accumulator.accumulate(values.nextValue());
                 }
             }
         }
+        builder.finish();
+    }
 
-        if (accumulators.isEmpty() == false) {
-            globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
-            globalMinValue = Math.min(globalMinValue, accumulator.minValue);
-            globalDocCount += accumulator.docCount;
-            maxDocId = accumulator.maxDocID;
-            writeLevels(accumulators);
+    /**
+     * Builds one field's skip index from its documents in doc id order, then writes the field's skip index entry to {@code meta}.
+     * Separate from the loop that supplies the documents, so the same logic serves both the iterator walk and the walk over
+     * {@link MaterializedNumericValues}.
+     */
+    private final class SkipIndexBuilder {
+        private final long start = skip.getFilePointer();
+        private final List<SkipAccumulator> accumulators = new ArrayList<>();
+        private final int maxAccumulators = 1 << (formatConfig.skipIndexLevelShift() * (formatConfig.skipIndexMaxLevel() - 1));
+        private SkipAccumulator accumulator = null;
+        private long globalMaxValue = Long.MIN_VALUE;
+        private long globalMinValue = Long.MAX_VALUE;
+        private int globalDocCount = 0;
+        private int maxDocId = -1;
+        private int globalMaxValueCount = 0;
+
+        /** Starts document {@code doc}, which has {@code valueCount} values, the first being {@code firstValue}. */
+        void add(int doc, long firstValue, int valueCount) throws IOException {
+            globalMaxValueCount = Math.max(globalMaxValueCount, valueCount);
+            if (accumulator != null && accumulator.isDone(formatConfig.skipIndexIntervalSize(), valueCount, firstValue, doc)) {
+                globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
+                globalMinValue = Math.min(globalMinValue, accumulator.minValue);
+                globalDocCount += accumulator.docCount;
+                maxDocId = accumulator.maxDocID;
+                accumulator = null;
+                if (accumulators.size() == maxAccumulators) {
+                    writeLevels(accumulators);
+                    accumulators.clear();
+                }
+            }
+            if (accumulator == null) {
+                accumulator = new SkipAccumulator(doc);
+                accumulators.add(accumulator);
+            }
+            accumulator.nextDoc(doc);
+            accumulator.accumulate(firstValue);
         }
-        meta.writeLong(start); // record the start in meta
-        meta.writeLong(skip.getFilePointer() - start); // record the length
-        assert globalDocCount == 0 || globalMaxValue >= globalMinValue;
-        meta.writeLong(globalMaxValue);
-        meta.writeLong(globalMinValue);
-        assert globalDocCount <= maxDocId + 1;
-        meta.writeInt(globalDocCount);
-        meta.writeInt(maxDocId);
-        meta.writeInt(globalMaxValueCount);
+
+        /** Adds a value after the first one of the document last passed to {@link #add}. */
+        void addValue(long value) {
+            accumulator.accumulate(value);
+        }
+
+        void finish() throws IOException {
+            if (accumulators.isEmpty() == false) {
+                globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
+                globalMinValue = Math.min(globalMinValue, accumulator.minValue);
+                globalDocCount += accumulator.docCount;
+                maxDocId = accumulator.maxDocID;
+                writeLevels(accumulators);
+            }
+            meta.writeLong(start); // record the start in meta
+            meta.writeLong(skip.getFilePointer() - start); // record the length
+            assert globalDocCount == 0 || globalMaxValue >= globalMinValue;
+            meta.writeLong(globalMaxValue);
+            meta.writeLong(globalMinValue);
+            assert globalDocCount <= maxDocId + 1;
+            meta.writeInt(globalDocCount);
+            meta.writeInt(maxDocId);
+            meta.writeInt(globalMaxValueCount);
+        }
     }
 
     private void writeLevels(final List<SkipAccumulator> accumulators) throws IOException {

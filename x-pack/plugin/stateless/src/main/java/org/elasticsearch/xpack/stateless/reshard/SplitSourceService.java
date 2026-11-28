@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
 import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -255,7 +257,9 @@ public class SplitSourceService {
             );
             logger.info(message);
 
-            throw new StaleSplitRequestException(message);
+            // This is retryable - the target shard can resolve the new primary term and retry.
+            // As such we return a retryable error (as determined by `TransportActions#isShardNotAvailableException`).
+            throw new NoShardAvailableActionException(sourceShardId, message);
         }
 
         // We keep the invariant that targetPrimaryTerm >= sourcePrimaryTerm because this is required for data copying to work.
@@ -302,18 +306,22 @@ public class SplitSourceService {
             // The source shard is currently handling a split request. This can occur if the target shard failed and is recovering or was
             // relocated. The new target shard instance will repeatedly fail recovery until the current split request completes.
             if (targetPrimaryTerm >= currentSplit.targetPrimaryTerm) {
-                // Cancel current split request as it is likely stale
-                taskManager.cancelTaskAndDescendants(currentSplit.task, "stale split request", false, ActionListener.noop());
+                if (currentSplit.setUncancellable()) {
+                    // Cancel current split request as it is likely stale.
+                    taskManager.cancelTaskAndDescendants(currentSplit.task, "stale split request", false, ActionListener.noop());
+                }
             }
             String message = String.format(
                 Locale.ROOT,
-                "Split [%s -> %s]. Source shard is already setting up target shard. Failing the request.",
+                "Split [%s -> %s]. There is a split in progress already (possibly being cancelled).",
                 sourceShardId,
                 targetShardId
             );
             logger.error(message);
 
-            throw new IllegalStateException(message);
+            // This is retryable so we need an exception that would be retried by the target.
+            // We don't want to introduce a new exception type just for this case and `NoShardAvailableActionException` is fairly generic.
+            throw new NoShardAvailableActionException(sourceShardId, message);
         }
 
         if (sourceShard.isRelocatedPrimary()) {
@@ -325,7 +333,7 @@ public class SplitSourceService {
             );
             logger.info(message);
 
-            throw new StaleSplitRequestException(message);
+            throw new IndexShardRelocatedException(sourceShardId, message);
         }
 
         final var abortSplit = new AtomicReference<Runnable>();
@@ -354,7 +362,21 @@ public class SplitSourceService {
                     }
                     shardsPreparingForHandoff.remove(sourceShard.shardId(), sourceShard);
                     activeTargetRequests.remove(sourceShard);
-                    l.onFailure(e);
+
+                    // If this split was cancelled during preparation and before acquiring permits
+                    // (before `currentSplit.setUncancellable()`) it can be retried by the target shard,
+                    // and we return a retryable exception.
+                    if (e instanceof TaskCancelledException) {
+                        String message = String.format(
+                            Locale.ROOT,
+                            "Split [%s -> %s]. Split was cancelled on the source shard.",
+                            sourceShardId,
+                            targetShardId
+                        );
+                        l.onFailure(new NoShardAvailableActionException(sourceShardId, message));
+                    } else {
+                        l.onFailure(e);
+                    }
                 })
             );
     }

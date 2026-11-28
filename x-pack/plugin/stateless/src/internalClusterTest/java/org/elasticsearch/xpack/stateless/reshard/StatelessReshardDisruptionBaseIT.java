@@ -8,18 +8,14 @@
 package org.elasticsearch.xpack.stateless.reshard;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -35,7 +31,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
 
 // Inspired by StatelessTranslogIT.
 // TODO consider generalizing this and sharing with StatelessTranslogIT.
@@ -62,30 +57,18 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
                 var disruption = new NetworkDisruption(new TwoPartitions(isolatedSide, otherSide), NetworkDisruption.DISCONNECT);
                 disruption.applyToCluster(internalCluster());
                 disruption.startDisrupting();
-                try {
-                    // waitForRelocation may succeed before the cluster state reflects the isolated node
-                    awaitClusterState(
-                        masterNode,
-                        cs -> cs.nodes().getNodes().values().stream().noneMatch(n -> n.getName().equals(isolatedNode))
-                    );
-                    // We can't use `ensureGreen` here since it requires all nodes to be available and we just isolated a node.
-                    // So we craft the health request manually.
-                    ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, index.getName())
-                        // We have custom logic to keep the index green during resharding to this should work.
-                        .waitForStatus(ClusterHealthStatus.GREEN)
-                        .waitForEvents(Priority.LANGUID)
-                        .waitForNoRelocatingShards(true)
-                        // Target shards may be uninitialized.
-                        .waitForNoInitializingShards(false);
-                    ClusterHealthResponse actionGet = client(coordinator).admin().cluster().health(healthRequest).actionGet();
-                    if (actionGet.isTimedOut()) {
-                        assertThat("timed out waiting for green state during network disruption", actionGet.isTimedOut(), equalTo(false));
-                    }
-                } finally {
-                    disruption.stopDisrupting();
-                    NetworkDisruption.ensureFullyConnectedCluster(internalCluster());
-                    ensureStableCluster(clusterSize);
-                }
+                // Wait to observe the isolation.
+                awaitClusterState(
+                    masterNode,
+                    cs -> cs.nodes().getNodes().values().stream().noneMatch(n -> n.getName().equals(isolatedNode))
+                );
+                // Wait for a bit more to exercise retries and other effects of the isolation.
+                Thread.sleep(randomIntBetween(100, 1000));
+                disruption.stopDisrupting();
+                NetworkDisruption.ensureFullyConnectedCluster(internalCluster());
+                ensureStableCluster(clusterSize);
+
+                // We have custom logic to keep the index green during resharding to this should work.
                 ensureGreen(index.getName());
             }
             case LOCAL_FAIL_SHARD -> {

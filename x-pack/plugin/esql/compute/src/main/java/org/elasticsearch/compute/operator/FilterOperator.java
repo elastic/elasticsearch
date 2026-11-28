@@ -95,9 +95,6 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        int rowCount = 0;
-        int[] positions = new int[page.getPositionCount()];
-
         try (BooleanBlock test = (BooleanBlock) evaluator.eval(page)) {
             if (test.areAllValuesNull()) {
                 // All results are null which is like false. No values selected.
@@ -113,6 +110,8 @@ public class FilterOperator extends AbstractPageMappingOperator {
                     return page.shallowCopy();
                 }
             }
+            int rowCount = 0;
+            int[] positions = new int[page.getPositionCount()];
             // TODO we could make a new method in bool-valued evaluators that returns a list of numbers
             for (int p = 0; p < page.getPositionCount(); p++) {
                 if (test.isNull(p) || test.getValueCount(p) != 1) {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167866
+summary: Speed up `SORT _score DESC, <field>` on numeric and date fields
+type: enhancement

@@ -527,6 +527,35 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), Matchers.startsWith("Cannot copy to field [target] since it is mapped as an object"));
     }
 
+    public void testCopyToMissingFieldWithDynamicFalse() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            {
+                b.startObject("test_field");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "missing_field");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals("Cannot copy to non-existent field [missing_field] because dynamic mappings are disabled", e.getMessage());
+    }
+
+    public void testCopyToMissingFieldWithDynamicEnabled() {
+        // With dynamic mappings enabled (the default) the target field is created on demand, so the mapping is valid.
+        createDocumentMapper(mapping(b -> {
+            b.startObject("test_field");
+            {
+                b.field("type", "text");
+                b.field("copy_to", "missing_field");
+            }
+            b.endObject();
+        }));
+    }
+
     public void testCopyToDynamicNestedObjectParsing() throws Exception {
 
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {

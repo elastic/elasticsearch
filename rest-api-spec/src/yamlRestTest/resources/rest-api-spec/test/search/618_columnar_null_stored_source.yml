@@ -1,0 +1,183 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: synthetic_source
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+                kwd:
+                  type: keyword
+                lng:
+                  type: long
+                dt:
+                  type: date
+                flag:
+                  type: boolean
+                sf:
+                  type: scaled_float
+                  scaling_factor: 100
+                geo:
+                  type: geo_point
+                other:
+                  type: keyword
+
+  - do:
+      indices.create:
+        index: stored_source
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+                kwd:
+                  type: keyword
+                lng:
+                  type: long
+                dt:
+                  type: date
+                flag:
+                  type: boolean
+                sf:
+                  type: scaled_float
+                  scaling_factor: 100
+                geo:
+                  type: geo_point
+                other:
+                  type: keyword
+
+  - do:
+      bulk:
+        index: synthetic_source
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "kwd": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "flag": true, "sf": 1.5, "geo": "1.0,2.0" }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "kwd": [ null ], "lng": [ null ], "dt": [ null ], "flag": [ null ], "sf": [null], "geo": [null] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "kwd": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "flag": [ null, null ], "sf": [null, null], "geo": [null, null] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "flag": [ true, null, false ], "sf": [1.5, null, 2.5], "geo": ["1.0,2.0", null, "3.0,4.0"] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "kwd": null, "lng": null, "dt": null, "flag": null, "sf": null, "geo": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "kwd": [], "lng": [], "dt": [], "flag": [], "sf": [], "geo": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "kwd": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "flag": [ null, true ], "sf": [null, 1.5], "geo": [null, "1.0,2.0"] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "kwd": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "flag": [ true, null ], "sf": [1.5, null], "geo": ["1.0,2.0", null] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "kwd": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "flag": [ null, true, null ], "sf": [null, 1.5, null], "geo": [null, "1.0,2.0", null] }'
+
+  - do:
+      bulk:
+        index: stored_source
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "kwd": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "flag": true, "sf": 1.5, "geo": "1.0,2.0" }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "kwd": [ null ], "lng": [ null ], "dt": [ null ], "flag": [ null ], "sf": [null], "geo": [null] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "kwd": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "flag": [ null, null ], "sf": [null, null], "geo": [null, null] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "flag": [ true, null, false ], "sf": [1.5, null, 2.5], "geo": ["1.0,2.0", null, "3.0,4.0"] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "kwd": null, "lng": null, "dt": null, "flag": null, "sf": null, "geo": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "kwd": [], "lng": [], "dt": [], "flag": [], "sf": [], "geo": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "kwd": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "flag": [ null, true ], "sf": [null, 1.5], "geo": [null, "1.0,2.0"] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "kwd": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "flag": [ true, null ], "sf": [1.5, null], "geo": ["1.0,2.0", null] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "kwd": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "flag": [ null, true, null ], "sf": [null, 1.5, null], "geo": [null, "1.0,2.0", null] }'
+
+---
+columnar_stored returns the same source as synthetic for a keyword, a long, a date, a boolean, a scaled_float and a geo_point:
+  - do:
+      search:
+        index: synthetic_source
+        filter_path: hits.hits._source
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+
+  - length: { hits.hits: 10 }
+  - set: { hits.hits: synthetic_sources }
+
+  - do:
+      search:
+        index: stored_source
+        filter_path: hits.hits._source
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+
+  - match: { hits.hits: $synthetic_sources }
+
+---
+columnar_stored drops the null elements of a keyword, a long, a date, a boolean, a scaled_float and a geo_point:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "columnar_stored keeps null array elements today"
+
+  - do:
+      search:
+        index: stored_source
+        filter_path: hits.hits._source
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+
+  - match:
+      hits.hits:
+        - _source: { kwd: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", flag: true, sf: 1.5, geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+        - _source: {}
+        - _source: {}
+        - _source: { kwd: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], flag: [ true, false ], sf: [ 1.5, 2.5 ], geo: [ {"lat": 0.9999999823048711, "lon": 1.9999999646097422}, {"lat": 2.999999988824129, "lon": 3.9999999292194843} ] }
+        - _source: {}
+        - _source: {}
+        - _source: { other: c }
+        - _source: { kwd: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", flag: true, sf: 1.5, geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+        - _source: { kwd: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", flag: true, sf: 1.5, geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+        - _source: { kwd: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", flag: true, sf: 1.5, geo: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: synthetic_source
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: stored_source
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }

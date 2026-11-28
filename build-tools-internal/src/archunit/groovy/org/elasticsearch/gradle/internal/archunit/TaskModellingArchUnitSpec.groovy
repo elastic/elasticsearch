@@ -48,7 +48,6 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.JavaClassPublicifier",
         "org.elasticsearch.gradle.internal.idea.EnablePreviewFeaturesTask",
         "org.elasticsearch.gradle.internal.precommit.JavaModulePrecommitTask",
-        "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditTask",
         "org.elasticsearch.gradle.internal.precommit.ValidateJsonAgainstSchemaTask",
         "org.elasticsearch.gradle.internal.precommit.ValidateJsonNoKeywordsTask",
         "org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask",

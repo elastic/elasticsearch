@@ -25,10 +25,13 @@ import org.gradle.api.problems.Problems;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -63,7 +66,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.projectPath;
  * Checks for split packages with dependencies. These are not allowed in a future modularized world.
  */
 @CacheableTask
-public class SplitPackagesAuditTask extends DefaultTask {
+public abstract class SplitPackagesAuditTask extends DefaultTask {
 
     private static final Logger LOGGER = Logging.getLogger(SplitPackagesAuditTask.class);
 
@@ -72,7 +75,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     private final SetProperty<File> srcDirs;
     private final SetProperty<String> ignoreClasses;
     private final RegularFileProperty markerFile;
-    private Map<File, String> projectBuildDirs;
 
     @Inject
     public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
@@ -83,11 +85,26 @@ public class SplitPackagesAuditTask extends DefaultTask {
         this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
+    @ServiceReference(ProjectBuildDirsService.NAME)
+    @Optional
+    public abstract Property<ProjectBuildDirsService> getProjectBuildDirsService();
+
+    /**
+     * Owning project paths of classpath entries contributed by project dependencies, keyed by classpath file. Only used
+     * to label dependencies in failure messages, so it is not an input.
+     */
+    @Internal
+    public abstract MapProperty<File, String> getClasspathProjectOwners();
+
     @TaskAction
     public void auditSplitPackages() {
         workerExecutor.noIsolation().submit(SplitPackagesAuditAction.class, params -> {
             params.getProjectPath().set(projectPath(getPath()));
-            params.getProjectBuildDirs().set(projectBuildDirs);
+            ProjectBuildDirsService projectBuildDirsService = getProjectBuildDirsService().getOrNull();
+            if (projectBuildDirsService != null) {
+                params.getProjectBuildDirs().set(projectBuildDirsService.getProjectBuildDirs());
+            }
+            params.getClasspathProjectOwners().set(getClasspathProjectOwners());
             params.getClasspath().from(classpath);
             params.getSrcDirs().set(srcDirs);
             params.getIgnoreClasses().set(ignoreClasses);
@@ -128,10 +145,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
-    }
-
-    public void setProjectBuildDirs(Map<File, String> projectBuildDirs) {
-        this.projectBuildDirs = projectBuildDirs;
     }
 
     public abstract static class SplitPackagesAuditAction implements WorkAction<Parameters> {
@@ -340,17 +353,35 @@ public class SplitPackagesAuditTask extends DefaultTask {
         }
 
         private String formatDependency(File dependencyFile) {
-            if (dependencyFile.isDirectory()) {
-                while (dependencyFile.getName().equals("build") == false) {
-                    dependencyFile = dependencyFile.getParentFile();
-                }
-                String projectName = getParameters().getProjectBuildDirs().get().get(dependencyFile);
-                if (projectName == null) {
-                    throw new IllegalStateException("Build directory unknown to gradle: " + dependencyFile);
-                }
+            // project dependencies (classes directories or jars): the owner is known from the resolved artifact itself
+            String projectName = getParameters().getClasspathProjectOwners().getOrElse(Map.of()).get(dependencyFile);
+            if (projectName != null) {
                 return "project " + projectName;
             }
+            if (dependencyFile.isDirectory()) {
+                // file dependencies pointing into a project's conventional build directory
+                File buildDir = resolveBuildDir(dependencyFile);
+                if (buildDir != null) {
+                    projectName = getParameters().getProjectBuildDirs().getOrElse(Map.of()).get(buildDir);
+                }
+                if (projectName != null) {
+                    return "project " + projectName;
+                }
+                // an ancestor named "build" without a known owner says nothing about where the classes came from
+                return dependencyFile.getAbsolutePath();
+            }
             return dependencyFile.getName(); // just the jar filename
+        }
+
+        private static File resolveBuildDir(File dependencyFile) {
+            File current = dependencyFile;
+            while (current != null && current.getName().equals("build") == false) {
+                current = current.getParentFile();
+            }
+            if (current == null) {
+                return null;
+            }
+            return current.toPath().normalize().toFile();
         }
     }
 
@@ -358,6 +389,8 @@ public class SplitPackagesAuditTask extends DefaultTask {
         Property<String> getProjectPath();
 
         MapProperty<File, String> getProjectBuildDirs();
+
+        MapProperty<File, String> getClasspathProjectOwners();
 
         ConfigurableFileCollection getClasspath();
 

@@ -48,6 +48,10 @@ gradlePlugin {
       id = 'elasticsearch.component-metadata-rules'
       implementationClass = 'org.elasticsearch.gradle.internal.dependencies.rules.ComponentMetadataRulesPlugin'
     }
+    projectBuildDirs {
+      id = 'elasticsearch.project-build-dirs'
+      implementationClass = 'org.elasticsearch.gradle.internal.precommit.ProjectBuildDirsSettingsPlugin'
+    }
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'

@@ -31,6 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectJobTelemetry;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -194,7 +196,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             new AnnotationPersister(resultsPersisterService),
             process,
             new ModelSizeStats.Builder(JOB_ID).build(),
-            new TimingStats(JOB_ID)
+            new TimingStats(JOB_ID),
+            new AutodetectJobTelemetry(MeterRegistry.NOOP),
+            () -> false
         ) {
             @Override
             protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {

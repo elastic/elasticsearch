@@ -199,6 +199,42 @@ public class DatafeedRunnerTests extends ESTestCase {
         assertThat(datafeedRunner.countDatafeedsWithUnavailableProjects(), equalTo(1L));
     }
 
+    public void testNoDatafeedShouldNotCountAsRealtimeDatafeedPastLookback() {
+        assertThat(datafeedRunner.hasRealtimeDatafeedPastLookback(JOB_ID), is(false));
+    }
+
+    public void testRealtimeDatafeedPastLookbackShouldCountForItsJobOnly() throws Exception {
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenReturn(1L);
+        DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, null);
+
+        datafeedRunner.run(task, false, mockConsumer());
+
+        assertThat(datafeedRunner.hasRealtimeDatafeedPastLookback(JOB_ID), is(true));
+        assertThat(datafeedRunner.hasRealtimeDatafeedPastLookback("other_job"), is(false));
+    }
+
+    public void testDatafeedDuringLookbackShouldNotCountAsRealtimeDatafeedPastLookback() {
+        ExecutorService lookbackNeverRuns = mock(ExecutorService.class);
+        when(threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME)).thenReturn(lookbackNeverRuns);
+        DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, null);
+
+        datafeedRunner.run(task, false, mockConsumer());
+
+        assertThat(datafeedRunner.isRunning(task), is(true));
+        assertThat(datafeedRunner.hasRealtimeDatafeedPastLookback(JOB_ID), is(false));
+    }
+
+    public void testLookbackOnlyDatafeedShouldNotCountAsRealtimeDatafeedPastLookback() throws Exception {
+        when(datafeedJob.runLookBack(0L, 60000L)).thenReturn(1L);
+        DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, 60000L);
+        when(task.isLookbackOnly()).thenReturn(true);
+
+        datafeedRunner.run(task, false, mockConsumer());
+
+        assertThat(datafeedRunner.isRunning(task), is(true));
+        assertThat(datafeedRunner.hasRealtimeDatafeedPastLookback(JOB_ID), is(false));
+    }
+
     private static LinkedClusterState available(String alias) {
         return new LinkedClusterState(alias, LinkedClusterState.Status.AVAILABLE, null, 10L);
     }

@@ -2,6 +2,85 @@
 // CSV spec for FORK command
 //
 
+issueRepro
+required_capability: fork_v9
+required_capability: fork_prune_filter_inputs_fix
+
+FROM employees
+| EVAL s = salary
+| FORK (WHERE emp_no < 10050) (WHERE emp_no >= 10050)
+| WHERE s < 50000
+| STATS c = COUNT(*)
+;
+
+c:long
+58
+;
+
+aliasNotInRowOutput
+required_capability: fork_v9
+required_capability: fork_prune_filter_inputs_fix
+
+FROM employees
+| EVAL s = salary
+| FORK (WHERE emp_no < 10050) (WHERE emp_no >= 10050)
+| WHERE s < 50000
+| KEEP emp_no
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10004
+10008
+10010
+;
+
+branchWithSortLimit
+required_capability: fork_v9
+required_capability: fork_prune_filter_inputs_fix
+
+FROM employees
+| EVAL s = salary
+| FORK (WHERE emp_no < 10050 | SORT emp_no | LIMIT 10) (WHERE emp_no >= 10050)
+| WHERE s < 50000
+| STATS c = COUNT(*)
+;
+
+c:long
+34
+;
+
+computedAlias
+required_capability: fork_v9
+required_capability: fork_prune_filter_inputs_fix
+
+FROM employees
+| EVAL s = salary + 1
+| FORK (WHERE emp_no < 10050) (WHERE emp_no >= 10050)
+| WHERE s < 50000
+| STATS c = COUNT(*)
+;
+
+c:long
+58
+;
+
+renamedColumn
+required_capability: fork_v9
+required_capability: fork_prune_filter_inputs_fix
+
+FROM employees
+| RENAME salary AS s
+| FORK (WHERE emp_no < 10050) (WHERE emp_no >= 10050)
+| WHERE s < 50000
+| STATS c = COUNT(*)
+;
+
+c:long
+58
+;
+
 simpleFork
 required_capability: fork_v9
 

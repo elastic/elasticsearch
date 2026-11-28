@@ -24,8 +24,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.Duration;
@@ -34,12 +32,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
 /**
- * Runs the ES|QL request behind the Prometheus {@code query} and {@code query_range} endpoints so that it doesn't outlive its
- * HTTP request: the query is cancelled when the client disconnects, and when the Prometheus {@code timeout} elapses.
+ * Runs the request of the Prometheus {@code query}, {@code query_range} and {@code query_exemplars} endpoints so that it doesn't
+ * outlive its HTTP request: the query is cancelled when the client disconnects, and when the Prometheus {@code timeout} elapses.
  * <p>
- * ES|QL has no query timeout of its own yet, so the timeout is enforced here by cancelling the query's task, which ES|QL already
- * honors. This is an interim solution that can be removed once ES|QL supports query timeouts. Once the cancelled query has completed,
- * the client receives a {@code 503} which maps to the Prometheus {@code timeout} error type.
+ * ES|QL has no query timeout of its own yet, so the timeout is enforced here by cancelling the task of
+ * {@link PrometheusQueryTransportAction}, which cancels the ES|QL query it runs as its child task, as ES|QL already honors. This
+ * is an interim solution that can be removed once ES|QL supports query timeouts. Once the cancelled query has completed, the
+ * client receives a {@code 503} which maps to the Prometheus {@code timeout} error type.
  */
 final class PromqlQueryExecutor {
 
@@ -87,26 +86,26 @@ final class PromqlQueryExecutor {
     }
 
     /**
-     * Executes {@code esqlRequest}, cancelling it if {@code httpChannel} closes or {@code timeout} elapses before it completes.
+     * Executes {@code request}, cancelling it if {@code httpChannel} closes or {@code timeout} elapses before it completes.
      *
      * @param timeout the timeout to apply, or {@code null} for none
      */
     static void execute(
         NodeClient client,
         HttpChannel httpChannel,
-        PromqlQueryRequest esqlRequest,
+        PrometheusQueryRequest request,
         @Nullable TimeValue timeout,
-        ActionListener<EsqlQueryResponse> listener
+        ActionListener<PrometheusQueryResponse> listener
     ) {
         var cancellableClient = new RestCancellableNodeClient(client, httpChannel);
         if (timeout == null) {
-            cancellableClient.execute(EsqlQueryAction.INSTANCE, esqlRequest, listener);
+            cancellableClient.execute(PrometheusQueryTransportAction.TYPE, request, listener);
             return;
         }
         var timeoutListener = new TimeoutListener(listener, timeout);
         Task task;
         try {
-            task = cancellableClient.executeAndReturnTask(EsqlQueryAction.INSTANCE, esqlRequest, timeoutListener);
+            task = cancellableClient.executeAndReturnTask(PrometheusQueryTransportAction.TYPE, request, timeoutListener);
         } catch (Exception e) {
             timeoutListener.onFailure(e);
             return;
@@ -138,14 +137,14 @@ final class PromqlQueryExecutor {
      * isn't sent before the query's child tasks have completed and released their resources. A query that completes after the timeout
      * elapsed, whether due to the cancellation or not, is reported as timed out.
      */
-    private static final class TimeoutListener implements ActionListener<EsqlQueryResponse> {
-        private final ActionListener<EsqlQueryResponse> delegate;
+    private static final class TimeoutListener implements ActionListener<PrometheusQueryResponse> {
+        private final ActionListener<PrometheusQueryResponse> delegate;
         private final TimeValue timeout;
         private final AtomicBoolean completed = new AtomicBoolean();
         private volatile boolean timedOut;
         private volatile Scheduler.ScheduledCancellable scheduledTimeout;
 
-        TimeoutListener(ActionListener<EsqlQueryResponse> delegate, TimeValue timeout) {
+        TimeoutListener(ActionListener<PrometheusQueryResponse> delegate, TimeValue timeout) {
             this.delegate = delegate;
             this.timeout = timeout;
         }
@@ -165,7 +164,7 @@ final class PromqlQueryExecutor {
         }
 
         @Override
-        public void onResponse(EsqlQueryResponse response) {
+        public void onResponse(PrometheusQueryResponse response) {
             if (completed.compareAndSet(false, true)) {
                 cancelScheduledTimeout();
                 if (timedOut) {

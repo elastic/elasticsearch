@@ -757,7 +757,9 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
             null
         );
         try {
-            new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(response);
+            new PrometheusQueryResponseListener(channel, QueryMode.RANGE, Integer.MAX_VALUE).onResponse(
+                new PrometheusQueryResponse(response, "matrix", null)
+            );
 
             RestResponse restResponse = channel.response;
             assertThat(restResponse.status(), equalTo(RestStatus.OK));
@@ -823,7 +825,9 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
             null
         );
         try {
-            new PrometheusQueryResponseListener(channel, "matrix", QueryMode.RANGE, Integer.MAX_VALUE).onResponse(response);
+            new PrometheusQueryResponseListener(channel, QueryMode.RANGE, Integer.MAX_VALUE).onResponse(
+                new PrometheusQueryResponse(response, "matrix", null)
+            );
 
             RestResponse restResponse = channel.response;
             assertThat(restResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));

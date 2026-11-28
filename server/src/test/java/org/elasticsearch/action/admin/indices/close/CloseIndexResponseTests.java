@@ -43,9 +43,23 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         return randomResponse();
     }
 
-    @Override
+ @Override
     protected CloseIndexResponse mutateInstance(CloseIndexResponse instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        boolean acknowledged = instance.isAcknowledged();
+        boolean shardsAcknowledged = instance.isShardsAcknowledged();
+        if (acknowledged) {
+            if (shardsAcknowledged) {
+                shardsAcknowledged = false;
+            } else if (randomBoolean()) {
+                acknowledged = false;
+            } else {
+                shardsAcknowledged = true;
+            }
+        } else {
+            acknowledged = true;
+            shardsAcknowledged = false;
+        }
+        return new CloseIndexResponse(acknowledged, shardsAcknowledged, instance.getIndices());
     }
 
     @Override

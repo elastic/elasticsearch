@@ -10,6 +10,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.bulk.TransportBulkActionTookTests.Resolver;
+import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -59,6 +61,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -87,11 +90,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -102,6 +108,7 @@ import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRo
 import static org.elasticsearch.action.bulk.TransportBulkAction.requireSliceRoutingWhenEnabled;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -111,6 +118,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportBulkActionTests extends ESTestCase {
+
+    private static final String PAST_TSDB_INDEX_CREATION_FAILURE = "past-tsdb-index-creation-failure";
 
     private final ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
 
@@ -146,6 +155,8 @@ public class TransportBulkActionTests extends ESTestCase {
         volatile Exception failIndexCreationException;
         volatile Exception failDataStreamRolloverException;
         volatile Exception failFailureStoreRolloverException;
+        // past time series index creation requests sent to the master, failed with PAST_TSDB_INDEX_CREATION_FAILURE
+        final List<PastTimeSeriesIndexCreationAction.Request> pastTimeSeriesIndexCreationRequests = new CopyOnWriteArrayList<>();
         boolean indexCreated = false; // set when the "real" index is created
         Runnable beforeIndexCreation = null;
 
@@ -205,6 +216,15 @@ public class TransportBulkActionTests extends ESTestCase {
             } else {
                 listener.onResponse(null);
             }
+        }
+
+        @Override
+        void createPastTimeSeriesIndex(
+            PastTimeSeriesIndexCreationAction.Request request,
+            ActionListener<PastTimeSeriesIndexCreationAction.Response> listener
+        ) {
+            pastTimeSeriesIndexCreationRequests.add(request);
+            listener.onFailure(new ElasticsearchException(PAST_TSDB_INDEX_CREATION_FAILURE));
         }
 
         @Override
@@ -1081,6 +1101,87 @@ public class TransportBulkActionTests extends ESTestCase {
         assertTrue(failureStoreFailure.isFailed());
         assertEquals("failure-store-rollover-exception", failureStoreFailure.getFailure().getCause().getMessage());
         assertNull(bulkRequest.requests.get(2));
+    }
+
+    /**
+     * The write index of a time series data stream ends before the request start time. Only uncovered timestamps older than the write
+     * index are sent to the master for past backing index creation; uncovered timestamps after the write index fail during the bulk
+     * operation because no backing index accepts them.
+     */
+    public void testPastTsdbIndexCreationSkipsTimestampsAfterLaggingWriteIndex() throws InterruptedException {
+        String dataStreamName = "my-tsdb";
+        // Document timestamps are compared at second precision, see DataStream#getCanonicalTimestampBound
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Instant writeIndexStart = now.minus(5, ChronoUnit.DAYS);
+        Instant writeIndexEnd = now.minus(2, ChronoUnit.DAYS);
+        Instant historical = writeIndexStart.minus(randomIntBetween(1, 23), ChronoUnit.HOURS);
+        Instant recent = randomFrom(writeIndexEnd, writeIndexEnd.plus(randomIntBetween(1, 23), ChronoUnit.HOURS));
+
+        final ClusterState oldState = clusterService.state();
+        final ProjectId projectId = randomUniqueProjectId();
+        final Metadata metadata = Metadata.builder(oldState.metadata())
+            .put(
+                DataStreamTestHelper.getProjectWithDataStream(
+                    projectId,
+                    dataStreamName,
+                    List.of(Tuple.tuple(writeIndexStart, writeIndexEnd))
+                )
+            )
+            .build();
+        final ClusterState clusterState = ClusterState.builder(oldState)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterService.getClusterApplierService()
+            .onNewClusterState("set-state", () -> clusterState, ActionListener.running(latch::countDown));
+        assertTrue(latch.await(10L, TimeUnit.SECONDS));
+        activeProjectId.set(projectId);
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(TransportBulkAction.PAST_TSDB_INDEX_CREATION_ENABLED_SETTING.getKey(), true).build());
+
+        // Only the historical timestamp is sent to the master
+        {
+            BulkRequest bulkRequest = new BulkRequest().add(timeSeriesCreateRequest(dataStreamName, historical))
+                .add(timeSeriesCreateRequest(dataStreamName, recent));
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            BulkResponse response = future.actionGet();
+            assertThat(bulkAction.pastTimeSeriesIndexCreationRequests.size(), equalTo(1));
+            PastTimeSeriesIndexCreationAction.Request request = bulkAction.pastTimeSeriesIndexCreationRequests.getFirst();
+            assertThat(request.dataStreamName(), equalTo(dataStreamName));
+            assertThat(List.copyOf(request.timestamps()), equalTo(List.of(historical)));
+
+            assertThat(response.getItems().length, equalTo(2));
+            assertTrue(response.getItems()[0].isFailed());
+            assertThat(response.getItems()[0].getFailure().getCause().getMessage(), equalTo(PAST_TSDB_INDEX_CREATION_FAILURE));
+            assertTrue(response.getItems()[1].isFailed());
+            assertThat(
+                response.getItems()[1].getFailure().getCause().getMessage(),
+                containsString("is outside of ranges of currently writable indices")
+            );
+        }
+
+        // No request is sent to the master when no timestamp is older than the write index
+        {
+            bulkAction.pastTimeSeriesIndexCreationRequests.clear();
+            BulkRequest bulkRequest = new BulkRequest().add(timeSeriesCreateRequest(dataStreamName, recent));
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            BulkResponse response = future.actionGet();
+            assertThat(bulkAction.pastTimeSeriesIndexCreationRequests, empty());
+            assertThat(response.getItems().length, equalTo(1));
+            assertTrue(response.getItems()[0].isFailed());
+            assertThat(
+                response.getItems()[0].getFailure().getCause().getMessage(),
+                containsString("is outside of ranges of currently writable indices")
+            );
+        }
+    }
+
+    private static IndexRequest timeSeriesCreateRequest(String dataStreamName, Instant timestamp) {
+        return new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+            .source(Map.of("@timestamp", timestamp.toString(), "uid", randomAlphaOfLength(8)));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

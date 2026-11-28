@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -204,6 +205,26 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         return map;
     }
 
+    /**
+     * Which byte a row failure's message says the count started from. The same three-way decision
+     * {@code CsvFormatReader} makes, so one situation reads the same in both formats.
+     */
+    enum MessageStartByte {
+        /** The split starts at a record boundary on the records' own axis: the first record this split reads. */
+        RECORD_BOUNDARY,
+        /**
+         * The first split: its ordinals are the object's, so no byte qualifies them, even where its start offset is a
+         * non-zero boundary in a compressed object.
+         */
+        OBJECT_START,
+        /**
+         * A later split that does not start at a record boundary -- the block-aligned split of a compressed object
+         * among them, whose start is a boundary in the compressed file while the ordinal counts decompressed records.
+         * No byte can be said to start the count.
+         */
+        WITHHELD
+    }
+
     NdJsonPageIterator(
         StorageObject object,
         List<String> projectedColumns,
@@ -219,6 +240,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         Function<List<Attribute>, String> fingerprinter,
         String readConfig,
         boolean chunkMode,
+        MessageStartByte messageStartByte,
         @Nullable NdJsonReaderCounters counters,
         long splitStartByte,
         int maxRecordBytes,
@@ -241,7 +263,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
         // sourceLocation keys stats, so it stays verbatim; user-facing messages name only the object.
-        String messageLocation = object.path().objectName();
+        String messageLocation = RowLocation.displayObjectName(object.path().objectName());
         this.chunkMode = chunkMode;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         this.statsMaxExtremumBytes = statsMaxExtremumBytes;
@@ -362,6 +384,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
+        // _rowPosition is unaffected by all three: the operator factory null-splices its slot for a compressed-offset split.
+        switch (messageStartByte) {
+            case RECORD_BOUNDARY -> {
+            }
+            case OBJECT_START -> this.pageDecoder.countMessagesFromObjectStart();
+            case WITHHELD -> this.pageDecoder.withholdMessageStartByte();
+        }
         this.pageDecoder.setMaxRecordBytes(maxRecordBytes);
         this.pageDecoder.setReportAbsentDeclaredColumns(statsFileFinal);
         if (this.statsStripeSize > 0) {
@@ -427,10 +456,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 // under-counted partial result is never published to the stats cache. The decoder has
                 // already emitted the client-facing partial-results warning.
                 if (pageDecoder.truncated()) {
+                    // The field keys stats and stays verbatim; what reaches the log layout is escaped, a key
+                    // holding a newline forging a line here exactly as it would in the row clause.
                     logger.warn(
                         "Record at byte [{}] in [{}] exceeds the record limit; results are partial",
                         pageDecoder.truncatedAtByte(),
-                        sourceLocation
+                        RowLocation.escapedForDisplay(sourceLocation)
                     );
                 } else {
                     naturallyExhausted = true;

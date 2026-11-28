@@ -20,12 +20,15 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonPageIterator.MessageStartByte;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
@@ -33,12 +36,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
@@ -417,12 +422,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker(),
                 widenings
             );
-            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count());
+            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count(), object);
             // No SourceMetadata reaches a reconciliation step from this read-time inference path (unlike
             // metadata(), which the coordinator consults during planning), so there is no widenedColumns()
             // for schema_resolution: strict to read here — only the warning, so a user reading through
             // this path is told the same thing a cold metadata() resolve would have told them.
-            reportWidenings(widenings, ExternalFailures.redactHttpUrl(object.path().toString()), warningSink);
+            reportWidenings(
+                widenings,
+                RowLocation.escapedForDisplay(ExternalFailures.redactHttpUrl(object.path().toString())),
+                warningSink
+            );
             return sampled.schema();
         }
     }
@@ -596,13 +605,30 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * A prefix that hits the decoded-byte sample cap without a complete record cannot infer a schema:
      * the first line is wider than the budget. Declaring the schema is the way out — retrying the
      * same request cannot succeed.
+     * <p>
+     * Names the object, because a glob fails on the first one that trips this and the user otherwise learns only
+     * that some file of theirs has an over-wide first line. The format is the literal {@code NDJSON}, not
+     * {@link #formatName()}, which returns the configuration id {@code ndjson}; this reader serves one format,
+     * unlike CSV, which takes its name from a field because one reader there serves both CSV and TSV.
+     * <p>
+     * Typed rather than raised through {@link Check#clientError}, for the reason
+     * {@code CsvFormatReader.sampleLimitError} sets out: it is the twin of this one and carries the whole
+     * argument, including what the type does not buy on the read path.
      */
-    private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead) {
-        Check.clientError(
-            sampleRows > 0 || bytesRead < schemaSampleBytes,
-            "schema inference reached the decoded-byte sample limit [{}] before reading a complete record; declare a schema",
-            ByteSizeValue.ofBytes(schemaSampleBytes)
+    private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead, StorageObject object) {
+        if (sampleRows > 0 || bytesRead < schemaSampleBytes) {
+            return;
+        }
+        ExternalClientException limitEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
+        limitEx.setDetail(
+            "NDJSON schema inference"
+                + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
+                + " reached the decoded-byte sample limit ["
+                + ByteSizeValue.ofBytes(schemaSampleBytes)
+                + "] before reading a complete record; declare a schema"
         );
+        limitEx.markMessageQuotesInput();
+        throw limitEx;
     }
 
     @Override
@@ -624,10 +650,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker(),
                 widenings
             );
-            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count());
+            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count(), object);
             List<Attribute> schema = sampled.schema();
             String location = object.path().toString();
-            String sourceLocation = ExternalFailures.redactHttpUrl(location);
+            String sourceLocation = RowLocation.escapedForDisplay(ExternalFailures.redactHttpUrl(location));
             List<String> warnings = new ArrayList<>();
             List<WidenedColumn> widenedColumns = reportWidenings(widenings, sourceLocation, warnings::add);
             long mtimeMillis;
@@ -811,6 +837,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
             readConfig,
             chunkMode,
+            // From context.recordAligned(), not chunkMode: chunkMode is demoted above when the object has no
+            // last-modified time, which is about cache participation and says nothing about the byte axis.
+            context.firstSplit() ? MessageStartByte.OBJECT_START
+                : context.recordAligned() ? MessageStartByte.RECORD_BOUNDARY
+                : MessageStartByte.WITHHELD,
             context.readCounters() instanceof NdJsonReaderCounters c ? c : null,
             context.splitStartByte(),
             context.maxRecordBytes(),

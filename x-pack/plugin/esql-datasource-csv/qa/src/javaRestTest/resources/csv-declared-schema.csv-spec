@@ -149,6 +149,7 @@ FROM employees_declared_height_int
 | LIMIT 3;
 warningRegex:Some values in \[.+\] cannot be read; returning null, and skipping rows that cannot be parsed
 warningRegex:row \[\d+\], column \[height\]: cannot read \[.*\] as \[integer\]
+warningRegex:row \[\d+\] of \[[^\]]*\](?: counted (?:from byte \[\d+\] of the decoded stream|within a split))?, column \[height\]: cannot read \[.*\] as \[integer\]
 warningRegex:\.\.\. further warnings suppressed \(more than \d+ recorded\)
 
 id:long | h:integer

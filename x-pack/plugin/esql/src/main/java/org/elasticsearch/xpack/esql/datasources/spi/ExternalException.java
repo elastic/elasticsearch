@@ -176,6 +176,20 @@ public abstract class ExternalException extends QlException {
      * after any {@link #detail}. Must be set before the exception crosses any node boundary.
      */
     private volatile String datasetContext;
+    /**
+     * Set when this exception's message quotes the read's own input back to the user -- an object's basename, a column
+     * name, a row, a clause of the declared schema. Such text may hold anything its source holds, a storage URL
+     * included, so the read boundary checks nothing in a message that carries it: see
+     * {@link ExternalFailures#noStoragePathLeakedBesideQuotedInput}. Copied by the copy constructor, so it survives the
+     * detach every classified failure goes through.
+     */
+    private volatile boolean messageQuotesInput;
+    /**
+     * Set when the failure this exception stands for has already been logged with its stack on this node, so
+     * {@link ExternalFailures#detach} need not log it again. Node-local: it is not serialized, and copied by the copy
+     * constructor only so it survives a detach on the same node.
+     */
+    private volatile boolean failureLogged;
 
     protected ExternalException(String message, Throwable cause) {
         super(message, cause);
@@ -264,6 +278,8 @@ public abstract class ExternalException extends QlException {
         this.remedy = source.remedy;
         this.detail = source.detail;
         this.datasetContext = source.datasetContext;
+        this.messageQuotesInput = source.messageQuotesInput;
+        this.failureLogged = source.failureLogged;
         recordConditionMetadata();
     }
 
@@ -402,6 +418,38 @@ public abstract class ExternalException extends QlException {
      */
     public void setDetail(String detail) {
         this.detail = detail;
+    }
+
+    /**
+     * Declares that this exception's message quotes the read's input -- the file's bytes, or the schema the user
+     * declared -- so the read boundary's storage-path guard leaves the message alone and checks only the chain below
+     * it. A format reader's refusals say this, because naming what the user has to fix means quoting the object, the
+     * column, the row or the schema clause that is wrong; a storage provider's failures do not, because what they
+     * carry is an endpoint or a path, and that is the thing the guard exists to catch.
+     * {@link ExternalFailures#noStoragePathLeakedBesideQuotedInput} is the whole argument.
+     * <p>
+     * Quoting is the claim, not origin: say it where the message puts input text in verbatim, not merely because the
+     * failure arose while reading a file. Saying it exempts everything in the message, so a message that also carries
+     * a library's own text -- a parser's diagnosis of the row it quotes -- is exempted with it, and that text should be
+     * escaped like the rest of what the message quotes. A storage client's text belongs in
+     * {@link ExternalFailures#forwardableDetail}, which screens it, and never in a marked message.
+     */
+    public void markMessageQuotesInput() {
+        this.messageQuotesInput = true;
+    }
+
+    /** See {@link #markMessageQuotesInput()}. */
+    boolean messageQuotesInput() {
+        return messageQuotesInput;
+    }
+
+    /** Records that this failure was logged with its stack where it was built; see {@link ExternalFailures#detach}. */
+    void markFailureLogged() {
+        this.failureLogged = true;
+    }
+
+    boolean failureLogged() {
+        return failureLogged;
     }
 
     /**

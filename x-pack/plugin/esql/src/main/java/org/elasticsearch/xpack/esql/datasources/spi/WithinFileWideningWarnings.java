@@ -26,6 +26,13 @@ public final class WithinFileWideningWarnings {
     private WithinFileWideningWarnings() {}
 
     /**
+     * @param sourceLocation the object this sample came from. Escaped here, like the column name beside it,
+     *                       because it is printed inside a bracketed clause this method builds by concatenation
+     *                       and a store-supplied path is free to close that bracket. Callers that have already
+     *                       escaped it -- CSV through {@link RowLocation#displayObjectName}, NDJSON through
+     *                       {@link RowLocation#escapedForDisplay} -- lose nothing by it: the escape replaces
+     *                       every character it acts on with six that it does not, so a second pass is a no-op.
+     *                       That is what makes this a contract rather than a convention a third caller can break
      * @param columnNoun     "column" or "field", used only in the summary line (e.g. "A field's
      *                       inferred type changed..."); the per-widening detail always says "column"
      *                       regardless, matching both readers' existing wording
@@ -43,15 +50,23 @@ public final class WithinFileWideningWarnings {
         }
         SkipWarnings keywordWarnings = null;
         SkipWarnings precisionWarnings = null;
+        String location = RowLocation.escapedForDisplay(sourceLocation);
         for (WidenedColumn widened : widenedColumns) {
+            // The column name is store-supplied too -- an NDJSON field name is an arbitrary JSON key -- and it is
+            // printed first inside this same bracketed sentence, so leaving it raw would let it forge the whole
+            // detail that follows and defeat the escape applied to the location. The sampled value is the third
+            // such field and is deliberately NOT escaped: it is the user's own data, bracketed cells are ordinary
+            // in it (csv-headerless.csv-spec pins warnings reading value [[-2.14] and value [12]]), and an escape
+            // there would mangle the common case to close the rare one, and where the perimeter of the escape
+            // should fall is a question about every message embedding a sampled value, not about this one.
             String detail = "column ["
-                + widened.columnName()
+                + RowLocation.escapedForDisplay(widened.columnName())
                 + "] at sample "
                 + sampleUnitNoun
                 + " ["
                 + widened.sampleRow()
                 + "] of ["
-                + sourceLocation
+                + location
                 + "]: value ["
                 + widened.value()
                 + "] forced type ["

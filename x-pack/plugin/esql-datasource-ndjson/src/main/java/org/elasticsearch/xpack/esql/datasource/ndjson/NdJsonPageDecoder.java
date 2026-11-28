@@ -42,7 +42,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -51,8 +50,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.Closeable;
@@ -68,6 +70,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Parses NDJSON into {@link Page}s for a single input stream.
@@ -178,6 +181,13 @@ public class NdJsonPageDecoder implements Closeable {
      * caller via {@link #setRecordOffsetBase(long)} before the first {@link #decodePage()}.
      */
     private long recordOffsetBase = 0L;
+    /**
+     * The byte a message may tell the user the ordinal was counted from. Tracks {@link #recordOffsetBase} by default;
+     * {@link #countMessagesFromObjectStart()} sets it to zero for the first split, and {@link #withholdMessageStartByte()}
+     * to {@link RowLocation#BYTE_UNKNOWN} for a later split that does not start at a record boundary.
+     * {@code _rowPosition} keeps using {@link #recordOffsetBase} in every case.
+     */
+    private long messageOffsetBase = 0L;
 
     /**
      * Per-record {@code external_max_record_size} byte cap. Enforced inside the decode loop on the same pass
@@ -704,6 +714,9 @@ public class NdJsonPageDecoder implements Closeable {
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
+        // Cut here rather than at each message; RowLocation.displayObjectName says why. The parameter itself is
+        // reassigned because the summaries below read the local, not the field.
+        sourceLocation = RowLocation.displayObjectName(sourceLocation);
         this.sourceLocation = sourceLocation;
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
@@ -712,9 +725,14 @@ public class NdJsonPageDecoder implements Closeable {
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                ? "Some rows in [" + sourceLocation + "] cannot be read; skipping them"
-                : "Some values in [" + sourceLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed",
-            "Some values in [" + sourceLocation + "] cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
+                ? "Some rows" + RowLocation.objectClause(" in", sourceLocation) + " cannot be read; skipping them"
+                : "Some values"
+                    + RowLocation.objectClause(" in", sourceLocation)
+                    + " cannot be read; returning null, and skipping rows that cannot be parsed",
+            "Some values"
+                + RowLocation.objectClause(" in", sourceLocation)
+                + " cannot be read; "
+                + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
             warningSink
         );
 
@@ -878,16 +896,14 @@ public class NdJsonPageDecoder implements Closeable {
         // Described once, for the strict message and the client warning alike: the row and the kind of failure.
         // Jackson's own message is never rendered to the client, since it names Jackson's classes and features;
         // the node log below keeps it, with the phase, for the operator.
-        String description = "row [" + logicalRowIndex + "]: " + lineFailureKind(e);
+        Supplier<String> describe = () -> RowLocation.of(logicalRowIndex, sourceLocation, messageOffsetBase) + ": " + lineFailureKind(e);
         if (errorPolicy.isStrict()) {
             // The remedy hint mirrors coercionFailure and CsvFormatReader.onRowErrorImpl, phrased for a
             // whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way
             // it is for a per-cell failure.
-            // ParsingException (client-class, 400) rather than EsqlIllegalArgumentException (Ql SERVER family,
-            // 500): a line this reader cannot interpret is bad input, not a broken invariant of ours, which is
-            // the split ExternalFailures documents and CsvFormatReader.onRowErrorImpl already implements. The
-            // single "{}" arg keeps LoggerMessageFormat away from the braces an NDJSON record is full of.
-            throw new ParsingException(e, Source.EMPTY, "{}", description + "; set [error_mode] to [skip_row] to skip the row instead");
+            // A 400: a line this reader cannot interpret is bad input, not a broken invariant of ours. Jackson's
+            // exception rides as the cause, which the read boundary logs on this node and drops before the response.
+            throw rowFailure(describe.get() + "; set [error_mode] to [skip_row] to skip the row instead", e);
         }
         if (e instanceof StreamConstraintsException) {
             // String length is validated LAZILY: only a projected column's decode arm reads the value, so a
@@ -906,11 +922,31 @@ public class NdJsonPageDecoder implements Closeable {
             // the record whole.
             chargeErrorBudget();
         }
-        skipWarnings.add(description);
+        // Composed only for a sink that will use it: past the warning cap a lenient scan keeps failing, and each
+        // description escapes the object's name. See SkipWarnings.acceptsDetail.
+        String description = skipWarnings.acceptsDetail() ? describe.get() : null;
+        if (description != null) {
+            skipWarnings.add(description);
+        }
         checkErrorBudgetOrThrow();
+        // Deferred: one line per bad record, and a lenient scan over a large object has many. A supplier rather
+        // than an isEnabled guard, because the guard consults the filter chain and the log call consults it
+        // again, so a rate filter can spend its last permit on the question and drop the answer.
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
-            LoggerMessageFormat.format("{} ({}): {}", description, phaseLabel, e.getOriginalMessage())
+            // The null prefix is load-bearing: with two Strings in front of the placeholders the call binds
+            // format(prefix, pattern, args), and the description becomes a pattern holding no placeholder,
+            // which comes back on its own without the phase or the parser's message.
+            () -> LoggerMessageFormat.format(
+                null,
+                "{} ({}): {}",
+                description != null ? description : describe.get(),
+                phaseLabel,
+                // The parser's text is the file's own -- a duplicate-field rejection quotes the decoded field
+                // name -- so it is escaped and capped like every other store-supplied token printed here.
+                ErrorExcerpts.summarizeEscaped(e.getOriginalMessage())
+            ),
+            null
         );
     }
 
@@ -974,6 +1010,27 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
+     * The 400 every failure this decoder raises for the user's data is thrown as. Each names the object, and the
+     * object is whatever the user called it -- {@code logs.amazonaws.com.ndjson} included -- so the message is marked
+     * as quoting the read's input: unmarked, the read boundary's storage-path assertion reads the name as a host and
+     * turns the refusal into an {@link AssertionError} under {@code -ea}. A {@code ParsingException}
+     * cannot carry the mark. The shape is the one the CSV reader's typed refusals take, and {@code cause}, when there
+     * is one, is the parser's exception: logged on this node and never sent.
+     */
+    private static ExternalClientException rowFailure(String detail, @Nullable Exception cause) {
+        ExternalClientException failure = new ExternalClientException(
+            ExternalException.Condition.MALFORMED_DATA,
+            StoragePath.NONE,
+            "",
+            "",
+            cause
+        );
+        failure.setDetail(detail);
+        failure.markMessageQuotesInput();
+        return failure;
+    }
+
+    /**
      * Throws when the non-strict error budget ({@code max_errors}/{@code max_error_ratio}) has been
      * exceeded, naming the limit that tripped. Shared by every
      * non-strict error path ({@link #onNdjsonLineParseError} and {@link BlockDecoder#coercionFailure})
@@ -985,12 +1042,19 @@ public class NdJsonPageDecoder implements Closeable {
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
             // Client-class for the same reason as the whole-line failure above: the budget was set by the user
             // and exhausted by the user's data.
-            throw new ParsingException(
-                "[{}] errors in [{}] rows of [{}]; {}",
-                errorCount,
-                totalRowCount,
-                sourceLocation,
-                errorPolicy.trippedLimit(errorCount)
+            // Same window clause the per-row details take, from the same field, so the aggregate cannot imply a
+            // file-global count the split-relative totalRowCount is not. CsvFormatReader.checkBudget matches.
+            throw rowFailure(
+                "["
+                    + errorCount
+                    + "] errors in ["
+                    + totalRowCount
+                    + "] rows"
+                    + RowLocation.objectClause(" of", sourceLocation)
+                    + RowLocation.countedIn(messageOffsetBase)
+                    + "; "
+                    + errorPolicy.trippedLimit(errorCount),
+                null
             );
         }
     }
@@ -1002,6 +1066,21 @@ public class NdJsonPageDecoder implements Closeable {
      */
     void setRecordOffsetBase(long recordOffsetBase) {
         this.recordOffsetBase = recordOffsetBase;
+        this.messageOffsetBase = recordOffsetBase;
+    }
+
+    /**
+     * Stops messages naming a byte the ordinal was counted from. Called for a split whose start offset is on the
+     * compressed axis while the records are counted on the decompressed one, where any byte printed would be a
+     * wrong instruction the reader of the message could not detect.
+     */
+    void withholdMessageStartByte() {
+        this.messageOffsetBase = RowLocation.BYTE_UNKNOWN;
+    }
+
+    /** Counts messages from the top of the object: called for the first split, whose ordinals are the object's. */
+    void countMessagesFromObjectStart() {
+        this.messageOffsetBase = 0L;
     }
 
     /**
@@ -1278,7 +1357,16 @@ public class NdJsonPageDecoder implements Closeable {
                             // Rows already in blockBuilders are a partial prefix. Emit a one-shot partial-results
                             // warning (best-effort, via the same thread-bound HeaderWarning path as skip warnings);
                             // NdJsonPageIterator keeps the under-count out of the stats cache (see truncated()).
-                            skipWarnings.add("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial");
+                            // Named, like the other six skipWarnings sinks: unnamed, every object of a glob
+                            // tripping the cap renders identical text, which the warning budget deduplicates
+                            // down to one. totalRowCount was decremented just above, so the offending record
+                            // is the next one.
+                            skipWarnings.add(
+                                RowLocation.of(totalRowCount + 1, sourceLocation, messageOffsetBase)
+                                    + ": record exceeds ["
+                                    + ByteSizeValue.ofBytes(maxRecordBytes)
+                                    + "]; results are partial"
+                            );
                             truncated = true;
                             truncatedAtByte = recordOffset;
                             break;
@@ -2548,11 +2636,9 @@ public class NdJsonPageDecoder implements Closeable {
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
             // The outcome (row skipped or value nulled) is stated once, in the summary, not per detail.
-            String message = "row ["
-                + totalRowCount
-                + "], column ["
-                + name
-                + "]: cannot read ["
+            long row = totalRowCount;
+            Supplier<String> describe = () -> RowLocation.of(row, sourceLocation, messageOffsetBase, name)
+                + ": cannot read ["
                 + value
                 + "] as ["
                 + target.typeName()
@@ -2561,7 +2647,7 @@ public class NdJsonPageDecoder implements Closeable {
             if (errorPolicy.isStrict()) {
                 // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable,
                 // and its client-class exception so an unrepresentable value is a 400 rather than a 500.
-                throw new ParsingException(Source.EMPTY, "{}", message + "; set [error_mode] to [null_field] to return null instead");
+                throw rowFailure(describe.get() + "; set [error_mode] to [null_field] to return null instead", null);
             }
             // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
             // Mode.SKIP_ROW "drop the entire bad row" contract); null_field keeps the record and nulls this one cell.
@@ -2576,6 +2662,8 @@ public class NdJsonPageDecoder implements Closeable {
                     droppedFromEntry = true;
                     chargeErrorBudget();
                 }
+                // Composed eagerly: acceptsDetail answers for the row summary, not the multi-value one this emits.
+                String message = describe.get();
                 skipWarnings.addRemovedFromMultiValue(message);
                 checkErrorBudgetOrThrow();
                 logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
@@ -2586,9 +2674,13 @@ public class NdJsonPageDecoder implements Closeable {
                 rowDroppedBySkipRow = true;
             }
             chargeErrorBudget();
-            skipWarnings.add(message);
+            // Composed only for a sink that will use it, as onNdjsonLineParseError does.
+            String message = skipWarnings.acceptsDetail() ? describe.get() : null;
+            if (message != null) {
+                skipWarnings.add(message);
+            }
             checkErrorBudgetOrThrow();
-            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message != null ? () -> message : describe, null);
             if (inArray) {
                 // A record skip_row drops, or a scalar further spelling of an already-filled cell: throw to signal that
                 // the whole position must be nulled. The array decode loop (or appendFurtherOccurrence) catches

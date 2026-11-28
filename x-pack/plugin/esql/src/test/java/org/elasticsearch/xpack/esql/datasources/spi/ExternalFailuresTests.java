@@ -581,6 +581,188 @@ public class ExternalFailuresTests extends ESTestCase {
         );
     }
 
+    /**
+     * A refusal that quotes the read's input carries tokens that look exactly like a location -- an object a user may
+     * name {@code logs.amazonaws.com.csv}, a column literally named {@code /data}, a quoted column name holding a URL.
+     * All three are legitimate input a reader is meant to refuse with an HTTP 400, so none of them may cost the user
+     * the sentence that says what to fix.
+     */
+    public void testARefusalThatQuotesInputMayCarryTextThatLooksLikeALocation() {
+        for (String sentence : List.of(
+            "Malformed external data: CSV file [logs.amazonaws.com.csv] has no data rows",
+            // A column name is not an object name, and nothing escapes a leading slash out of one.
+            "Malformed external data: CSV header of [data.csv] has duplicate column names ['/data']; columns cannot bind by name",
+            // A CSV field may be quoted, and a quoted field may hold anything -- a URL included.
+            "Malformed external data: CSV header of [data.csv] has duplicate column names ['https://x.test/a']; "
+                + "columns cannot bind by name"
+        )) {
+            var refusal = new ExternalClientException(sentence);
+            refusal.markMessageQuotesInput();
+            assertTrue(sentence, ExternalFailures.noStoragePathLeakedBesideQuotedInput(refusal));
+            RuntimeException classified = ExternalFailures.classify(refusal);
+            assertThat(sentence, classified, instanceOf(ExternalClientException.class));
+            assertEquals(sentence, RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+
+            // The boundary reads the mark, never the shape of the text: the identical sentence unmarked is refused.
+            assertFalse(sentence, ExternalFailures.noStoragePathLeakedBesideQuotedInput(new ExternalClientException(sentence)));
+            // And the full predicate refuses it either way, which is why the two entry points are not one: that one
+            // answers about text we did not write, where these same shapes are a leak.
+            assertFalse(sentence, ExternalFailures.noStoragePathLeaked(new ExternalClientException(sentence)));
+        }
+        assertFalse(ExternalFailures.safeForUserMessage("secret-bucket.s3.amazonaws.com: Name or service not known"));
+    }
+
+    /**
+     * The provider's own failures quote the object's basename because the condition renderer puts it there, not
+     * because any reader asked -- so a user who names an object after a storage host used to turn a polite 403 into
+     * a fatal {@link AssertionError}.
+     * <p>
+     * The mark cannot answer this one, which is why the exemption is a mark the thrower asks for rather than a
+     * property of this boundary. Every typed failure the storage providers raise reaches the same place, and an SDK
+     * endpoint host or a bare filesystem path in one of those is the leak this guard exists to catch; relaxing the
+     * boundary itself would have retired it for precisely the throw sites it watches.
+     */
+    public void testAProviderFailureMayNameAnObjectAfterAStorageHost() {
+        for (String objectName : List.of("logs.amazonaws.com.csv", "blob.core.windows.net.csv", "data.googleapis.com.ndjson")) {
+            var denied = new ExternalClientException(
+                ExternalException.Condition.ACCESS_DENIED,
+                StoragePath.of("s3://bucket/" + objectName),
+                "HTTP 403",
+                ""
+            );
+            assertThat("the renderer quotes the basename", denied.getMessage(), containsString(objectName));
+            assertFalse("unmarked, as a provider failure is", denied.messageQuotesInput());
+            assertTrue(objectName, ExternalFailures.noStoragePathLeakedBesideQuotedInput(denied));
+
+            // The point is that it classifies at all: before this, the heuristic matched the name the user chose and
+            // the read died under -ea instead of answering.
+            RuntimeException classified = ExternalFailures.classify(denied);
+            assertEquals(denied.status(), ExceptionsHelper.status(classified));
+            assertThat(classified.getMessage(), containsString(objectName));
+        }
+    }
+
+    /** Only the rendered basename is excused. Everything the provider wrote around it is still read in full. */
+    public void testTheBasenameExcuseReachesNothingBesideTheBasename() {
+        var denied = new ExternalClientException(
+            ExternalException.Condition.ACCESS_DENIED,
+            StoragePath.of("s3://bucket/logs.amazonaws.com.csv"),
+            "HTTP 403",
+            ""
+        );
+        denied.setDetail("bucket.s3.us-east-1.amazonaws.com refused the connection");
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(denied));
+        AssertionError caught = expectThrows(AssertionError.class, () -> ExternalFailures.classify(denied));
+        assertThat(caught.getMessage(), containsString("storage path leaked in ExternalException"));
+
+        // And a basename of one character cannot blank that character everywhere: only the bracketed occurrence goes.
+        var shortName = new ExternalClientException(ExternalException.Condition.ACCESS_DENIED, StoragePath.of("s3://b/a"), "", "");
+        shortName.setDetail("endpoint s3.amazonaws.com refused");
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(shortName));
+
+        // One occurrence, not every one of them. Here the object is named after the endpoint and the provider brackets
+        // that endpoint too, so blanking the name wherever it appeared would have taken the provider's own mention of
+        // the host with it -- a real host, in text nobody chose to quote back -- and the boundary would have passed.
+        String endpoint = "bucket.s3.us-east-1.amazonaws.com";
+        var namesakeEndpoint = new ExternalClientException(
+            ExternalException.Condition.ACCESS_DENIED,
+            StoragePath.of("s3://bucket/" + endpoint),
+            "HTTP 403",
+            ""
+        );
+        namesakeEndpoint.setDetail("refused by [" + endpoint + "]");
+        assertThat(namesakeEndpoint.getMessage(), containsString("reading [" + endpoint + "]"));
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(namesakeEndpoint));
+
+        // And a condition whose renderer never names the object has no slot at all, so the first bracketed copy of
+        // the name is the provider's. Masking "the first occurrence" would have taken exactly that one.
+        var noSlot = new ExternalClientException(
+            ExternalException.Condition.CREDENTIALS_EXPIRED,
+            StoragePath.of("s3://bucket/" + endpoint),
+            "",
+            ""
+        );
+        noSlot.setDetail("refused by [" + endpoint + "]");
+        assertThat(noSlot.getMessage(), not(containsString("expired or invalid [")));
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(noSlot));
+    }
+
+    public void testAnUnmarkedTypedFailureIsStillCheckedInFull() {
+        for (String leak : List.of("bucket.s3.us-east-1.amazonaws.com refused the connection", "cannot open /var/lib/esdata/x.csv")) {
+            var providerFailure = new ExternalServerException("Unexpected internal failure reading external source");
+            providerFailure.setDetail(leak);
+            assertFalse(leak, ExternalFailures.noStoragePathLeakedBesideQuotedInput(providerFailure));
+            // Which is the whole point: it still fails the read boundary under -ea, where a developer sees it.
+            AssertionError caught = expectThrows(AssertionError.class, () -> ExternalFailures.classify(providerFailure));
+            assertThat(caught.getMessage(), containsString("storage path leaked in ExternalException"));
+        }
+    }
+
+    /**
+     * A row is free to hold a URL -- {@link ErrorExcerpts} sizes its per-value cap around values that usually do --
+     * so a row error's own message is the one this boundary does not read at all. Its cause and its suppressed
+     * failures still are, and the exemption has to survive the detach that classification performs.
+     */
+    public void testARowErrorMayQuoteARowHoldingAUrl() {
+        var rowHoldingAUrl = ExternalFailures.rowError(
+            new IllegalArgumentException("not a long"),
+            "Row [7] of [hits.csv]: cannot parse [https://example.com/a?b=1] as [long]"
+        );
+        assertTrue(ExternalFailures.noStoragePathLeakedBesideQuotedInput(rowHoldingAUrl));
+
+        RuntimeException classified = ExternalFailures.classify(rowHoldingAUrl);
+        assertThat(classified, instanceOf(ExternalClientException.class));
+        assertThat(classified.getMessage(), containsString("https://example.com/a?b=1"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        // The detach that classify performs copies the exemption, or a second pass over the result would fail.
+        assertTrue(ExternalFailures.noStoragePathLeakedBesideQuotedInput((ExternalException) classified));
+
+        // The cause is still foreign text and is still read in full -- at the throw site, which is earlier than
+        // this boundary and is why a leaking cause never reaches it.
+        expectThrows(
+            AssertionError.class,
+            () -> ExternalFailures.rowError(
+                new IOException("Failed to read s3://secret-bucket/k"),
+                "Row [7] of [hits.csv]: cannot parse [x] as [long]"
+            )
+        );
+
+        // Assembled with the cause that assertion refuses, the boundary refuses it too: the exemption is the
+        // message's alone and the walk below it is unchanged.
+        var leakingCause = new ExternalClientException(
+            new IOException("Failed to read s3://secret-bucket/k"),
+            "{}",
+            "Row [7] of [hits.csv]: cannot parse [x] as [long]"
+        );
+        leakingCause.markMessageQuotesInput();
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(leakingCause));
+    }
+
+    /**
+     * What the mark does not buy. It speaks for one message -- the one the reader wrote -- and for nothing under it:
+     * the cause chain and every suppressed failure, which is where an SDK writes a real path, are read in full whether
+     * the message is marked or not.
+     */
+    public void testTheMarkCoversOneMessageAndNothingBelowIt() {
+        var sdkCause = new ExternalClientException(
+            new IOException("secret-bucket.s3.us-east-1.amazonaws.com: Name or service not known"),
+            "{}",
+            "CSV file [data.csv] could not be read"
+        );
+        sdkCause.markMessageQuotesInput();
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(sdkCause));
+
+        var suppressedLeak = new ExternalClientException("CSV file [data.csv] could not be read");
+        suppressedLeak.markMessageQuotesInput();
+        suppressedLeak.addSuppressed(new IOException("Path is not a regular file: /data/private/x.csv"));
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(suppressedLeak));
+
+        // And an unmarked message is read exactly as noStoragePathLeaked reads it, concatenated URI and all.
+        var concatenatedUri = new ExternalClientException("Access denied [s3://bucket/prefix/file.parquet]");
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(concatenatedUri));
+        assertFalse(ExternalFailures.noStoragePathLeaked(concatenatedUri));
+    }
+
     public void testDatasetContextAppendsToMessage() {
         var ex = new ExternalClientException("Access denied reading [file.parquet]");
         assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("dataset")));
@@ -681,6 +863,88 @@ public class ExternalFailuresTests extends ESTestCase {
             ExternalFailures.class,
             new MockLog.UnseenEventExpectation("client", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
         );
+    }
+
+    /**
+     * A 500 raised directly, with nothing under it, is the quietest failure the read path can produce if only causes
+     * are logged: the message crosses the wire and the stack exists nowhere. An invariant breach is exactly that
+     * shape, so the node has to keep a record of it whether or not anything wrapped it.
+     */
+    public void testDetachLogsACauselessServerFailureSoItsStackSurvives() {
+        var invariant = new ExternalServerException("invariant violated");
+        assertNull("the point of this case is that there is no cause to log instead", invariant.getCause());
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(invariant),
+            ExternalFailures.class,
+            new MockLog.SeenEventExpectation(
+                "causeless server failure",
+                ExternalFailures.class.getCanonicalName(),
+                Level.WARN,
+                "External failure reading external source*"
+            )
+        );
+        // A causeless client failure still says nothing: its condition is the diagnosis and it is not a bug here.
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(new ExternalClientException("bad file")),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("causeless client", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+        // Nor does a causeless 503. An object rewritten under a read raises one, and the query ends for the client to
+        // retry: a WARN and a stack per occurrence would be noise, and the record is for the invariant breach above.
+        var changed = new ExternalObjectChangedException(StoragePath.of("s3://bucket/a.csv"));
+        assertNull(changed.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, changed.status());
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(changed),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("causeless 503", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    /**
+     * {@link ExternalFailures#surface} logs a non-IO failure with its own stack before standing a causeless 500 in for
+     * it, so detaching that 500 must not log it a second time: one failure, one WARN.
+     */
+    public void testASurfacedServerFailureIsLoggedOnce() {
+        RuntimeException[] surfaced = new RuntimeException[1];
+        MockLog.assertThatLogger(
+            () -> surfaced[0] = ExternalFailures.surface(new InterruptedException("worker interrupted"), "Failed to read"),
+            ExternalFailures.class,
+            new MockLog.SeenEventExpectation(
+                "surface",
+                ExternalFailures.class.getCanonicalName(),
+                Level.WARN,
+                "External read failed (cause logged, not forwarded)"
+            )
+        );
+        ExternalServerException server = (ExternalServerException) surfaced[0];
+        assertNull(server.getCause());
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(server),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("second record", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+        // The copy a detach returns still says so, so a second detach on this node stays quiet too.
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(ExternalFailures.detach(server)),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("third record", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    /**
+     * A tokeniser fault quotes its line, so a row holding a URL near an unclosed quote puts that URL in the cause's
+     * message. That is row content, held to the rule the failure's own message is: unchecked. What sits below the cause
+     * is still asserted.
+     */
+    public void testARowErrorQuotingTheRowLeavesTheCausesMessageAlone() {
+        var quoting = new IllegalStateException("Unclosed quoted field in line [1,\"https://example.com/x]");
+        ExternalClientException result = ExternalFailures.rowErrorQuotingTheRow(quoting, "Row [1] of [a.csv]: unclosed quote");
+        assertEquals(RestStatus.BAD_REQUEST, result.status());
+        assertSame(quoting, result.getCause());
+        expectThrows(AssertionError.class, () -> ExternalFailures.rowError(quoting, "Row [1] of [a.csv]: unclosed quote"));
+        var leaking = new IllegalStateException("row", new IOException("s3://bucket/data/a.csv"));
+        expectThrows(AssertionError.class, () -> ExternalFailures.rowErrorQuotingTheRow(leaking, "Row [1] of [a.csv]: row"));
     }
 
     /**

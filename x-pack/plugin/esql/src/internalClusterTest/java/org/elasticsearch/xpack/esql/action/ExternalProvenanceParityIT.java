@@ -266,7 +266,11 @@ public class ExternalProvenanceParityIT extends AbstractExternalDataSourceIT {
                     Exception.class,
                     () -> run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, name"), TIMEOUT).close()
                 );
-                assertThat(dataset, e.getMessage(), containsString("b.csv] has duplicate column name [id]; columns cannot bind by name"));
+                assertThat(
+                    dataset,
+                    e.getMessage(),
+                    containsString("b.csv] has duplicate column names ['id']; columns cannot bind by name")
+                );
             }
         }
     }

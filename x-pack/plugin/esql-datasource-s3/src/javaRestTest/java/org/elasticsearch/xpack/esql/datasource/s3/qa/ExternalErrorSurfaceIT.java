@@ -136,6 +136,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     private static final String GARBAGE_PARQUET = "data/garbage.parquet";
     private static final String TRUNCATED_PARQUET = "data/truncated.parquet";
     private static final String RAGGED_CSV = "data/ragged.csv";
+    /** Named like a storage host, which is what the read boundary's guard looks for in a message it does not trust. */
+    private static final String MALFORMED_NDJSON = "data/logs.amazonaws.com.ndjson";
+    private static final String DUPLICATE_HEADER_CSV = "data/duplicate_header.csv";
     private static final String GLOB_A = "glob/a.csv";
     private static final String GLOB_B = "glob/b.csv";
     private static final String GLOB_INCOMPATIBLE = "glob/c.csv";
@@ -162,6 +165,10 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         seed(TRUNCATED_PARQUET, "PAR1" + "x".repeat(64));
         // Row 2 has one field too many for the declared header.
         seed(RAGGED_CSV, "id,city\n1,Vienna\n2,Berlin,extra\n");
+        // Line 2 is not JSON. Sampling reads line 1 only, so the strict read meets it, not inference.
+        seed(MALFORMED_NDJSON, "{\"id\":1,\"city\":\"Vienna\"}\n{\"id\":2,\"city\":\n{\"id\":3,\"city\":\"Prague\"}\n");
+        // A header naming one column twice: by-name binding cannot say which physical column a schema column means.
+        seed(DUPLICATE_HEADER_CSV, "id,city,id\n1,Vienna,2\n");
         seed(GLOB_A, "id,city\n1,Vienna\n");
         seed(GLOB_B, "id,city\n2,Berlin\n");
         // Same column count, different names — forces schema reconciliation across the glob.
@@ -286,6 +293,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("parquet extension over non-parquet bytes", 400),
         entry("parquet with correct magic but truncated body", 400),
         entry("zero-byte object", 400),
+        entry("malformed NDJSON line in an object named like a storage host", 400),
         entry("unknown setting key on the dataset", 400),
         entry("multi-character delimiter", 400),
         entry("invalid encoding name", 400),
@@ -304,6 +312,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("date format declared on a non-date column", 400),
         entry("strict declaration with no columns", 400),
         entry("declared type not coercible from the bytes", 400),
+        entry("duplicate header name under a declared schema", 400),
         entry("glob matches nothing", 400),
         entry("glob over incompatible schemas", 200),
         entry("glob over a bucket that does not exist", 400),
@@ -335,13 +344,57 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     );
 
     /**
-     * The {@code error.type} every probe is expected to return. Clients read this alongside the status, so a rename
-     * is as visible as a status change and is pinned the same way -- this PR's own CSV faults moved from
-     * {@code parsing_exception} to {@code external_client_exception}, which nothing would otherwise have caught.
+     * Phrases a probe's {@code error.reason} must contain, for the conditions a status and a type cannot tell apart.
+     * Two conditions answering 400 {@code external_client_exception} is the normal case here, so those two columns
+     * cannot pin which site refused: a probe aimed at one of them passes just as well when the read takes the other
+     * route. A phrase only that site writes closes the gap.
+     * <p>
+     * Deliberately sparse. A phrase pinned here is a sentence this suite promises not to change silently, which is
+     * worth paying where two conditions would otherwise be indistinguishable and is dead weight anywhere else. An
+     * entry naming no probe fails the run, the same way a stale {@link #EXPECTED_STATUS} entry does.
+     */
+    private static final Map<String, List<String>> EXPECTED_REASON_PHRASES = Map.ofEntries(
+        // Inference refuses the same file one step earlier, with the same status and type and a different remedy.
+        // The object and the duplicated column say the refusal read this file; the clause says binding raised it.
+        entry(
+            "duplicate header name under a declared schema",
+            List.of("duplicate_header.csv", "duplicate column names ['id']", "columns cannot bind by name")
+        ),
+        // The object's name looks like a storage host. The refusal quotes it anyway, as a 400, and says how to read on.
+        entry(
+            "malformed NDJSON line in an object named like a storage host",
+            List.of("of [logs.amazonaws.com.ndjson]", "set [error_mode] to [skip_row] to skip the row instead")
+        )
+    );
+
+    /**
+     * The {@code error.type} every probe is expected to return. Clients read this alongside the status, so a
+     * rename is as visible as a status change, and this map is what makes one a deliberate edit rather than a
+     * surprise a client finds first.
+     * <p>
+     * The two empty-object cells answer {@code external_client_exception} because the refusal behind them is
+     * typed. Untyped it is a bare {@code IOException}, which {@code FileSourceFactory} re-raises as a plain
+     * argument error, and the resolver forwards one of those only past its storage-path guard — so an object a
+     * user is entitled to call {@code logs.amazonaws.com.csv} loses the whole diagnosis to a substring match on
+     * a basename the replacement message prints anyway. The type lines them up with the CSV reader's other
+     * refusals rather than with this surface, which has no single convention: the parquet cells in this same map
+     * answer an argument error for an object whose bytes contradict its declared format.
+     * <p>
+     * The duplicate-header cell is the read path's own refusal and answers the same way, for the same reason and
+     * from a different site: binding by name cannot choose between two physical columns of one name, and untyped
+     * that sentence is withheld whole for a basename the guard mistakes for a host. It is the one cell here whose
+     * refusal is raised while rows are being read rather than while the schema is being settled.
+     * <p>
+     * A typed refusal is handed back as it stands, so {@code error.reason} opens with the
+     * {@code Malformed external data:} prefix {@code MALFORMED_DATA} renders, with the diagnosis word for word
+     * inside it. A client matching a whole reason string sees a different one; a client reading the diagnosis
+     * does not. The status is 400 either way. This map pins the type; {@link #EXPECTED_REASON_PHRASES} pins the few
+     * reasons a type cannot tell apart, and the prefix is recorded here because it is the part every typed reason
+     * opens with rather than anything that map singles out.
      */
     private static final Map<String, String> EXPECTED_TYPE = Map.ofEntries(
         entry("tsv object does not exist", "external_client_exception"),
-        entry("tsv object is empty", "illegal_argument_exception"),
+        entry("tsv object is empty", "external_client_exception"),
         entry("tsv declared as parquet", "illegal_argument_exception"),
         entry("tsv under a data source with the wrong credentials", "external_client_exception"),
         entry("object key does not exist", "external_client_exception"),
@@ -361,7 +414,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("unknown explicit format name", "validation_exception"),
         entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),
         entry("parquet with correct magic but truncated body", "illegal_argument_exception"),
-        entry("zero-byte object", "illegal_argument_exception"),
+        entry("zero-byte object", "external_client_exception"),
+        entry("malformed NDJSON line in an object named like a storage host", "external_client_exception"),
         entry("unknown setting key on the dataset", "validation_exception"),
         entry("multi-character delimiter", "validation_exception"),
         entry("invalid encoding name", "validation_exception"),
@@ -380,6 +434,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("date format declared on a non-date column", "illegal_argument_exception"),
         entry("strict declaration with no columns", "illegal_argument_exception"),
         entry("declared type not coercible from the bytes", "external_client_exception"),
+        entry("duplicate header name under a declared schema", "external_client_exception"),
         entry("glob matches nothing", "illegal_argument_exception"),
         entry("glob over incompatible schemas", "<none>"),
         entry("glob over a bucket that does not exist", "external_client_exception"),
@@ -788,6 +843,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             null
         );
         queryProbe("format", "zero-byte object", "say the object is empty", "empty_csv", "good_ds", s3(EMPTY_CSV), null);
+        queryProbeWithSettings(
+            "format",
+            "malformed NDJSON line in an object named like a storage host",
+            "refuse the row as a 400 that names the object, rather than trip the storage-path guard",
+            "malformed_ndjson",
+            "good_ds",
+            s3(MALFORMED_NDJSON),
+            Map.of("schema_sample_size", 1)
+        );
     }
 
     // -------- reader options ---------------------------------------------------------------------
@@ -966,6 +1030,21 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "declared type not coercible from the bytes",
             "name the column, the declared type, and the offending value",
             "strict_mismatch_ds"
+        );
+        // A duplicate header name is the read path's own refusal, and only a declared schema reaches it: inference
+        // refuses the same file one step earlier, from a different site, with a different remedy.
+        putDataset(
+            "duplicate_header_ds",
+            "good_ds",
+            s3(DUPLICATE_HEADER_CSV),
+            Map.of("region", regionSupplier.get()),
+            Map.of("dynamic", "false", "properties", Map.of("city", Map.of("type", "keyword")))
+        );
+        queryProbeExisting(
+            "declared_mapping",
+            "duplicate header name under a declared schema",
+            "name the format, the object and every duplicated column",
+            "duplicate_header_ds"
         );
     }
 
@@ -1512,6 +1591,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             } else if (expected != p.status()) {
                 violations.add("status changed for [" + p.group() + "/" + p.name() + "]: expected " + expected + ", got " + p.status());
             }
+            for (String phrase : EXPECTED_REASON_PHRASES.getOrDefault(p.name(), List.of())) {
+                if (p.reason().contains(phrase) == false) {
+                    violations.add("reason for [" + p.group() + "/" + p.name() + "] no longer says [" + phrase + "]: " + p.reason());
+                }
+            }
             String expectedType = EXPECTED_TYPE.get(p.name());
             if (expectedType == null) {
                 violations.add("no expected error.type recorded for [" + p.group() + "/" + p.name() + "]");
@@ -1532,6 +1616,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         for (String recorded : EXPECTED_STATUS.keySet()) {
             if (probed.contains(recorded) == false) {
                 violations.add("EXPECTED_STATUS entry [" + recorded + "] matches no probe -- remove it");
+            }
+        }
+        for (String recorded : EXPECTED_REASON_PHRASES.keySet()) {
+            if (probed.contains(recorded) == false) {
+                violations.add("EXPECTED_REASON_PHRASES entry [" + recorded + "] matches no probe -- remove it");
             }
         }
 

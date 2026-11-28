@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
@@ -32,6 +33,8 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -44,6 +47,7 @@ import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -53,7 +57,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -550,6 +553,125 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * The discard warning this stream emits names the object, and the whole string is pinned rather than a
+     * fragment of it: {@code InformationalWarningBudget} deduplicates by exact string, so without the clause two
+     * objects in one glob that each lose an oversized line report it once between them and the second is silently
+     * dropped. A {@code containsString} on the byte count would pass with the clause gone again, which is the
+     * regression the clause exists to prevent.
+     * <p>
+     * What it does not fix is two splits of the SAME object discarding the same number of bytes: this message
+     * carries neither an ordinal nor a byte, so those two still collapse into one. The byte is absent on purpose
+     * — {@code NdJsonFormatReader} arms this stream only where {@code recordAligned} is false, which is exactly
+     * where a split's start byte is a compressed-axis offset the decoder itself withholds. Telling those two
+     * apart needs the decompressed position, which this stream is not given.
+     */
+    public void testTheDiscardWarningNamesTheObject() throws IOException {
+        int maxRecordBytes = 8;
+        List<String> warnings = new ArrayList<>();
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream("aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8)),
+                4,
+                ErrorPolicy.LENIENT,
+                "input.ndjson",
+                new NdJsonRecordSplitter(maxRecordBytes),
+                warnings::add
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        assertThat(
+            warnings,
+            Matchers.contains(
+                "Line in [input.ndjson] exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; skipping it",
+                "about [10] bytes skipped in [input.ndjson]"
+            )
+        );
+    }
+
+    /**
+     * The same read with no object name available. The clause is rendered by
+     * {@code RowLocation.objectClause}, which drops the preposition with the name, so the message must read as a
+     * sentence rather than trail an " in" or an empty "[]" — the reason the lead-in travels with the name instead
+     * of being concatenated at each site.
+     */
+    public void testTheDiscardWarningOmitsTheClauseWithNoObjectName() throws IOException {
+        int maxRecordBytes = 8;
+        List<String> warnings = new ArrayList<>();
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream("aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8)),
+                4,
+                ErrorPolicy.LENIENT,
+                null,
+                new NdJsonRecordSplitter(maxRecordBytes),
+                warnings::add
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        assertThat(
+            warnings,
+            Matchers.contains("Line exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; skipping it", "about [10] bytes skipped")
+        );
+    }
+
+    /**
+     * The discard reaches the node log as well as the warning, and the log line is pinned whole rather than by a
+     * fragment, because the way it breaks leaves the warning channel untouched. Both arguments in front of the
+     * sizes are Strings, so a call that omits the prefix binds
+     * {@code LoggerMessageFormat#format(String, String, Object...)}: the object clause becomes the pattern, it
+     * carries no placeholder, and the formatter returns it alone -- an operator then reads " in [input.ndjson]",
+     * or an empty line where there is no object name, while the warning says what it always said. A
+     * {@code containsString} on the byte count cannot see that, since the count is one of the parts dropped.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasource.ndjson.TrimLastPartialLineInputStream:INFO",
+        reason = "the discard is an info line, and this asserts it names the object and both sizes"
+    )
+    public void testTheDiscardIsLoggedWithTheObjectAndTheSizes() {
+        int maxRecordBytes = 8;
+        MockLog.assertThatLogger(
+            () -> readDiscardingAnOversizedLine("input.ndjson", maxRecordBytes),
+            TrimLastPartialLineInputStream.class,
+            new MockLog.SeenEventExpectation(
+                "named object",
+                TrimLastPartialLineInputStream.class.getCanonicalName(),
+                Level.INFO,
+                "Skipping NDJSON line in [input.ndjson] of about [10] bytes over [8] at a split boundary (record_before_delimiter)"
+            )
+        );
+        MockLog.assertThatLogger(
+            () -> readDiscardingAnOversizedLine(null, maxRecordBytes),
+            TrimLastPartialLineInputStream.class,
+            new MockLog.SeenEventExpectation(
+                "no object name",
+                TrimLastPartialLineInputStream.class.getCanonicalName(),
+                Level.INFO,
+                "Skipping NDJSON line of about [10] bytes over [8] at a split boundary (record_before_delimiter)"
+            )
+        );
+    }
+
+    /** The read the two discard-warning tests above make, for a caller that cannot throw. */
+    private static void readDiscardingAnOversizedLine(String objectName, int maxRecordBytes) {
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream("aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8)),
+                4,
+                ErrorPolicy.LENIENT,
+                objectName,
+                new NdJsonRecordSplitter(maxRecordBytes),
+                warning -> {}
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     public void testTrimLastPartialLineLenientDiscardsOversizedTailThroughDelimiter() throws IOException {
         byte[] payload = "ok\naaaaaaaaa\nnext\npartial".getBytes(StandardCharsets.UTF_8);
         try (
@@ -933,7 +1055,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -961,7 +1083,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(batchSize, first.getPositionCount());
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -988,7 +1110,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(pageRows, first.getPositionCount());
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -1156,7 +1278,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -1253,7 +1375,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1369,7 +1491,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // column (previously the boolean was silently null). Lenient-mode behavior is covered by
         // testInferredCrossKindBooleanHonorsErrorMode.
         try (var iterator = reader.read(object, List.of("x", "y"), 100)) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1398,7 +1520,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1592,7 +1714,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
             )
         ) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1696,7 +1818,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(ParsingException.class, () -> {
+            var e = expectThrows(ExternalClientException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -2286,7 +2408,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(0, first.getBlockCount());
             assertEquals(2, first.getPositionCount());
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -2460,7 +2582,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var ctx = FormatReadContext.builder().projectedColumns(List.of("a", "c")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
-            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
+            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("malformed JSON; set [error_mode] to [skip_row] to skip the row instead"));
         }
     }
@@ -3580,7 +3702,21 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertThat("a partial-results warning must be surfaced", warnings, Matchers.not(Matchers.empty()));
         // The warning names the limit, not the byte offset; NdJsonPageDecoderMaxRecordSizeTests pins the offset
         // through NdJsonPageDecoder.truncatedAtByte().
-        assertThat(warnings, Matchers.hasItem("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial"));
+        // Located like every other skip warning: without the object this read as the same string for every
+        // object in a glob, and the warning budget deduplicates by exact string, so only one survived.
+        // One equalTo rather than two hasItems: two independent hasItems over one list are satisfied by two
+        // DIFFERENT warnings, so they both passed on "row [2]: record exceeds [...]" with the object dropped,
+        // and on "row [1] ..." with the ordinal off by one. This is the only test over that sink.
+        assertThat(
+            warnings,
+            Matchers.hasItem(
+                Matchers.equalTo(
+                    "row [2] of [stream-cap-lenient.ndjson]: record exceeds ["
+                        + ByteSizeValue.ofBytes(maxRecordBytes)
+                        + "]; results are partial"
+                )
+            )
+        );
     }
 
     /**

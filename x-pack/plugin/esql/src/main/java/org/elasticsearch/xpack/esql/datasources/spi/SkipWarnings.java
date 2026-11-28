@@ -61,10 +61,11 @@ public class SkipWarnings {
      * Used when a resolved column is entirely absent from a source file (Parquet, ORC, CSV, NDJSON).
      * SchemaAdaptingIterator, ParquetFormatReader, OrcFormatReader, CsvFormatReader, NdJsonPageDecoder
      * and, for a column a complete schema lacks, ExternalSourceResolver use this method so that
-     * InformationalWarningBudget's exact-string deduplication stays reliable across formats.
+     * InformationalWarningBudget's exact-string deduplication stays reliable across formats. The name is the file's,
+     * so it is escaped here, once for every caller, and cannot close the bracket and add a sentence of its own.
      */
     public static String absentColumnMessage(String columnName) {
-        return "column [" + columnName + "] is not present in some source files and reads null there";
+        return "column [" + RowLocation.escapedForDisplay(columnName) + "] is not present in some source files and reads null there";
     }
 
     /**

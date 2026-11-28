@@ -261,4 +261,16 @@ public class SkipWarningsTests extends ESTestCase {
         threadContext.stashContext();
         return messages;
     }
+
+    /** A column name is the file's text, so it cannot close the clause and announce a second absent column. */
+    public void testAnAbsentColumnNameCannotForgeASecondAbsence() {
+        String forged = "x] is not present in some source files and reads null there, column [y";
+        String message = SkipWarnings.absentColumnMessage(forged);
+        assertEquals(
+            "column [x\\u005D is not present in some source files and reads null there, column \\u005By]"
+                + " is not present in some source files and reads null there",
+            message
+        );
+        assertEquals("column [id] is not present in some source files and reads null there", SkipWarnings.absentColumnMessage("id"));
+    }
 }

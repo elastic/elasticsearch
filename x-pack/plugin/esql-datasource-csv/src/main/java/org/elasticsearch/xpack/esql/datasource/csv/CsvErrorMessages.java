@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 
 /**
  * Helpers for building short, user-facing CSV error messages.
@@ -27,62 +28,64 @@ final class CsvErrorMessages {
 
     private CsvErrorMessages() {}
 
-    /** Characters of context to keep before the fault offset in {@link #summarizeAround}. Small enough
+    /** Characters of context to keep before the fault offset in {@link #summarizeEscapedAround}. Small enough
      *  that most of the {@link ErrorExcerpts#MAX_EXCERPT_CHARS} budget is spent on the characters <em>at and after</em>
      *  the fault, where the unmatched delimiter actually lives. */
     static final int OFFSET_LOOKBACK_CHARS = 32;
 
     /**
-     * Like {@link ErrorExcerpts#summarize}, but anchored on the character index where the parser detected the
-     * fault. Short values are returned unchanged regardless of {@code offset}. Long values are
-     * reduced to a window anchored slightly before {@code offset} (see {@link #OFFSET_LOOKBACK_CHARS})
-     * and labelled with the offset and total length so the operator can locate the fault in the
-     * source file.
+     * Like {@link ErrorExcerpts#summarize}, but anchored on the character index where the parser detected the fault,
+     * and escaped by {@link RowLocation#escapedForDisplay} because the excerpt is printed inside a bracketed clause.
+     * A value that fits {@code cap} escaped is returned whole regardless of {@code offset}. A longer one is reduced to
+     * a window that starts slightly before {@code offset} (see {@link #OFFSET_LOOKBACK_CHARS}) and is labelled with
+     * the offset and the total length, so the user can find the fault in the file: the parser knows where it failed,
+     * so the characters at and after that index are kept rather than a head and tail that hide the middle of a long row.
+     * <p>
+     * The window is chosen with the escape already counted. Escaping a finished window and cutting it again once the
+     * escapes had widened it took from both ends, and with enough brackets or tabs before an unmatched quote the cut
+     * took the quote -- the one character the window is anchored to keep. {@code cap} is the room the caller's own
+     * wording leaves, so a second cap over the whole message never cuts inside an escape.
+     * <p>
+     * A negative {@code offset} means the fault's position is unknown, and the head of the value is kept with a
+     * {@code "(truncated, N chars total)"} suffix: for a parse error a head-only excerpt is the least misleading.
      *
-     * <p>This is the right shape for parse-fault excerpts: the parser knows where it failed (the
-     * index where {@code inQuotes} or {@code bracketDepth} flipped to a state that was never
-     * closed), so we keep the characters <em>at and after</em> that index rather than a symmetric
-     * head/tail snapshot that hides the middle of long rows.
-     *
-     * <p>If {@code offset} is negative (caller does not know where the fault is) the head of the
-     * value is returned with a {@code "(truncated, N chars total)"} suffix \u2014 same shape as
-     * {@link ErrorExcerpts#summarize} but without the tail, since for parse errors a head-only excerpt is the
-     * least-misleading fallback. Offsets that fall outside the multi-line gluing seam (e.g.
-     * computed against a {@code logicalLine} that joined continuations with {@code \n}) are
-     * relative to the glued logical line, not absolute file positions.
-     *
-     * @param value  the full row (or other parsed input); {@code null} maps to {@code "null"}.
-     * @param offset zero-based char index into {@code value} where the parser flagged the fault;
-     *               clamped to {@code [0, value.length()]}; negative means "unknown".
+     * @param value  the full row; {@code null} maps to {@code "null"}
+     * @param offset zero-based index into {@code value} where the parser flagged the fault; clamped to the value
      */
-    static String summarizeAround(String value, int offset) {
+    static String summarizeEscapedAround(String value, int offset, int cap) {
         if (value == null) {
             return "null";
         }
-        if (value.length() <= ErrorExcerpts.MAX_EXCERPT_CHARS) {
-            return value;
+        if (value.length() <= cap) {
+            String escaped = RowLocation.escapedForDisplay(value);
+            if (escaped.length() <= cap) {
+                return escaped;
+            }
         }
         if (offset < 0) {
             String marker = "… (truncated, " + value.length() + " chars total)";
-            int head = Math.max(0, ErrorExcerpts.MAX_EXCERPT_CHARS - marker.length());
-            return value.substring(0, head) + marker;
+            int budget = Math.max(0, cap - marker.length());
+            String window = value.substring(0, Math.min(value.length(), budget));
+            int head = ErrorExcerpts.charsEscapingWithin(window, budget, true);
+            return RowLocation.escapedForDisplay(value.substring(0, head)) + marker;
         }
         int clampedOffset = Math.min(offset, value.length());
-        int start = Math.max(0, clampedOffset - OFFSET_LOOKBACK_CHARS);
-        // Always emit the offset/total annotation so operators can locate the fault in the source file,
-        // even when the window happens to start at index 0. Bracket-style ellipses match the existing
-        // marker idiom in ErrorExcerpts.summarize().
+        // Each kept character costs at least one, so no window can hold more characters than its budget: slicing to
+        // the budget first bounds the walk without changing what it keeps.
+        String lookback = value.substring(Math.max(0, clampedOffset - OFFSET_LOOKBACK_CHARS), clampedOffset);
+        int start = clampedOffset - ErrorExcerpts.charsEscapingWithin(lookback, OFFSET_LOOKBACK_CHARS, false);
         String prefix = "(offset " + clampedOffset + " of " + value.length() + " chars) ";
         if (start > 0) {
             prefix = "… " + prefix + "… ";
         }
         String suffix = "…";
-        int budget = Math.max(0, ErrorExcerpts.MAX_EXCERPT_CHARS - prefix.length() - suffix.length());
-        int end = Math.min(value.length(), start + budget);
+        int budget = Math.max(0, cap - prefix.length() - suffix.length());
+        String forward = value.substring(start, Math.min(value.length(), start + budget));
+        int end = start + ErrorExcerpts.charsEscapingWithin(forward, budget, true);
         if (end >= value.length()) {
             suffix = "";
         }
-        return prefix + value.substring(start, end) + suffix;
+        return prefix + RowLocation.escapedForDisplay(value.substring(start, end)) + suffix;
     }
 
     /**

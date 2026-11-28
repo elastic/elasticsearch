@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.ArrayList;
@@ -91,7 +92,14 @@ public class ExternalReaderWarningFloodTests extends ESTestCase {
                 SkipWarnings unitWarnings = SkipWarnings.of(ErrorPolicy.PERMISSIVE, summary, sink);
                 for (int row = 0; row < BAD_ROWS_PER_UNIT; row++) {
                     unitWarnings.add(
-                        "row [" + row + "], column [v]: cannot read [notanumber-" + driver + "-" + unit + "-" + row + "] as [long]"
+                        RowLocation.of(row, "unit-" + unit + ".csv", RowLocation.BYTE_UNKNOWN, "v")
+                            + ": cannot read [notanumber-"
+                            + driver
+                            + "-"
+                            + unit
+                            + "-"
+                            + row
+                            + "] as [long]"
                     );
                 }
             }

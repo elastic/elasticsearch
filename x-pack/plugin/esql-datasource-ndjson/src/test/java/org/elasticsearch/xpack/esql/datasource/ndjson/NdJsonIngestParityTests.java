@@ -21,8 +21,8 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -220,7 +220,7 @@ public class NdJsonIngestParityTests extends MapperServiceTestCase {
     public void testRepeatedFlatKeyIsRejectedByBoth() {
         String json = """
             {"a.b":1,"a.b":2}""";
-        ParsingException readerFailure = expectThrows(ParsingException.class, () -> readerLeaves(json));
+        ExternalClientException readerFailure = expectThrows(ExternalClientException.class, () -> readerLeaves(json));
         assertThat(readerFailure.getMessage(), containsString("row [1]: duplicate field name"));
         assertThat(readerFailure.getCause().getMessage(), containsString("Duplicate field 'a.b'"));
         DocumentParsingException ingestFailure = expectThrows(DocumentParsingException.class, () -> ingestLeaves(json));

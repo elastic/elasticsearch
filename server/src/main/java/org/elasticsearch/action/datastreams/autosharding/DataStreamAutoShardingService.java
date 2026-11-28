@@ -25,12 +25,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.shard.IndexingStats;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -42,7 +44,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.toMap;
@@ -54,6 +55,7 @@ import static org.elasticsearch.action.datastreams.autosharding.AutoShardingResu
 public class DataStreamAutoShardingService {
 
     private static final Logger logger = LogManager.getLogger(DataStreamAutoShardingService.class);
+    private static final DateFormatter TIMESTAMP_FORMATTER = DateFormatter.forPattern("strict_date_time");
     public static final String DATA_STREAMS_AUTO_SHARDING_ENABLED = "data_streams.auto_sharding.enabled";
 
     public static final Setting<List<String>> DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING = Setting.listSetting(
@@ -270,6 +272,7 @@ public class DataStreamAutoShardingService {
         /**
          * Contains the inputs to a decision.
          *
+         * @param timestampMillis The time, in milliseconds since the epoch, at which the decision was made
          * @param increaseShardsCooldown The time since the last auto-sharding to wait before increasing the shards
          *     (see the {@link #DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN} cluster setting)
          * @param decreaseShardsCooldown The time since the last auto-sharding to wait before decreasing the shards - or, if there was no
@@ -295,6 +298,7 @@ public class DataStreamAutoShardingService {
          *     {@link #DATA_STREAMS_AUTO_SHARDING_TIME_SERIES_MIN_NUMBER_OF_SHARDS} cluster settings)
          */
         record Inputs(
+            long timestampMillis,
             TimeValue increaseShardsCooldown,
             TimeValue decreaseShardsCooldown,
             int minWriteThreads,
@@ -308,7 +312,9 @@ public class DataStreamAutoShardingService {
             double writeIndexPeakLoad,
             int currentNumberOfWriteIndexShards,
             int minNumberOfShards
-        ) {}
+        ) {
+            // TODO add ProjectId
+        }
 
         /**
          * Contains details from the increase shards calculation.
@@ -387,6 +393,58 @@ public class DataStreamAutoShardingService {
                     )
             );
         }
+
+        /**
+         * A compact single-line representation used by the {@link PeriodicDecisionLogger}. It omits the data stream name, which the
+         * periodic logger prints once per group instead of on every line. The trailing settings (cooldowns and write threads) are the
+         * ones captured when the decision was made.
+         */
+        String toCompactString() {
+            return Strings.format(
+                "[%s] %s: %s | load all/recent/peak=%g/%g/%g | inc: %d (%s %g) | dec: %s | cooldown inc/dec=%s/%s, threads=%d-%d",
+                TIMESTAMP_FORMATTER.formatMillis(inputs.timestampMillis),
+                inputs.writeIndex,
+                compactResult(result),
+                inputs.writeIndexAllTimeLoad,
+                inputs.writeIndexRecentLoad,
+                inputs.writeIndexPeakLoad,
+                increaseCalculation.optimalShardCountForIncrease,
+                inputs.increaseShardsMetric,
+                increaseCalculation.writeIndexLoadForIncrease,
+                decreaseCalculation == null
+                    ? "skipped"
+                    : Strings.format(
+                        "%d (%s %g, %s, min %d)",
+                        decreaseCalculation.optimalShardCountForDecrease,
+                        inputs.decreaseShardsMetric,
+                        decreaseCalculation.maxLoadWithinCooldown.load,
+                        decreaseCalculation.maxLoadWithinCooldown.previousIndexWithMaxLoad != null
+                            ? decreaseCalculation.maxLoadWithinCooldown.previousIndexWithMaxLoad
+                            : "write index",
+                        inputs.minNumberOfShards
+                    ),
+                inputs.increaseShardsCooldown,
+                inputs.decreaseShardsCooldown,
+                inputs.minWriteThreads,
+                inputs.maxWriteThreads
+            );
+        }
+
+        private static String compactResult(AutoShardingResult result) {
+            return switch (result.type()) {
+                case INCREASE_SHARDS -> Strings.format("INCREASE %d->%d", result.currentNumberOfShards(), result.targetNumberOfShards());
+                case DECREASE_SHARDS -> Strings.format("DECREASE %d->%d", result.currentNumberOfShards(), result.targetNumberOfShards());
+                case COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> Strings.format(
+                    "%s %d->%d (remaining %s)",
+                    result.type(),
+                    result.currentNumberOfShards(),
+                    result.targetNumberOfShards(),
+                    result.coolDownRemaining()
+                );
+                case NO_CHANGE_REQUIRED -> Strings.format("NO_CHANGE %d", result.currentNumberOfShards());
+                case NOT_APPLICABLE -> "NOT_APPLICABLE";
+            };
+        }
     }
 
     /**
@@ -456,6 +514,7 @@ public class DataStreamAutoShardingService {
         IndexMetadata writeIndex = state.metadata().index(dataStream.getWriteIndex());
         assert writeIndex != null : "the data stream write index must exist in the provided cluster metadata";
         Decision.Inputs inputs = new Decision.Inputs(
+            nowSupplier.getAsLong(),
             increaseShardsCooldown,
             decreaseShardsCooldown,
             minWriteThreads,
@@ -813,7 +872,7 @@ public class DataStreamAutoShardingService {
         static final int BUFFER_SIZE = 10;
         static final long FLUSH_INTERVAL_MILLIS = TimeValue.timeValueMinutes(5).millis();
 
-        private static final Comparator<Decision> HIGHEST_LOAD_COMPARATOR = Comparator.comparing(
+        private static final Comparator<Decision> HIGHEST_LOAD_COMPARATOR = Comparator.comparingDouble(
             d -> d.increaseCalculation().writeIndexLoadForIncrease()
         );
 
@@ -866,18 +925,47 @@ public class DataStreamAutoShardingService {
         private static void logFlushedDecision(FlushedDecisions decisions) {
             if (decisions.highestLoadIncreaseDecisions.isEmpty() == false) {
                 logger.info(
-                    "Data stream auto-sharding decisions in the last {} with highest load with an increase shards recommendation: \n{}",
+                    "Auto-sharding decisions [last {}, top {} by load] with increase recommendation:{}",
                     TimeValue.timeValueMillis(FLUSH_INTERVAL_MILLIS),
-                    decisions.highestLoadIncreaseDecisions.stream().map(d -> " - " + d).collect(Collectors.joining("\n"))
+                    BUFFER_SIZE,
+                    formatDecisions(decisions.highestLoadIncreaseDecisions)
                 );
             }
             if (decisions.highestLoadNonIncreaseDecisions.isEmpty() == false) {
                 logger.info(
-                    "Data stream auto-sharding decisions in the last {} with highest load without an increase shards recommendation: \n{}",
+                    "Auto-sharding decisions [last {}, top {} by load] without increase recommendation:{}",
                     TimeValue.timeValueMillis(FLUSH_INTERVAL_MILLIS),
-                    decisions.highestLoadNonIncreaseDecisions.stream().map(d -> " - " + d).collect(Collectors.joining("\n"))
+                    BUFFER_SIZE,
+                    formatDecisions(decisions.highestLoadNonIncreaseDecisions)
                 );
             }
+        }
+
+        /**
+         * Groups the decisions by data stream. The input is sorted by load, highest first, and the insertion-ordered map preserves that
+         * for the data streams: they are ordered by their highest-load decision. The decisions of each data stream are then ordered
+         * chronologically, so the evolution of a data stream's load can be read top to bottom.
+         */
+        // Visible for testing
+        static Map<String, List<Decision>> groupDecisions(List<Decision> sortedDecisions) {
+            Map<String, List<Decision>> grouped = new LinkedHashMap<>();
+            for (Decision decision : sortedDecisions) {
+                grouped.computeIfAbsent(decision.inputs().dataStream(), k -> new ArrayList<>()).add(decision);
+            }
+            grouped.values().forEach(decisions -> decisions.sort(Comparator.comparingLong(d -> d.inputs().timestampMillis())));
+            return grouped;
+        }
+
+        // Visible for testing
+        static String formatDecisions(List<Decision> sortedDecisions) {
+            StringBuilder sb = new StringBuilder();
+            groupDecisions(sortedDecisions).forEach((dataStream, decisions) -> {
+                sb.append("\n ").append(dataStream);
+                for (Decision decision : decisions) {
+                    sb.append("\n  - ").append(decision.toCompactString());
+                }
+            });
+            return sb.toString();
         }
     }
 }

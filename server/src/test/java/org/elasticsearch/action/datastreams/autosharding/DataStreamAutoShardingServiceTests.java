@@ -981,6 +981,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         WriteLoadMetric decreaseShardsMetric
     ) {
         return new Decision.Inputs(
+            now,
             TimeValue.timeValueSeconds(270),
             TimeValue.timeValueDays(3),
             2,
@@ -1204,23 +1205,25 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             new DataStreamAutoShardingService.PeriodicDecisionLogger(clock::get, recorder::record);
 
         // Should not flush when logging at the start time:
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(1));
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(1, start));
         assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
 
         // Should not flush when logging in the past:
-        clock.set(start - 1);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(2));
+        long pastTime = start - 1;
+        clock.set(pastTime);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(2, pastTime));
         assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
 
         // Should not flush when logging just before the interval since the start has elapsed:
-        clock.set(start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS - 1);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(3));
+        long notFlushTimeYet = start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS - 1;
+        clock.set(notFlushTimeYet);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(3, notFlushTimeYet));
         assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
 
         // Should flush when logging at exactly the interval since the start has elapsed:
         long firstFlushTime = start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS;
         clock.set(firstFlushTime);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(4));
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(4, firstFlushTime));
         assertThat(
             recorder.highestLoadNonIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
             containsInAnyOrder("data-stream-1", "data-stream-2", "data-stream-3", "data-stream-4")
@@ -1228,18 +1231,19 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         recorder.clear();
 
         // Should not flush a second time when logging again at the same time:
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(5));
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(5, firstFlushTime));
         assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
 
         // Should not flush a second time when logging just before the interval since the first flush has elapsed:
-        clock.set(firstFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS - 1);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(6));
+        long notSecondFlushTimeYet = firstFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS - 1;
+        clock.set(notSecondFlushTimeYet);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(6, notSecondFlushTimeYet));
         assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
 
         // Should flush a second time when logging some extra time after the interval since the first flush has elapsed:
         long secondFlushTime = firstFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS + 123456L;
         clock.set(secondFlushTime);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(7));
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(7, secondFlushTime));
         assertThat(
             recorder.highestLoadNonIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
             containsInAnyOrder("data-stream-5", "data-stream-6", "data-stream-7")
@@ -1248,13 +1252,15 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         // Should not flush a third time when logging just before the interval since the second flush has elapsed:
         // (N.B. This time is more than two intervals since the start, but we count time from the last flush.)
-        clock.set(secondFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS - 1);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(8));
+        long thirdFlushTime = secondFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS;
+        long notThirdFlushTimeYet = thirdFlushTime - 1;
+        clock.set(notThirdFlushTimeYet);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(8, notThirdFlushTimeYet));
         assertThat(recorder.highestLoadNonIncreaseDecisions, empty());
 
         // Should flush a third time when logging at exactly the interval since the second flush has elapsed:
-        clock.set(secondFlushTime + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(9));
+        clock.set(thirdFlushTime);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(9, thirdFlushTime));
         assertThat(
             recorder.highestLoadNonIncreaseDecisions.stream().map(d -> d.inputs().dataStream()).toList(),
             containsInAnyOrder("data-stream-8", "data-stream-9")
@@ -1270,16 +1276,17 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         // Pass in 13 decisions, in the order 8, 7, 6, 5; 13, 12, 11, 10; 4, 3, 2, 1; 9. Updating the clock before the last decision.
         for (int i = 8; i >= 5; i--) {
-            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i));
+            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i, start));
         }
         for (int i = 13; i >= 10; i--) {
-            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i));
+            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i, start));
         }
         for (int i = 4; i >= 1; i--) {
-            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i));
+            periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(i, start));
         }
-        clock.set(start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(9));
+        long flushTime = start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS;
+        clock.set(flushTime);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(9, flushTime));
 
         // Should have logged the 10 decisions with the highest load, in decreasing order, i.e. number 13 down to number 4:
         assertThat(
@@ -1296,10 +1303,11 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             new DataStreamAutoShardingService.PeriodicDecisionLogger(clock::get, recorder::record);
 
         // Pass in 3 decisions. Update the clock before the last decision. The highest load decision has an increment result.
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(1));
-        periodicDecisionLogger.maybeLogDecision(createIncreaseDecision(3));
-        clock.set(start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS);
-        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(2));
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(1, start));
+        periodicDecisionLogger.maybeLogDecision(createIncreaseDecision(3, start));
+        long flushTime = start + DataStreamAutoShardingService.PeriodicDecisionLogger.FLUSH_INTERVAL_MILLIS;
+        clock.set(flushTime);
+        periodicDecisionLogger.maybeLogDecision(createNoChangeDecision(2, flushTime));
 
         // Assert that we correctly separated the increase and the non-increase decisions.
         assertThat(
@@ -1312,27 +1320,131 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         );
     }
 
-    private DataStreamAutoShardingService.Decision createNoChangeDecision(int writeIndexLoad) {
+    /**
+     * Decisions for two data streams, interleaved by load, should be grouped per data stream, with data streams ordered by their highest
+     * load and each data stream's decisions ordered chronologically.
+     */
+    public void testPeriodResultLogger_formatDecisionsGroupsByDataStream() {
+        long decisionTimestampMillis = 1795601730123L; // 2026-11-25T10:15:30.123Z
+        TimeValue increaseCooldown = TimeValue.timeValueSeconds(270);
+        List<Decision> sortedByLoad = List.of(
+            createDecisionForFormatTests(
+                decisionTimestampMillis + TimeValue.timeValueMinutes(1).millis(),
+                increaseCooldown,
+                "ds-a",
+                ".ds-ds-a-000003",
+                9.5,
+                null
+            ),
+            createDecisionForFormatTests(decisionTimestampMillis, increaseCooldown, "ds-b", ".ds-ds-b-000001", 8.25, ".ds-ds-b-000000"),
+            createDecisionForFormatTests(decisionTimestampMillis, increaseCooldown, "ds-a", ".ds-ds-a-000003", 7.25, ".ds-ds-a-000002")
+        );
+
+        assertThat(DataStreamAutoShardingService.PeriodicDecisionLogger.formatDecisions(sortedByLoad), equalTo("""
+
+             ds-a
+              - [2026-11-25T10:15:30.123Z] .ds-ds-a-000003: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/7.25000 \
+            | inc: 3 (PEAK 7.25000) | dec: 3 (PEAK 9.10450, .ds-ds-a-000002, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
+              - [2026-11-25T10:16:30.123Z] .ds-ds-a-000003: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/9.50000 \
+            | inc: 3 (PEAK 9.50000) | dec: 3 (PEAK 9.50000, write index, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
+             ds-b
+              - [2026-11-25T10:15:30.123Z] .ds-ds-b-000001: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/8.25000 \
+            | inc: 3 (PEAK 8.25000) | dec: 3 (PEAK 9.10450, .ds-ds-b-000000, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32"""));
+    }
+
+    /**
+     * Each decision should report the settings captured when it was made, even if they changed (dynamically) within one flush interval.
+     * Also covers the increase result and the skipped decrease calculation.
+     */
+    public void testPeriodResultLogger_formatDecisionsReportsSettingsPerDecision() {
+        long decisionTimestampMillis = 1795601730123L; // 2026-11-25T10:15:30.123Z
+        List<Decision> sortedByLoad = List.of(
+            createDecisionForFormatTests(decisionTimestampMillis, TimeValue.timeValueSeconds(270), "ds-a", ".ds-ds-a-000001", 3.0, null),
+            createDecisionForFormatTests(
+                decisionTimestampMillis + TimeValue.timeValueMinutes(1).millis(),
+                TimeValue.timeValueMinutes(10),
+                "ds-a",
+                ".ds-ds-a-000001",
+                2.0,
+                null
+            ),
+            createIncreaseDecision(1, decisionTimestampMillis)
+        );
+
+        assertThat(DataStreamAutoShardingService.PeriodicDecisionLogger.formatDecisions(sortedByLoad), equalTo("""
+
+             ds-a
+              - [2026-11-25T10:15:30.123Z] .ds-ds-a-000001: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/3.00000 \
+            | inc: 3 (PEAK 3.00000) | dec: 3 (PEAK 3.00000, write index, min 1) | cooldown inc/dec=4.5m/3d, threads=2-32
+              - [2026-11-25T10:16:30.123Z] .ds-ds-a-000001: NO_CHANGE 3 | load all/recent/peak=0.100000/0.200000/2.00000 \
+            | inc: 3 (PEAK 2.00000) | dec: 3 (PEAK 2.00000, write index, min 1) | cooldown inc/dec=10m/3d, threads=2-32
+             data-stream-1
+              - [2026-11-25T10:15:30.123Z] the-write-index: INCREASE 3->4 | load all/recent/peak=0.100000/0.200000/1.00000 \
+            | inc: 4 (PEAK 1.00000) | dec: skipped | cooldown inc/dec=4.5m/3d, threads=2-32"""));
+    }
+
+    private static Decision createDecisionForFormatTests(
+        long timestampMillis,
+        TimeValue increaseCooldown,
+        String dataStream,
+        String writeIndex,
+        double peakLoad,
+        @Nullable String previousIndexWithMaxLoad
+    ) {
+        Decision.Inputs inputs = new Decision.Inputs(
+            timestampMillis,
+            increaseCooldown,
+            TimeValue.timeValueDays(3),
+            2,
+            32,
+            WriteLoadMetric.PEAK,
+            WriteLoadMetric.PEAK,
+            dataStream,
+            writeIndex,
+            0.1,
+            0.2,
+            peakLoad,
+            3,
+            1
+        );
+        double maxLoadForDecrease = previousIndexWithMaxLoad == null ? peakLoad : 9.1045;
         return new Decision(
-            createDecisionInputsForPeriodLoggerTests(writeIndexLoad),
+            inputs,
+            new Decision.IncreaseCalculation(peakLoad, 3, null),
+            new Decision.DecreaseCalculation(
+                new Decision.DecreaseCalculation.MaxLoadWithinCooldown(maxLoadForDecrease, previousIndexWithMaxLoad),
+                3,
+                null
+            ),
+            new AutoShardingResult(AutoShardingType.NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO)
+        );
+    }
+
+    private DataStreamAutoShardingService.Decision createNoChangeDecision(int writeIndexLoad, long decisionTimestamp) {
+        return new Decision(
+            createDecisionInputsForPeriodLoggerTests(writeIndexLoad, decisionTimestamp),
             new Decision.IncreaseCalculation(1.0 * writeIndexLoad, 2, null),
             null,
             new AutoShardingResult(AutoShardingType.NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO)
         );
     }
 
-    private DataStreamAutoShardingService.Decision createIncreaseDecision(int writeIndexLoad) {
+    private DataStreamAutoShardingService.Decision createIncreaseDecision(int writeIndexLoad, long decisionTimestamp) {
         AutoShardingResult result = new AutoShardingResult(INCREASE_SHARDS, 3, 4, TimeValue.ZERO);
         return new Decision(
-            createDecisionInputsForPeriodLoggerTests(writeIndexLoad),
+            createDecisionInputsForPeriodLoggerTests(writeIndexLoad, decisionTimestamp),
             new Decision.IncreaseCalculation(1.0 * writeIndexLoad, 4, result),
             null,
             result
         );
     }
 
-    private static Decision.Inputs createDecisionInputsForPeriodLoggerTests(int writeIndexLoadForIncreaseAndDataStreamName) {
+    private static Decision.Inputs createDecisionInputsForPeriodLoggerTests(
+        int writeIndexLoadForIncreaseAndDataStreamName,
+        long decisionTimestamp
+    ) {
         return new Decision.Inputs(
+            decisionTimestamp,
             TimeValue.timeValueSeconds(270),
             TimeValue.timeValueDays(3),
             2,

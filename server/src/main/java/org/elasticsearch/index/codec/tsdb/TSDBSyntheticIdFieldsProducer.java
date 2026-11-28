@@ -89,7 +89,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             public BytesRef getMin() throws IOException {
                 // Prefer an explicit min over the default Terms#getMin walk so bloom-filter wrappers that
                 // delegate here (and checkIndex / relocation prewarm) never rely on incomplete seekCeil probes.
-                var docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
+                var docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, maxDocs);
                 for (int doc = 0; doc < maxDocs; doc++) {
                     if (docValues.hasTsIdDocValue(doc)) {
                         return docValues.docSyntheticId(doc);
@@ -104,7 +104,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 // with a _tsid holds the lexicographically largest synthetic _id. Override the default
                 // Terms#getMax binary search: its incomplete probe keys are not valid synthetic ids and
                 // trip extractTimestampFromSyntheticId when seekCeil matches a _tsid.
-                var docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
+                var docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, maxDocs);
                 for (int doc = maxDocs - 1; doc >= 0; doc--) {
                     if (docValues.hasTsIdDocValue(doc)) {
                         return docValues.docSyntheticId(doc);
@@ -185,7 +185,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         private @Nullable Long docTimestamp;
 
         private SyntheticIdTermsEnum() {
-            this.docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
+            this.docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, maxDocs);
             resetDocID(-1);
         }
 
@@ -341,6 +341,24 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             } else {
                 nextDocID = firstDocID;
             }
+            // Within a _tsid documents are sorted by descending timestamp, so the target is the first one whose timestamp is
+            // not greater than the one sought. Bisect for it; the loop below runs from the result and re-checks both the _tsid
+            // and the timestamp.
+            final var randomAccessTimestamps = docValues.randomAccessTimestamps();
+            if (randomAccessTimestamps != null) {
+                int lo = nextDocID;
+                int hi = Math.min(maxDocs, docValues.findStartDocIDForTsIdOrd(tsIdOrd + 1));
+                while (lo < hi) {
+                    final int mid = (lo + hi) >>> 1;
+                    if (randomAccessTimestamps.valueAt(mid) > timestamp) {
+                        lo = mid + 1;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                nextDocID = lo;
+            }
+
             int nextDocTsIdOrd = tsIdOrd;
             long nextDocTimestamp;
 
@@ -464,7 +482,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
         private SyntheticIdPostingsEnum(int docID, int termTsIdOrd, long termTimestamp) {
             assert docID < maxDocs : docID + " >= " + maxDocs;
-            this.docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer);
+            this.docValues = new TSDBSyntheticIdDocValuesHolder(fieldInfos, docValuesProducer, maxDocs);
             this.termTsIdOrd = termTsIdOrd;
             this.termTimestamp = termTimestamp;
             this.startDocId = docID;
